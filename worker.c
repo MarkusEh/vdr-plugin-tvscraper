@@ -154,7 +154,6 @@ void cTVScraperWorker::ScrapRecordings(void) {
         const cEvent *recEvent = recInfo->GetEvent();
         if (recEvent) {
             tEventID recEventID = recEvent->EventID();
-            string recTitle = recInfo->Title();
             scrapType type = GetScrapType(recEvent);
             if (type == scrapSeries) {
                 int seriesID = db->SearchSeries(recEvent->Title());
