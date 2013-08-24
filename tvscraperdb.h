@@ -12,6 +12,7 @@ private:
     string dbPathMem;
     bool inMem;
     vector<vector<string> > Query(string query);
+    vector<vector<string> > QueryEscaped(string query, string where);
     int LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int isSave);
     bool CreateTables(void);
 public:

@@ -51,6 +51,34 @@ vector<vector<string> > cTVScraperDB::Query(string query) {
     return results; 
 }
 
+vector<vector<string> > cTVScraperDB::QueryEscaped(string query, string where) {
+    sqlite3_stmt *statement;
+    vector<vector<string> > results;
+    if(sqlite3_prepare_v2(db, query.c_str(), -1, &statement, 0) == SQLITE_OK) {
+        sqlite3_bind_text(statement, 1, where.c_str(), -1, SQLITE_TRANSIENT);
+        int cols = sqlite3_column_count(statement);
+        int result = 0;
+        while(true) {
+            result = sqlite3_step(statement);
+            if(result == SQLITE_ROW) {
+                vector<string> values;
+                for(int col = 0; col < cols; col++) {
+                    values.push_back((char*)sqlite3_column_text(statement, col));
+                }
+                results.push_back(values);
+            } else {
+                break;  
+            }
+        }
+        sqlite3_finalize(statement);
+    }
+    string error = sqlite3_errmsg(db);
+    if(error != "not an error") {
+        esyslog("tvscraper: query failed: %s , error: %s", query.c_str(), error.c_str());
+    }
+    return results; 
+}
+
 bool cTVScraperDB::Connect(void) {
     if (inMem) {
         if (sqlite3_open(dbPathMem.c_str(),&db)!=SQLITE_OK) {
@@ -395,9 +423,8 @@ bool cTVScraperDB::SeriesExists(int seriesID) {
 }
 
 int cTVScraperDB::SearchMovie(string movieTitle) {
-    stringstream sql;
-    sql << "select movie_id from movies where movie_title='" << movieTitle.c_str() << "'";
-    vector<vector<string> > result = Query(sql.str());
+    string sql = "select movie_id from movies where movie_title=?";
+    vector<vector<string> > result = QueryEscaped(sql, movieTitle);
     int movieID = 0;
     if (result.size() > 0) {
         vector<vector<string> >::iterator it = result.begin();
@@ -410,9 +437,8 @@ int cTVScraperDB::SearchMovie(string movieTitle) {
 }
 
 int cTVScraperDB::SearchSeries(string seriesTitle) {
-    stringstream sql;
-    sql << "select series_id from series where series_name='" << seriesTitle.c_str() << "'";
-    vector<vector<string> > result = Query(sql.str());
+    string sql = "select series_id from series where series_name=?";
+    vector<vector<string> > result = QueryEscaped(sql, seriesTitle);
     int seriesID = 0;
     if (result.size() > 0) {
         vector<vector<string> >::iterator it = result.begin();

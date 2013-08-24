@@ -4,3 +4,10 @@ VDR Plugin 'tvscraper' Revision History
 2013-07-26: Version 0.0.1
 
 - Initial revision.
+
+2013-08-24: Version 0.0.2
+
+- renamed plugin to "tvscraper"
+- removed unnecessary string in ScrapRecordings
+- Correctly escaped select statements with movie 
+  or series titles
