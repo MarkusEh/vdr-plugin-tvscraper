@@ -79,9 +79,9 @@ void cTVScraperWorker::SetDirectories(void) {
 scrapType cTVScraperWorker::GetScrapType(const cEvent *event) {
     scrapType type = scrapNone;
     int duration = event->Duration() / 60;
-    if ((duration > 19) && (duration < 65)) {
+    if ((duration > 9) && (duration <= 75)) {
         type = scrapSeries;
-    } else if (duration > 80) {
+    } else if (duration > 75) {
         type = scrapMovie;
     }
     return type;

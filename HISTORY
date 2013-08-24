@@ -11,3 +11,6 @@ VDR Plugin 'tvscraper' Revision History
 - removed unnecessary string in ScrapRecordings
 - Correctly escaped select statements with movie 
   or series titles
+- adapted detection of series/movies: duration of
+  series has to be between 10 and 75 minutes, movies 
+  have to be longer than 75 minutes
