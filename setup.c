@@ -23,9 +23,9 @@ cTVScraperSetup::~cTVScraperSetup() {
 void cTVScraperSetup::Setup(void) {
     int currentItem = Current();
     Clear();
-    Add(new cOsdItem(tr("Configure channels to be scrapped")));
-    Add(new cOsdItem(tr("Trigger scrapping Video Directory")));
-    Add(new cOsdItem(tr("Trigger EPG scrapping")));
+    Add(new cOsdItem(tr("Configure channels to be scraped")));
+    Add(new cOsdItem(tr("Trigger scraping Video Directory")));
+    Add(new cOsdItem(tr("Trigger EPG scraping")));
     Add(new cMenuEditBoolItem(tr("Enable Debug Logging"), &config.enableDebug));
     
     SetCurrent(Get(currentItem));
@@ -39,14 +39,14 @@ eOSState cTVScraperSetup::ProcessKey(eKeys Key) {
     eOSState state = cMenuSetupPage::ProcessKey(Key);
     if (!hadSubMenu && (Key == kOk)) {
         const char* ItemText = Get(Current())->Text();
-        if (strcmp(ItemText, tr("Configure channels to be scrapped")) == 0)
+        if (strcmp(ItemText, tr("Configure channels to be scraped")) == 0)
             state = AddSubMenu(new cTVScraperChannelSetup(&channelsScrap));
-        else if (strcmp(ItemText, tr("Trigger scrapping Video Directory")) == 0) {
-            Skins.Message(mtInfo, "Scrapping Video Directory started");
+        else if (strcmp(ItemText, tr("Trigger scraping Video Directory")) == 0) {
+            Skins.Message(mtInfo, "Scraping Video Directory started");
             worker->InitVideoDirScan();
             state = osContinue;
-        } else if (strcmp(ItemText, tr("Trigger EPG scrapping")) == 0) {
-            Skins.Message(mtInfo, "EPG Scrapping started");
+        } else if (strcmp(ItemText, tr("Trigger EPG scraping")) == 0) {
+            Skins.Message(mtInfo, "EPG Scraping started");
             worker->InitManualScan();
             state = osContinue;
         }
@@ -75,7 +75,7 @@ void cTVScraperSetup::Store(void) {
 
 /* cTVScraperChannelSetup */
 
-cTVScraperChannelSetup ::cTVScraperChannelSetup (vector<int> *channelsScrap) : cOsdMenu(tr("Configure channels to be scrapped"), 30) {
+cTVScraperChannelSetup ::cTVScraperChannelSetup (vector<int> *channelsScrap) : cOsdMenu(tr("Configure channels to be scraped"), 30) {
     this->channelsScrap = channelsScrap;
     SetMenuCategory(mcSetupPlugins);
     Setup();
