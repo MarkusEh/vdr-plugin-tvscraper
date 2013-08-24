@@ -122,7 +122,7 @@ void cTVScraperWorker::ScrapEPG(void) {
     for (int i=0; i<numChannels; i++) {
         string channelID = channels[i];
         const cChannel *channel = Channels.GetByChannelID(tChannelID::FromString(channelID.c_str()));
-        dsyslog("tvscraper: scrapping Channel %s %s", channel->Name(), channelID.c_str());
+        dsyslog("tvscraper: scraping Channel %s %s", channel->Name(), channelID.c_str());
         cSchedulesLock schedulesLock;
         const cSchedules *schedules = cSchedules::Schedules(schedulesLock);
         const cSchedule *Schedule = schedules->GetSchedule(channel);
@@ -218,14 +218,14 @@ void cTVScraperWorker::Action(void) {
         }
         CheckRunningTimers();
         if (StartScrapping()) {
-            dsyslog("tvscraper: start scrapping epg");
+            dsyslog("tvscraper: start scraping epg");
             db->ClearOutdated(movieDir);
             if (ConnectScrapers()) {
                 ScrapEPG();
             }
             DisconnectScrapers();
             db->BackupToDisc();
-            dsyslog("tvscraper: epg scrapping done");
+            dsyslog("tvscraper: epg scraping done");
         }
         waitCondition.TimedWait(mutex, loopSleep);    
     }
