@@ -24,7 +24,7 @@ cTVDBScraper::~cTVDBScraper() {
 void cTVDBScraper::Scrap(const cEvent *event, int recordingID) {
     string seriesName = event->Title();
     if (config.enableDebug)
-        esyslog("tvscraper: scrapping series \"%s\"", seriesName.c_str());
+        esyslog("tvscraper: scraping series \"%s\"", seriesName.c_str());
     int eventID = (int)event->EventID();
     cTVDBSeries *series = ReadSeries(seriesName);
     cTVDBSeriesMedia *media = NULL;
@@ -56,7 +56,7 @@ void cTVDBScraper::Scrap(const cEvent *event, int recordingID) {
     if (actors)
         delete actors;
     if (config.enableDebug)
-        esyslog("tvscraper: \"%s\" successfully scrapped, id %d", seriesName.c_str(), series->ID());
+        esyslog("tvscraper: \"%s\" successfully scraped, id %d", seriesName.c_str(), series->ID());
 }
 
 

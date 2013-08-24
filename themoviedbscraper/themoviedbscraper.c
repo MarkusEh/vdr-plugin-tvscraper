@@ -8,7 +8,6 @@ using namespace std;
 
 cMovieDBScraper::cMovieDBScraper(string baseDir, cTVScraperDB *db, string language) {
     apiKey = "abb01b5a277b9c2c60ec0302d83c5ee9";
-    //TODO: use language from VDR settings
     this->language = language;
     baseURL = "api.themoviedb.org/3";
     this->baseDir = baseDir;
@@ -25,7 +24,7 @@ void cMovieDBScraper::Scrap(const cEvent *event, int recordingID) {
     string movieName = event->Title();
     int eventID = (int)event->EventID();
     if (config.enableDebug)
-        esyslog("tvscraper: scrapping movie \"%s\"", movieName.c_str());
+        esyslog("tvscraper: scraping movie \"%s\"", movieName.c_str());
     int movieID = SearchMovie(movieName);
     if (movieID < 1) {
         if (config.enableDebug)
@@ -55,7 +54,7 @@ void cMovieDBScraper::Scrap(const cEvent *event, int recordingID) {
     delete movie;
     delete actors;
     if (config.enableDebug)
-        esyslog("tvscraper: \"%s\" successfully scrapped, id %d", movieName.c_str(), movieID);
+        esyslog("tvscraper: \"%s\" successfully scraped, id %d", movieName.c_str(), movieID);
 }
 
 bool cMovieDBScraper::Connect(void) {
