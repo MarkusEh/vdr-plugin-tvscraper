@@ -98,6 +98,8 @@ int cMovieDBScraper::SearchMovie(string movieName) {
     movieEscaped << "\"" << movieName << "\"";
     stringstream url;
     url << baseURL << "/search/movie?api_key=" << apiKey << "&query=" << CurlEscape(movieEscaped.str().c_str()) << "&language=" << language.c_str();
+    if (config.enableDebug)
+        esyslog("tvscraper: calling %s", url.str().c_str());
     string movieJSON;
     int movieID = -1;
     if (CurlGetUrl(url.str().c_str(), &movieJSON)) {

@@ -78,6 +78,8 @@ cTVDBSeries *cTVDBScraper::ReadSeries(string seriesName) {
     url << mirrors->GetMirrorXML() << "/api/GetSeries.php?seriesname=" << CurlEscape(seriesEscape.str().c_str()) << "&language=" << language.c_str();
     string seriesXML;
     cTVDBSeries *series = NULL;
+    if (config.enableDebug)
+        esyslog("tvscraper: calling %s", url.str().c_str());
     if (CurlGetUrl(url.str().c_str(), &seriesXML)) {
         series = new cTVDBSeries(seriesXML);
         series->ParseXML();
