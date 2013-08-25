@@ -18,3 +18,4 @@ VDR Plugin 'tvscraper' Revision History
 Version 0.0.3
 - Implemented cache so that an already looked up 
   series or movie will not be looked up again
+- Removed quotation marks around search strings
