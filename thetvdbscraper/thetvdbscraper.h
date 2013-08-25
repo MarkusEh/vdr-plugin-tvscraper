@@ -12,6 +12,7 @@ private:
     string baseDir;
     string language;
     cTVScraperDB *db;
+    map<string, int> cache;
     cTVDBMirrors *mirrors;
     cTVDBSeries *ReadSeries(string seriesName);
     cTVDBSeriesMedia *ReadSeriesMedia(int seriesID);

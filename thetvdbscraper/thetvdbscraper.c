@@ -1,6 +1,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <map>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include "thetvdbscraper.h"
@@ -26,11 +27,28 @@ void cTVDBScraper::Scrap(const cEvent *event, int recordingID) {
     if (config.enableDebug)
         esyslog("tvscraper: scraping series \"%s\"", seriesName.c_str());
     int eventID = (int)event->EventID();
+
+    map<string,int>::iterator cacheHit = cache.find(seriesName);
+    if (cacheHit != cache.end()) {
+        if (config.enableDebug)
+            esyslog("tvscraper: found in cache %s => %d", ((string)cacheHit->first).c_str(), (int)cacheHit->second);
+        int cachedSeriesID = (int)cacheHit->second;
+        if (cachedSeriesID > 0) {
+            if (!recordingID) {
+                time_t validTill = event->EndTime();
+                db->InsertEventSeries(eventID, validTill, cachedSeriesID);
+            } else  {
+                db->InsertRecording(recordingID, cachedSeriesID, 0);
+            }
+        }
+        return;
+    }
     cTVDBSeries *series = ReadSeries(seriesName);
     cTVDBSeriesMedia *media = NULL;
     cTVDBActors *actors = NULL;
     if (!series)
         return;
+    cache.insert(pair<string, int>(seriesName, series->ID()));
     if (series->ID() < 1) {
         if (config.enableDebug)
             esyslog("tvscraper: nothing found for \"%s\"", seriesName.c_str());
@@ -50,13 +68,13 @@ void cTVDBScraper::Scrap(const cEvent *event, int recordingID) {
     } else  {
         db->InsertRecording(recordingID, series->ID(), 0);
     }
+    if (config.enableDebug)
+        esyslog("tvscraper: \"%s\" successfully scraped, id %d", seriesName.c_str(), series->ID());
     delete series;
     if (media)
         delete media;
     if (actors)
         delete actors;
-    if (config.enableDebug)
-        esyslog("tvscraper: \"%s\" successfully scraped, id %d", seriesName.c_str(), series->ID());
 }
 
 
@@ -72,10 +90,8 @@ bool cTVDBScraper::Connect(void) {
 }
 
 cTVDBSeries *cTVDBScraper::ReadSeries(string seriesName) {
-    stringstream seriesEscape;
-    seriesEscape << "\"" << seriesName << "\"";
     stringstream url;
-    url << mirrors->GetMirrorXML() << "/api/GetSeries.php?seriesname=" << CurlEscape(seriesEscape.str().c_str()) << "&language=" << language.c_str();
+    url << mirrors->GetMirrorXML() << "/api/GetSeries.php?seriesname=" << CurlEscape(seriesName.c_str()) << "&language=" << language.c_str();
     string seriesXML;
     cTVDBSeries *series = NULL;
     if (config.enableDebug)

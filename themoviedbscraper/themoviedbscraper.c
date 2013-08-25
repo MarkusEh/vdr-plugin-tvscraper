@@ -1,6 +1,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <map>
 #include <jansson.h>
 #include "themoviedbscraper.h"
 
@@ -94,10 +95,14 @@ bool cMovieDBScraper::parseJSON(string jsonString) {
 }
 
 int cMovieDBScraper::SearchMovie(string movieName) {
-    stringstream movieEscaped;
-    movieEscaped << "\"" << movieName << "\"";
+    map<string,int>::iterator cacheHit = cache.find(movieName);
+    if (cacheHit != cache.end()) {
+        if (config.enableDebug)
+            esyslog("tvscraper: found cache %s => %d", ((string)cacheHit->first).c_str(), (int)cacheHit->second);
+        return (int)cacheHit->second;
+    }
     stringstream url;
-    url << baseURL << "/search/movie?api_key=" << apiKey << "&query=" << CurlEscape(movieEscaped.str().c_str()) << "&language=" << language.c_str();
+    url << baseURL << "/search/movie?api_key=" << apiKey << "&query=" << CurlEscape(movieName.c_str()) << "&language=" << language.c_str();
     if (config.enableDebug)
         esyslog("tvscraper: calling %s", url.str().c_str());
     string movieJSON;
@@ -107,6 +112,7 @@ int cMovieDBScraper::SearchMovie(string movieName) {
         movieID = movie->ParseJSONForMovieId(movieName);
         delete movie;
     }
+    cache.insert(pair<string, int>(movieName, movieID));
     return movieID;
 }
 

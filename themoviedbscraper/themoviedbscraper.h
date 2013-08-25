@@ -16,6 +16,7 @@ private:
     string backdropSize;
     string actorthumbSize;
     cTVScraperDB *db;
+    map<string, int> cache;
     bool parseJSON(string jsonString);
     int SearchMovie(string movieName);
     cMovieDbMovie *ReadMovie(int movieID);

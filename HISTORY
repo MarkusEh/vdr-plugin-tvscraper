@@ -14,3 +14,7 @@ VDR Plugin 'tvscraper' Revision History
 - adapted detection of series/movies: duration of
   series has to be between 10 and 75 minutes, movies 
   have to be longer than 75 minutes
+
+Version 0.0.3
+- Implemented cache so that an already looked up 
+  series or movie will not be looked up again
