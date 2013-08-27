@@ -19,3 +19,6 @@ Version 0.0.3
 - Implemented cache so that an already looked up 
   series or movie will not be looked up again
 - Removed quotation marks around search strings
+
+Version 0.0.4
+- Scrap a running recording if it is not scraped already

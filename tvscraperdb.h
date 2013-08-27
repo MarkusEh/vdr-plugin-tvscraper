@@ -35,8 +35,8 @@ public:
     int SearchMovie(string movieTitle);
     int SearchSeries(string seriesTitle);
     void InsertRecording(int recEventID, int seriesID, int movieID);
-    void SetRecordingSeries(int eventID); 
-    void SetRecordingMovie(int eventID);
+    bool SetRecordingSeries(int eventID); 
+    bool SetRecordingMovie(int eventID);
     void ClearRecordings(void);
     bool CheckScrap(time_t timeStamp, string channelID);
     bool CheckStartScrapping(int minimumDistance);

@@ -461,7 +461,7 @@ void cTVScraperDB::InsertRecording(int recEventID, int seriesID, int movieID) {
     int ret = sqlite3_step(stmt);
 }
 
-void cTVScraperDB::SetRecordingSeries(int eventID) {
+bool cTVScraperDB::SetRecordingSeries(int eventID) {
     stringstream sql;
     sql << "select series_id from event_series where event_id = " << eventID;
     vector<vector<string> > result = Query(sql.str());
@@ -471,11 +471,13 @@ void cTVScraperDB::SetRecordingSeries(int eventID) {
         if (row.size() > 0) {
             int seriesID = atoi(row[0].c_str());
             InsertRecording(eventID, seriesID, 0);
+            return true;
         }
     }
+    return false;
 }
 
-void cTVScraperDB::SetRecordingMovie(int eventID) {
+bool cTVScraperDB::SetRecordingMovie(int eventID) {
     stringstream sql;
     sql << "select movie_id from event_movie where event_id =" << eventID;
     vector<vector<string> > result = Query(sql.str());
@@ -485,8 +487,10 @@ void cTVScraperDB::SetRecordingMovie(int eventID) {
         if (row.size() > 0) {
             int movieID = atoi(row[0].c_str());
             InsertRecording(eventID, 0, movieID);
+            return true;
         }
     }
+    return false;
 }
 
 void cTVScraperDB::ClearRecordings(void) {

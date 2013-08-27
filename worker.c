@@ -180,9 +180,13 @@ void cTVScraperWorker::CheckRunningTimers(void) {
             const cEvent *event = timer->Event();
             scrapType type = GetScrapType(event);
             if (type == scrapSeries) {
-                db->SetRecordingSeries((int)event->EventID());
+                if (!db->SetRecordingSeries((int)event->EventID())) {
+                    tvdbScraper->Scrap(event, (int)event->EventID());   
+                }
             } else if (type == scrapMovie) {
-                db->SetRecordingMovie((int)event->EventID());
+                if (!db->SetRecordingMovie((int)event->EventID())) {
+                    moviedbScraper->Scrap(event, (int)event->EventID());
+                }
             }
         }
     }
@@ -216,7 +220,10 @@ void cTVScraperWorker::Action(void) {
             DisconnectScrapers();
             continue;
         }
-        CheckRunningTimers();
+        if (ConnectScrapers()) {
+            CheckRunningTimers();
+            DisconnectScrapers();
+        }
         if (StartScrapping()) {
             dsyslog("tvscraper: start scraping epg");
             db->ClearOutdated(movieDir);
