@@ -27,6 +27,10 @@ void cMovieDBScraper::Scrap(const cEvent *event, int recordingID) {
     if (config.enableDebug)
         esyslog("tvscraper: scraping movie \"%s\"", movieName.c_str());
     int movieID = SearchMovie(movieName);
+    if ((movieID < 1) &&  (recordingID > 0)){
+        //if recording, do some more sophisticated search
+        movieID = SearchMovieElaborated(movieName);
+    }
     if (movieID < 1) {
         if (config.enableDebug)
             esyslog("tvscraper: nothing found for \"%s\"", movieName.c_str());
@@ -113,6 +117,29 @@ int cMovieDBScraper::SearchMovie(string movieName) {
         delete movie;
     }
     cache.insert(pair<string, int>(movieName, movieID));
+    return movieID;
+}
+
+int cMovieDBScraper::SearchMovieElaborated(string movieName) {
+    int movieID = -1;
+    //first remove all "-" 
+    string movieNameMod = str_replace("-", " ", movieName);
+    if (config.enableDebug)
+        esyslog("tvscraper: scraping movie \"%s\"", movieNameMod.c_str());
+    movieID = SearchMovie(movieNameMod);
+    if (movieID > 0)
+        return movieID;
+
+    //now remove everything after "-" 
+    movieNameMod = str_cut("-", movieName);
+    if (movieNameMod.size() > 3) {
+        if (config.enableDebug)
+            esyslog("tvscraper: scraping movie \"%s\"", movieNameMod.c_str());
+        movieID = SearchMovie(movieNameMod);
+    }
+    if (movieID > 0)
+        return movieID;
+    
     return movieID;
 }
 

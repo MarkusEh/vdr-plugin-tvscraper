@@ -21,4 +21,8 @@ Version 0.0.3
 - Removed quotation marks around search strings
 
 Version 0.0.4
-- Scrap a running recording if it is not scraped already
+- Scrap a running recording also if the corresponding
+  channel was not scraped already
+- do some more sophisticated search for recordings
+  first replace all "-" with " " in rec title
+  second remove everything behind "-" in rec title

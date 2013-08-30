@@ -181,15 +181,20 @@ void cTVScraperWorker::CheckRunningTimers(void) {
             scrapType type = GetScrapType(event);
             if (type == scrapSeries) {
                 if (!db->SetRecordingSeries((int)event->EventID())) {
-                    tvdbScraper->Scrap(event, (int)event->EventID());   
+                    if (ConnectScrapers()) {
+                        tvdbScraper->Scrap(event, (int)event->EventID());
+                    }
                 }
             } else if (type == scrapMovie) {
                 if (!db->SetRecordingMovie((int)event->EventID())) {
-                    moviedbScraper->Scrap(event, (int)event->EventID());
+                    if (ConnectScrapers()) {
+                        moviedbScraper->Scrap(event, (int)event->EventID());
+                    }
                 }
             }
         }
     }
+    DisconnectScrapers();
 }
  
 bool cTVScraperWorker::StartScrapping(void) {
@@ -206,6 +211,7 @@ bool cTVScraperWorker::StartScrapping(void) {
 void cTVScraperWorker::Action(void) {
     if (!startLoop)
         return;
+
     mutex.Lock();    
     dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
     waitCondition.TimedWait(mutex, initSleep);
@@ -220,10 +226,7 @@ void cTVScraperWorker::Action(void) {
             DisconnectScrapers();
             continue;
         }
-        if (ConnectScrapers()) {
-            CheckRunningTimers();
-            DisconnectScrapers();
-        }
+        CheckRunningTimers();
         if (StartScrapping()) {
             dsyslog("tvscraper: start scraping epg");
             db->ClearOutdated(movieDir);

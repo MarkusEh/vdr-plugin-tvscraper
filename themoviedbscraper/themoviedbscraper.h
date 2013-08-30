@@ -19,6 +19,7 @@ private:
     map<string, int> cache;
     bool parseJSON(string jsonString);
     int SearchMovie(string movieName);
+    int SearchMovieElaborated(string movieName);
     cMovieDbMovie *ReadMovie(int movieID);
     cMovieDbActors *ReadActors(int movieID);
     void StoreMedia(cMovieDbMovie *movie, cMovieDbActors *actors);

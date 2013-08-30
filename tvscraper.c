@@ -11,6 +11,7 @@
 #include "tools/filesystem.c"
 #include "tools/fuzzy.c"
 #include "tools/splitstring.c"
+#include "tools/stringhelpers.c"
 #include "config.c"
 cTVScraperConfig config;
 #include "tvscraperdb.c"
@@ -27,7 +28,7 @@ cTVScraperConfig config;
 #include "imageserver.c"
 #include "setup.c"
 
-static const char *VERSION        = "0.0.3";
+static const char *VERSION        = "0.0.4";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 static const char *MAINMENUENTRY  = "TV Scraper";
 
