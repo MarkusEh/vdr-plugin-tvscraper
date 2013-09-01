@@ -80,11 +80,17 @@ tvMedia cImageServer::GetPoster(int id, scrapType type) {
 
 tvMedia cImageServer::GetBanner(int id) {
     tvMedia media;
+    media.path = "";
+    media.width = 0;
+    media.height = 0;
     stringstream path;
     path << config.GetBaseDir() << "/series/" << id << "/banner.jpg";
-    media.path = path.str();
-    media.width = 758;
-    media.height = 140;
+    string fileBanner = path.str();
+    if (FileExists(fileBanner)) {
+        media.path = fileBanner;
+        media.width = 758;
+        media.height = 140;
+    }
     return media;
 }
 

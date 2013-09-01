@@ -26,3 +26,7 @@ Version 0.0.4
 - do some more sophisticated search for recordings
   first replace all "-" with " " in rec title
   second remove everything behind "-" in rec title
+
+Version 0.0.5
+- Fixed a bug that banner is only filled with path if
+  image exists in Filesystem
