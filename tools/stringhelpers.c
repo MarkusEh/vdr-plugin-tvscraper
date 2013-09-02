@@ -12,9 +12,14 @@ string str_replace(const string& search, const string& replace, const string& su
 //cut string after first "search"
 string str_cut(const string& search, const string& subject) {
     string str = subject;
+    string strCutted = "";
     size_t found = str.find_first_of(search);
     if (found != string::npos) {
-        return str.substr(0, found);
+        strCutted = str.substr(0, found);
+        size_t foundSpace = strCutted.find_last_of(" ");
+        if ((foundSpace != string::npos) && (foundSpace == (strCutted.size()-1))) {
+            strCutted = strCutted.substr(0, strCutted.size()-1);
+        }
     }
-    return "";
+    return strCutted;
 }
