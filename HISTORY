@@ -30,3 +30,7 @@ Version 0.0.4
 Version 0.0.5
 - Fixed a bug that banner is only filled with path if
   image exists in Filesystem
+- str_cut removes ending space
+- modification of sophisticated movie search
+  also "(" are considered and text is cutted, depending
+  if "(" or "-" occur first in search string

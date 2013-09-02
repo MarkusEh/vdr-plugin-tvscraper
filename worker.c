@@ -215,7 +215,7 @@ void cTVScraperWorker::Action(void) {
     mutex.Lock();    
     dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
     waitCondition.TimedWait(mutex, initSleep);
-    
+       
     while (Running()) {
         if (scanVideoDir) {
             scanVideoDir = false;

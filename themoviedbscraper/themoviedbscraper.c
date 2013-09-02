@@ -122,24 +122,51 @@ int cMovieDBScraper::SearchMovie(string movieName) {
 
 int cMovieDBScraper::SearchMovieElaborated(string movieName) {
     int movieID = -1;
+    
+    size_t posHyphen  = movieName.find_first_of("-");
+    size_t posBracket = movieName.find_first_of("(");
+    bool hasHyphen  = (posHyphen  != string::npos)?true:false;
+    bool hasBracket = (posBracket != string::npos)?true:false;
+    string movieNameMod;
     //first remove all "-" 
-    string movieNameMod = str_replace("-", " ", movieName);
-    if (config.enableDebug)
-        esyslog("tvscraper: scraping movie \"%s\"", movieNameMod.c_str());
-    movieID = SearchMovie(movieNameMod);
-    if (movieID > 0)
-        return movieID;
+    if (hasBracket) {
+        movieNameMod = str_replace("-", " ", movieName);
+        if (config.enableDebug)
+            esyslog("tvscraper: scraping movie \"%s\"", movieNameMod.c_str());
+        movieID = SearchMovie(movieNameMod);
+        if (movieID > 0)
+            return movieID;
+    }
+    //if both hyphens and brackets found, check what comes first
+    if (hasHyphen && hasBracket) {
+        //if bracket comes after hyphen, remove bracket first
+        if (posBracket > posHyphen) {
+            movieID = SearchMovieModified("(", movieName);
+            if (movieID > 0)
+                return movieID;
+            movieID = SearchMovieModified("-", movieName);
+        } else {
+            movieID = SearchMovieModified("-", movieName);
+            if (movieID > 0)
+                return movieID;
+            movieID = SearchMovieModified("(", movieName);
+        }
+    } else if (hasHyphen) {
+        movieID = SearchMovieModified("-", movieName);
+    } else if (hasBracket) {
+        movieID = SearchMovieModified("(", movieName);
+    }
+    return movieID;
+}
 
-    //now remove everything after "-" 
-    movieNameMod = str_cut("-", movieName);
+int cMovieDBScraper::SearchMovieModified(string separator, string movieName) {
+    int movieID = -1;
+    string movieNameMod = str_cut(separator, movieName);
     if (movieNameMod.size() > 3) {
         if (config.enableDebug)
             esyslog("tvscraper: scraping movie \"%s\"", movieNameMod.c_str());
         movieID = SearchMovie(movieNameMod);
     }
-    if (movieID > 0)
-        return movieID;
-    
     return movieID;
 }
 

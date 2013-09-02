@@ -20,6 +20,7 @@ private:
     bool parseJSON(string jsonString);
     int SearchMovie(string movieName);
     int SearchMovieElaborated(string movieName);
+    int SearchMovieModified(string separator, string movieName);
     cMovieDbMovie *ReadMovie(int movieID);
     cMovieDbActors *ReadActors(int movieID);
     void StoreMedia(cMovieDbMovie *movie, cMovieDbActors *actors);
