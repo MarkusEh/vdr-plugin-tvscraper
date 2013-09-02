@@ -16,6 +16,7 @@ private:
     string backdropSize;
     string actorthumbSize;
     cTVScraperDB *db;
+    cOverRides *overrides;
     map<string, int> cache;
     bool parseJSON(string jsonString);
     int SearchMovie(string movieName);
@@ -25,7 +26,7 @@ private:
     cMovieDbActors *ReadActors(int movieID);
     void StoreMedia(cMovieDbMovie *movie, cMovieDbActors *actors);
 public:
-    cMovieDBScraper(string baseDir, cTVScraperDB *db, string language);
+    cMovieDBScraper(string baseDir, cTVScraperDB *db, string language, cOverRides *overrides);
     virtual ~cMovieDBScraper(void);
     bool Connect(void);
     void Scrap(const cEvent *event, int recordingID = 0);

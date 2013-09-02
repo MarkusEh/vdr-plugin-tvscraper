@@ -2,8 +2,9 @@
 
 using namespace std;
 
-cImageServer::cImageServer(cTVScraperDB *db) {
+cImageServer::cImageServer(cTVScraperDB *db, cOverRides *overrides) {
     this->db = db;
+    this->overrides = overrides;
 }
 
 cImageServer::~cImageServer() {
@@ -11,6 +12,9 @@ cImageServer::~cImageServer() {
 
 scrapType cImageServer::GetScrapType(const cEvent *event) {
     scrapType type = scrapNone;
+    type = overrides->Type(event->Title());
+    if (type != scrapNone)
+        return type;
     int duration = event->Duration() / 60;
     if ((duration > 9) && (duration <= 75)) {
         type = scrapSeries;

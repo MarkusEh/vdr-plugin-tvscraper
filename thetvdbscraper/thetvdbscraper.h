@@ -12,6 +12,7 @@ private:
     string baseDir;
     string language;
     cTVScraperDB *db;
+    cOverRides *overrides;
     map<string, int> cache;
     cTVDBMirrors *mirrors;
     cTVDBSeries *ReadSeries(string seriesName);
@@ -19,7 +20,7 @@ private:
     cTVDBActors *ReadSeriesActors(int seriesID);
     void StoreMedia(cTVDBSeries *series, cTVDBSeriesMedia *media, cTVDBActors *actors);
 public:
-    cTVDBScraper(string baseDir, cTVScraperDB *db, string language);
+    cTVDBScraper(string baseDir, cTVScraperDB *db, string language, cOverRides *overrides);
     virtual ~cTVDBScraper(void);
     bool Connect(void);
     void Scrap(const cEvent *event, int recordingID = 0);

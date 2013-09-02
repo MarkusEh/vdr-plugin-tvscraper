@@ -20,6 +20,7 @@ PKGCFG = $(if $(VDRDIR),$(shell pkg-config --variable=$(1) $(VDRDIR)/vdr.pc),$(s
 LIBDIR = $(call PKGCFG,libdir)
 LOCDIR = $(call PKGCFG,locdir)
 PLGCFG = $(call PKGCFG,plgcfg)
+PLGCONFDIR = $(call PKGCFG,configdir)/plugins/$(PLUGIN)
 #
 TMPDIR ?= /tmp
 
@@ -113,7 +114,11 @@ $(SOFILE): $(OBJS)
 install-lib: $(SOFILE)
 	install -D $^ $(DESTDIR)$(LIBDIR)/$^.$(APIVERSION)
 
-install: install-lib install-i18n
+install-conf:
+	@mkdir -p $(PLGCONFDIR)
+	@if [ ! -f $(PLGCONFDIR)/override.conf ]; then cp conf/override.conf $(PLGCONFDIR); fi;
+
+install: install-lib install-i18n install-conf
 
 dist: $(I18Npo) clean
 	@-rm -rf $(TMPDIR)/$(ARCHIVE)

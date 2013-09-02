@@ -14,6 +14,7 @@
 #include "tools/stringhelpers.c"
 #include "config.c"
 cTVScraperConfig config;
+#include "overrides.c"
 #include "tvscraperdb.c"
 #include "thetvdbscraper/tvdbmirrors.c"
 #include "thetvdbscraper/tvdbseries.c"
@@ -38,6 +39,7 @@ private:
     cTVScraperDB *db;
     cTVScraperWorker *workerThread;
     cImageServer *imageServer;
+    cOverRides *overrides;
 public:
     cPluginTvscraper(void);
     virtual ~cPluginTvscraper();
@@ -105,8 +107,10 @@ bool cPluginTvscraper::Start(void) {
         esyslog("tvscraper: could not connect to Database. Aborting!");
         return false;
     };
-    imageServer = new cImageServer(db);
-    workerThread = new cTVScraperWorker(db);
+    overrides = new cOverRides();
+    overrides->ReadConfig(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N));
+    imageServer = new cImageServer(db, overrides);
+    workerThread = new cTVScraperWorker(db, overrides);
     workerThread->SetDirectories();
     workerThread->SetLanguage();
     workerThread->Start();
@@ -120,6 +124,7 @@ void cPluginTvscraper::Stop(void) {
     delete workerThread;
     delete imageServer;
     delete db;
+    delete overrides;
 }
 
 void cPluginTvscraper::Housekeeping(void) {

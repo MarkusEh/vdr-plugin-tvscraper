@@ -5,8 +5,9 @@ using namespace std;
 class cImageServer {
 private:
     cTVScraperDB *db;
+    cOverRides *overrides;
 public:
-    cImageServer(cTVScraperDB *db);
+    cImageServer(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cImageServer(void);
     scrapType GetScrapType(const cEvent *event);
     int GetID(int eventID, scrapType type, bool isRecording);

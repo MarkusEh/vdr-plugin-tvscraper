@@ -8,12 +8,13 @@
 
 using namespace std;
 
-cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db, string language) {
+cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db, string language, cOverRides *overrides) {
     apiKey = "E9DBB94CA50832ED";
     baseURL = "thetvdb.com";
     this->baseDir = baseDir;
     this->language = language;
     this->db = db;
+    this->overrides = overrides;
     mirrors = NULL;
 }
 
@@ -24,6 +25,10 @@ cTVDBScraper::~cTVDBScraper() {
 
 void cTVDBScraper::Scrap(const cEvent *event, int recordingID) {
     string seriesName = event->Title();
+    if (overrides->Ignore(seriesName)) {
+        return;
+    }
+    seriesName = overrides->Substitute(seriesName);
     if (config.enableDebug)
         esyslog("tvscraper: scraping series \"%s\"", seriesName.c_str());
     int eventID = (int)event->EventID();

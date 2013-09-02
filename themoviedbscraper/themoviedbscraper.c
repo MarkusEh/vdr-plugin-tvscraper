@@ -7,12 +7,13 @@
 
 using namespace std;
 
-cMovieDBScraper::cMovieDBScraper(string baseDir, cTVScraperDB *db, string language) {
+cMovieDBScraper::cMovieDBScraper(string baseDir, cTVScraperDB *db, string language, cOverRides *overrides) {
     apiKey = "abb01b5a277b9c2c60ec0302d83c5ee9";
     this->language = language;
     baseURL = "api.themoviedb.org/3";
     this->baseDir = baseDir;
     this->db = db;
+    this->overrides = overrides;
     posterSize = "w500";
     backdropSize = "w1280";
     actorthumbSize = "h632";
@@ -23,6 +24,10 @@ cMovieDBScraper::~cMovieDBScraper() {
 
 void cMovieDBScraper::Scrap(const cEvent *event, int recordingID) {
     string movieName = event->Title();
+    if (overrides->Ignore(movieName)) {
+        return;
+    }
+    movieName = overrides->Substitute(movieName);
     int eventID = (int)event->EventID();
     if (config.enableDebug)
         esyslog("tvscraper: scraping movie \"%s\"", movieName.c_str());

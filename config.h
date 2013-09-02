@@ -3,6 +3,12 @@
 
 using namespace std;
 
+enum scrapType {
+    scrapSeries,
+    scrapMovie,
+    scrapNone
+};
+
 class cTVScraperConfig {
     private:
         string baseDir;

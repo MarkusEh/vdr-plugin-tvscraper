@@ -3,11 +3,12 @@
 
 using namespace std;
 
-cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db) : cThread("tvscraper", true) {
+cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cThread("tvscraper", true) {
     startLoop = true;
     scanVideoDir = false;
     manualScan = false;
     this->db = db;
+    this->overrides = overrides;
     moviedbScraper = NULL;
     tvdbScraper = NULL;
     initSleep = 2 * 60 * 1000;
@@ -78,6 +79,9 @@ void cTVScraperWorker::SetDirectories(void) {
 
 scrapType cTVScraperWorker::GetScrapType(const cEvent *event) {
     scrapType type = scrapNone;
+    type = overrides->Type(event->Title());
+    if (type != scrapNone)
+        return type;
     int duration = event->Duration() / 60;
     if ((duration > 9) && (duration <= 75)) {
         type = scrapSeries;
@@ -89,14 +93,14 @@ scrapType cTVScraperWorker::GetScrapType(const cEvent *event) {
 
 bool cTVScraperWorker::ConnectScrapers(void) {
     if (!moviedbScraper) {
-        moviedbScraper = new cMovieDBScraper(movieDir, db, language);
+        moviedbScraper = new cMovieDBScraper(movieDir, db, language, overrides);
         if (!moviedbScraper->Connect()) {
             esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
             return false;
         }
     }
     if (!tvdbScraper) {
-        tvdbScraper = new cTVDBScraper(seriesDir, db, language);
+        tvdbScraper = new cTVDBScraper(seriesDir, db, language, overrides);
         if (!tvdbScraper->Connect()) {
             esyslog("tvscraper: ERROR, connection to TheTVDB failed");
             return false;
@@ -215,7 +219,7 @@ void cTVScraperWorker::Action(void) {
     mutex.Lock();    
     dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
     waitCondition.TimedWait(mutex, initSleep);
-       
+
     while (Running()) {
         if (scanVideoDir) {
             scanVideoDir = false;

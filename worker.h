@@ -3,12 +3,6 @@
 
 // --- cTVScraperWorker -------------------------------------------------------------
 
-enum scrapType {
-    scrapSeries,
-    scrapMovie,
-    scrapNone
-};
-
 class cTVScraperWorker : public cThread {
 private:
     bool startLoop;
@@ -16,8 +10,10 @@ private:
     bool manualScan;
     string language;
     string plgBaseDir;
+    string plgConfDir;
     string seriesDir;
     string movieDir;
+    cOverRides *overrides;
     int initSleep;
     int loopSleep;
     cCondVar waitCondition;
@@ -33,7 +29,7 @@ private:
     void ScrapRecordings(void);
     bool StartScrapping(void);
 public:
-    cTVScraperWorker(cTVScraperDB *db);
+    cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cTVScraperWorker(void);
     void SetLanguage(void);
     void SetDirectories(void);

@@ -34,3 +34,6 @@ Version 0.0.5
 - modification of sophisticated movie search
   also "(" are considered and text is cutted, depending
   if "(" or "-" occur first in search string
+- introduced possibility to ignore titles, set scrap 
+  type and substitute search strings manually. See file 
+  "conf/override.conf" in source tree for explanation.
