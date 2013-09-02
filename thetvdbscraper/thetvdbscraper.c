@@ -24,7 +24,7 @@ cTVDBScraper::~cTVDBScraper() {
 }
 
 void cTVDBScraper::Scrap(const cEvent *event, int recordingID) {
-    string seriesName = event->Title();
+    string seriesName = (event->Title())?event->Title():"";
     if (overrides->Ignore(seriesName)) {
         return;
     }

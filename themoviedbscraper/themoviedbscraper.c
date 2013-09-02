@@ -23,7 +23,7 @@ cMovieDBScraper::~cMovieDBScraper() {
 }
 
 void cMovieDBScraper::Scrap(const cEvent *event, int recordingID) {
-    string movieName = event->Title();
+    string movieName = (event->Title())?event->Title():"";
     if (overrides->Ignore(movieName)) {
         return;
     }

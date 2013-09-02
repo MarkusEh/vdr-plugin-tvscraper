@@ -12,7 +12,8 @@ cImageServer::~cImageServer() {
 
 scrapType cImageServer::GetScrapType(const cEvent *event) {
     scrapType type = scrapNone;
-    type = overrides->Type(event->Title());
+    string title = (event->Title())?event->Title():"";
+    type = overrides->Type(title);
     if (type != scrapNone)
         return type;
     int duration = event->Duration() / 60;
