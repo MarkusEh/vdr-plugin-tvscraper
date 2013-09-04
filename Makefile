@@ -115,8 +115,8 @@ install-lib: $(SOFILE)
 	install -D $^ $(DESTDIR)$(LIBDIR)/$^.$(APIVERSION)
 
 install-conf:
-	@mkdir -p $(PLGCONFDIR)
-	@if [ ! -f $(PLGCONFDIR)/override.conf ]; then cp conf/override.conf $(PLGCONFDIR); fi;
+	@mkdir -p $(DESTDIR)$(PLGCONFDIR)
+	@if [ ! -f $(DESTDIR)$(PLGCONFDIR)/override.conf ]; then cp conf/override.conf $(DESTDIR)$(PLGCONFDIR); fi;
 
 install: install-lib install-i18n install-conf
 
