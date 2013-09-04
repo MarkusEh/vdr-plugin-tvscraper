@@ -155,6 +155,8 @@ void cTVScraperWorker::ScrapEPG(void) {
 void cTVScraperWorker::ScrapRecordings(void) {
     db->ClearRecordings();
     for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec)) {
+        if (overrides->IgnorePath(rec->FileName()))
+            continue;
         const cRecordingInfo *recInfo = rec->Info();
         const cEvent *recEvent = recInfo->GetEvent();
         if (recEvent) {

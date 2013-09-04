@@ -95,7 +95,8 @@ not reasonable to scrap, because they reoccur constantly but deliver wrong
 results everytime, or tvscraper searchs for a movie instead of a series 
 (for instance german "Tatort"). In such cases it is possible to use 
 <PLGCFGDIR>/override.conf to adjust the scraping behaviour. Each line in
-this file has to start either with "ignore", "settype" or "substitute":
+this file has to start either with "ignore", "settype", "substitute" or
+"ignorePath":
 
 - Ignore specific EPG Events or recordings: just create a line in the format
   ignore;string
@@ -107,6 +108,9 @@ this file has to start either with "ignore", "settype" or "substitute":
 - Substitute Search String:
   substitute;string;substitution
   "string" is replaced by "substitution" in every search.
+- Ignore all recordings in a deditcatd directory:
+  ignorePath;string
+  "string" can be any substring of a recording path, e.g. "music/" 
 
 Service Interface
 -----------------

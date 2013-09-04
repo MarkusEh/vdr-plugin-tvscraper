@@ -53,6 +53,13 @@ void cOverRides::ReadConfigLine(string line) {
             if (flds.size() == 3) {
                 substitutes.insert(pair<string, string>(flds[1], flds[2]));
             }
+        } else if (!flds[0].compare("ignorePath")) {
+            if (flds.size() == 2) {
+                if (flds[1].find("/", flds[1].length()-1) != std::string::npos)
+                    ignorePath.push_back(flds[1]);
+                else
+                    ignorePath.push_back(flds[1] + "/");
+            }
         }
     }
 }
@@ -89,6 +96,18 @@ scrapType cOverRides::Type(string title) {
     return scrapNone;
 }
 
+bool cOverRides::IgnorePath(string path) {
+    vector<string>::iterator pos;
+    for ( pos = ignorePath.begin(); pos != ignorePath.end(); ++pos) {
+        if (path.find(pos->c_str()) != string::npos) {
+            if (config.enableDebug)
+                esyslog("tvscraper: ignoring path \"%s\" because of override.conf", path.c_str());
+            return true;
+        }
+    }
+    return false;
+}
+
 void cOverRides::Dump(void) {
     esyslog("tvscraper: ignoring the following titles:");
     vector<string>::iterator pos;
@@ -106,5 +125,11 @@ void cOverRides::Dump(void) {
     map<string,string>::iterator pos3;
     for( pos3 = substitutes.begin(); pos3 != substitutes.end(); ++pos3) {
         esyslog("tvscraper: substitute \"%s\" with \"%s\"", ((string)pos3->first).c_str(), ((string)pos3->second).c_str());
+    }
+    
+    esyslog("tvscraper: ignoring the following paths:");
+    vector<string>::iterator pos4;
+    for ( pos4 = ignorePath.begin(); pos4 != ignorePath.end(); ++pos4) {
+        esyslog("tvscraper: ignore path \"%s\"", pos4->c_str());
     }
 }
