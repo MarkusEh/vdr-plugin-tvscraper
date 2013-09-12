@@ -185,7 +185,9 @@ void cTVScraperWorker::CheckRunningTimers(void) {
     for (cTimer *timer = Timers.First(); timer; timer = Timers.Next(timer)) {
         if (timer->Recording()) {
             const cEvent *event = timer->Event();
-            scrapType type = GetScrapType(event);
+            if (!event)
+	    	continue;
+	    scrapType type = GetScrapType(event);
             if (type == scrapSeries) {
                 if (!db->SetRecordingSeries((int)event->EventID())) {
                     if (ConnectScrapers()) {
