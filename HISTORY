@@ -39,3 +39,5 @@ Version 0.0.5
   "conf/override.conf" in source tree for explanation.
 - Fixed a crash if a recording without EPG is running
 - Fixed a crash if internet connection is not available
+
+Version 0.1.0
