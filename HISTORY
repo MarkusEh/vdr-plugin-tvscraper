@@ -37,3 +37,5 @@ Version 0.0.5
 - introduced possibility to ignore titles, set scrap 
   type and substitute search strings manually. See file 
   "conf/override.conf" in source tree for explanation.
+- Fixed a crash if a recording without EPG is running
+- Fixed a crash if internet connection is not available

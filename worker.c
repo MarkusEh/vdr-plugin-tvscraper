@@ -97,6 +97,8 @@ bool cTVScraperWorker::ConnectScrapers(void) {
         moviedbScraper = new cMovieDBScraper(movieDir, db, language, overrides);
         if (!moviedbScraper->Connect()) {
             esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
+            delete moviedbScraper;
+            moviedbScraper = NULL;
             return false;
         }
     }
@@ -104,6 +106,8 @@ bool cTVScraperWorker::ConnectScrapers(void) {
         tvdbScraper = new cTVDBScraper(seriesDir, db, language, overrides);
         if (!tvdbScraper->Connect()) {
             esyslog("tvscraper: ERROR, connection to TheTVDB failed");
+            delete tvdbScraper;
+            tvdbScraper = NULL;
             return false;
         }
     }
@@ -186,8 +190,8 @@ void cTVScraperWorker::CheckRunningTimers(void) {
         if (timer->Recording()) {
             const cEvent *event = timer->Event();
             if (!event)
-	    	continue;
-	    scrapType type = GetScrapType(event);
+                continue;
+            scrapType type = GetScrapType(event);
             if (type == scrapSeries) {
                 if (!db->SetRecordingSeries((int)event->EventID())) {
                     if (ConnectScrapers()) {
