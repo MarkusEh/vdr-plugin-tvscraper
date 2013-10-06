@@ -41,3 +41,5 @@ Version 0.0.5
 - Fixed a crash if internet connection is not available
 
 Version 0.1.0
+- Fixed a crash if a configured channel to scrap does not
+  exist anymore

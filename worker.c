@@ -131,6 +131,8 @@ void cTVScraperWorker::ScrapEPG(void) {
     for (int i=0; i<numChannels; i++) {
         string channelID = channels[i];
         const cChannel *channel = Channels.GetByChannelID(tChannelID::FromString(channelID.c_str()));
+        if (!channel)
+            continue;
         dsyslog("tvscraper: scraping Channel %s %s", channel->Name(), channelID.c_str());
         cSchedulesLock schedulesLock;
         const cSchedules *schedules = cSchedules::Schedules(schedulesLock);
