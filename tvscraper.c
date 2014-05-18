@@ -29,9 +29,10 @@ cTVScraperConfig config;
 #include "imageserver.c"
 #include "setup.c"
 
-static const char *VERSION        = "0.1.0";
+static const char *VERSION        = "0.2.0";
 static const char *DESCRIPTION    = "Scraping movie and series info";
-static const char *MAINMENUENTRY  = "TV Scraper";
+// static const char *MAINMENUENTRY  = "TV Scraper";
+
 
 class cPluginTvscraper : public cPlugin {
 private:
@@ -40,6 +41,7 @@ private:
     cTVScraperWorker *workerThread;
     cImageServer *imageServer;
     cOverRides *overrides;
+    int lastEventId;
 public:
     cPluginTvscraper(void);
     virtual ~cPluginTvscraper();
@@ -120,7 +122,7 @@ bool cPluginTvscraper::Start(void) {
 void cPluginTvscraper::Stop(void) {
     while (workerThread->Active()) {
         workerThread->Stop();
-    }   
+    }
     delete workerThread;
     delete imageServer;
     delete db;
@@ -154,66 +156,147 @@ bool cPluginTvscraper::SetupParse(const char *Name, const char *Value) {
 }
 
 bool cPluginTvscraper::Service(const char *Id, void *Data) {
-    if (strcmp(Id, "TVScraperGetPosterOrBanner") == 0) {
-        if (Data == NULL)
+    if (Data == NULL)
+        return false;
+    
+    if (strcmp(Id, "GetEventType") == 0) {
+        ScraperGetEventType* call = (ScraperGetEventType*) Data;
+        if (!call->event && !call->recording)
+        {
+            lastEventId = 0;
             return false;
-        TVScraperGetPosterOrBanner* call = (TVScraperGetPosterOrBanner*) Data;
+        }
+
+        const cEvent *event = NULL;
+        bool isRecording = false;
+        if( call->event ) {
+            event = call->event;
+            isRecording = false;
+        } else if( call->recording ) {
+            event = call->recording->Info()->GetEvent();
+            isRecording = true;
+        }
+
+        scrapType type = imageServer->GetScrapType(event);
+        lastEventId = imageServer->GetID(event->EventID(), type, isRecording);
+
+        if( lastEventId == 0 ) {
+            call->type = tNone;
+            return false;
+        }
+
+        if (type == scrapSeries) {
+            call->type = tSeries;
+            call->seriesId = 1234;
+        } else if (type == scrapMovie) {
+            call->type = tMovie;
+            call->movieId = 1234;
+        } else {
+            call->type = tNone;
+        }
+	
+        return true;
+    }
+
+    if (strcmp(Id, "GetSeries") == 0) {
+        cSeries* call = (cSeries*) Data;
+        if( call->seriesId == 0 || lastEventId == 0 )
+            return false;
+
+        call->banners.push_back(imageServer->GetBanner(lastEventId));
+        call->posters = imageServer->GetPosters(lastEventId, scrapSeries);
+        call->fanarts = imageServer->GetSeriesFanarts(lastEventId);
+        call->actors = imageServer->GetActors(lastEventId, scrapSeries);
+        call->overview = imageServer->GetDescription(lastEventId, scrapSeries);
+
+        return true;
+    }
+
+    if (strcmp(Id, "GetMovie") == 0) {
+        cMovie* call = (cMovie*) Data;
+        if (call->movieId == 0 || lastEventId == 0)
+            return false;
+
+        call->poster = imageServer->GetPoster(lastEventId, scrapMovie);
+        call->fanart = imageServer->GetMovieFanart(lastEventId);
+        call->actors = imageServer->GetActors(lastEventId, scrapMovie);
+        call->overview = imageServer->GetDescription(lastEventId, scrapMovie);
+
+        return true;
+    }
+    
+    if (strcmp(Id, "GetPosterBanner") == 0) {
+        ScraperGetPosterBanner* call = (ScraperGetPosterBanner*) Data;
         if (!call->event)
             return false;
         scrapType type = imageServer->GetScrapType(call->event);
         if (type == scrapSeries)
-            call->type = typeSeries;
+            call->type = tSeries;
         else if (type == scrapMovie)
-            call->type = typeMovie;
+            call->type = tMovie;
         else
-            call->type = typeNone;
+            call->type = tNone;
         int id = imageServer->GetID(call->event->EventID(), type, false);
         if (id > 0) {
-            call->media = imageServer->GetPosterOrBanner(id, type);
+            cTvMedia media = imageServer->GetPosterOrBanner(id, type);
+            if( type == scrapMovie ) {
+                call->poster = media;
+            } else if( type == scrapSeries ) {
+                call->banner = media;
+            }
             return true;
         }
         return false;
     }
-    if (strcmp(Id, "TVScraperGetPoster") == 0) {
-        if (Data == NULL)
-            return false;
-        TVScraperGetPoster* call = (TVScraperGetPoster*) Data;
-        if (!call->event)
-            return false;
-        scrapType type = imageServer->GetScrapType(call->event);
-        int id = imageServer->GetID(call->event->EventID(), type, call->isRecording);
-        if (id > 0) {
-            call->media = imageServer->GetPoster(id, type);
-            return true;
-        }
-        return false;
-    }
-    if (strcmp(Id, "TVScraperGetFullInformation") == 0) {
-        if (Data == NULL)
-            return false;
-        TVScraperGetFullInformation* call = (TVScraperGetFullInformation*) Data;
-        if (!call->event)
-            return false;
-        
-        scrapType type = imageServer->GetScrapType(call->event);
-        int id = imageServer->GetID(call->event->EventID(), type, call->isRecording);
 
-        if (id == 0)
+    if (strcmp(Id, "GetPoster") == 0) {
+        ScraperGetPoster* call = (ScraperGetPoster*) Data;
+
+        const cEvent *event = NULL;
+        bool isRecording = false;
+
+        if (!call->event && !call->recording)
             return false;
-        
-        if (type == scrapSeries) {
-            call->type = typeSeries;
-            call->banner = imageServer->GetBanner(id);
-        } else if (type == scrapMovie) {
-            call->type = typeMovie;
-        } else {
-            call->type = typeNone;
+        if( call->event ) {
+            event = call->event;
+            isRecording = false;
+        } else if( call->recording ) {
+            event = call->recording->Info()->GetEvent();
+            isRecording = true;
         }
-        call->posters = imageServer->GetPosters(id, type);
-        call->fanart = imageServer->GetFanart(id, type);
-        call->actors = imageServer->GetActors(id, type);
-        call->description = imageServer->GetDescription(id, type);
-        return true;
+
+        scrapType type = imageServer->GetScrapType(event);
+        int id = imageServer->GetID(event->EventID(), type, isRecording);
+        if (id > 0) {
+            call->poster = imageServer->GetPoster(id, type);
+            return true;
+        }
+        return false;
+    }
+
+    if (strcmp(Id, "GetPosterThumb") == 0) {
+        ScraperGetPosterThumb* call = (ScraperGetPosterThumb*) Data;
+
+        const cEvent *event = NULL;
+        bool isRecording = false;
+
+        if (!call->event && !call->recording)
+            return false;
+        if( call->event ) {
+            event = call->event;
+            isRecording = false;
+        } else if( call->recording ) {
+            event = call->recording->Info()->GetEvent();
+            isRecording = true;
+        }
+
+        scrapType type = imageServer->GetScrapType(event);
+        int id = imageServer->GetID(event->EventID(), type, isRecording);
+        if (id > 0) {
+            call->poster = imageServer->GetPoster(id, type);
+            return true;
+        }
+        return false;
     }
     return false;
 }

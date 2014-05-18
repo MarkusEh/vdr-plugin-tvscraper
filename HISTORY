@@ -43,3 +43,8 @@ Version 0.0.5
 Version 0.1.0
 - Fixed a crash if a configured channel to scrap does not
   exist anymore
+
+Version 0.2.0
+- Removed old tvscraper service interface
+- Add scraper2vdr service interface
+- Fixed some compiler warnings

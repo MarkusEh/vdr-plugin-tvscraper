@@ -35,8 +35,8 @@ int cImageServer::GetID(int eventID, scrapType type, bool isRecording) {
     return id;
 }
 
-tvMedia cImageServer::GetPosterOrBanner(int id, scrapType type) {
-    tvMedia media;
+cTvMedia cImageServer::GetPosterOrBanner(int id, scrapType type) {
+    cTvMedia media;
     media.path = "";
     media.width = 0;
     media.height = 0;
@@ -56,8 +56,8 @@ tvMedia cImageServer::GetPosterOrBanner(int id, scrapType type) {
     return media;
 }
 
-tvMedia cImageServer::GetPoster(int id, scrapType type) {
-    tvMedia media;
+cTvMedia cImageServer::GetPoster(int id, scrapType type) {
+    cTvMedia media;
     media.path = "";
     media.width = 0;
     media.height = 0;
@@ -83,8 +83,8 @@ tvMedia cImageServer::GetPoster(int id, scrapType type) {
     return media;
 }
 
-tvMedia cImageServer::GetBanner(int id) {
-    tvMedia media;
+cTvMedia cImageServer::GetBanner(int id) {
+    cTvMedia media;
     media.path = "";
     media.width = 0;
     media.height = 0;
@@ -99,15 +99,15 @@ tvMedia cImageServer::GetBanner(int id) {
     return media;
 }
 
-vector<tvMedia> cImageServer::GetPosters(int id, scrapType type) {
-    vector<tvMedia> posters;
+vector<cTvMedia> cImageServer::GetPosters(int id, scrapType type) {
+    vector<cTvMedia> posters;
     if (type == scrapSeries) {
         for (int i=0; i<3; i++) {
             stringstream path;
             path << config.GetBaseDir() << "/series/" << id << "/poster_" << i << ".jpg";
             string filePoster = path.str();
             if (FileExists(filePoster)) {
-                tvMedia media;
+                cTvMedia media;
                 media.path = filePoster;
                 media.width = 680;
                 media.height = 1000;
@@ -120,7 +120,7 @@ vector<tvMedia> cImageServer::GetPosters(int id, scrapType type) {
         path << config.GetBaseDir() << "/movies/" << id << "_poster.jpg";
         string filePoster = path.str();
         if (FileExists(filePoster)) {
-            tvMedia media;
+            cTvMedia media;
             media.path = path.str();
             media.width = 500;
             media.height = 750;
@@ -130,55 +130,56 @@ vector<tvMedia> cImageServer::GetPosters(int id, scrapType type) {
     return posters;
 }
 
-vector<tvMedia> cImageServer::GetFanart(int id, scrapType type) {
-    vector<tvMedia> fanart;
-    if (type == scrapSeries) {
-        for (int i=0; i<3; i++) {
-            stringstream path;
-            path << config.GetBaseDir() << "/series/" << id << "/fanart_" << i << ".jpg";
-            string fileFanart = path.str();
-            if (FileExists(fileFanart)) {
-                tvMedia media;
-                media.path = fileFanart;
-                media.width = 1920;
-                media.height = 1080;
-                fanart.push_back(media);
-            } else
-                break;
-        }
-    } else if (type == scrapMovie) {
+vector<cTvMedia> cImageServer::GetSeriesFanarts(int id) {
+    vector<cTvMedia> fanart;
+    for (int i=0; i<3; i++) {
         stringstream path;
-        path << config.GetBaseDir() << "/movies/" << id << "_backdrop.jpg";
+        path << config.GetBaseDir() << "/series/" << id << "/fanart_" << i << ".jpg";
         string fileFanart = path.str();
         if (FileExists(fileFanart)) {
-            tvMedia media;
+            cTvMedia media;
             media.path = fileFanart;
-            media.width = 1280;
-            media.height = 720;
+            media.width = 1920;
+            media.height = 1080;
             fanart.push_back(media);
-        }
+        } else
+            break;
     }
     return fanart;
 }
 
-vector<tvActor> cImageServer::GetActors(int id, scrapType type) {
-    vector<tvActor> actors;
+cTvMedia cImageServer::GetMovieFanart(int id) {
+    cTvMedia fanart;
+    stringstream path;
+    path << config.GetBaseDir() << "/movies/" << id << "_backdrop.jpg";
+    string fileFanart = path.str();
+    if (FileExists(fileFanart)) {
+        fanart.path = fileFanart;
+        fanart.width = 1280;
+        fanart.height = 720;
+    }
+    return fanart;
+}
+
+
+vector<cActor> cImageServer::GetActors(int id, scrapType type) {
+    vector<cActor> actors;
     if (type == scrapSeries) {
         vector<vector<string> > actorsDB = db->GetActorsSeries(id);
         int numActors = actorsDB.size();
         for (int i=0; i < numActors; i++) {
             vector<string> row = actorsDB[i];
             if (row.size() == 3) {
-                tvActor actor;
+                cActor actor;
                 actor.name = row[0];
                 actor.role = row[1];
-                tvMedia thumb;
+                cTvMedia thumb;
                 stringstream thumbPath;
                 thumbPath << config.GetBaseDir() << "/series/" << id << "/" << row[2];
                 thumb.path = thumbPath.str();
                 thumb.width = 300;
                 thumb.height = 450;
-                actor.thumb = thumb;
+                actor.actorThumb = thumb;
                 actors.push_back(actor);
             }
         }
@@ -188,16 +189,16 @@ vector<tvActor> cImageServer::GetActors(int id, scrapType type) {
         for (int i=0; i < numActors; i++) {
             vector<string> row = actorsDB[i];
             if (row.size() == 3) {
-                tvActor actor;
+                cActor actor;
                 actor.name = row[1];
                 actor.role = row[2];
                 stringstream thumbPath;
                 thumbPath << config.GetBaseDir() << "/movies/actors/actor_" << row[0] << ".jpg";
-                tvMedia thumb;
+                cTvMedia thumb;
                 thumb.path = thumbPath.str();
                 thumb.width = 421;
                 thumb.height = 632;
-                actor.thumb = thumb;
+                actor.actorThumb = thumb;
                 actors.push_back(actor);
             }
         }

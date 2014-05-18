@@ -13,7 +13,7 @@ vector<string>& splitstring::split(char delim, int rep) {
     if (!flds.empty()) flds.clear();  // empty vector if necessary
     string work = data();
     string buf = "";
-    int i = 0;
+    unsigned int i = 0;
     while (i < work.length()) {
         if (work[i] != delim)
             buf += work[i];

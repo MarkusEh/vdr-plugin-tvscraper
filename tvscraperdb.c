@@ -238,13 +238,13 @@ void cTVScraperDB::ClearOutdated(string movieDir) {
     sql2 << "delete from event_movie where valid_till < " << now;
     sqlite3_stmt *stmt;
     sqlite3_prepare_v2(db, sql2.str().c_str(), -1, &stmt, NULL);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
     //delete all invalid events pointing to series, series will all be kept for later use
     stringstream sql3;
     sql3 << "delete from event_series where valid_till < " << now;
     sqlite3_stmt *stmt2;
     sqlite3_prepare_v2(db, sql3.str().c_str(), -1, &stmt2, NULL);
-    int ret2 = sqlite3_step(stmt2);
+    sqlite3_step(stmt2);
     esyslog("tvscraper: Cleanup Done");
 }
 
@@ -261,7 +261,7 @@ void cTVScraperDB::DeleteMovie(int movieID, string movieDir) {
     sql << "DELETE FROM actor_movie WHERE movie_id = " << movieID;
     sqlite3_stmt *stmt;
     sqlite3_prepare_v2(db, sql.str().c_str(), -1, &stmt, NULL);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
 }
 
 bool cTVScraperDB::CheckMovieOutdatedEvents(int movieID) {
@@ -310,7 +310,7 @@ void cTVScraperDB::InsertSeries(int seriesID, string name, string overview) {
     sqlite3_prepare_v2(db, sql.str().c_str(), -1, &stmt, NULL);
     sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, overview.c_str(), -1, SQLITE_TRANSIENT);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
 }
 
 void cTVScraperDB::InsertEventSeries(int eventID, time_t validTill, int seriesID) {
@@ -321,7 +321,7 @@ void cTVScraperDB::InsertEventSeries(int eventID, time_t validTill, int seriesID
     sql << ");";
     sqlite3_stmt *stmt;
     sqlite3_prepare_v2(db, sql.str().c_str(), -1, &stmt, NULL);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
 }
 
 void cTVScraperDB::InsertActor(int seriesID, string name, string role, string thumb) {
@@ -336,7 +336,7 @@ void cTVScraperDB::InsertActor(int seriesID, string name, string role, string th
     sqlite3_prepare_v2(db, sql.str().c_str(), -1, &stmt, NULL);
     sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, role.c_str(), -1, SQLITE_TRANSIENT);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
 }
 
 void cTVScraperDB::InsertMovie(int movieID, string title, string originalTitle, string overview) {
@@ -351,7 +351,7 @@ void cTVScraperDB::InsertMovie(int movieID, string title, string originalTitle, 
     sqlite3_bind_text(stmt, 1, title.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, originalTitle.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 3, overview.c_str(), -1, SQLITE_TRANSIENT);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
 }
 
 void cTVScraperDB::InsertEventMovie(int eventID, time_t validTill, int movieID) {
@@ -362,7 +362,7 @@ void cTVScraperDB::InsertEventMovie(int eventID, time_t validTill, int movieID) 
     sql << ");";
     sqlite3_stmt *stmt;
     sqlite3_prepare_v2(db, sql.str().c_str(), -1, &stmt, NULL);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
 }
 
 
@@ -375,7 +375,7 @@ void cTVScraperDB::InsertMovieActor(int movieID, int actorID, string name, strin
     sqlite3_stmt *stmt;
     sqlite3_prepare_v2(db, sql.str().c_str(), -1, &stmt, NULL);
     sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_TRANSIENT);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
 
     stringstream sql2;
     sql2 << "INSERT INTO actor_movie (actor_id, movie_id, actor_role) ";
@@ -385,7 +385,7 @@ void cTVScraperDB::InsertMovieActor(int movieID, int actorID, string name, strin
     sqlite3_stmt *stmt2;
     sqlite3_prepare_v2(db, sql2.str().c_str(), -1, &stmt2, NULL);
     sqlite3_bind_text(stmt2, 1, role.c_str(), -1, SQLITE_TRANSIENT);
-    ret = sqlite3_step(stmt2);
+    sqlite3_step(stmt2);
 }
 
 bool cTVScraperDB::MovieExists(int movieID) {
@@ -458,7 +458,7 @@ void cTVScraperDB::InsertRecording(int recEventID, int seriesID, int movieID) {
     sql << ");";
     sqlite3_stmt *stmt;
     sqlite3_prepare_v2(db, sql.str().c_str(), -1, &stmt, NULL);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
 }
 
 bool cTVScraperDB::SetRecordingSeries(int eventID) {
@@ -498,7 +498,7 @@ void cTVScraperDB::ClearRecordings(void) {
     sql << "DELETE FROM recordings where 0 = 0";
     sqlite3_stmt *stmt;
     sqlite3_prepare_v2(db, sql.str().c_str(), -1, &stmt, NULL);
-    int ret = sqlite3_step(stmt);
+    sqlite3_step(stmt);
 }
 
 bool cTVScraperDB::CheckScrap(time_t timeStamp, string channelID) {

@@ -11,11 +11,12 @@ public:
     virtual ~cImageServer(void);
     scrapType GetScrapType(const cEvent *event);
     int GetID(int eventID, scrapType type, bool isRecording);
-    tvMedia GetPosterOrBanner(int id, scrapType type);
-    tvMedia GetPoster(int id, scrapType type);
-    tvMedia GetBanner(int id);
-    vector<tvMedia> GetPosters(int id, scrapType type);
-    vector<tvMedia> GetFanart(int id, scrapType type);
-    vector<tvActor> GetActors(int id, scrapType type);
+    cTvMedia GetPosterOrBanner(int id, scrapType type);
+    cTvMedia GetPoster(int id, scrapType type);
+    cTvMedia GetBanner(int id);
+    vector<cTvMedia> GetPosters(int id, scrapType type);
+    vector<cTvMedia> GetSeriesFanarts(int id);
+    cTvMedia GetMovieFanart(int id);
+    vector<cActor> GetActors(int id, scrapType type);
     string GetDescription(int id, scrapType type);
 };

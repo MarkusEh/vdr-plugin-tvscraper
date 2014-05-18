@@ -67,7 +67,7 @@ size_t collect_data(void *ptr, size_t size, size_t nmemb, void *stream)
     curlfuncs::sBuf += sTmp;
   }
   else {
-    size_t xxx = fwrite(ptr, size, nmemb, (FILE *)stream);
+    fwrite(ptr, size, nmemb, (FILE *)stream);
   }
   return actualsize;
 }
