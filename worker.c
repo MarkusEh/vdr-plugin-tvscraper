@@ -130,13 +130,23 @@ void cTVScraperWorker::ScrapEPG(void) {
     int numChannels = channels.size();
     for (int i=0; i<numChannels; i++) {
         string channelID = channels[i];
+#if APIVERSNUM < 20301
         const cChannel *channel = Channels.GetByChannelID(tChannelID::FromString(channelID.c_str()));
+#else
+        LOCK_CHANNELS_READ;
+        const cChannel *channel = Channels->GetByChannelID(tChannelID::FromString(channelID.c_str()));
+#endif
         if (!channel)
             continue;
         dsyslog("tvscraper: scraping Channel %s %s", channel->Name(), channelID.c_str());
+#if APIVERSNUM < 20301
         cSchedulesLock schedulesLock;
         const cSchedules *schedules = cSchedules::Schedules(schedulesLock);
         const cSchedule *Schedule = schedules->GetSchedule(channel);
+#else
+        LOCK_SCHEDULES_READ;
+        const cSchedule *Schedule = Schedules->GetSchedule(channel);
+#endif
         if (Schedule) {
             const cEvent *event = NULL;
             for (event = Schedule->Events()->First(); event; event =  Schedule->Events()->Next(event)) {
@@ -160,7 +170,12 @@ void cTVScraperWorker::ScrapEPG(void) {
 
 void cTVScraperWorker::ScrapRecordings(void) {
     db->ClearRecordings();
+#if APIVERSNUM < 20301
     for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec)) {
+#else
+    LOCK_RECORDINGS_READ;
+    for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
+#endif
         if (overrides->IgnorePath(rec->FileName()))
             continue;
         const cRecordingInfo *recInfo = rec->Info();
@@ -188,7 +203,12 @@ void cTVScraperWorker::ScrapRecordings(void) {
 }
 
 void cTVScraperWorker::CheckRunningTimers(void) {
+#if APIVERSNUM < 20301
     for (cTimer *timer = Timers.First(); timer; timer = Timers.Next(timer)) {
+#else
+    LOCK_TIMERS_READ;
+    for (const cTimer *timer = Timers->First(); timer; timer = Timers->Next(timer)) {
+#endif
         if (timer->Recording()) {
             const cEvent *event = timer->Event();
             if (!event)

@@ -6,7 +6,12 @@ using namespace std;
 
 cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread) {
     worker = workerThread;
+#if APIVERSNUM < 20301
     int numChannels = Channels.Count();
+#else
+    LOCK_CHANNELS_READ;
+    int numChannels = Channels->Count();
+#endif
     for (int i=0; i<numChannels; i++) {
         int akt = 0;
         if (config.ChannelActive(i+1))
@@ -60,7 +65,12 @@ void cTVScraperSetup::Store(void) {
     int numChannels = channelsScrap.size();
     for (int i=0; i<numChannels; i++) {
         if (channelsScrap[i] == 1) {
+#if APIVERSNUM < 20301
             cChannel *channel = Channels.GetByNumber(i+1);
+#else
+            LOCK_CHANNELS_READ;
+            const cChannel *channel = Channels->GetByNumber(i+1);
+#endif
             if (channel) {
                 string channelID = *(channel->GetChannelID().ToString());
                 channelsToScrap << channelID << ";";
@@ -89,7 +99,12 @@ void cTVScraperChannelSetup ::Setup(void) {
     int currentItem = Current();
     Clear();
     int i=0;
+#if APIVERSNUM < 20301
     for (cChannel *channel = Channels.First(); channel; channel = Channels.Next(channel)) {
+#else
+    LOCK_CHANNELS_READ;
+    for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel)) {
+#endif
         if (!channel->GroupSep()) {
             Add(new cMenuEditBoolItem(channel->Name(), &channelsScrap->at(i), tr("don't scrap"), tr("scrap")));
             i++;

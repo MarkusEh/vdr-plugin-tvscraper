@@ -18,7 +18,12 @@ void cTVScraperConfig::AddChannel(string channelID) {
 }
 
 bool cTVScraperConfig::ChannelActive(int channelNum) {
+#if APIVERSNUM < 20301
     cChannel *channel = Channels.GetByNumber(channelNum);
+#else
+    LOCK_CHANNELS_READ;
+    const cChannel *channel = Channels->GetByNumber(channelNum);
+#endif
     if (channel) {
         string channelID = "";
         channelID = *(channel->GetChannelID().ToString());
