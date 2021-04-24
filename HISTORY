@@ -9,14 +9,14 @@ VDR Plugin 'tvscraper' Revision History
 
 - renamed plugin to "tvscraper"
 - removed unnecessary string in ScrapRecordings
-- Correctly escaped select statements with movie 
+- Correctly escaped select statements with movie
   or series titles
 - adapted detection of series/movies: duration of
-  series has to be between 10 and 75 minutes, movies 
+  series has to be between 10 and 75 minutes, movies
   have to be longer than 75 minutes
 
 Version 0.0.3
-- Implemented cache so that an already looked up 
+- Implemented cache so that an already looked up
   series or movie will not be looked up again
 - Removed quotation marks around search strings
 
@@ -34,8 +34,8 @@ Version 0.0.5
 - modification of sophisticated movie search
   also "(" are considered and text is cutted, depending
   if "(" or "-" occur first in search string
-- introduced possibility to ignore titles, set scrap 
-  type and substitute search strings manually. See file 
+- introduced possibility to ignore titles, set scrap
+  type and substitute search strings manually. See file
   "conf/override.conf" in source tree for explanation.
 - Fixed a crash if a recording without EPG is running
 - Fixed a crash if internet connection is not available
@@ -48,3 +48,6 @@ Version 0.2.0
 - Removed old tvscraper service interface
 - Add scraper2vdr service interface
 - Fixed some compiler warnings
+
+Version 0.2.1
+- Add compatibility for VDR API >= 2.3.1
