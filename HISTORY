@@ -51,3 +51,10 @@ Version 0.2.0
 
 Version 0.2.1
 - Add compatibility for VDR API >= 2.3.1
+
+Version 0.9.0
+- Unique IDs to identify event / recording
+- Check downloaded files for errors, and repeat download if required
+- Support season / episode
+- Add support for themoviedb tv shows
+- Improve automated detection, if it is a movie or a TV show
