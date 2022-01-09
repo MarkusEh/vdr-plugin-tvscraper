@@ -20,15 +20,13 @@ public:
 
 class cTVDBActors {
 private:
-    xmlDoc *doc;
     string language;
     vector<cTVDBActor*> actors;
-    void SetXMLDoc(string xml);
-    void ReadEntry(xmlNode *node);
+    void ReadEntry(xmlDoc *doc, xmlNode *node);
 public:
-    cTVDBActors(string xml, string language);
+    cTVDBActors(string language);
     virtual ~cTVDBActors(void);
-    void ParseXML(void);
+    void ReadActors(xmlDoc *doc, xmlNode *nodeActors);
     void StoreDB(cTVScraperDB *db, int series_id);
     void Store(string baseUrl, string destDir);
     void Dump(bool verbose);

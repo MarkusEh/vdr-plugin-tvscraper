@@ -7,13 +7,14 @@
  */
 #include <getopt.h>
 #include <vdr/plugin.h>
+#include "tools/splitstring.c"
+#include "config.c"
+cTVScraperConfig config;
+#include "tools/jsonHelpers.c"
 #include "tools/curlfuncs.cpp"
 #include "tools/filesystem.c"
 #include "tools/fuzzy.c"
-#include "tools/splitstring.c"
 #include "tools/stringhelpers.c"
-#include "config.c"
-cTVScraperConfig config;
 #include "overrides.c"
 #include "tvscraperdb.c"
 #include "thetvdbscraper/tvdbmirrors.c"
@@ -21,6 +22,7 @@ cTVScraperConfig config;
 #include "thetvdbscraper/tvdbmedia.c"
 #include "thetvdbscraper/tvdbactors.c"
 #include "thetvdbscraper/thetvdbscraper.c"
+#include "themoviedbscraper/moviedbtv.c"
 #include "themoviedbscraper/moviedbmovie.c"
 #include "themoviedbscraper/moviedbactors.c"
 #include "themoviedbscraper/themoviedbscraper.c"
@@ -29,7 +31,7 @@ cTVScraperConfig config;
 #include "imageserver.c"
 #include "setup.c"
 
-static const char *VERSION        = "0.2.1";
+static const char *VERSION        = "0.9.0";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
@@ -42,6 +44,8 @@ private:
     cImageServer *imageServer;
     cOverRides *overrides;
     int lastEventId;
+    int lastSeasonNumber;
+    int lastEpisodeNumber;
 public:
     cPluginTvscraper(void);
     virtual ~cPluginTvscraper();
@@ -111,7 +115,7 @@ bool cPluginTvscraper::Start(void) {
     };
     overrides = new cOverRides();
     overrides->ReadConfig(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N));
-    imageServer = new cImageServer(db, overrides);
+    imageServer = new cImageServer(db);
     workerThread = new cTVScraperWorker(db, overrides);
     workerThread->SetDirectories();
     workerThread->SetLanguage();
@@ -161,24 +165,19 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     
     if (strcmp(Id, "GetEventType") == 0) {
         ScraperGetEventType* call = (ScraperGetEventType*) Data;
-        if (!call->event && !call->recording)
-        {
-            lastEventId = 0;
-            return false;
-        }
-
         const cEvent *event = NULL;
-        bool isRecording = false;
+        const cRecording *recording = NULL;
         if( call->event ) {
             event = call->event;
-            isRecording = false;
         } else if( call->recording ) {
             event = call->recording->Info()->GetEvent();
-            isRecording = true;
-        }
+            recording = call->recording;
+        } else {
+            lastEventId = 0;
+            return false;
+	}
 
-        scrapType type = imageServer->GetScrapType(event);
-        lastEventId = imageServer->GetID(event->EventID(), type, isRecording);
+        scrapType type = imageServer->GetIDs(event, recording, lastEventId, lastSeasonNumber, lastEpisodeNumber);
 
         if( lastEventId == 0 ) {
             call->type = tNone;
@@ -203,11 +202,43 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         if( call->seriesId == 0 || lastEventId == 0 )
             return false;
 
-        call->banners.push_back(imageServer->GetBanner(lastEventId));
+        float popularity, vote_average;
+        db->GetTv(lastEventId, call->name, call->overview, call->firstAired, call->network, call->genre, popularity, vote_average, call->status);
+        call->rating = vote_average;
+
+// data for cEpisode episode;
+        call->episode.season = lastSeasonNumber;
+        call->episode.number = lastEpisodeNumber;
+        int episodeID;
+        db->GetTvEpisode(lastEventId, lastSeasonNumber, lastEpisodeNumber, episodeID, call->episode.name, call->episode.firstAired, vote_average, call->episode.overview, call->episode.guestStars);
+        call->episode.rating = vote_average;
+// guestStars
+        if(call->episode.guestStars.empty() ) {
+          vector<vector<string> > GuestStars = db->GetGuestActorsTv(episodeID);
+          int numActors = GuestStars.size();
+          for (int i=0; i < numActors; i++) {
+              vector<string> row = GuestStars[i];
+              if (row.size() == 3) {
+                  if(i != 0) call->episode.guestStars.append("; ");
+                  call->episode.guestStars.append(row[1]); // name
+                  call->episode.guestStars.append(": ");
+                  call->episode.guestStars.append(row[2]); // role
+              }
+          }
+        }
+        call->episode.episodeImage = imageServer->GetStill(lastEventId, lastSeasonNumber, lastEpisodeNumber);
+
+// more not episode related data
+        call->actors = imageServer->GetActors(lastEventId, episodeID, scrapSeries);
         call->posters = imageServer->GetPosters(lastEventId, scrapSeries);
-        call->fanarts = imageServer->GetSeriesFanarts(lastEventId);
-        call->actors = imageServer->GetActors(lastEventId, scrapSeries);
-        call->overview = imageServer->GetDescription(lastEventId, scrapSeries);
+        cTvMedia media;
+        call->seasonPoster = media;  // default: empty
+        call->banners.clear();
+        if (imageServer->GetBanner(media, lastEventId) ) call->banners.push_back(media);
+        call->fanarts = imageServer->GetSeriesFanarts(lastEventId, lastSeasonNumber, lastEpisodeNumber);
+
+//        if (imageServer->GetTvPoster(media, lastEventId, lastSeasonNumber) ) call->seasonPoster = media;
+        call->seasonPoster = imageServer->GetPoster(lastEventId, lastSeasonNumber, lastEpisodeNumber);
 
         return true;
     }
@@ -217,10 +248,16 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         if (call->movieId == 0 || lastEventId == 0)
             return false;
 
-        call->poster = imageServer->GetPoster(lastEventId, scrapMovie);
+        int collection_id;
+        db->GetMovie(lastEventId, call->title, call->originalTitle, call->tagline, call->overview, call->adult, collection_id, call->collectionName, call->budget, call->revenue, call->genres, call->homepage, call->releaseDate, call->runtime, call->popularity, call->voteAverage);
+
+
+        call->poster = imageServer->GetPoster(lastEventId, lastSeasonNumber, lastEpisodeNumber);
         call->fanart = imageServer->GetMovieFanart(lastEventId);
-        call->actors = imageServer->GetActors(lastEventId, scrapMovie);
-        call->overview = imageServer->GetDescription(lastEventId, scrapMovie);
+        call->collectionPoster = imageServer->GetCollectionPoster(collection_id);
+        call->collectionFanart = imageServer->GetCollectionFanart(collection_id);
+        int episodeID = 0;
+        call->actors = imageServer->GetActors(lastEventId, episodeID, scrapMovie);
 
         return true;
     }
@@ -229,16 +266,17 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         ScraperGetPosterBanner* call = (ScraperGetPosterBanner*) Data;
         if (!call->event)
             return false;
-        scrapType type = imageServer->GetScrapType(call->event);
+        int id, sn, en;
+        scrapType type = imageServer->GetIDs(call->event, NULL, id, sn, en);
+        if (config.enableDebug) esyslog("tvscraper: GetPosterBanner, id %i type %i", id, type);
         if (type == scrapSeries)
             call->type = tSeries;
         else if (type == scrapMovie)
             call->type = tMovie;
         else
             call->type = tNone;
-        int id = imageServer->GetID(call->event->EventID(), type, false);
-        if (id > 0) {
-            cTvMedia media = imageServer->GetPosterOrBanner(id, type);
+        if (type != scrapNone) {
+            cTvMedia media = imageServer->GetPosterOrBanner(id, sn, en, type);
             if( type == scrapMovie ) {
                 call->poster = media;
             } else if( type == scrapSeries ) {
@@ -251,24 +289,23 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 
     if (strcmp(Id, "GetPoster") == 0) {
         ScraperGetPoster* call = (ScraperGetPoster*) Data;
-
         const cEvent *event = NULL;
-        bool isRecording = false;
-
-        if (!call->event && !call->recording)
-            return false;
+        const cRecording *recording = NULL;
         if( call->event ) {
             event = call->event;
-            isRecording = false;
         } else if( call->recording ) {
             event = call->recording->Info()->GetEvent();
-            isRecording = true;
-        }
+            recording = call->recording;
+        } else {
+            return false;
+	}
 
-        scrapType type = imageServer->GetScrapType(event);
-        int id = imageServer->GetID(event->EventID(), type, isRecording);
-        if (id > 0) {
-            call->poster = imageServer->GetPoster(id, type);
+        int id, sn, en;
+        scrapType type = imageServer->GetIDs(event, recording, id, sn, en);
+//      if (config.enableDebug) esyslog("tvscraper: GetPoster, id %i type %i", id, type);
+
+        if (type != scrapNone) {
+            call->poster = imageServer->GetPoster(id, sn, en);
             return true;
         }
         return false;
@@ -276,24 +313,21 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 
     if (strcmp(Id, "GetPosterThumb") == 0) {
         ScraperGetPosterThumb* call = (ScraperGetPosterThumb*) Data;
-
         const cEvent *event = NULL;
-        bool isRecording = false;
-
-        if (!call->event && !call->recording)
-            return false;
+        const cRecording *recording = NULL;
         if( call->event ) {
             event = call->event;
-            isRecording = false;
         } else if( call->recording ) {
             event = call->recording->Info()->GetEvent();
-            isRecording = true;
-        }
+            recording = call->recording;
+        } else {
+            return false;
+	}
 
-        scrapType type = imageServer->GetScrapType(event);
-        int id = imageServer->GetID(event->EventID(), type, isRecording);
-        if (id > 0) {
-            call->poster = imageServer->GetPoster(id, type);
+        int id, sn, en;
+        scrapType type = imageServer->GetIDs(event, recording, id, sn, en);
+        if (type != scrapNone) {
+            call->poster = imageServer->GetPoster(id, sn, en);
             return true;
         }
         return false;

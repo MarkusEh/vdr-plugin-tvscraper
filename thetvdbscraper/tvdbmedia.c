@@ -7,41 +7,26 @@
 
 using namespace std;
 
-cTVDBSeriesMedia::cTVDBSeriesMedia(string xml, string language) {
-    doc = NULL;
-    SetXMLDoc(xml);
+cTVDBSeriesMedia::cTVDBSeriesMedia(string language) {
     this->language = language;
 }
 
 cTVDBSeriesMedia::~cTVDBSeriesMedia() {
-    xmlFreeDoc(doc);
     medias.clear();
 }
 
-void cTVDBSeriesMedia::SetXMLDoc(string xml) {
-    xmlInitParser();
-    doc = xmlReadMemory(xml.c_str(), strlen(xml.c_str()), "noname.xml", NULL, 0);
-}
 
-void cTVDBSeriesMedia::ParseXML(void) {
-    if (doc == NULL)
-        return;
-    //Root Element has to be <Banners>
-    xmlNode *node = NULL;
-    node = xmlDocGetRootElement(doc);
-    if (!(node && !xmlStrcmp(node->name, (const xmlChar *)"Banners")))
-        return;
-    //Looping through banners
-    node = node->children;
-    xmlNode *cur_node = NULL;
-    for (cur_node = node; cur_node; cur_node = cur_node->next) {
+void cTVDBSeriesMedia::ReadMedia(xmlDoc *doc, xmlNode *nodeBanners) {
+    if (doc == NULL) return;
+//Looping through banners
+    for (xmlNode *cur_node = nodeBanners->children; cur_node; cur_node = cur_node->next) {
         if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Banner")) {
-            ReadEntry(cur_node->children);
+            ReadEntry(doc, cur_node->children);
         }
     }
 }
 
-void cTVDBSeriesMedia::ReadEntry(xmlNode *node) {
+void cTVDBSeriesMedia::ReadEntry(xmlDoc *doc, xmlNode *node) {
     xmlNode *cur_node = NULL;
     xmlChar *node_content;
     cTVDBMedia *media = new cTVDBMedia();
@@ -134,7 +119,7 @@ void cTVDBSeriesMedia::Store(string baseUrl, string destDir) {
             default:
                 break;
         }
-        CurlGetUrlFile(url.c_str(), path.c_str());
+        Download(url, path);
     }
 }
 

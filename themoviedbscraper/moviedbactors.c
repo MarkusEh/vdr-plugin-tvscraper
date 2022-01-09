@@ -17,11 +17,13 @@ cMovieDbActors::~cMovieDbActors() {
 
 void cMovieDbActors::ParseJSON(void) {
     json_t *jActors;
-    json_error_t error;
-    jActors = json_loads(json.c_str(), 0, &error);
-    if (!jActors) {
-        return;
-    }
+    jActors = json_loads(json.c_str(), 0, NULL);
+    if (!jActors) return;
+    ParseJSON(jActors);
+    json_decref(jActors);
+    return;
+}
+void cMovieDbActors::ParseJSON(json_t *jActors) {
     if(!json_is_object(jActors)) {
         return;
     }
@@ -38,14 +40,13 @@ void cMovieDbActors::ParseJSON(void) {
         json_t *jId = json_object_get(jActor, "id");
         json_t *jName = json_object_get(jActor, "name");
         json_t *jRole = json_object_get(jActor, "character");
-        json_t *jPath = json_object_get(jActor, "profile_path");
-        if (!json_is_integer(jId) || !json_is_string(jName) || !json_is_string(jRole) || !json_is_string(jPath))
-            return;
+        if (!json_is_integer(jId) || !json_is_string(jName) || !json_is_string(jRole) )
+            continue;
         cMovieDBActor *actor = new cMovieDBActor();
         actor->id = json_integer_value(jId);
         actor->name = json_string_value(jName);
         actor->role = json_string_value(jRole);
-        actor->path = json_string_value(jPath);
+        actor->path = json_string_value_validated(jActor, "profile_path");
         actors.push_back(actor);
     }
 }
@@ -62,15 +63,13 @@ void cMovieDbActors::Store(string baseUrl, string destDir) {
     string path;
     string url;
     for (int i=0; i<size; i++) {
+      if (actors[i]->path.size() > 0) {
         stringstream strUrl;
         strUrl << baseUrl << actors[i]->path;
-        url = strUrl.str();
         stringstream fullPath;
         fullPath << destDir << "/actor_" << actors[i]->id << ".jpg";
-        path = fullPath.str();
-        if (!FileExists(path)) {
-            CurlGetUrlFile(url.c_str(), path.c_str());
-        }
+        Download(strUrl.str(), fullPath.str() );
+      }
     }
 }
 

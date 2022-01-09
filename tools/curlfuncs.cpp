@@ -61,7 +61,8 @@ namespace curlfuncs {
 size_t collect_data(void *ptr, size_t size, size_t nmemb, void *stream)
 {
   string sTmp;
-  register size_t actualsize = size * nmemb;
+//  register size_t actualsize = size * nmemb;
+  size_t actualsize = size * nmemb;
   if ((FILE *)stream == NULL) {
     sTmp.assign((char *)ptr, actualsize);
     curlfuncs::sBuf += sTmp;
@@ -88,7 +89,22 @@ inline void InitCurlLibraryIfNeeded()
   }
 }
 
-int CurlGetUrl(const char *url, string *sOutput, const string &sReferer) 
+int CurlGetUrl_int(const char *url, string *sOutput, const string &sReferer);
+int CurlGetUrl(const char *url, string *sOutput, const string &sReferer) {
+  int ret;
+  for(int i=0; i < 10; i++) {
+    ret = CurlGetUrl_int(url, sOutput, sReferer);
+    if(!ret || !sOutput) return ret;
+    if((*sOutput)[0] == '{') return ret; // json file, OK
+    if((*sOutput)[0] == '<') return ret; // xml  file, OK
+//     if(sOutput->compare("HTTP") != 0 ) return ret;
+    string log_data = sOutput->substr(0, 20);
+    sleep(2);
+    if (config.enableDebug) esyslog("tvscraper: rate limit calling \"%s\", i = %i output \"%s\"", url, i, log_data.c_str() );
+  }
+  return ret;
+}
+int CurlGetUrl_int(const char *url, string *sOutput, const string &sReferer)
 {
   InitCurlLibraryIfNeeded();
 
@@ -132,6 +148,35 @@ int CurlGetUrlFile(const char *url, const char *filename, const string &sReferer
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEDATA, NULL);     // Set option back to default (string)
   fclose(fp);
   return nRet;
+}
+
+bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, string &error, const string &sReferer)
+{
+  CURLcode res;
+  err_code = 0;
+  error = "";
+  InitCurlLibraryIfNeeded();
+
+  // Point the output to a file
+  FILE *fp;
+  if ((fp = fopen(filename, "w")) == NULL) {
+    err_code = -2;
+    error = "Error opening file for write";
+    return false;
+  }
+
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEDATA, fp);       // Set option to write to file
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_URL, url);            // Set the URL to get
+  if (sReferer != "")
+    curl_easy_setopt(curlfuncs::curl, CURLOPT_REFERER, sReferer.c_str());
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPGET, TRUE);
+  res =  curl_easy_perform(curlfuncs::curl);
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEDATA, NULL);     // Set option back to default (string)
+  fclose(fp);
+  if(res == CURLE_OK) return true;
+  error = curl_easy_strerror(res);
+  err_code = res;
+  return false;
 }
 
 int CurlPostUrl(const char *url, const string &sPost, string *sOutput, const string &sReferer)

@@ -4,31 +4,24 @@
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include "tvdbseries.h"
+#include "tvdbmedia.h"
+#include "tvdbactors.h"
+#include "thetvdbscraper.h"
+#include "../tools/searchResultTvMovie.h"
 
 using namespace std;
 
-cTVDBSeries::cTVDBSeries(string xml) {
-    doc = NULL;
-    SetXMLDoc(xml);
-    seriesID = 0;
-    name = "";
-    banner = "";
-    overview = "";
-    imbdid = "";
+cTVDBSeries::cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper):
+  m_db(db),
+  m_TVDBScraper(TVDBScraper)
+{
 }
 
 cTVDBSeries::~cTVDBSeries() {
-    xmlFreeDoc(doc);
 }
 
-void cTVDBSeries::SetXMLDoc(string xml) {
-    xmlInitParser();
-    doc = xmlReadMemory(xml.c_str(), strlen(xml.c_str()), "noname.xml", NULL, 0);
-}
-
-void cTVDBSeries::ParseXML(void) {
-    if (doc == NULL)
-        return;
+void cTVDBSeries::ParseXML_search(xmlDoc *doc, vector<searchResultTvMovie> &resultSet, const string &SearchString) {
+    if (doc == NULL) return;
     //Root Element has to be <Data>
     xmlNode *node = NULL;
     node = xmlDocGetRootElement(doc);
@@ -39,17 +32,17 @@ void cTVDBSeries::ParseXML(void) {
     xmlNode *cur_node = NULL;
     for (cur_node = node; cur_node; cur_node = cur_node->next) {
         if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Series")) {
-            node = cur_node;
-            break;
-        } else {
-            node = NULL;
+            ParseXML_searchSeries(doc, cur_node, resultSet, SearchString);
         }
     }
-    if (!node)
-        return;
-    //now read the first series    
+}
+void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searchResultTvMovie> &resultSet, const string &SearchString) {
+    if (!node) return;
+// read the series
     node = node->children;
     xmlChar *node_content;
+    xmlNode *cur_node = NULL;
+    string aliasNames;
     for (cur_node = node; cur_node; cur_node = cur_node->next) {
         if (cur_node->type == XML_ELEMENT_NODE) {
             node_content = xmlNodeListGetString(doc, cur_node->xmlChildrenNode, 1);
@@ -59,20 +52,144 @@ void cTVDBSeries::ParseXML(void) {
                 seriesID = atoi((const char *)node_content);
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"SeriesName")) {
                 name = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"AliasNames")) {
+                aliasNames = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"FirstAired")) {
+                firstAired = (const char *)node_content;
+            }
+            xmlFree(node_content);
+        }
+    }
+    if(seriesID == 0) return;
+    transform(name.begin(), name.end(), name.begin(), ::tolower);
+    transform(aliasNames.begin(), aliasNames.end(), aliasNames.begin(), ::tolower);
+    searchResultTvMovie sRes;
+    sRes.id = seriesID * (-1);
+    sRes.movie = false;
+    sRes.year = 0;
+    sRes.distance = sentence_distance(name, SearchString);
+    std::size_t lDelim = aliasNames.find('|');
+    if (lDelim !=std::string::npos) {
+      for (std::size_t rDelim = aliasNames.find('|', lDelim +1); rDelim != std::string::npos; rDelim = aliasNames.find('|', lDelim +1) ) {
+        int dist = sentence_distance(aliasNames.substr(lDelim +1, rDelim - lDelim - 2), SearchString);
+        if (dist < sRes.distance) sRes.distance = dist;
+        lDelim = rDelim;
+      }
+    }
+//    sRes.distance += 100; // avoid TVDB if possible
+    resultSet.push_back(sRes);
+}
+
+void cTVDBSeries::ParseXML_all(xmlDoc *doc) {
+    if (doc == NULL) return;
+//Root Element has to be <Data>
+    xmlNode *node = NULL;
+    node = xmlDocGetRootElement(doc);
+    if (!(node && !xmlStrcmp(node->name, (const xmlChar *)"Data")))
+        return;
+    //Searching for  <Series>
+    node = node->children;
+    xmlNode *cur_node = NULL;
+    for (cur_node = node; cur_node; cur_node = cur_node->next) {
+        if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Series")) {
+            ParseXML_Series(doc, cur_node); // this also reads the seriesID
+            StoreDB(m_db);
+        } else if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Episode")) {
+            ParseXML_Episode(doc, cur_node);
+        }
+    }
+    m_db->TvSetEpisodesUpdated(seriesID * (-1) );
+}
+void cTVDBSeries::ParseXML_Series(xmlDoc *doc, xmlNode *node) {
+    if (!node) return;
+//read the series
+    xmlNode *cur_node = NULL;
+    node = node->children;
+    xmlChar *node_content;
+    episodeRunTimes.clear();
+    for (cur_node = node; cur_node; cur_node = cur_node->next) {
+        if (cur_node->type == XML_ELEMENT_NODE) {
+            node_content = xmlNodeListGetString(doc, cur_node->xmlChildrenNode, 1);
+            if (!node_content)
+                continue;
+            if (!xmlStrcmp(cur_node->name, (const xmlChar *)"id")) {
+                seriesID = atoi((const char *)node_content);
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"SeriesName")) {
+                name = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Overview")) {
                 overview = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"banner")) {
                 banner = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"FirstAired")) {
+                firstAired = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"IMDB_ID")) {
                 imbdid = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Actors")) {
+                actors = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Genre")) {
+                genres = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Network")) {
+                networks = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Rating")) {
+                rating = atof( (const char *)node_content );
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Runtime")) {
+                runtime = atof( (const char *)node_content );
+                if (runtime) episodeRunTimes.push_back(runtime);
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Status")) {
+                status = (const char *)node_content;
             }
             xmlFree(node_content);
         }
     }
 }
+void cTVDBSeries::ParseXML_Episode(xmlDoc *doc, xmlNode *node) {
+    if (!node) return;
+//read the episode
+    int episodeID = 0;
+    int seasonNumber = 0;
+    int episodeNumber = 0;
+    string episodeName("");
+    string episodeOverview("");
+    string episodeFirstAired("");
+    string episodeGuestStars("");
+    string episodeFilename("");
+    float episodeRating = 0.0;
+
+    xmlNode *cur_node = NULL;
+    node = node->children;
+    xmlChar *node_content;
+    for (cur_node = node; cur_node; cur_node = cur_node->next) {
+        if (cur_node->type == XML_ELEMENT_NODE) {
+            node_content = xmlNodeListGetString(doc, cur_node->xmlChildrenNode, 1);
+            if (!node_content) continue;
+            if (!xmlStrcmp(cur_node->name, (const xmlChar *)"id")) {
+                episodeID = atoi((const char *)node_content);
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"SeasonNumber")) {
+                seasonNumber = atoi((const char *)node_content);
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"EpisodeNumber")) {
+                episodeNumber = atoi((const char *)node_content);
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"EpisodeName")) {
+                episodeName = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Overview")) {
+                episodeOverview = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"FirstAired")) {
+                episodeFirstAired = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"GuestStars")) {
+                episodeGuestStars = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Rating")) {
+                episodeRating = atof( (const char *)node_content );
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"filename")) {
+                episodeFilename = (const char *)node_content;
+            }
+            xmlFree(node_content);
+        }
+    }
+    m_db->InsertTv_s_e(seriesID * (-1), seasonNumber, episodeNumber, episodeID, episodeName, episodeFirstAired, episodeRating, episodeOverview, episodeGuestStars);
+    m_TVDBScraper->StoreStill(seriesID, seasonNumber, episodeNumber, episodeFilename);
+}
 
 void cTVDBSeries::StoreDB(cTVScraperDB *db) {
-    db->InsertSeries(seriesID, name, overview);
+    db->InsertTv(seriesID * (-1), name, "", overview, firstAired, networks, genres, 0.0, rating, status, episodeRunTimes);
 }
 
 void cTVDBSeries::StoreBanner(string baseUrl, string destDir) {
@@ -84,9 +201,26 @@ void cTVDBSeries::StoreBanner(string baseUrl, string destDir) {
     stringstream fullPath;
     fullPath << destDir << "banner.jpg";
     string path = fullPath.str();
-    CurlGetUrlFile(url.c_str(), path.c_str());
+    Download(url, path);
 }
 
 void cTVDBSeries::Dump() {
     esyslog("tvscraper: series %s, id: %d, overview %s, imdb %s", name.c_str(), seriesID, overview.c_str(), imbdid.c_str());
 }
+
+bool cTVDBSeries::AddResults(vector<searchResultTvMovie> &resultSet, const string &SearchString) {
+// search for tv series, add search results to resultSet
+   stringstream url;
+   url << m_TVDBScraper->GetMirrors()->GetMirrorXML() << "/api/GetSeries.php?seriesname=" << CurlEscape(SearchString.c_str()) << "&language=" << m_TVDBScraper->GetLanguage().c_str();
+    string seriesXML;
+    if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
+    if (!CurlGetUrl(url.str().c_str(), &seriesXML)) return false;
+    seriesID = 0;
+    xmlInitParser();
+    xmlDoc *doc = xmlReadMemory(seriesXML.c_str(), strlen(seriesXML.c_str()), "noname.xml", NULL, 0);
+    ParseXML_search(doc, resultSet, SearchString);
+    if(doc) xmlFreeDoc(doc);
+    if(seriesID == 0) return false;
+    return true;
+}
+

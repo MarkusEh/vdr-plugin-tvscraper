@@ -8,13 +8,12 @@
 
 using namespace std;
 
-cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db, string language, cOverRides *overrides) {
+cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db, string language) {
     apiKey = "E9DBB94CA50832ED";
     baseURL = "thetvdb.com";
     this->baseDir = baseDir;
     this->language = language;
     this->db = db;
-    this->overrides = overrides;
     mirrors = NULL;
 }
 
@@ -23,63 +22,25 @@ cTVDBScraper::~cTVDBScraper() {
         delete mirrors;
 }
 
-void cTVDBScraper::Scrap(const cEvent *event, int recordingID) {
-    string seriesName = (event->Title())?event->Title():"";
-    if (overrides->Ignore(seriesName)) {
-        return;
-    }
-    seriesName = overrides->Substitute(seriesName);
-    if (config.enableDebug)
-        esyslog("tvscraper: scraping series \"%s\"", seriesName.c_str());
-    int eventID = (int)event->EventID();
-
-    map<string,int>::iterator cacheHit = cache.find(seriesName);
-    if (cacheHit != cache.end()) {
-        if (config.enableDebug)
-            esyslog("tvscraper: found in cache %s => %d", ((string)cacheHit->first).c_str(), (int)cacheHit->second);
-        int cachedSeriesID = (int)cacheHit->second;
-        if (cachedSeriesID > 0) {
-            if (!recordingID) {
-                time_t validTill = event->EndTime();
-                db->InsertEventSeries(eventID, validTill, cachedSeriesID);
-            } else  {
-                db->InsertRecording(recordingID, cachedSeriesID, 0);
-            }
-        }
-        return;
-    }
-    cTVDBSeries *series = ReadSeries(seriesName);
+int cTVDBScraper::StoreSeries(int seriesID, bool onlyEpisodes) {
+    int ns, ne;
+    if (!onlyEpisodes && db->TvGetNumberOfEpisodes(seriesID * (-1), ns, ne)) return seriesID; // already in db
+    cTVDBSeries *series = NULL;
     cTVDBSeriesMedia *media = NULL;
     cTVDBActors *actors = NULL;
-    if (!series)
-        return;
-    cache.insert(pair<string, int>(seriesName, series->ID()));
-    if (series->ID() < 1) {
-        if (config.enableDebug)
-            esyslog("tvscraper: nothing found for \"%s\"", seriesName.c_str());
-        return;
+    if (!ReadAll(seriesID, series, actors, media, onlyEpisodes)) return 0; // this also stores the series + episodes
+    if (!series) return 0;
+    if (!onlyEpisodes) {
+      if (actors) actors->StoreDB(db, series->ID());
+      StoreMedia(series, media, actors);
     }
-    if (!db->SeriesExists(series->ID())) {
-        series->StoreDB(db);
-        media = ReadSeriesMedia(series->ID());
-        actors = ReadSeriesActors(series->ID());
-        if (actors)
-            actors->StoreDB(db, series->ID());
-        StoreMedia(series, media, actors);
+    if (series) {
+      seriesID = series->ID();
+      delete series;
     }
-    if (!recordingID) {
-        time_t validTill = event->EndTime();
-        db->InsertEventSeries(eventID, validTill, series->ID());
-    } else  {
-        db->InsertRecording(recordingID, series->ID(), 0);
-    }
-    if (config.enableDebug)
-        esyslog("tvscraper: \"%s\" successfully scraped, id %d", seriesName.c_str(), series->ID());
-    delete series;
-    if (media)
-        delete media;
-    if (actors)
-        delete actors;
+    if (media) delete media;
+    if (actors) delete actors;
+    return seriesID;
 }
 
 
@@ -94,59 +55,89 @@ bool cTVDBScraper::Connect(void) {
     return false;
 }
 
-cTVDBSeries *cTVDBScraper::ReadSeries(string seriesName) {
+bool cTVDBScraper::ReadAll(int seriesID, cTVDBSeries *&series, cTVDBActors *&actors, cTVDBSeriesMedia *&media, bool onlyEpisodes) {
     stringstream url;
-    url << mirrors->GetMirrorXML() << "/api/GetSeries.php?seriesname=" << CurlEscape(seriesName.c_str()) << "&language=" << language.c_str();
-    string seriesXML;
-    cTVDBSeries *series = NULL;
-    if (config.enableDebug)
-        esyslog("tvscraper: calling %s", url.str().c_str());
-    if (CurlGetUrl(url.str().c_str(), &seriesXML)) {
-        series = new cTVDBSeries(seriesXML);
-        series->ParseXML();
+    url << mirrors->GetMirrorXML() << "/api/" << apiKey << "/series/" << seriesID << "/all/" << language << ".xml";
+// https://thetvdb.com/api/E9DBB94CA50832ED/series/413627/de.xml
+// https://thetvdb.com/api/E9DBB94CA50832ED/series/413627/all/de.xml
+// for all information, including episodes:  https://thetvdb.com/api/E9DBB94CA50832ED/series/413627/all/de.zip
+    string xmlAll;
+    if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
+    if (!CurlGetUrl(url.str().c_str(), &xmlAll)) return false;
+// xmlAll available
+    xmlInitParser();
+    xmlDoc *doc = xmlReadMemory(xmlAll.c_str(), strlen(xmlAll.c_str()), "noname.xml", NULL, 0);
+    if(!doc) return false;
+    series = new cTVDBSeries(db, this);
+    series->ParseXML_all(doc);
+    if (!onlyEpisodes) {
+      actors = NULL;
+      media  = NULL;
+      xmlNode *node = NULL;
+      node = xmlDocGetRootElement(doc);
+      if (node && !xmlStrcmp(node->name, (const xmlChar *)"Data")) {
+        node = node->children;
+        for (xmlNode *cur_node = node; cur_node; cur_node = cur_node->next) {
+          if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Actors")) {
+            if(!actors) {
+//              if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, before actors");
+              actors = new cTVDBActors(language);
+              actors->ReadActors(doc, cur_node);
+    // if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, after actors");
+            }
+          } else if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Banners")) {
+            if(!media) {
+//              if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, before media");
+              media = new cTVDBSeriesMedia(language);
+              media->ReadMedia(doc, cur_node);
+//    if (config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists NOT!");
+//    if (config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists");
+            }
+          }
+        }
+      }
     }
-    return series;
-}
-
-cTVDBSeriesMedia *cTVDBScraper::ReadSeriesMedia(int seriesID) {
-    stringstream url;
-    url << mirrors->GetMirrorXML() << "/api/" << apiKey << "/series/" << seriesID << "/banners.xml";
-    string bannersXML;
-    cTVDBSeriesMedia *media = NULL;
-    if (CurlGetUrl(url.str().c_str(), &bannersXML)) {
-        media = new cTVDBSeriesMedia(bannersXML, language);
-        media->ParseXML();
-    }
-    return media;
-}
-
-cTVDBActors *cTVDBScraper::ReadSeriesActors(int seriesID) {
-    stringstream url;
-    url << mirrors->GetMirrorXML() << "/api/" << apiKey << "/series/" << seriesID << "/actors.xml";
-    string actorsXML;
-    cTVDBActors *actors = NULL;
-    if (CurlGetUrl(url.str().c_str(), &actorsXML)) {
-        actors = new cTVDBActors(actorsXML, language);
-        actors->ParseXML();
-    }
-    return actors;
+    xmlFreeDoc(doc);
+//    if (config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::ReadAll, (End), series exists NOT!");
+//    if (config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::ReadAll, (End), series exists");
+    return true;
 }
 
 void cTVDBScraper::StoreMedia(cTVDBSeries *series, cTVDBSeriesMedia *media, cTVDBActors *actors) {
     stringstream baseUrl;
     baseUrl << mirrors->GetMirrorBanner() << "/banners/";
     stringstream destDir;
+//    if (config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::StoreMedia, before series->ID(), series exists");
+//    if (config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::StoreMedia, before series->ID(), series exists NOT");
     destDir << baseDir << "/" << series->ID() << "/";
     bool ok = CreateDirectory(destDir.str().c_str());
     if (!ok)
         return;
     if (series) {
         series->StoreBanner(baseUrl.str(), destDir.str());
+//        if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreMedia, after series->StoreBanner");
     }
     if (media) {
         media->Store(baseUrl.str(), destDir.str());
+//        if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreMedia, after media->Store");
     }
     if (actors) {
         actors->Store(baseUrl.str(), destDir.str());
+//        if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreMedia, after actors->Store");
     }
+}
+void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename) {
+    if (episodeFilename.empty() ) return;
+    stringstream url;
+    url << mirrors->GetMirrorBanner() << "/banners/" << episodeFilename;
+    stringstream destDir;
+    destDir << baseDir << "/" << seriesID << "/";
+    bool ok = CreateDirectory(destDir.str().c_str());
+    if (!ok) return;
+    destDir << seasonNumber << "/";
+    ok = CreateDirectory(destDir.str().c_str());
+    if (!ok) return;
+    destDir << "still_" << episodeNumber << ".jpg";
+    string pathStill = destDir.str();
+    Download(url.str(), pathStill);
 }

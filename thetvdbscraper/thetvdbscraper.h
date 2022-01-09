@@ -12,18 +12,17 @@ private:
     string baseDir;
     string language;
     cTVScraperDB *db;
-    cOverRides *overrides;
-    map<string, int> cache;
     cTVDBMirrors *mirrors;
-    cTVDBSeries *ReadSeries(string seriesName);
-    cTVDBSeriesMedia *ReadSeriesMedia(int seriesID);
-    cTVDBActors *ReadSeriesActors(int seriesID);
+    bool ReadAll(int seriesID, cTVDBSeries *&series, cTVDBActors *&actors, cTVDBSeriesMedia *&media, bool onlyEpisodes);
     void StoreMedia(cTVDBSeries *series, cTVDBSeriesMedia *media, cTVDBActors *actors);
 public:
-    cTVDBScraper(string baseDir, cTVScraperDB *db, string language, cOverRides *overrides);
+    cTVDBScraper(string baseDir, cTVScraperDB *db, string language);
     virtual ~cTVDBScraper(void);
     bool Connect(void);
-    void Scrap(const cEvent *event, int recordingID = 0);
+    cTVDBMirrors *GetMirrors(void) { return mirrors; }
+    const string GetLanguage(void) { return language; }
+    int StoreSeries(int seriesID, bool onlyEpisodes);
+    void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename);
 };
 
 

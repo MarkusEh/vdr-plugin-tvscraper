@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iostream>
  
+// see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
 template<typename T, typename C>
 size_t
 seq_distance(const T& seq1, const T& seq2, const C& cost,
@@ -21,6 +22,7 @@ seq_distance(const T& seq1, const T& seq2, const C& cost,
     prev_col[idx2 + 1] = prev_col[idx2] + cost(empty, seq2[idx2]);
   }
  
+  curr_col[0] = 0;
   for (size_t idx1 = 0; idx1 < size1; ++idx1) {
     curr_col[0] = curr_col[0] + cost(seq1[idx1], empty);
  
@@ -49,7 +51,7 @@ word_distance(const std::string& word1, const std::string& word2) {
 }
  
 size_t
-sentence_distance(const std::string& sentence1, const std::string& sentence2) {
+sentence_distance_int(const std::string& sentence1, const std::string& sentence2) {
   std::vector<std::string> words1;
   std::vector<std::string> words2;
   std::istringstream iss1(sentence1);
@@ -67,4 +69,19 @@ sentence_distance(const std::string& sentence1, const std::string& sentence2) {
     words2.push_back(" ");
   }
   return seq_distance(words1, words2, &word_distance);
+}
+int sentence_distance(const std::string& sentence1, const std::string& sentence2) {
+// return 0-1000
+// 0: Strings are equal
+  size_t s1l = sentence1.length();
+  size_t s2l = sentence2.length();
+  if (s1l == 0 || s2l == 0) return 1000;
+  size_t max_dist = std::max(s1l, s2l);
+  if (s1l > s2l) {
+    if (sentence1.find(sentence2) != std::string::npos) return 400 * (s1l - s2l) / max_dist;
+  } else {
+    if (sentence2.find(sentence1) != std::string::npos) return 400 * (s2l - s1l) / max_dist;
+  }
+  size_t dist = sentence_distance_int(sentence1, sentence2);
+  return 1000 * dist / max_dist;
 }

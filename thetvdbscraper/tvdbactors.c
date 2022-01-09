@@ -7,41 +7,21 @@
 
 using namespace std;
 
-cTVDBActors::cTVDBActors(string xml, string language) {
-    doc = NULL;
-    SetXMLDoc(xml);
+cTVDBActors::cTVDBActors(string language) {
     this->language = language;
 }
 
 cTVDBActors::~cTVDBActors() {
-    xmlFreeDoc(doc);
     actors.clear();
 }
 
-void cTVDBActors::SetXMLDoc(string xml) {
-    xmlInitParser();
-    doc = xmlReadMemory(xml.c_str(), strlen(xml.c_str()), "noname.xml", NULL, 0);
+void cTVDBActors::ReadActors(xmlDoc *doc, xmlNode *nodeActors) {
+    for (xmlNode *cur_node = nodeActors->children; cur_node; cur_node = cur_node->next) {
+        if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Actor"))
+            ReadEntry(doc, cur_node->children);
+   }
 }
-
-void cTVDBActors::ParseXML(void) {
-    if (doc == NULL)
-        return;
-    //Root Element has to be <Actors>
-    xmlNode *node = NULL;
-    node = xmlDocGetRootElement(doc);
-    if (!(node && !xmlStrcmp(node->name, (const xmlChar *)"Actors")))
-        return;
-    //Looping through actors
-    node = node->children;
-    xmlNode *cur_node = NULL;
-    for (cur_node = node; cur_node; cur_node = cur_node->next) {
-        if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Actor")) {
-            ReadEntry(cur_node->children);
-        }
-    }
-}
-
-void cTVDBActors::ReadEntry(xmlNode *node) {
+void cTVDBActors::ReadEntry(xmlDoc *doc, xmlNode *node) {
     xmlNode *cur_node = NULL;
     xmlChar *node_content;
     cTVDBActor *actor = new cTVDBActor();
@@ -84,7 +64,7 @@ void cTVDBActors::Store(string baseUrl, string destDir) {
         fullPath << destDir << "actor_" << i << ".jpg";
         path = fullPath.str();
         if (actors[i]->path.size() > 0) {
-            CurlGetUrlFile(url.c_str(), path.c_str());
+            Download(url, path);
         }
     }
 }

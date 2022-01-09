@@ -1,3 +1,5 @@
+#include <string>
+#include <vector>
 using namespace std;
 
 class splitstring : public string {

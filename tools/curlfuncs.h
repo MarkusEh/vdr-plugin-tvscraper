@@ -37,6 +37,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 int CurlGetUrl(const char *url, string *sOutput, const string &sReferer="");
 int CurlGetUrlFile(const char *url, const char *filename, const string &sReferer="");
+bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, string &error, const string &sReferer="");
 void FreeCurlLibrary(void);
 int CurlSetCookieFile(char *filename);
 int CurlPostUrl(const char *url, const string &sPost, string *sOutput, const string &sReferer = "");

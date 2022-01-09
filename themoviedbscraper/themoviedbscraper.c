@@ -14,7 +14,8 @@ cMovieDBScraper::cMovieDBScraper(string baseDir, cTVScraperDB *db, string langua
     this->baseDir = baseDir;
     this->db = db;
     this->overrides = overrides;
-    posterSize = "w500";
+    posterSize = "w780";
+    stillSize = "w300";
     backdropSize = "w1280";
     actorthumbSize = "h632";
 }
@@ -22,69 +23,43 @@ cMovieDBScraper::cMovieDBScraper(string baseDir, cTVScraperDB *db, string langua
 cMovieDBScraper::~cMovieDBScraper() {
 }
 
-void cMovieDBScraper::Scrap(const cEvent *event, int recordingID) {
-    string movieName = (event->Title())?event->Title():"";
-    if (overrides->Ignore(movieName)) {
+void cMovieDBScraper::StoreMovie(cMovieDbMovie &movie) {
+// if movie does not exist in DB, download movie and store it in DB
+      int movieID = movie.ID();
+      if (db->MovieExists(movieID)) {
+        stringstream destDir;
+        destDir << baseDir << "/" << movieID << "_poster.jpg";
+        if(FileExists(destDir.str())) return;
+      }
+      if (config.enableDebug) esyslog("tvscraper: movie \"%i\" does not jet exist in db", movieID);
+      if(!movie.ReadMovie()) {
+        if (config.enableDebug) esyslog("tvscraper: error reading movie \"%i\" ", movieID);
         return;
-    }
-    movieName = overrides->Substitute(movieName);
-    int eventID = (int)event->EventID();
-    if (config.enableDebug)
-        esyslog("tvscraper: scraping movie \"%s\"", movieName.c_str());
-    int movieID = SearchMovie(movieName);
-    if ((movieID < 1) &&  (recordingID > 0)){
-        //if recording, do some more sophisticated search
-        movieID = SearchMovieElaborated(movieName);
-    }
-    if (movieID < 1) {
-        if (config.enableDebug)
-            esyslog("tvscraper: nothing found for \"%s\"", movieName.c_str());
-        return;
-    }
-    if (!recordingID) {
-        time_t validTill = event->EndTime();
-        db->InsertEventMovie(eventID, validTill, movieID);
-    } else {
-        db->InsertRecording(recordingID, 0, movieID);
-    }
-    if (db->MovieExists(movieID)) {
-        return;
-    }
-    cMovieDbMovie *movie = ReadMovie(movieID);
-    if (!movie)
-        return;
-    movie->StoreDB(db);
-    cMovieDbActors *actors = ReadActors(movieID);
-    if (!actors) {
-        delete movie;
-        return;
-    }
-    actors->StoreDB(db, movieID);
-    StoreMedia(movie, actors);
-    delete movie;
-    delete actors;
-    if (config.enableDebug)
-        esyslog("tvscraper: \"%s\" successfully scraped, id %d", movieName.c_str(), movieID);
+      }
+      movie.StoreDB();
+      cMovieDbActors *actors = ReadActors(movieID);
+      if (!actors) return;
+      actors->StoreDB(db, movieID);
+      StoreMedia(&movie, actors);
+      delete actors;
 }
-
 bool cMovieDBScraper::Connect(void) {
     stringstream url;
     url << baseURL << "/configuration?api_key=" << apiKey;
     string configJSON;
     if (CurlGetUrl(url.str().c_str(), &configJSON)) {
-        return parseJSON(configJSON);
+       json_t *root;
+       root = json_loads(configJSON.c_str(), 0, NULL);
+       if (!root) return false;
+       bool ret = parseJSON(root);
+       json_decref(root);
+       return ret;
     }
     return false;
 }
 
-bool cMovieDBScraper::parseJSON(string jsonString) {
-    json_t *root;
-    json_error_t error;
-
-    root = json_loads(jsonString.c_str(), 0, &error);
-    if (!root) {
-        return false;
-    }
+bool cMovieDBScraper::parseJSON(json_t *root) {
+// parese result of https://api.themoviedb.org/3/configuration
     if(!json_is_object(root)) {
         return false;
     }
@@ -101,91 +76,6 @@ bool cMovieDBScraper::parseJSON(string jsonString) {
     }
     imageUrl = json_string_value(imgUrl);
     return true;
-}
-
-int cMovieDBScraper::SearchMovie(string movieName) {
-    map<string,int>::iterator cacheHit = cache.find(movieName);
-    if (cacheHit != cache.end()) {
-        if (config.enableDebug)
-            esyslog("tvscraper: found cache %s => %d", ((string)cacheHit->first).c_str(), (int)cacheHit->second);
-        return (int)cacheHit->second;
-    }
-    stringstream url;
-    url << baseURL << "/search/movie?api_key=" << apiKey << "&query=" << CurlEscape(movieName.c_str()) << "&language=" << language.c_str();
-    if (config.enableDebug)
-        esyslog("tvscraper: calling %s", url.str().c_str());
-    string movieJSON;
-    int movieID = -1;
-    if (CurlGetUrl(url.str().c_str(), &movieJSON)) {
-        cMovieDbMovie *movie = new cMovieDbMovie(movieJSON);
-        movieID = movie->ParseJSONForMovieId(movieName);
-        delete movie;
-    }
-    cache.insert(pair<string, int>(movieName, movieID));
-    return movieID;
-}
-
-int cMovieDBScraper::SearchMovieElaborated(string movieName) {
-    int movieID = -1;
-    
-    size_t posHyphen  = movieName.find_first_of("-");
-    size_t posBracket = movieName.find_first_of("(");
-    bool hasHyphen  = (posHyphen  != string::npos)?true:false;
-    bool hasBracket = (posBracket != string::npos)?true:false;
-    string movieNameMod;
-    //first remove all "-" 
-    if (hasBracket) {
-        movieNameMod = str_replace("-", " ", movieName);
-        if (config.enableDebug)
-            esyslog("tvscraper: scraping movie \"%s\"", movieNameMod.c_str());
-        movieID = SearchMovie(movieNameMod);
-        if (movieID > 0)
-            return movieID;
-    }
-    //if both hyphens and brackets found, check what comes first
-    if (hasHyphen && hasBracket) {
-        //if bracket comes after hyphen, remove bracket first
-        if (posBracket > posHyphen) {
-            movieID = SearchMovieModified("(", movieName);
-            if (movieID > 0)
-                return movieID;
-            movieID = SearchMovieModified("-", movieName);
-        } else {
-            movieID = SearchMovieModified("-", movieName);
-            if (movieID > 0)
-                return movieID;
-            movieID = SearchMovieModified("(", movieName);
-        }
-    } else if (hasHyphen) {
-        movieID = SearchMovieModified("-", movieName);
-    } else if (hasBracket) {
-        movieID = SearchMovieModified("(", movieName);
-    }
-    return movieID;
-}
-
-int cMovieDBScraper::SearchMovieModified(string separator, string movieName) {
-    int movieID = -1;
-    string movieNameMod = str_cut(separator, movieName);
-    if (movieNameMod.size() > 3) {
-        if (config.enableDebug)
-            esyslog("tvscraper: scraping movie \"%s\"", movieNameMod.c_str());
-        movieID = SearchMovie(movieNameMod);
-    }
-    return movieID;
-}
-
-cMovieDbMovie *cMovieDBScraper::ReadMovie(int movieID) {
-    stringstream url;
-    url << baseURL << "/movie/" << movieID << "?api_key=" << apiKey << "&language=" << language.c_str();
-    string movieJSON;
-    cMovieDbMovie *movie = NULL;
-    if (CurlGetUrl(url.str().c_str(), &movieJSON)) {
-        movie = new cMovieDbMovie(movieJSON);
-        movie->SetID(movieID);
-        movie->ParseJSON();
-    }
-    return movie;
 }
 
 cMovieDbActors *cMovieDBScraper::ReadActors(int movieID) {
@@ -215,3 +105,4 @@ void cMovieDBScraper::StoreMedia(cMovieDbMovie *movie, cMovieDbActors *actors) {
     CreateDirectory(actorsDestDir.str());
     actors->Store(actorsUrl.str(), actorsDestDir.str());
 }
+

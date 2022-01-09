@@ -1,6 +1,8 @@
 #ifndef __TVSCRAPER_WORKER_H
 #define __TVSCRAPER_WORKER_H
 
+#include "tools/searchResultTvMovie.h"
+
 // --- cTVScraperWorker -------------------------------------------------------------
 
 class cTVScraperWorker : public cThread {
@@ -21,6 +23,8 @@ private:
     cTVScraperDB *db;
     cMovieDBScraper *moviedbScraper;
     cTVDBScraper *tvdbScraper;
+    map<string, sMovieOrTv> cache;
+    map<string, searchResultTvMovie> cacheTv;
     scrapType GetScrapType(const cEvent *event);
     bool ConnectScrapers(void);
     void DisconnectScrapers(void);
@@ -28,7 +32,14 @@ private:
     void ScrapEPG(void);
     void ScrapRecordings(void);
     bool StartScrapping(void);
+    void Scrap(const cEvent *event, const cRecording *recording);
+    scrapType Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, scrapType type_override, searchResultTvMovie &searchResult);
+    void FindBestResult(const vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult);
+    bool FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult);
+    void ScrapFindAndStore(sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
+    void Scrap_assign(const sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
 public:
+    void UpdateEpisodeListIfRequired(int tvID);
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cTVScraperWorker(void);
     void SetLanguage(void);

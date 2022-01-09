@@ -53,6 +53,10 @@ void cOverRides::ReadConfigLine(string line) {
             if (flds.size() == 3) {
                 substitutes.insert(pair<string, string>(flds[1], flds[2]));
             }
+        } else if (!flds[0].compare("thetvdbID")) {
+            if (flds.size() == 3) {
+                m_thetvdbID.insert(pair<string, int>(flds[1],  atoi(flds[2].c_str()) ));
+            }
         } else if (!flds[0].compare("ignorePath")) {
             if (flds.size() == 2) {
                 if (flds[1].find("/", flds[1].length()-1) != std::string::npos)
@@ -60,6 +64,8 @@ void cOverRides::ReadConfigLine(string line) {
                 else
                     ignorePath.push_back(flds[1] + "/");
             }
+        } else if (!flds[0].compare("removePrefix")) {
+                removePrefixes.push_back(flds[1]);
         }
     }
 }
@@ -76,14 +82,40 @@ bool cOverRides::Ignore(string title) {
     return false;
 }
 
-string cOverRides::Substitute(string title) {
+bool cOverRides::Substitute(string &title) {
     map<string,string>::iterator hit = substitutes.find(title);
     if (hit != substitutes.end()) {
         if (config.enableDebug)
             esyslog("tvscraper: substitute \"%s\" with \"%s\" because of override.conf", title.c_str(), ((string)hit->second).c_str());
-        return (string)hit->second;
+        title = (string)hit->second;
+        return true;
     }
-    return title;
+    return false;
+}
+
+int cOverRides::thetvdbID(string title) {
+    map<string,int>::iterator hit = m_thetvdbID.find(title);
+    if (hit != m_thetvdbID.end()) {
+        if (config.enableDebug)
+            esyslog("tvscraper: title \"%s\", use thetvdb ID %i override.conf", title.c_str(), (int)hit->second);
+        return (int)hit->second;
+    }
+    return 0;
+}
+
+string cOverRides::RemovePrefix(string title) {
+  size_t nTitle = title.length();
+  for (const string &prefix: removePrefixes) {
+    size_t nPrefix = prefix.length();
+    if (nPrefix >= nTitle - 3) continue;
+    if (!title.compare(0, nPrefix, prefix) ) {
+      for (; nPrefix < nTitle - 3 && title[nPrefix] == ' '; nPrefix++);
+      if (nPrefix < nTitle - 3)
+         return(title.substr(nPrefix) );
+      else return title;
+    }
+  }
+  return title;
 }
 
 scrapType cOverRides::Type(string title) {

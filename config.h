@@ -1,5 +1,7 @@
 #ifndef __TVSCRAPER_CONFIG_H
 #define __TVSCRAPER_CONFIG_H
+#include <string>
+#include <vector>
 
 using namespace std;
 
@@ -7,6 +9,15 @@ enum scrapType {
     scrapSeries,
     scrapMovie,
     scrapNone
+};
+struct sMovieOrTv {
+    scrapType type;
+    int id;
+    int season;
+    int episode;
+    int year;
+    bool episodeSearchStringEmpty;
+    bool episodeSearchWithShorttext;
 };
 
 class cTVScraperConfig {

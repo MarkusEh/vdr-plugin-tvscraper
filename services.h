@@ -1,3 +1,6 @@
+#ifndef __TVSCRAPER_SERVICES_H
+#define __TVSCRAPER_SERVICES_H
+
 enum tvType {
     tSeries,
     tMovie,
@@ -185,3 +188,4 @@ public:
 //out
     cTvMedia poster;
 };
+#endif // __TVSCRAPER_SERVICES_H

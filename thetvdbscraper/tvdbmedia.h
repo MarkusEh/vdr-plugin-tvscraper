@@ -29,15 +29,13 @@ public:
 
 class cTVDBSeriesMedia {
 private:
-    xmlDoc *doc;
     string language;
     vector<cTVDBMedia*> medias;
-    void SetXMLDoc(string xml);
-    void ReadEntry(xmlNode *node);
+    void ReadEntry(xmlDoc *doc, xmlNode *node);
 public:
-    cTVDBSeriesMedia(string xml, string language);
+    cTVDBSeriesMedia(string language);
     virtual ~cTVDBSeriesMedia(void);
-    void ParseXML(void);
+    void ReadMedia(xmlDoc *doc, xmlNode *nodeBanners);
     void Store(string baseUrl, string destDir);
     void Dump(bool verbose);
 };

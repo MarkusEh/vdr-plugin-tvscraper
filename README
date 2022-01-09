@@ -1,12 +1,13 @@
 This is a "plugin" for the Video Disk Recorder (VDR).
 
 Written by:                  Stefan Braun <louis.braun@gmx.de>
+Maintained by:               Markus Ehrnsperger (MarkusE @ vdr-portal.de)
 
-Project's homepage:          
+Old Project's homepage:
 http://projects.vdr-developer.org/projects/plg-tvscraper
 
 Latest version available at: 
-http://projects.vdr-developer.org/projects/plg-tvscraper/files
+https://github.com/MarkusEh/vdr-plugin-tvscraper
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -81,7 +82,7 @@ the background, you don't have to care about anything. The plugins checks
 at least every 24 hours for new EPG events and collects the metadata for
 these events automatically. 
 
-Before each run the plugin performs a cleanup, all images for movies which 
+After each run the plugin performs a cleanup, all images for movies which
 are not available in the current EPG are deleted. Series and actors thumbs 
 are kept to avoid unnecessary traffic for the web services, because the 
 propability that this data is needed in the future again is rather high. 
@@ -123,105 +124,113 @@ inside the struct passed to the call . This event object can either originate
 directly from EPG data or from a recording. In this case the event object can 
 be retreived by Recording->Info()->GetEvent()).
 
-As output variables tvscraper provides media info via the "tvMedia" struct:
+As output variables tvscraper provides media info via the "cTvMedia" struct:
 
-struct tvMedia {
+class cTvMedia {
+public:
     std::string path;
-    int width
-    int height
+    int width;
+    int height;
 };
 
-and actors information via the "tvActor" struct:
 
-struct tvActor {
+and actors information via the "cActor" struct:
+
+class cActor {
     std::string name;
     std::string role;
-    tvMedia thumb
+    cTvMedia actorThumb;
 };
 
 The service interface offers the following calls:
 
-- TVScraperGetPosterOrBanner
+- GetPosterBanner
   
   With this call, a poster for a movie or a banner for a series which belongs
   to a specific event can be retreived. 
   
-  // Data structure for service "TVScraper-GetPosterOrBanner"
-  struct TVScraperGetPosterOrBanner
-  {
-  // in
-  const cEvent *event;             // search image for this event
-  //out
-  tvMediaType type;                //typeSeries or typeMovie
-  tvMedia media;                   //banner or poster
-  };
+// Data structure for service "GetPosterBanner"
+class ScraperGetPosterBanner {
+public:
+// in
+    const cEvent *event;             // check type for this event
+//out
+    tvType type;                         //typeSeries or typeMovie
+    cTvMedia poster;
+    cTvMedia banner;
+};
+
 
   Example:
 
   static cPlugin *pTVScraper = cPluginManager::GetPlugin("tvscraper");
   if (pTVScraper) {
-    TVScraperGetPosterOrBanner call;
+    ScraperGetPosterBanner call;
     call.event = Event;			//provide Event here
-    if (pTVScraper->Service("TVScraperGetPosterOrBanner", &call)) {
+    if (pTVScraper->Service("GetPosterBanner", &call)) {
     	... further processing of call.media and call.type
     }
   }
 
-- TVScraperGetPoster
+- GetPoster
 
-  Retreive poster for specified event.
+  Retreive poster for specified event or recording.
 
-  // Data structure for service "TVScraper-GetPoster"
-  struct TVScraperGetPoster
-  {
-  // in
-  const cEvent *event;             // search image for this event
-  bool isRecording;                // search in current EPG or recordings
-  //out
-  tvMedia media;                   //poster
-  };
+  // Data structure for service "GetPoster"
+class ScraperGetPoster {
+public:
+// in
+    const cEvent *event;             // check type for this event
+    const cRecording *recording;     // or for this recording
+//out
+    cTvMedia poster;
+};
 
     Example:
 
     static cPlugin *pTVScraper = cPluginManager::GetPlugin("tvscraper");
     if (pTVScraper) {
-      TVScraperGetPoster call;
+      ScraperGetPoster call;
       call.event = Event;                 //provide Event here
-      call.isRecording = true/false	  //recording or live EPG
-      if (pTVScraper->Service("TVScraperGetPoster", &call)) {
+      call.recording = Recording;         //if recording, otherwise NULL
+      if (pTVScraper->Service("GetPoster", &call)) {
           ... further processing of call.media
       }
     }
 
+- call GetEventType, GetSeries & GetMovie
 
-- TVScraperGetFullInformation
+// Data structure for service "GetEventType"
+class ScraperGetEventType {
+public:
+// in
+    const cEvent *event;             // check type for this event
+    const cRecording *recording;     // or for this recording
+//out
+    tvType type;                         //typeSeries or typeMovie
+    int movieId;   // note: Please ignore, nothing usefull
+    int seriesId;  // note: Please ignore, nothing usefull
+    int episodeId; // note: Please ignore, nothing usefull
+};
 
-  Retreive all available information about given event.
-
-  /* Data structure for service "TVScraper-GetFullEPGInformation"
-  if type == typeMovie a poster and a fanart image is delivered
-  if type == typeSeries a banner and up to three posters and fanarts are delivered
-  */
-  struct TVScraperGetFullInformation
-  {
-  // in
-  const cEvent *event;             // search all media for this event
-  bool isRecording;                // search in current EPG or recordings
-  //out
-  tvMediaType type;
-  tvMedia banner;
-  std::vector<tvMedia> posters;
-  std::vector<tvMedia> fanart;
-  std::vector<tvActor> actors;
-  std::string description;
-  };
+Example: (see services.h for data structures of cSeries & cMovie, and for enum tvType with tSeries & tMovie)
 
   static cPlugin *pTVScraper = cPluginManager::GetPlugin("tvscraper");
   if (pTVScraper) {
-    TVScraperGetFullInformation call;
+    ScraperGetEventType call;
     call.event = Event;                 //provide Event here
-    call.isRecording = true/false       //recording or live EP
-    if (pTVScraper->Service("TVScraperGetFullInformation", &call)) {
+    call.recording = Recording;         //if recording, otherwise NULL
+    if (pTVScraper->Service("GetEventType", &call)) {
+      if (call.type == tSeries) {
+        cSeries call_series;
+        call_series.seriesId = call.seriesId; // this will be ignored, must not be 0. Data from last call to GetEventType will be used
+        if (pTVScraper->Service("GetSeries", &call_series)) {
         ... further processing ...
+      } else if (call.type == tMovie) {
+        cMovie call_movie;
+        call_movie.movieId = call.movieId; // this will be ignored, must not be 0. Data from last call to GetEventType will be used
+        if (pTVScraper->Service("GetMovie", &call_movie)) {
+        ... further processing ...
+      }
     }
 

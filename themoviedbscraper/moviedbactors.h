@@ -24,6 +24,7 @@ class cMovieDbActors {
 private:
     string json;
     vector<cMovieDBActor*> actors;
+    void ParseJSON(json_t *jActors);
 public:
     cMovieDbActors(string json);
     virtual ~cMovieDbActors(void);
