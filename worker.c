@@ -139,8 +139,10 @@ const cChannel *channel = Channels.GetByChannelID(tChannelID::FromString(channel
 LOCK_CHANNELS_READ;
 const cChannel *channel = Channels->GetByChannelID(tChannelID::FromString(channelID.c_str()));
 #endif
-if (!channel)
+if (!channel) {
+    dsyslog("tvscraper: Channel %s %s is not availible, skipping", channel->Name(), channelID.c_str());
     continue;
+}
 dsyslog("tvscraper: scraping Channel %s %s", channel->Name(), channelID.c_str());
 #if APIVERSNUM < 20301
 cSchedulesLock schedulesLock;
@@ -152,18 +154,21 @@ const cSchedule *Schedule = Schedules->GetSchedule(channel);
 #endif
 if (Schedule) {
     const cEvent *event = NULL;
+    time_t now = time(0);
     for (event = Schedule->Events()->First(); event; event =  Schedule->Events()->Next(event)) {
 //	if(event->EventID() == 14724) dsyslog("tvscraper: scraping event %i, %s", event->EventID(), event->Title() );
+        if (event->EndTime() < now) continue; // do not scrap past events. Avoid to scrap them, and delete directly afterwards
 	if (!Running())
 	    return;
 	scrapType type = GetScrapType(event);
 	if (type != scrapNone) {
-	    if (!db->CheckScrap(event->StartTime(), channelID))
-		continue;
-	    Scrap(event, NULL);
-	    waitCondition.TimedWait(mutex, 100);
+//	    if (!db->CheckScrap(event->StartTime(), channelID)) continue;
+// The event might have changed, so scrap again (rely on cache)
+	    if( Scrap(event, NULL) ) waitCondition.TimedWait(mutex, 100);
 	}
     }
+} else {
+    dsyslog("tvscraper: Schedule is not availible, skipping");
 }
 }
 }
@@ -267,20 +272,23 @@ waitCondition.TimedWait(mutex, loopSleep);
 }
 }
 
-void cTVScraperWorker::Scrap(const cEvent *event, const cRecording *recording) {
+bool cTVScraperWorker::Scrap(const cEvent *event, const cRecording *recording) {
+// return true, if request to rate limited internet db was required. Otherwise, false
    sMovieOrTv movieOrTv;
-   ScrapFindAndStore(movieOrTv, event, recording);
+   bool internet_req_required = ScrapFindAndStore(movieOrTv, event, recording);
    Scrap_assign(movieOrTv, event, recording) ;
+   return internet_req_required;
 }
 
-void cTVScraperWorker::ScrapFindAndStore(sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording) {
+bool cTVScraperWorker::ScrapFindAndStore(sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording) {
 // if nothing is found => movieOrTv.scrapType = scrapNone;
+// return true, if request to rate limited internet db was required. Otherwise, false
 
 // set default values (nothing found)
 movieOrTv.type = scrapNone;
 movieOrTv.episodeSearchWithShorttext = false;
 string movieName = (event->Title())?event->Title():"";
-if (overrides->Ignore(movieName)) return;
+if (overrides->Ignore(movieName)) return false;
 if (!overrides->Substitute(movieName) ) {
 // some more, but only if no explicit substitution
   movieName = overrides->RemovePrefix(movieName);
@@ -311,20 +319,20 @@ if (cache_or_overrides_found) {
     UpdateEpisodeListIfRequired(movieOrTv.id);
     db->SearchEpisode(movieOrTv, episodeSearchString);
   }
-  if (!config.enableDebug) return;
+  if (!config.enableDebug) return false;
   switch (movieOrTv.type) {
     case scrapNone:
       esyslog("tvscraper: found cache %s => scrapNone", movieName.c_str());
-      return;
+      return false;
     case scrapMovie:
       esyslog("tvscraper: found movie cache %s => %i", movieName.c_str(), movieOrTv.id);
-      return;
+      return false;
     case scrapSeries:
       esyslog("tvscraper: found %stv cache tv \"%s\", episode \"%s\" , id %i season %i episode %i", movieOrTv.id < 0?"TV":"", movieName.c_str(), episodeSearchString.c_str(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
-      return;
+      return false;
     default:
       esyslog("tvscraper: ERROR found cache %s => unknown scrap type %i", movieName.c_str(), movieOrTv.type);
-      return;
+      return false;
   }
 }
 if (config.enableDebug) esyslog("tvscraper: scraping \"%s\"", movieName.c_str());
@@ -414,6 +422,7 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, type_override, searchRes
     } else if (config.enableDebug) esyslog("tvscraper: nothing found for \"%s\" ", movieName.c_str());
   db->InsertCache(movieNameCache, event, recording, movieOrTv);
 //    cache.insert(pair<string, sMovieOrTv>(movieNameCache, movieOrTv));
+  return true;
 }
 void cTVScraperWorker::Scrap_assign(const sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording) {
 // assig found movieOrTv to event/recording in db

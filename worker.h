@@ -32,11 +32,11 @@ private:
     void ScrapEPG(void);
     void ScrapRecordings(void);
     bool StartScrapping(void);
-    void Scrap(const cEvent *event, const cRecording *recording);
+    bool Scrap(const cEvent *event, const cRecording *recording);
     scrapType Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, scrapType type_override, searchResultTvMovie &searchResult);
     void FindBestResult(const vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult);
     bool FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult);
-    void ScrapFindAndStore(sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
+    bool ScrapFindAndStore(sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
     void Scrap_assign(const sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
 public:
     void UpdateEpisodeListIfRequired(int tvID);
