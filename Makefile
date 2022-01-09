@@ -53,6 +53,7 @@ INCLUDES +=
 DEFINES += -DPLUGIN_NAME_I18N='"$(PLUGIN)"'
 DEFINES += $(shell xml2-config --cflags)
 
+LIBS += -lstdc++fs
 LIBS += $(shell xml2-config --libs)
 LIBS += $(shell pkg-config --libs libcurl)
 LIBS += $(shell pkg-config --libs sqlite3)
