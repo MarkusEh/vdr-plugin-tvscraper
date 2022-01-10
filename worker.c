@@ -162,8 +162,6 @@ if (Schedule) {
 	    return;
 	scrapType type = GetScrapType(event);
 	if (type != scrapNone) {
-//	    if (!db->CheckScrap(event->StartTime(), channelID)) continue;
-// The event might have changed, so scrap again (rely on cache)
 	    if( Scrap(event, NULL) ) waitCondition.TimedWait(mutex, 100);
 	}
     }
@@ -341,7 +339,7 @@ cTVDBSeries TVtv(db, tvdbScraper);
 cMovieDbTv tv(db, moviedbScraper);
 cMovieDbMovie movie(db, moviedbScraper, event, recording);
 searchResultTvMovie searchResult;
-scrapType sType = Search(&TVtv, &tv, &movie, movieName, type_override, searchResult);
+scrapType sType = Search(&TVtv, &tv, &movie, movieName, event, recording, type_override, searchResult);
     if (sType == scrapNone) {
 // check: series, format name: episode_name
       std::size_t found = movieName.find(":");
@@ -353,7 +351,7 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, type_override, searchRes
           episodeSearchString = movieName.substr(ssnd);
           movieName.erase(found);
           StringRemoveTrailingWhitespace(movieName);
-          sType = Search(&TVtv, &tv, NULL, movieName, type_override, searchResult);
+          sType = Search(&TVtv, &tv, NULL, movieName, event, recording, type_override, searchResult);
           if(sType == scrapNone) {
             movieName = orig_movieName;
             episodeSearchString.clear();
@@ -372,7 +370,7 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, type_override, searchRes
           episodeSearchString = movieName.substr(ssnd);
           movieName.erase(found);
           StringRemoveTrailingWhitespace(movieName);
-          sType = Search(&TVtv, &tv, NULL, movieName, type_override, searchResult);
+          sType = Search(&TVtv, &tv, NULL, movieName, event, recording, type_override, searchResult);
           if(sType == scrapNone) {
             movieName = orig_movieName;
             episodeSearchString.clear();
@@ -431,7 +429,7 @@ void cTVScraperWorker::Scrap_assign(const sMovieOrTv &movieOrTv, const cEvent *e
                else db->InsertRecording2(event, recording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
   }
 }
-scrapType cTVScraperWorker::Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, scrapType type_override, searchResultTvMovie &searchResult) {
+scrapType cTVScraperWorker::Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, const cEvent *event, const cRecording *recording, scrapType type_override, searchResultTvMovie &searchResult) {
   if((tv || TVtv) && ! movie){
     map<string,searchResultTvMovie>::iterator cacheHit = cacheTv.find(name);
     if (cacheHit != cacheTv.end() && (TVtv || (cacheHit->second).id > 0) ) {
@@ -467,7 +465,7 @@ scrapType cTVScraperWorker::Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMo
       if(movie) movie->AddMovieResults(resultSet, searchString);
       if(TVtv) TVtv->AddResults(resultSet, searchString);
   }
-  if (!FindBestResult2(resultSet, searchResult)) return scrapNone; // nothing found
+  if (!FindBestResult2(resultSet, searchResult, event, recording)) return scrapNone; // nothing found
   if(searchResult.movie) {
     int movieID = searchResult.id;
     movie->SetID( movieID);
@@ -488,7 +486,7 @@ bool CompareSearchResult (searchResultTvMovie i, searchResultTvMovie j) {
   return i.distance < j.distance;
 }
 
-bool cTVScraperWorker::FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult){
+bool cTVScraperWorker::FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult, const cEvent *event, const cRecording *recording){
     std::sort (resultSet.begin(), resultSet.end(), CompareSearchResult);
 
     for( const searchResultTvMovie &sR : resultSet ) {
@@ -496,8 +494,49 @@ bool cTVScraperWorker::FindBestResult2(vector<searchResultTvMovie> &resultSet, s
       if (sR.year) { searchResult = sR; return true; }
     }
 
+    int durationInMinLow;
+    int durationInMinHigh;
+    if (GetDurationRange(event, recording, durationInMinLow, durationInMinHigh) ) {
+      for( const searchResultTvMovie &sR : resultSet ) if (sR.movie) {
+        int runtime = moviedbScraper->GetMovieRuntime(sR.id);
+        if (runtime >= durationInMinLow && runtime <= durationInMinHigh) {
+          if (config.enableDebug) esyslog("tvscraper: runtime %i durationInMinLow %i durationInMinHigh %i id %i title \"%s\"", runtime, durationInMinLow, durationInMinHigh, sR.id, event?event->Title():"No event");
+          searchResult = sR;
+          return true;
+        } else
+          if (config.enableDebug) esyslog("tvscraper: not selected, runtime %i durationInMinLow %i durationInMinHigh %i id %i title \"%s\"", runtime, durationInMinLow, durationInMinHigh, sR.id, event?event->Title():"No event");
+      }
+    }
+
     return false;
 }
+bool cTVScraperWorker::GetDurationRange(const cEvent *event, const cRecording *recording, int &durationInMinLow, int &durationInMinHigh) {
+// return true, if data is available
+    int durationInSec = 0;
+    if (recording) {
+      durationInSec = recording->FileName() ? recording->LengthInSeconds() : 0;
+      if (recording->IsEdited() ) {
+        durationInMinLow  = durationInSec * 60 - 1;
+        durationInMinHigh = durationInSec * 60 + 10;
+      } else {
+        durationInMinLow  = durationInSec * 60 - 13; // (3 Vorlauf, 10 Nachlauf)
+        durationInMinLow  = durationInMinLow - durationInMinLow / 5 - 5;
+        durationInMinHigh = durationInSec * 60 + 10; // might be VPS
+      }
+    } else if (event) {
+      durationInSec = event->Duration();
+      if (event->Vps() ) {
+        durationInMinLow  = durationInSec * 60 - 1;
+        durationInMinHigh = durationInSec * 60 + 10;
+      } else {
+        durationInMinLow  = durationInSec * 60;
+        durationInMinLow  = durationInMinLow - durationInMinLow / 5 - 5;
+        durationInMinHigh = durationInSec * 60 + 1;
+      }
+    }
+    return durationInSec != 0;
+}
+
 void cTVScraperWorker::FindBestResult(const vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult){
     int bestMatch = -1;
     int numResults = resultSet.size();

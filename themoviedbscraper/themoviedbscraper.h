@@ -42,7 +42,7 @@ public:
     const string GetTvBaseDir(void) { return baseDir + "/tv/";  }
     const string GetActorsBaseDir(void) { return baseDir + "/actors";  }
     void StoreMovie(cMovieDbMovie &movie);
-
+    int GetMovieRuntime(int movieID);
 };
 
 

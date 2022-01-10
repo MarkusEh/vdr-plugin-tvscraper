@@ -49,12 +49,11 @@ public:
     bool TvExists(int tvID);
     int SearchMovie(string movieTitle);
     int SearchTv(string tvTitle);
-    int SearchTvEpisode(int tvID, string episode_search_name, int &season_number, int &episode_number);
+    int SearchTvEpisode(int tvID, string episode_search_name, int &season_number, int &episode_number, string &episode_name);
     string GetStillPathTvEpisode(int tvID, int season_number, int episode_number);
     void InsertRecording2(const cEvent *event, const cRecording *recording, int movie_tv_id, int season_number, int episode_number);
     bool SetRecording(const cEvent *event, const cRecording *recording);
     void ClearRecordings2(void);
-    bool CheckScrap(time_t timeStamp, string channelID);
     bool CheckStartScrapping(int minimumDistance);
     bool GetMovieTvID(const cEvent *event, const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number);
     vector<vector<string> > GetActorsMovie(int movieID);
@@ -66,6 +65,7 @@ public:
     string GetDescriptionTv(int tvID, int seasonNumber, int episodeNumber);
     string GetDescriptionMovie(int movieID);
     bool GetMovie(int movieID, string &title, string &original_title, string &tagline, string &overview, bool &adult, int &collection_id, string &collection_name, int &budget, int &revenue, string &genres, string &homepage, string &release_date, int &runtime, float &popularity, float &vote_average);
+    int GetMovieRuntime(int movieID);
     bool GetTv(int tvID, string &name, string &overview, string &firstAired, string &networks, string &genres, float &popularity, float &vote_average, string &status);
     bool GetTv(int tvID, time_t &lastUpdated, string &status);
     bool GetTvEpisode(int tvID, int seasonNumber, int episodeNumber, int &episodeID, string &name, string &airDate, float &vote_average, string &overview, string &episodeGuestStars);

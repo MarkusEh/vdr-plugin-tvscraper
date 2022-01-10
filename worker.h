@@ -33,11 +33,12 @@ private:
     void ScrapRecordings(void);
     bool StartScrapping(void);
     bool Scrap(const cEvent *event, const cRecording *recording);
-    scrapType Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, scrapType type_override, searchResultTvMovie &searchResult);
+    scrapType Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, const cEvent *event, const cRecording *recording, scrapType type_override, searchResultTvMovie &searchResult);
     void FindBestResult(const vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult);
-    bool FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult);
+    bool FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult, const cEvent *event, const cRecording *recording);
     bool ScrapFindAndStore(sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
     void Scrap_assign(const sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
+    bool GetDurationRange(const cEvent *event, const cRecording *recording, int &durationInMinLow, int &durationInMinHigh);
 public:
     void UpdateEpisodeListIfRequired(int tvID);
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);

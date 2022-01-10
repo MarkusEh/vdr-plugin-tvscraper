@@ -23,6 +23,20 @@ cMovieDBScraper::cMovieDBScraper(string baseDir, cTVScraperDB *db, string langua
 cMovieDBScraper::~cMovieDBScraper() {
 }
 
+int cMovieDBScraper::GetMovieRuntime(int movieID) {
+// return 0 if no runtime is available in themovied
+  int runtime = db->GetMovieRuntime(movieID);
+  if (runtime  >  0) return runtime;
+  if (runtime == -1) return 0; // no runtime available in themoviedb
+// themoviedb never checked for runtime, check now
+  cMovieDbMovie movie(db, this, NULL, NULL);
+  movie.SetID(movieID);
+  StoreMovie(movie);
+  runtime = db->GetMovieRuntime(movieID);
+  if (runtime == -1) return 0; // no runtime available in themoviedb
+  return runtime;
+}
+
 void cMovieDBScraper::StoreMovie(cMovieDbMovie &movie) {
 // if movie does not exist in DB, download movie and store it in DB
       int movieID = movie.ID();
