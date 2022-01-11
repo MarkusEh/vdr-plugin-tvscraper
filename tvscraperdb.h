@@ -38,7 +38,7 @@ public:
     void TvSetEpisodesUpdated(int tvID);
     void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);
     bool TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes);
-    void InsertEvent(const cEvent *event, const cRecording *recording, int movie_tv_id, int season_number, int episode_number, bool noEpisodeSearchString = false);
+    void InsertEvent(const cEvent *event, const cRecording *recording, int movie_tv_id, int season_number, int episode_number);
     void InsertActor(int seriesID, string name, string role, string thumb);
     void InsertMovie(int movieID, const string &title, const string &original_title, const string &tagline, const string &overview, bool adult, int collection_id, const string &collection_name, int budget, int revenue, const string &genres, const string &homepage, const string &release_date, int runtime, float popularity, float vote_average);
 

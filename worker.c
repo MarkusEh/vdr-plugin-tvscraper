@@ -305,15 +305,12 @@ if (movieOrTv.id) {
 } else {
 // check cache
   cache_or_overrides_found = db->GetFromCache(movieName, event, recording, movieOrTv);
-//  map<string,sMovieOrTv>::iterator cacheHit = cache.find(movieName);
-//  if (cacheHit != cache.end()) movieOrTv = cacheHit->second;
 }
 
 if (cache_or_overrides_found) {
   if(movieOrTv.episodeSearchWithShorttext) {
     if(event->ShortText() && *event->ShortText() ) episodeSearchString = event->ShortText();
        else if(event->Description() && *event->Description() ) episodeSearchString = event->Description();
-    movieOrTv.episodeSearchStringEmpty = episodeSearchString.empty();
     UpdateEpisodeListIfRequired(movieOrTv.id);
     db->SearchEpisode(movieOrTv, episodeSearchString);
   }
@@ -387,7 +384,6 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, event, recording, type_o
       movieOrTv.id = movie.ID();
       movieOrTv.season = -100;
       movieOrTv.episode = 0;
-      movieOrTv.episodeSearchStringEmpty = false;
       movieOrTv.year = searchResult.year;
     } else if(sType == scrapSeries) {
 // search episode
@@ -398,7 +394,6 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, event, recording, type_o
         if(event->ShortText() && *event->ShortText() ) episodeSearchString = event->ShortText();
            else if(event->Description() && *event->Description() ) episodeSearchString = event->Description();
       }
-      movieOrTv.episodeSearchStringEmpty = episodeSearchString.empty();
       if(tv.tvID()) {
 // entry for tv series in MovieDB found
         movieOrTv.id = tv.tvID();
@@ -419,13 +414,12 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, event, recording, type_o
       }
     } else if (config.enableDebug) esyslog("tvscraper: nothing found for \"%s\" ", movieName.c_str());
   db->InsertCache(movieNameCache, event, recording, movieOrTv);
-//    cache.insert(pair<string, sMovieOrTv>(movieNameCache, movieOrTv));
   return true;
 }
 void cTVScraperWorker::Scrap_assign(const sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording) {
 // assig found movieOrTv to event/recording in db
   if(movieOrTv.type == scrapMovie || movieOrTv.type == scrapSeries) {
-    if (!recording) db->InsertEvent(event, recording, movieOrTv.id, movieOrTv.season, movieOrTv.episode, movieOrTv.episodeSearchStringEmpty );
+    if (!recording) db->InsertEvent(event, recording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
                else db->InsertRecording2(event, recording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
   }
 }

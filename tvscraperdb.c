@@ -332,7 +332,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "recording integer, ";
     sql << "duration integer, ";
     sql << "year integer, ";
-    sql << "episode_search_with_shorttext integer, ";
+    sql << "episode_search_with_shorttext integer, "; // bool: if true, season_number&episode_number must be searched with shorttext
     sql << "movie_tv_id integer, ";   // movie if season_number == -100. Otherwisse, tv
     sql << "season_number integer, ";
     sql << "episode_number integer, ";
@@ -346,8 +346,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "valid_till integer, ";
     sql << "movie_tv_id integer, ";   // movie if season_number == -100. Otherwisse, tv
     sql << "season_number integer, ";
-    sql << "episode_number integer, ";
-    sql << "noEpisodeSearchString integer";
+    sql << "episode_number integer";
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_event on event (event_id, channel_id); ";
 
@@ -663,7 +662,7 @@ void cTVScraperDB::InsertTv_s_e(int tvID, int season_number, int episode_number,
     sqlite3_finalize(stmt);
 }
 
-void cTVScraperDB::InsertEvent(const cEvent *event, const cRecording *recording, int movie_tv_id, int season_number, int episode_number, bool noEpisodeSearchString) {
+void cTVScraperDB::InsertEvent(const cEvent *event, const cRecording *recording, int movie_tv_id, int season_number, int episode_number) {
     tEventID eventID = event->EventID();
     time_t validTill = event->EndTime();
     tChannelID channelID;
@@ -673,20 +672,12 @@ void cTVScraperDB::InsertEvent(const cEvent *event, const cRecording *recording,
       channelID = event->ChannelID();
     cString channelIDs = channelID.ToString();
     stringstream sql;
-    sql << "INSERT INTO event (event_id, channel_id, valid_till, movie_tv_id, season_number, episode_number, noEpisodeSearchString) ";
+    sql << "INSERT OR REPLACE INTO event (event_id, channel_id, valid_till, movie_tv_id, season_number, episode_number) ";
     sql << "VALUES (";
     sql << eventID << ", ?, " << validTill << ", " << movie_tv_id;
     sql << ", " << season_number << ", " << episode_number;
-    sql << ", " << (int)noEpisodeSearchString;
     sql << ");";
-    sqlite3_stmt *stmt;
-    sqlite3_prepare_v2(db, sql.str().c_str(), -1, &stmt, NULL);
-    if (!printSqlite3Errmsg(sql.str() )) {
-      sqlite3_bind_text(stmt, 1, (const char *)channelIDs, -1, SQLITE_TRANSIENT);
-      sqlite3_step(stmt);
-      printSqlite3Errmsg(sql.str() );
-    }
-    sqlite3_finalize(stmt);
+    execSqlBind(sql.str(), (const char *)channelIDs);
 }
 
 void cTVScraperDB::InsertMovie(int movieID, const string &title, const string &original_title, const string &tagline, const string &overview, bool adult, int collection_id, const string &collection_name, int budget, int revenue, const string &genres, const string &homepage, const string &release_date, int runtime, float popularity, float vote_average){

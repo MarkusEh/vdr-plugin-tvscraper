@@ -72,7 +72,7 @@ cTvMedia cImageServer::GetPoster(int id, int season_number, int episode_number) 
         stringstream pathS;
         pathS << path0.str() << "/season_poster_" << season_number << ".jpg";
         string seasonPoster = pathS.str();
-        if (config.enableDebug) esyslog("tvscraper: cImageServer::GetPoster season, path \"%s\" ", seasonPoster.c_str());
+//        if (config.enableDebug) esyslog("tvscraper: cImageServer::GetPoster season, path \"%s\" ", seasonPoster.c_str());
         if (FileExists(seasonPoster)) {
           media.path = seasonPoster;
           media.width = 680;
@@ -84,7 +84,7 @@ cTvMedia cImageServer::GetPoster(int id, int season_number, int episode_number) 
 //    path  << config.GetBaseDir() << "/series/" << id * (-1) << "/poster_0.jpg";
       path0 << "/poster_0.jpg";
       string filePoster = path0.str();
-      if (config.enableDebug) esyslog("tvscraper: cImageServer::GetPoster, path \"%s\" ", filePoster.c_str());
+//      if (config.enableDebug) esyslog("tvscraper: cImageServer::GetPoster, path \"%s\" ", filePoster.c_str());
 
       if (FileExists(filePoster)) {
         media.path = filePoster;

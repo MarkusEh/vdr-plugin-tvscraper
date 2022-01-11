@@ -16,7 +16,6 @@ struct sMovieOrTv {
     int season;
     int episode;
     int year;
-    bool episodeSearchStringEmpty;
     bool episodeSearchWithShorttext;
 };
 

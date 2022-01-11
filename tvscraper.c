@@ -31,7 +31,7 @@ cTVScraperConfig config;
 #include "imageserver.c"
 #include "setup.c"
 
-static const char *VERSION        = "0.9.1";
+static const char *VERSION        = "0.9.2";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
@@ -268,7 +268,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
             return false;
         int id, sn, en;
         scrapType type = imageServer->GetIDs(call->event, NULL, id, sn, en);
-        if (config.enableDebug) esyslog("tvscraper: GetPosterBanner, id %i type %i", id, type);
+//        if (config.enableDebug) esyslog("tvscraper: GetPosterBanner, id %i type %i", id, type);
         if (type == scrapSeries)
             call->type = tSeries;
         else if (type == scrapMovie)

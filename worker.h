@@ -23,7 +23,6 @@ private:
     cTVScraperDB *db;
     cMovieDBScraper *moviedbScraper;
     cTVDBScraper *tvdbScraper;
-    map<string, sMovieOrTv> cache;
     map<string, searchResultTvMovie> cacheTv;
     scrapType GetScrapType(const cEvent *event);
     bool ConnectScrapers(void);
