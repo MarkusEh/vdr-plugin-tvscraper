@@ -2,9 +2,12 @@
 #include <sstream>
 #include <vector>
 #include <sqlite3.h>
+#include <jansson.h>
+#include <filesystem>
 #include "tvscraperdb.h"
 #include "services.h"
 #include "imageserver.h"
+
 
 using namespace std;
 
@@ -848,12 +851,13 @@ void cTVScraperDB::InsertRecording2(const cEvent *event, const cRecording *recor
       channelID = event->ChannelID();
     cString channelIDs = channelID.ToString();
     stringstream sql;
-    sql << "INSERT INTO recordings2 (event_id, event_start_time, channel_id, movie_tv_id, season_number, episode_number)";
+    sql << "INSERT OR REPLACE INTO recordings2 (event_id, event_start_time, channel_id, movie_tv_id, season_number, episode_number)";
     sql << "VALUES (";
     sql << eventID << ", " << eventStartTime << ", ?, " << movie_tv_id << ", " << season_number << ", " << episode_number;
     sql << ");";
     execSqlBind(sql.str(), (const char *)channelIDs );
     if (recording) {
+      WriteRecordingInfo(recording, movie_tv_id, season_number, episode_number);
 // copy pictures to recording folder
 // get poster path
       cImageServer imageServer(this);
@@ -867,6 +871,65 @@ void cTVScraperDB::InsertRecording2(const cEvent *event, const cRecording *recor
         if (fanarts.size() > 0) CopyFile(fanarts[0].path, string(recording->FileName() ) + "/fanart.jpg" );
       }
     }
+}
+void cTVScraperDB::WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number) {
+  if (!recording || !recording->FileName() ) return;  // no place to write the information
+  string filename = recording->FileName();
+  filename.append("/tvscrapper.json");
+// get "root" json
+  json_error_t error;
+  json_t *jInfo = json_load_file(filename.c_str(), 0, &error);
+  if (!jInfo) {
+    esyslog("tvscraper: ERROR cannot load json \"%s\", error \"%s\"", filename.c_str(), error.text);
+// this file will be overwritten, so create a copy
+    std::error_code ec;
+    std::filesystem::copy_file(filename, filename + ".bak", ec);
+    if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to copy \"%s\" to \"%s.bak\"", ec.message().c_str(), ec.value(), filename.c_str(), filename.c_str() );
+    jInfo = json_object();
+  }
+// "tvscraper" node: this is owned by "tvscraper", so we can overwrite (if it exists)
+  json_t *jTvscraper = json_object();
+  json_object_set(jInfo, "tvscraper", jTvscraper);
+// set attributes
+  json_t *jThemoviedb;
+  if (movie_tv_id > 0) jThemoviedb = json_true();
+                  else jThemoviedb = json_false();
+  json_t *jMovie;
+  if (season_number == -100) jMovie = json_true();
+                        else jMovie = json_false();
+  json_t *jMovie_tv_id  = json_integer(abs(movie_tv_id) );
+  json_t *jSeason  = json_integer(season_number);
+  json_t *jEpisode = json_integer(episode_number);
+  json_t *jYear    = NULL;
+
+  json_object_set(jTvscraper, "themoviedb", jThemoviedb);
+  json_object_set(jTvscraper, "is_movie", jMovie);
+  json_object_set(jTvscraper, "movie_tv_id", jMovie_tv_id);
+  if (season_number != -100) {   // this is a tv show
+    if( season_number != 0 || episode_number != 0) {  // season / episode was found
+      json_object_set(jTvscraper, "season_number", jSeason);
+      json_object_set(jTvscraper, "episode_number", jEpisode);
+  }} else {
+// movie, get year
+    stringstream sql;
+    sql << "select movie_release_date from movies2 where movie_id = " << movie_tv_id;
+    string year;
+    if (QueryValue(year, sql.str() ) && year.length() >= 4) {
+      jYear = json_integer(atoi(year.substr(0, 4).c_str()) );
+      json_object_set(jTvscraper, "year", jYear);
+    }
+  }
+
+// write file
+  json_dump_file(jInfo, filename.c_str(), JSON_INDENT(2));
+  json_decref(jInfo);
+  json_decref(jTvscraper);
+  json_decref(jThemoviedb);
+  json_decref(jMovie);
+  json_decref(jMovie_tv_id);
+  json_decref(jSeason);
+  json_decref(jEpisode);
+  if (jYear) json_decref(jYear);
 }
 
 bool cTVScraperDB::SetRecording(const cEvent *event, const cRecording *recording) {

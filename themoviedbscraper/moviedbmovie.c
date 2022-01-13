@@ -195,7 +195,7 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
         if (matchYear) sRes.year = resultReleaseYear;
                   else sRes.year = 0;
 
-        if(matchYear) sRes.distance -= 200;
+        if(matchYear) sRes.distance -= 150;
         int durationInSec;
         if (m_recording) durationInSec = m_recording->FileName() ? m_recording->LengthInSeconds() : 0;
                     else durationInSec = m_event->Duration();
@@ -203,7 +203,7 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
           if ( durationInSec > 80*60 ) {
 // event longer than 80 mins, add some points that this is a movie
             sRes.distance -= 100;
-          } else sRes.distance += 100; // shorter than 80 mins, most likely not a movie
+          } else sRes.distance += 152; // shorter than 80 mins, most likely not a movie
         }
         resultSet.push_back(sRes);
     }

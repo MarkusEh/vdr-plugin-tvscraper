@@ -23,6 +23,7 @@ private:
     int LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int isSave);
     bool CreateTables(void);
     std::size_t SearchEpisode_int(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString);
+    void WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number);
 public:
     cTVScraperDB(void);
     virtual ~cTVScraperDB(void);

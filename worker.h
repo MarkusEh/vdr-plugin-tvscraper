@@ -38,6 +38,7 @@ private:
     bool ScrapFindAndStore(sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
     void Scrap_assign(const sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
     bool GetDurationRange(const cEvent *event, const cRecording *recording, int &durationInMinLow, int &durationInMinHigh);
+    int GetDurationInSecMarks(const cRecording *recording);
 public:
     void UpdateEpisodeListIfRequired(int tvID);
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);

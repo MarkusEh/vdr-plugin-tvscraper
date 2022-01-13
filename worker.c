@@ -509,26 +509,68 @@ bool cTVScraperWorker::GetDurationRange(const cEvent *event, const cRecording *r
     int durationInSec = 0;
     if (recording) {
       durationInSec = recording->FileName() ? recording->LengthInSeconds() : 0;
-      if (recording->IsEdited() ) {
-        durationInMinLow  = durationInSec * 60 - 1;
-        durationInMinHigh = durationInSec * 60 + 10;
+      int durationInSec_cut = GetDurationInSecMarks(recording);
+      if (durationInSec_cut) durationInSec = durationInSec_cut;
+      if (recording->IsEdited() || durationInSec_cut) {
+        durationInMinLow  = durationInSec / 60 - 1;
+        durationInMinHigh = durationInSec / 60 + 10;
       } else {
-        durationInMinLow  = durationInSec * 60 - 13; // (3 Vorlauf, 10 Nachlauf)
+        durationInMinLow  = durationInSec / 60 - 13; // (3 Vorlauf, 10 Nachlauf)
         durationInMinLow  = durationInMinLow - durationInMinLow / 5 - 5;
-        durationInMinHigh = durationInSec * 60 + 10; // might be VPS
+        durationInMinHigh = durationInSec / 60 + 10; // might be VPS
       }
     } else if (event) {
       durationInSec = event->Duration();
       if (event->Vps() ) {
-        durationInMinLow  = durationInSec * 60 - 1;
-        durationInMinHigh = durationInSec * 60 + 10;
+        durationInMinLow  = durationInSec / 60 - 1;
+        durationInMinHigh = durationInSec / 60 + 10;
       } else {
-        durationInMinLow  = durationInSec * 60;
+        durationInMinLow  = durationInSec / 60;
         durationInMinLow  = durationInMinLow - durationInMinLow / 5 - 5;
-        durationInMinHigh = durationInSec * 60 + 1;
+        durationInMinHigh = durationInSec / 60 + 1;
       }
     }
     return durationInSec != 0;
+}
+
+int cTVScraperWorker::GetDurationInSecMarks(const cRecording *recording) {
+// return 0 if no data is available
+// otherwise, duration of cut recording
+  if (!recording) return 0;
+  if (!recording->HasMarks() ) return 0;
+  cMarks marks;
+  marks.Load(recording->FileName(), recording->FramesPerSecond(), recording->IsPesRecording() );
+  int numSequences = marks.GetNumSequences();
+  if (numSequences == 0) return 0;  // only one begin mark at index 0 -> no data
+  const cMark *BeginMark = marks.GetNextBegin();
+  if (!BeginMark) return 0;
+  int durationInFrames = 0;
+  while (const cMark *EndMark = marks.GetNextEnd(BeginMark)) {
+    durationInFrames += EndMark->Position() - BeginMark->Position();
+    BeginMark = marks.GetNextBegin(EndMark);
+  }
+  if (BeginMark) {  // the last sequence had no actual "end" mark
+    durationInFrames += recording->LengthInSeconds() * recording->FramesPerSecond() - BeginMark->Position();
+  }
+  int durationInSeconds = durationInFrames / recording->FramesPerSecond();
+  if (recording->LengthInSeconds() < durationInSeconds) esyslog("tvscraper: ERROR: recording length shorter than length of cut recording, recording length %i length of cut recording %i filename \"%s\"", recording->LengthInSeconds(), durationInSeconds, recording->FileName() );
+
+// sanity check
+  if (numSequences == 1) {
+    if (recording->LengthInSeconds() - durationInSeconds < 20*60) return durationInSeconds;
+    esyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 20 mins cut. Recording length %i length of cut out of recording %i filename \"%s\"", recording->LengthInSeconds(), durationInSeconds, recording->FileName() );
+    return 0;
+  }
+  int durationInSecLow  = recording->LengthInSeconds() - 15*60; // (5 Vorlauf, 10 Nachlauf)
+  durationInSecLow  = durationInSecLow - durationInSecLow / 5 - 5*60;  // 20% adds, 5 mins extra adds
+  if (durationInSeconds < durationInSecLow) {
+    esyslog("tvscraper: GetDurationInSecMarks: sanity check, too much cut out of recording. Recording length %i length of cut recording %i expected min length of cut recording %i filename \"%s\"", recording->LengthInSeconds(), durationInSeconds, durationInSecLow, recording->FileName() );
+    return 0;
+  }
+
+  if (config.enableDebug) esyslog("tvscraper: GetDurationInSecMarks: sanity check ok, Recording length %i length of cut out of recording %i filename \"%s\"", recording->LengthInSeconds(), durationInSeconds, recording->FileName() );
+
+  return durationInSeconds;
 }
 
 void cTVScraperWorker::FindBestResult(const vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult){
