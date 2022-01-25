@@ -18,7 +18,7 @@ private:
 public:
     cImageServer(cTVScraperDB *db);
     virtual ~cImageServer(void);
-    scrapType GetIDs(const cEvent *event, const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number);
+    scrapType GetIDs(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number);
     cTvMedia GetPosterOrBanner(int id, int season_number, int episode_number, scrapType type);
     cTvMedia GetPoster(int id, int season_number, int episode_number);
     bool GetBanner(cTvMedia &media, int id);

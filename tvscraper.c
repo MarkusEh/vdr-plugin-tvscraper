@@ -8,13 +8,14 @@
 #include <getopt.h>
 #include <vdr/plugin.h>
 #include "tools/splitstring.c"
+#include "tools/stringhelpers.c"
 #include "config.c"
 cTVScraperConfig config;
+#include "eventOrRec.c"
 #include "tools/jsonHelpers.c"
 #include "tools/curlfuncs.cpp"
 #include "tools/filesystem.c"
 #include "tools/fuzzy.c"
-#include "tools/stringhelpers.c"
 #include "overrides.c"
 #include "tvscraperdb.c"
 #include "thetvdbscraper/tvdbmirrors.c"
@@ -165,19 +166,15 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     
     if (strcmp(Id, "GetEventType") == 0) {
         ScraperGetEventType* call = (ScraperGetEventType*) Data;
-        const cEvent *event = NULL;
-        const cRecording *recording = NULL;
-        if( call->event ) {
-            event = call->event;
-        } else if( call->recording ) {
-            event = call->recording->Info()->GetEvent();
-            recording = call->recording;
-        } else {
+        csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
+        if (!sEventOrRecording) {
+            call->type = tNone;
             lastEventId = 0;
             return false;
 	}
 
-        scrapType type = imageServer->GetIDs(event, recording, lastEventId, lastSeasonNumber, lastEpisodeNumber);
+        scrapType type = imageServer->GetIDs(sEventOrRecording, lastEventId, lastSeasonNumber, lastEpisodeNumber);
+        delete sEventOrRecording;
 
         if( lastEventId == 0 ) {
             call->type = tNone;
@@ -264,11 +261,12 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     
     if (strcmp(Id, "GetPosterBanner") == 0) {
         ScraperGetPosterBanner* call = (ScraperGetPosterBanner*) Data;
-        if (!call->event)
-            return false;
+        csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, NULL);
+        if (!sEventOrRecording) return false;
         int id, sn, en;
-        scrapType type = imageServer->GetIDs(call->event, NULL, id, sn, en);
+        scrapType type = imageServer->GetIDs(sEventOrRecording, id, sn, en);
 //        if (config.enableDebug) esyslog("tvscraper: GetPosterBanner, id %i type %i", id, type);
+        delete sEventOrRecording;
         if (type == scrapSeries)
             call->type = tSeries;
         else if (type == scrapMovie)
@@ -289,20 +287,13 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 
     if (strcmp(Id, "GetPoster") == 0) {
         ScraperGetPoster* call = (ScraperGetPoster*) Data;
-        const cEvent *event = NULL;
-        const cRecording *recording = NULL;
-        if( call->event ) {
-            event = call->event;
-        } else if( call->recording ) {
-            event = call->recording->Info()->GetEvent();
-            recording = call->recording;
-        } else {
-            return false;
-	}
+        csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
+        if (!sEventOrRecording) return false;
 
         int id, sn, en;
-        scrapType type = imageServer->GetIDs(event, recording, id, sn, en);
+        scrapType type = imageServer->GetIDs(sEventOrRecording, id, sn, en);
 //      if (config.enableDebug) esyslog("tvscraper: GetPoster, id %i type %i", id, type);
+        delete sEventOrRecording;
 
         if (type != scrapNone) {
             call->poster = imageServer->GetPoster(id, sn, en);
@@ -313,19 +304,12 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 
     if (strcmp(Id, "GetPosterThumb") == 0) {
         ScraperGetPosterThumb* call = (ScraperGetPosterThumb*) Data;
-        const cEvent *event = NULL;
-        const cRecording *recording = NULL;
-        if( call->event ) {
-            event = call->event;
-        } else if( call->recording ) {
-            event = call->recording->Info()->GetEvent();
-            recording = call->recording;
-        } else {
-            return false;
-	}
+        csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
+        if (!sEventOrRecording) return false;
 
         int id, sn, en;
-        scrapType type = imageServer->GetIDs(event, recording, id, sn, en);
+        scrapType type = imageServer->GetIDs(sEventOrRecording, id, sn, en);
+        delete sEventOrRecording;
         if (type != scrapNone) {
             call->poster = imageServer->GetPoster(id, sn, en);
             return true;

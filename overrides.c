@@ -118,7 +118,7 @@ string cOverRides::RemovePrefix(string title) {
   return title;
 }
 
-scrapType cOverRides::Type(string title) {
+scrapType cOverRides::Type(const string &title) {
     map<string,scrapType>::iterator hit = searchTypes.find(title);
     if (hit != searchTypes.end()) {
         if (config.enableDebug)

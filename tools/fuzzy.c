@@ -70,6 +70,16 @@ sentence_distance_int(const std::string& sentence1, const std::string& sentence2
   }
   return seq_distance(words1, words2, &word_distance);
 }
+std::string stripExtra(const std::string &in) {
+  std::string out;
+  out.reserve(in.length() );
+  for (const char &c: in) {
+    if ( (c > 0 && c < 48) || ( c > 57 && c < 65 ) || ( c > 90 && c < 97 ) || ( c > 122  && c < 128) ) {
+      out.append(1, ' ');
+    } else out.append(1, c);
+  }
+  return out;
+}
 int sentence_distance(const std::string& sentence1, const std::string& sentence2) {
 // return 0-1000
 // 0: Strings are equal
@@ -82,6 +92,7 @@ int sentence_distance(const std::string& sentence1, const std::string& sentence2
   } else {
     if (sentence2.find(sentence1) != std::string::npos) return 400 * (s2l - s1l) / max_dist;
   }
-  size_t dist = sentence_distance_int(sentence1, sentence2);
+
+  size_t dist = sentence_distance_int(stripExtra(sentence1), stripExtra(sentence2) );
   return 1000 * dist / max_dist;
 }

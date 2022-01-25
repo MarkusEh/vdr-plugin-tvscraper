@@ -24,21 +24,18 @@ private:
     cMovieDBScraper *moviedbScraper;
     cTVDBScraper *tvdbScraper;
     map<string, searchResultTvMovie> cacheTv;
-    scrapType GetScrapType(const cEvent *event);
+    scrapType GetScrapType(const csEventOrRecording *sEventOrRecording);
     bool ConnectScrapers(void);
     void DisconnectScrapers(void);
     void CheckRunningTimers(void);
     void ScrapEPG(void);
     void ScrapRecordings(void);
     bool StartScrapping(void);
-    bool Scrap(const cEvent *event, const cRecording *recording);
-    scrapType Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, const cEvent *event, const cRecording *recording, scrapType type_override, searchResultTvMovie &searchResult);
-    void FindBestResult(const vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult);
-    bool FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult, const cEvent *event, const cRecording *recording);
-    bool ScrapFindAndStore(sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
-    void Scrap_assign(const sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording);
-    bool GetDurationRange(const cEvent *event, const cRecording *recording, int &durationInMinLow, int &durationInMinHigh);
-    int GetDurationInSecMarks(const cRecording *recording);
+    bool Scrap(csEventOrRecording *sEventOrRecording);
+    scrapType Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, csEventOrRecording *sEventOrRecording, scrapType type_override, searchResultTvMovie &searchResult);
+    bool FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult, csEventOrRecording *sEventOrRecording);
+    bool ScrapFindAndStore(sMovieOrTv &movieOrTv, csEventOrRecording *sEventOrRecording);
+    void Scrap_assign(const sMovieOrTv &movieOrTv, csEventOrRecording *sEventOrRecording);
 public:
     void UpdateEpisodeListIfRequired(int tvID);
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);

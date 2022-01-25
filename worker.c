@@ -81,12 +81,10 @@ void cTVScraperWorker::SetDirectories(void) {
     }
 }
 
-scrapType cTVScraperWorker::GetScrapType(const cEvent *event) {
-  scrapType type = scrapNone;
-  string title = (event->Title())?event->Title():"";
-  type = overrides->Type(title);
+scrapType cTVScraperWorker::GetScrapType(const csEventOrRecording *sEventOrRecording) {
+  scrapType type = overrides->Type(sEventOrRecording->SearchString() );
   if (type != scrapNone) return type;
-  int duration = event->Duration() / 60;
+  int duration = sEventOrRecording->DurationInSec() / 60;
   if ((duration > 4) && (duration <= 75)) {
     type = scrapSeries;
   } else if (duration > 75) {
@@ -160,9 +158,10 @@ if (Schedule) {
         if (event->EndTime() < now) continue; // do not scrap past events. Avoid to scrap them, and delete directly afterwards
 	if (!Running())
 	    return;
-	scrapType type = GetScrapType(event);
+        csEventOrRecording sEvent(event);
+	scrapType type = GetScrapType(&sEvent);
 	if (type != scrapNone) {
-	    if( Scrap(event, NULL) ) waitCondition.TimedWait(mutex, 100);
+	    if( Scrap(&sEvent) ) waitCondition.TimedWait(mutex, 100);
 	}
     }
 } else {
@@ -172,22 +171,22 @@ if (Schedule) {
 }
 
 void cTVScraperWorker::ScrapRecordings(void) {
-db->ClearRecordings2();
+  db->ClearRecordings2();
 #if APIVERSNUM < 20301
-for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec)) {
+  for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec)) {
 #else
-LOCK_RECORDINGS_READ;
-for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
+  LOCK_RECORDINGS_READ;
+  for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
 #endif
-if (overrides->IgnorePath(rec->FileName()))
-    continue;
-const cRecordingInfo *recInfo = rec->Info();
-const cEvent *recEvent = recInfo->GetEvent();
-if (recEvent) {
-    scrapType type = GetScrapType(recEvent);
-    if (type != scrapNone) Scrap(recEvent, rec);
-}
-}
+    if (overrides->IgnorePath(rec->FileName())) continue;
+    csRecording csRecording(rec);
+    const cRecordingInfo *recInfo = rec->Info();
+    const cEvent *recEvent = recInfo->GetEvent();
+    if (recEvent) {
+        scrapType type = GetScrapType(&csRecording);
+        if (type != scrapNone) Scrap(&csRecording);
+    }
+  }
 }
 
 void cTVScraperWorker::CheckRunningTimers(void) {
@@ -201,7 +200,8 @@ if (timer->Recording()) {
     const cEvent *event = timer->Event();
     if (!event)
 	continue;
-    scrapType type = GetScrapType(event);
+    csEventOrRecording sEvent(event);
+    scrapType type = GetScrapType(&sEvent);
     if (type != scrapNone) {
 // figure out recording
         const cRecording *recording = NULL;
@@ -217,8 +217,9 @@ LOCK_RECORDINGS_READ;
 #endif
           if (!recording) esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: no recording for file \"%s\"", rc->FileName() );
         }
-	if (!db->SetRecording(event, recording)) {
-	    if (ConnectScrapers() && recording) Scrap(event, recording);
+        csRecording sRecording(recording);
+	if (!db->SetRecording(&sRecording)) {
+	    if (ConnectScrapers() && recording) Scrap(&sRecording);
 	}
     }
 }
@@ -270,22 +271,22 @@ waitCondition.TimedWait(mutex, loopSleep);
 }
 }
 
-bool cTVScraperWorker::Scrap(const cEvent *event, const cRecording *recording) {
+bool cTVScraperWorker::Scrap(csEventOrRecording *sEventOrRecording) {
 // return true, if request to rate limited internet db was required. Otherwise, false
    sMovieOrTv movieOrTv;
-   bool internet_req_required = ScrapFindAndStore(movieOrTv, event, recording);
-   Scrap_assign(movieOrTv, event, recording) ;
+   bool internet_req_required = ScrapFindAndStore(movieOrTv, sEventOrRecording);
+   Scrap_assign(movieOrTv, sEventOrRecording) ;
    return internet_req_required;
 }
 
-bool cTVScraperWorker::ScrapFindAndStore(sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording) {
+bool cTVScraperWorker::ScrapFindAndStore(sMovieOrTv &movieOrTv, csEventOrRecording *sEventOrRecording) {
 // if nothing is found => movieOrTv.scrapType = scrapNone;
 // return true, if request to rate limited internet db was required. Otherwise, false
 
 // set default values (nothing found)
 movieOrTv.type = scrapNone;
 movieOrTv.episodeSearchWithShorttext = false;
-string movieName = (event->Title())?event->Title():"";
+string movieName = sEventOrRecording->SearchString();
 if (overrides->Ignore(movieName)) return false;
 if (!overrides->Substitute(movieName) ) {
 // some more, but only if no explicit substitution
@@ -304,13 +305,12 @@ if (movieOrTv.id) {
   movieOrTv.id *= -1;
 } else {
 // check cache
-  cache_or_overrides_found = db->GetFromCache(movieName, event, recording, movieOrTv);
+  cache_or_overrides_found = db->GetFromCache(movieName, sEventOrRecording, movieOrTv);
 }
 
 if (cache_or_overrides_found) {
   if(movieOrTv.episodeSearchWithShorttext) {
-    if(event->ShortText() && *event->ShortText() ) episodeSearchString = event->ShortText();
-       else if(event->Description() && *event->Description() ) episodeSearchString = event->Description();
+    episodeSearchString = sEventOrRecording->EpisodeSearchString();
     UpdateEpisodeListIfRequired(movieOrTv.id);
     db->SearchEpisode(movieOrTv, episodeSearchString);
   }
@@ -334,9 +334,9 @@ if (config.enableDebug) esyslog("tvscraper: scraping \"%s\"", movieName.c_str())
 scrapType type_override = overrides->Type(movieName);
 cTVDBSeries TVtv(db, tvdbScraper);
 cMovieDbTv tv(db, moviedbScraper);
-cMovieDbMovie movie(db, moviedbScraper, event, recording);
+cMovieDbMovie movie(db, moviedbScraper);
 searchResultTvMovie searchResult;
-scrapType sType = Search(&TVtv, &tv, &movie, movieName, event, recording, type_override, searchResult);
+scrapType sType = Search(&TVtv, &tv, &movie, movieName, sEventOrRecording, type_override, searchResult);
     if (sType == scrapNone) {
 // check: series, format name: episode_name
       std::size_t found = movieName.find(":");
@@ -348,7 +348,7 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, event, recording, type_o
           episodeSearchString = movieName.substr(ssnd);
           movieName.erase(found);
           StringRemoveTrailingWhitespace(movieName);
-          sType = Search(&TVtv, &tv, NULL, movieName, event, recording, type_override, searchResult);
+          sType = Search(&TVtv, &tv, NULL, movieName, sEventOrRecording, type_override, searchResult);
           if(sType == scrapNone) {
             movieName = orig_movieName;
             episodeSearchString.clear();
@@ -367,7 +367,7 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, event, recording, type_o
           episodeSearchString = movieName.substr(ssnd);
           movieName.erase(found);
           StringRemoveTrailingWhitespace(movieName);
-          sType = Search(&TVtv, &tv, NULL, movieName, event, recording, type_override, searchResult);
+          sType = Search(&TVtv, &tv, NULL, movieName, sEventOrRecording, type_override, searchResult);
           if(sType == scrapNone) {
             movieName = orig_movieName;
             episodeSearchString.clear();
@@ -390,10 +390,7 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, event, recording, type_o
       movieOrTv.type = scrapSeries;
       movieOrTv.episodeSearchWithShorttext = episodeSearchString.empty();
       movieOrTv.year = searchResult.year;
-      if (movieOrTv.episodeSearchWithShorttext) {
-        if(event->ShortText() && *event->ShortText() ) episodeSearchString = event->ShortText();
-           else if(event->Description() && *event->Description() ) episodeSearchString = event->Description();
-      }
+      if (movieOrTv.episodeSearchWithShorttext) episodeSearchString = sEventOrRecording->EpisodeSearchString();
       if(tv.tvID()) {
 // entry for tv series in MovieDB found
         movieOrTv.id = tv.tvID();
@@ -413,17 +410,17 @@ scrapType sType = Search(&TVtv, &tv, &movie, movieName, event, recording, type_o
         }
       }
     } else if (config.enableDebug) esyslog("tvscraper: nothing found for \"%s\" ", movieName.c_str());
-  db->InsertCache(movieNameCache, event, recording, movieOrTv);
+  db->InsertCache(movieNameCache, sEventOrRecording, movieOrTv);
   return true;
 }
-void cTVScraperWorker::Scrap_assign(const sMovieOrTv &movieOrTv, const cEvent *event, const cRecording *recording) {
+void cTVScraperWorker::Scrap_assign(const sMovieOrTv &movieOrTv, csEventOrRecording *sEventOrRecording) {
 // assig found movieOrTv to event/recording in db
   if(movieOrTv.type == scrapMovie || movieOrTv.type == scrapSeries) {
-    if (!recording) db->InsertEvent(event, recording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
-               else db->InsertRecording2(event, recording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+    if (!sEventOrRecording->Recording() ) db->InsertEvent(sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+               else db->InsertRecording2(sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
   }
 }
-scrapType cTVScraperWorker::Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, const cEvent *event, const cRecording *recording, scrapType type_override, searchResultTvMovie &searchResult) {
+scrapType cTVScraperWorker::Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, csEventOrRecording *sEventOrRecording, scrapType type_override, searchResultTvMovie &searchResult) {
   if((tv || TVtv) && ! movie){
     map<string,searchResultTvMovie>::iterator cacheHit = cacheTv.find(name);
     if (cacheHit != cacheTv.end() && (TVtv || (cacheHit->second).id > 0) ) {
@@ -448,7 +445,7 @@ scrapType cTVScraperWorker::Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMo
 
   switch (type_override) {
     case scrapMovie:
-      if(movie) movie->AddMovieResults(resultSet, searchString);
+      if(movie) movie->AddMovieResults(resultSet, searchString, sEventOrRecording);
       break;
     case scrapSeries:
       if(tv) tv->AddTvResults(resultSet, searchString);
@@ -456,10 +453,10 @@ scrapType cTVScraperWorker::Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMo
       break;
     default:
       if(tv) tv->AddTvResults(resultSet, searchString);
-      if(movie) movie->AddMovieResults(resultSet, searchString);
+      if(movie) movie->AddMovieResults(resultSet, searchString, sEventOrRecording);
       if(TVtv) TVtv->AddResults(resultSet, searchString);
   }
-  if (!FindBestResult2(resultSet, searchResult, event, recording)) return scrapNone; // nothing found
+  if (!FindBestResult2(resultSet, searchResult, sEventOrRecording)) return scrapNone; // nothing found
   if(searchResult.movie) {
     int movieID = searchResult.id;
     movie->SetID( movieID);
@@ -480,7 +477,7 @@ bool CompareSearchResult (searchResultTvMovie i, searchResultTvMovie j) {
   return i.distance < j.distance;
 }
 
-bool cTVScraperWorker::FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult, const cEvent *event, const cRecording *recording){
+bool cTVScraperWorker::FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult, csEventOrRecording *sEventOrRecording){
     std::sort (resultSet.begin(), resultSet.end(), CompareSearchResult);
 
     for( const searchResultTvMovie &sR : resultSet ) {
@@ -490,102 +487,19 @@ bool cTVScraperWorker::FindBestResult2(vector<searchResultTvMovie> &resultSet, s
 
     int durationInMinLow;
     int durationInMinHigh;
-    if (GetDurationRange(event, recording, durationInMinLow, durationInMinHigh) ) {
+    if (sEventOrRecording->DurationRange(durationInMinLow, durationInMinHigh) ) {
       for( const searchResultTvMovie &sR : resultSet ) if (sR.movie) {
         int runtime = moviedbScraper->GetMovieRuntime(sR.id);
         if (runtime >= durationInMinLow && runtime <= durationInMinHigh) {
-          if (config.enableDebug) esyslog("tvscraper: runtime %i durationInMinLow %i durationInMinHigh %i id %i title \"%s\"", runtime, durationInMinLow, durationInMinHigh, sR.id, event?event->Title():"No event");
+          if (config.enableDebug) esyslog("tvscraper: runtime %i durationInMinLow %i durationInMinHigh %i id %i name \"%s\"", runtime, durationInMinLow, durationInMinHigh, sR.id, sEventOrRecording->SearchString().c_str() );
           searchResult = sR;
           return true;
         } else
-          if (config.enableDebug) esyslog("tvscraper: not selected, runtime %i durationInMinLow %i durationInMinHigh %i id %i title \"%s\"", runtime, durationInMinLow, durationInMinHigh, sR.id, event?event->Title():"No event");
+          if (config.enableDebug) esyslog("tvscraper: not selected, runtime %i durationInMinLow %i durationInMinHigh %i id %i name \"%s\"", runtime, durationInMinLow, durationInMinHigh, sR.id, sEventOrRecording->SearchString().c_str() );
       }
     }
 
     return false;
-}
-bool cTVScraperWorker::GetDurationRange(const cEvent *event, const cRecording *recording, int &durationInMinLow, int &durationInMinHigh) {
-// return true, if data is available
-    int durationInSec = 0;
-    if (recording) {
-      durationInSec = recording->FileName() ? recording->LengthInSeconds() : 0;
-      int durationInSec_cut = GetDurationInSecMarks(recording);
-      if (durationInSec_cut) durationInSec = durationInSec_cut;
-      if (recording->IsEdited() || durationInSec_cut) {
-        durationInMinLow  = durationInSec / 60 - 1;
-        durationInMinHigh = durationInSec / 60 + 10;
-      } else {
-        durationInMinLow  = durationInSec / 60 - 13; // (3 Vorlauf, 10 Nachlauf)
-        durationInMinLow  = durationInMinLow - durationInMinLow / 5 - 5;
-        durationInMinHigh = durationInSec / 60 + 10; // might be VPS
-      }
-    } else if (event) {
-      durationInSec = event->Duration();
-      if (event->Vps() ) {
-        durationInMinLow  = durationInSec / 60 - 1;
-        durationInMinHigh = durationInSec / 60 + 10;
-      } else {
-        durationInMinLow  = durationInSec / 60;
-        durationInMinLow  = durationInMinLow - durationInMinLow / 5 - 5;
-        durationInMinHigh = durationInSec / 60 + 1;
-      }
-    }
-    return durationInSec != 0;
-}
-
-int cTVScraperWorker::GetDurationInSecMarks(const cRecording *recording) {
-// return 0 if no data is available
-// otherwise, duration of cut recording
-  if (!recording) return 0;
-  if (!recording->HasMarks() ) return 0;
-  cMarks marks;
-  marks.Load(recording->FileName(), recording->FramesPerSecond(), recording->IsPesRecording() );
-  int numSequences = marks.GetNumSequences();
-  if (numSequences == 0) return 0;  // only one begin mark at index 0 -> no data
-  const cMark *BeginMark = marks.GetNextBegin();
-  if (!BeginMark) return 0;
-  int durationInFrames = 0;
-  while (const cMark *EndMark = marks.GetNextEnd(BeginMark)) {
-    durationInFrames += EndMark->Position() - BeginMark->Position();
-    BeginMark = marks.GetNextBegin(EndMark);
-  }
-  if (BeginMark) {  // the last sequence had no actual "end" mark
-    durationInFrames += recording->LengthInSeconds() * recording->FramesPerSecond() - BeginMark->Position();
-  }
-  int durationInSeconds = durationInFrames / recording->FramesPerSecond();
-  if (recording->LengthInSeconds() < durationInSeconds) esyslog("tvscraper: ERROR: recording length shorter than length of cut recording, recording length %i length of cut recording %i filename \"%s\"", recording->LengthInSeconds(), durationInSeconds, recording->FileName() );
-
-// sanity check
-  if (numSequences == 1) {
-    if (recording->LengthInSeconds() - durationInSeconds < 20*60) return durationInSeconds;
-    esyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 20 mins cut. Recording length %i length of cut out of recording %i filename \"%s\"", recording->LengthInSeconds(), durationInSeconds, recording->FileName() );
-    return 0;
-  }
-  int durationInSecLow  = recording->LengthInSeconds() - 15*60; // (5 Vorlauf, 10 Nachlauf)
-  durationInSecLow  = durationInSecLow - durationInSecLow / 5 - 5*60;  // 20% adds, 5 mins extra adds
-  if (durationInSeconds < durationInSecLow) {
-    esyslog("tvscraper: GetDurationInSecMarks: sanity check, too much cut out of recording. Recording length %i length of cut recording %i expected min length of cut recording %i filename \"%s\"", recording->LengthInSeconds(), durationInSeconds, durationInSecLow, recording->FileName() );
-    return 0;
-  }
-
-  if (config.enableDebug) esyslog("tvscraper: GetDurationInSecMarks: sanity check ok, Recording length %i length of cut out of recording %i filename \"%s\"", recording->LengthInSeconds(), durationInSeconds, recording->FileName() );
-
-  return durationInSeconds;
-}
-
-void cTVScraperWorker::FindBestResult(const vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult){
-    int bestMatch = -1;
-    int numResults = resultSet.size();
-    for (int i=0; i<numResults; i++) {
-        if (i == 0) {
-            bestMatch = resultSet[i].distance;
-            searchResult = resultSet[i];
-        } else if (resultSet[i].distance < bestMatch) {
-            bestMatch = resultSet[i].distance;
-            searchResult = resultSet[i];
-        }
-    }
-    return;
 }
 
 void cTVScraperWorker::UpdateEpisodeListIfRequired(int tvID) {

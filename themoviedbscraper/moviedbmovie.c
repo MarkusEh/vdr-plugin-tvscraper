@@ -7,11 +7,9 @@
 
 using namespace std;
 
-cMovieDbMovie::cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper, const cEvent *event, const cRecording *recording):
+cMovieDbMovie::cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper):
   m_db(db),
-  m_movieDBScraper(movieDBScraper),
-  m_event(event),
-  m_recording(recording)
+  m_movieDBScraper(movieDBScraper)
 {
     id = 0;
     title = "";
@@ -122,17 +120,16 @@ bool cMovieDbMovie::ReadMovie(json_t *movie) {
     return true;
 }
 
-bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString){
+bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, csEventOrRecording *sEventOrRecording){
     string json;
     stringstream url;
     bool ret;
     vector<int> years;
     AddYears(years, SearchString.c_str() );
-    AddYears(years, m_event->Title() );
-    AddYears(years, m_event->ShortText() );
-    AddYears(years, m_event->Description() );
+    sEventOrRecording->AddYears(years);
+    string t = "";
 
-    url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << "&query=" << CurlEscape(SearchString.c_str());
+    url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&query=" << CurlEscape(SearchString.c_str());
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
     if (!CurlGetUrl(url.str().c_str(), &json)) return false;
 
@@ -145,24 +142,24 @@ bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
       bool found = false;
       for (int &year: years) {
         stringstream url;
-        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << "&year=" << year << "&query=" << CurlEscape(SearchString.c_str());
+        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&year=" << year << "&query=" << CurlEscape(SearchString.c_str());
         if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
         if (!CurlGetUrl(url.str().c_str(), &json)) continue;
         json_t *root = json_loads(json.c_str(), 0, &error);
         if (!root) continue;
         if (json_integer_value_validated(root, "total_results") > 0) found = true;
-        ret = AddMovieResults(root, resultSet, SearchString, years);
+        ret = AddMovieResults(root, resultSet, SearchString, years, sEventOrRecording);
         json_decref(root);
       }
-      if (!found) ret = AddMovieResults(root, resultSet, SearchString, years);
+      if (!found) ret = AddMovieResults(root, resultSet, SearchString, years, sEventOrRecording);
     } else {
 // only one page (or no years avilable), check all results in this page
-      ret = AddMovieResults(root, resultSet, SearchString, years);
+      ret = AddMovieResults(root, resultSet, SearchString, years, sEventOrRecording);
     }
     json_decref(root);
     return ret;
 }
-bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString, const vector<int> &years){
+bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString, const vector<int> &years, csEventOrRecording *sEventOrRecording){
     if(!json_is_object(root)) return false;
     json_t *results = json_object_get(root, "results");
     if(!json_is_array(results)) return false;
@@ -196,15 +193,16 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
                   else sRes.year = 0;
 
         if(matchYear) sRes.distance -= 150;
-        int durationInSec;
-        if (m_recording) durationInSec = m_recording->FileName() ? m_recording->LengthInSeconds() : 0;
-                    else durationInSec = m_event->Duration();
+        sRes.distance += sEventOrRecording->IsTvShow();
+/*
+        int durationInSec = sEventOrRecording->DurationInSec();
         if (durationInSec) {
           if ( durationInSec > 80*60 ) {
 // event longer than 80 mins, add some points that this is a movie
             sRes.distance -= 100;
           } else sRes.distance += 152; // shorter than 80 mins, most likely not a movie
         }
+*/
         resultSet.push_back(sRes);
     }
     return true;

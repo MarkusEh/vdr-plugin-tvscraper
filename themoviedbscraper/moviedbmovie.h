@@ -9,8 +9,6 @@ class cMovieDbMovie {
 private:
     cTVScraperDB *m_db;
     cMovieDBScraper *m_movieDBScraper;
-    const cEvent *m_event;
-    const cRecording *m_recording;
     const string m_baseURL = "api.themoviedb.org/3";
     int id;
     std::string title;
@@ -34,12 +32,12 @@ private:
     string backdropPath;
     string posterPath;
     bool ReadMovie(json_t *movie);
-    bool AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString, const vector<int> &years);
+    bool AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString, const vector<int> &years, csEventOrRecording *sEventOrRecording);
     bool DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName);
 public:
-    cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper, const cEvent *event, const cRecording *recording);
+    cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
     virtual ~cMovieDbMovie(void);
-    bool AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString);
+    bool AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, csEventOrRecording *sEventOrRecording);
     bool ReadMovie(void);
     void SetID(int movieID) { id = movieID; };
     int ID(void) { return id; };

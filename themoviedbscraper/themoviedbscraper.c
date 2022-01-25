@@ -29,7 +29,7 @@ int cMovieDBScraper::GetMovieRuntime(int movieID) {
   if (runtime  >  0) return runtime;
   if (runtime == -1) return 0; // no runtime available in themoviedb
 // themoviedb never checked for runtime, check now
-  cMovieDbMovie movie(db, this, NULL, NULL);
+  cMovieDbMovie movie(db, this);
   movie.SetID(movieID);
   StoreMovie(movie);
   runtime = db->GetMovieRuntime(movieID);

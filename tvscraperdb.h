@@ -39,7 +39,7 @@ public:
     void TvSetEpisodesUpdated(int tvID);
     void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);
     bool TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes);
-    void InsertEvent(const cEvent *event, const cRecording *recording, int movie_tv_id, int season_number, int episode_number);
+    void InsertEvent(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
     void InsertActor(int seriesID, string name, string role, string thumb);
     void InsertMovie(int movieID, const string &title, const string &original_title, const string &tagline, const string &overview, bool adult, int collection_id, const string &collection_name, int budget, int revenue, const string &genres, const string &homepage, const string &release_date, int runtime, float popularity, float vote_average);
 
@@ -50,13 +50,13 @@ public:
     bool TvExists(int tvID);
     int SearchMovie(string movieTitle);
     int SearchTv(string tvTitle);
-    int SearchTvEpisode(int tvID, string episode_search_name, int &season_number, int &episode_number, string &episode_name);
+    int SearchTvEpisode(int tvID, const string &episode_search_name, const string &episode_search_name_full, int &season_number, int &episode_number, string &episode_name);
     string GetStillPathTvEpisode(int tvID, int season_number, int episode_number);
-    void InsertRecording2(const cEvent *event, const cRecording *recording, int movie_tv_id, int season_number, int episode_number);
-    bool SetRecording(const cEvent *event, const cRecording *recording);
+    void InsertRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
+    bool SetRecording(csEventOrRecording *sEventOrRecording);
     void ClearRecordings2(void);
     bool CheckStartScrapping(int minimumDistance);
-    bool GetMovieTvID(const cEvent *event, const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number);
+    bool GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number);
     vector<vector<string> > GetActorsMovie(int movieID);
     vector<vector<string> > GetActorsSeries(int seriesID);
     int GetEpisodeID(int tvID, int seasonNumber, int episodeNumber);
@@ -71,8 +71,8 @@ public:
     bool GetTv(int tvID, time_t &lastUpdated, string &status);
     bool GetTvEpisode(int tvID, int seasonNumber, int episodeNumber, int &episodeID, string &name, string &airDate, float &vote_average, string &overview, string &episodeGuestStars);
     bool SearchEpisode(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString);
-    bool GetFromCache(const string &movieNameCache, const cEvent *event, const cRecording *recording, sMovieOrTv &movieOrTv);
-    void InsertCache(const string &movieNameCache, const cEvent *event, const cRecording *recording, sMovieOrTv &movieOrTv);
+    bool GetFromCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv);
+    void InsertCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv);
     void DeleteOutdatedCache();
 
 };

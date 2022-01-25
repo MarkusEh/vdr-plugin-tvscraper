@@ -21,7 +21,7 @@ public:
     bool Ignore(string title);
     bool Substitute(string &title);
     string RemovePrefix(string title);
-    scrapType Type(string title);
+    scrapType Type(const string &title);
     int thetvdbID(string title);
     bool IgnorePath(string path);
     void Dump(void);

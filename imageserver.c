@@ -9,8 +9,8 @@ cImageServer::cImageServer(cTVScraperDB *db) {
 cImageServer::~cImageServer() {
 }
 
-scrapType cImageServer::GetIDs(const cEvent *event, const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number) {
-    if(db->GetMovieTvID(event, recording, movie_tv_id, season_number, episode_number)) {
+scrapType cImageServer::GetIDs(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number) {
+    if(db->GetMovieTvID(sEventOrRecording, movie_tv_id, season_number, episode_number)) {
        if(season_number == -100) return scrapMovie;
        else return scrapSeries;
     }
