@@ -485,13 +485,16 @@ bool cTVScraperWorker::FindBestResult2(vector<searchResultTvMovie> &resultSet, s
       if (sR.year) { searchResult = sR; return true; }
     }
 
+    int num_movies = 0;
+    for( const searchResultTvMovie &sR : resultSet ) if (sR.movie) num_movies++;
+    if (num_movies == 0) return false;
     int durationInMinLow;
     int durationInMinHigh;
     if (sEventOrRecording->DurationRange(durationInMinLow, durationInMinHigh) ) {
       for( const searchResultTvMovie &sR : resultSet ) if (sR.movie) {
         int runtime = moviedbScraper->GetMovieRuntime(sR.id);
         if (runtime >= durationInMinLow && runtime <= durationInMinHigh) {
-          if (config.enableDebug) esyslog("tvscraper: runtime %i durationInMinLow %i durationInMinHigh %i id %i name \"%s\"", runtime, durationInMinLow, durationInMinHigh, sR.id, sEventOrRecording->SearchString().c_str() );
+          if (config.enableDebug) esyslog("tvscraper: selected, runtime %i durationInMinLow %i durationInMinHigh %i id %i name \"%s\"", runtime, durationInMinLow, durationInMinHigh, sR.id, sEventOrRecording->SearchString().c_str() );
           searchResult = sR;
           return true;
         } else
