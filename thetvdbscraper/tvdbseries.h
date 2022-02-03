@@ -25,8 +25,8 @@ private:
     string status = "";
     string banner = "";
     vector<int> episodeRunTimes;
-//     string fanart = "";
-//     string poster = "";
+    string fanart = "";
+    string poster = "";
     void ParseXML_Series(xmlDoc *doc, xmlNode *node);
     void ParseXML_Episode(xmlDoc *doc, xmlNode *node);
     void ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searchResultTvMovie> &resultSet, const string &SearchString);

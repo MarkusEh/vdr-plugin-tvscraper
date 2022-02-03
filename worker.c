@@ -178,6 +178,8 @@ void cTVScraperWorker::ScrapRecordings(void) {
   LOCK_RECORDINGS_READ;
   for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
 #endif
+    if (config.enableDebug) esyslog("tvscraper: Scrap recording \"%s\"", rec->FileName() );
+
     if (overrides->IgnorePath(rec->FileName())) continue;
     csRecording csRecording(rec);
     const cRecordingInfo *recInfo = rec->Info();
@@ -273,10 +275,14 @@ waitCondition.TimedWait(mutex, loopSleep);
 
 bool cTVScraperWorker::Scrap(csEventOrRecording *sEventOrRecording) {
 // return true, if request to rate limited internet db was required. Otherwise, false
+  cSearchEventOrRec SearchEventOrRec(sEventOrRecording, overrides, moviedbScraper, tvdbScraper, db);  
+  return SearchEventOrRec.Scrap();
+/*
    sMovieOrTv movieOrTv;
    bool internet_req_required = ScrapFindAndStore(movieOrTv, sEventOrRecording);
    Scrap_assign(movieOrTv, sEventOrRecording) ;
    return internet_req_required;
+*/
 }
 
 bool cTVScraperWorker::ScrapFindAndStore(sMovieOrTv &movieOrTv, csEventOrRecording *sEventOrRecording) {

@@ -142,7 +142,7 @@ bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
       bool found = false;
       for (int &year: years) {
         stringstream url;
-        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&year=" << year << "&query=" << CurlEscape(SearchString.c_str());
+        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString.c_str());
         if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
         if (!CurlGetUrl(url.str().c_str(), &json)) continue;
         json_t *root = json_loads(json.c_str(), 0, &error);
@@ -175,25 +175,26 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
         transform(resultOriginalTitle.begin(), resultOriginalTitle.end(), resultOriginalTitle.begin(), ::tolower);
         int id = json_integer_value_validated(result, "id");
         if (!id) continue;
-// can we match the year?
-        bool matchYear = false;
-        int resultReleaseYear = 0;
-        string resultReleaseDate = json_string_value_validated(result, "release_date");
-        if(resultReleaseDate.length() >= 4) {
-          resultReleaseYear = atoi(resultReleaseDate.substr(0, 4).c_str() );
-          matchYear = find(years.begin(), years.end(), resultReleaseYear) != years.end();
-        }
         searchResultTvMovie sRes;
         sRes.id = id;
         sRes.movie = true;
+// can we match the year?
+        sRes.year = 0; // default, no year match
+        string resultReleaseDate = json_string_value_validated(result, "release_date");
+        if(resultReleaseDate.length() >= 4) {
+          int resultReleaseYear = atoi(resultReleaseDate.substr(0, 4).c_str() );
+          if ( find(years.begin(), years.end(), resultReleaseYear) != years.end() ) {
+            sRes.year = resultReleaseYear;  // year match
+          } else {
+            resultReleaseYear *= -1;
+            if ( find(years.begin(), years.end(), resultReleaseYear) != years.end() ) sRes.year = resultReleaseYear;  // match of year +-1
+          }
+        }
         sRes.distance = min(sentence_distance(resultTitle, SearchString), sentence_distance(resultOriginalTitle, SearchString) );
         sRes.popularity = json_number_value_validated(result, "popularity");
 
-        if (matchYear) sRes.year = resultReleaseYear;
-                  else sRes.year = 0;
-
-        if(matchYear) sRes.distance -= 150;
-        sRes.distance += sEventOrRecording->IsTvShow();
+//        if(matchYear) sRes.distance -= 150;
+//        sRes.distance += sEventOrRecording->IsTvShow();
 /*
         int durationInSec = sEventOrRecording->DurationInSec();
         if (durationInSec) {

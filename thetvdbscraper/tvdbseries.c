@@ -120,6 +120,10 @@ void cTVDBSeries::ParseXML_Series(xmlDoc *doc, xmlNode *node) {
                 overview = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"banner")) {
                 banner = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"poster")) {
+                poster = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"fanart")) {
+                fanart = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"FirstAired")) {
                 firstAired = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"IMDB_ID")) {

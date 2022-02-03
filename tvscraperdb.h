@@ -24,6 +24,7 @@ private:
     bool CreateTables(void);
     std::size_t SearchEpisode_int(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString);
     void WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number);
+    bool StrToMovieOrTv(const vector<string> &result, sMovieOrTv &movieOrTv);
 public:
     cTVScraperDB(void);
     virtual ~cTVScraperDB(void);
@@ -71,10 +72,10 @@ public:
     bool GetTv(int tvID, time_t &lastUpdated, string &status);
     bool GetTvEpisode(int tvID, int seasonNumber, int episodeNumber, int &episodeID, string &name, string &airDate, float &vote_average, string &overview, string &episodeGuestStars);
     bool SearchEpisode(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString);
-    bool GetFromCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv);
-    void InsertCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv);
+    bool GetFromCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
+    void InsertCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
     void DeleteOutdatedCache();
-
+    int DeleteFromCache(const char *movieNameCache); // return number of deleted entries
 };
 
 #endif //__TVSCRAPER_TVSCRAPPERDB_H

@@ -67,7 +67,10 @@ bool cTVDBScraper::ReadAll(int seriesID, cTVDBSeries *&series, cTVDBActors *&act
 // xmlAll available
     xmlInitParser();
     xmlDoc *doc = xmlReadMemory(xmlAll.c_str(), strlen(xmlAll.c_str()), "noname.xml", NULL, 0);
-    if(!doc) return false;
+    if(!doc) {
+      esyslog("tvscraper: ERROR xml parsing document returned from %s", url.str().c_str());
+      return false;
+    }
     series = new cTVDBSeries(db, this);
     series->ParseXML_all(doc);
     if (!onlyEpisodes) {
@@ -80,7 +83,7 @@ bool cTVDBScraper::ReadAll(int seriesID, cTVDBSeries *&series, cTVDBActors *&act
         for (xmlNode *cur_node = node; cur_node; cur_node = cur_node->next) {
           if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Actors")) {
             if(!actors) {
-//              if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, before actors");
+              if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, before actors");
               actors = new cTVDBActors(language);
               actors->ReadActors(doc, cur_node);
     // if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, after actors");
@@ -90,12 +93,12 @@ bool cTVDBScraper::ReadAll(int seriesID, cTVDBSeries *&series, cTVDBActors *&act
 //              if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, before media");
               media = new cTVDBSeriesMedia(language);
               media->ReadMedia(doc, cur_node);
-//    if (config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists NOT!");
-//    if (config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists");
+//      if (config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists NOT!");
+//      if (config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists");
             }
           }
         }
-      }
+      } else esyslog("tvscraper: ERROR xml root node != \"Data\", document returned from %s", url.str().c_str());
     }
     xmlFreeDoc(doc);
 //    if (config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::ReadAll, (End), series exists NOT!");

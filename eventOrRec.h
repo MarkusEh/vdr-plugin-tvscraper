@@ -15,11 +15,12 @@ public:
   virtual const cRecording *Recording() const { return NULL; }
   virtual void AddYears(vector<int> &years) const;
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
+  int DurationDistance(int DurationInMin);
   virtual const char *EpisodeSearchString() const;
   virtual int IsTvShow() { return !DurationInSec()?0:DurationInSec() > 80*60?-100:152; }  // return high number, if this is most likely a TV show. If it is most likely a movie, return high negative number
+  virtual const char *Title() const { return m_event->Title(); }
 protected:
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
-  virtual const char *Title() const { return m_event->Title(); }
   virtual const char *ShortText() const { return m_event->ShortText(); }
   virtual const char *Description() const { return m_event->Description(); }
   virtual int DurationWithoutMarginSec(void) const { return m_event->Duration(); }
@@ -28,7 +29,7 @@ protected:
   std::string m_searchString;
   const cEvent *m_event;
 private:
-  int RemoveAdvTimeSec(int durationSec) const { return durationSec - durationSec / 5 - 5*60; } // 20% adds, 5 mins extra adds
+  int RemoveAdvTimeSec(int durationSec) const { return durationSec - durationSec / 3 - 2*60; } // 33% adds, 2 mins extra adds
 };
 
 class csRecording : public csEventOrRecording {
@@ -41,9 +42,9 @@ public:
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const cString ChannelIDs() const { return (EventID()&&ChannelID().Valid())?ChannelID().ToString():cString(m_recording->Name() ); } // if there is no eventID or no ChannelID(), use Name instead
   virtual int IsTvShow() { return m_baseNameEquShortText?500:csEventOrRecording::IsTvShow(); }  // return high number, if this is most likely a TV show. If it is most likely a movie, return high negative number
+  virtual const char *Title() const { return m_recording->Info()->Title(); }
 protected:
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }
-  virtual const char *Title() const { return m_recording->Info()->Title(); }
   virtual const char *ShortText() const { return m_recording->Info()->ShortText(); }
   virtual const char *Description() const { return m_recording->Info()->Description(); }
   virtual int DurationWithoutMarginSec(void) const { return m_event->Duration()?m_event->Duration():(m_recording->LengthInSeconds() - 14*60); } // remove margin, 4 min at start, 10 min at stop

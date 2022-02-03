@@ -27,6 +27,7 @@ cTVScraperConfig config;
 #include "themoviedbscraper/moviedbmovie.c"
 #include "themoviedbscraper/moviedbactors.c"
 #include "themoviedbscraper/themoviedbscraper.c"
+#include "searchEventOrRec.c"
 #include "worker.c"
 #include "services.h"
 #include "imageserver.c"
@@ -320,11 +321,40 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 }
 
 const char **cPluginTvscraper::SVDRPHelpPages(void) {
-    return NULL;
+ static const char *HelpPages[] = {
+    "SCRE\n"
+    "    Scrap recordings.\n"
+    "    Before that, delete all existing scrap results for recordings.\n"
+    "    Note: Cache is not deleted, and will be used.\n"
+    "    Alternate command: ScrapRecordings",
+    "SCEP\n"
+    "    Scrap EPG.\n"
+    "    Before that, delete all existing scrap results for EPG.\n"
+    "    Note: Cache is not deleted, and will be used.\n"
+    "    Alternate command: ScrapEPG",
+    NULL
+    };
+  return HelpPages;
 }
 
 cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, int &ReplyCode) {
-    return NULL;
+  if ((strcasecmp(Command, "SCRE") == 0) || (strcasecmp(Command, "ScrapRecordings") == 0)) {
+    workerThread->InitVideoDirScan();
+    return cString("Scraping Video Directory started");
+  }
+  if ((strcasecmp(Command, "SCEP") == 0) || (strcasecmp(Command, "ScrapEPG") == 0)) {
+    workerThread->InitManualScan();
+    return cString("EPG Scraping started");
+  }
+  if ((strcasecmp(Command, "DELC") == 0) || (strcasecmp(Command, "DeleteCache") == 0)) {
+    if ( Option && *Option ) {
+      int del_entries = db->DeleteFromCache(Option);
+      return cString::sprintf("%i cache entry/entries deleted", del_entries);
+    }
+    ReplyCode = 550;
+    return cString("Option missing");
+  }
+  return NULL;
 }
 
 VDRPLUGINCREATOR(cPluginTvscraper);

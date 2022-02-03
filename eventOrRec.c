@@ -11,6 +11,13 @@ void csEventOrRecording::AddYears(vector<int> &years) const {
   ::AddYears(years, ShortText() );
   ::AddYears(years, Description() );
 }
+int csEventOrRecording::DurationDistance(int DurationInMin) {
+  int durationInMinLow, durationInMinHigh;
+  if (DurationInMin <=0 || !DurationRange(durationInMinLow, durationInMinHigh) ) return -2; // no data
+  if (DurationInMin > durationInMinHigh) return DurationInMin - durationInMinHigh;
+  if (DurationInMin < durationInMinLow)  return durationInMinLow - DurationInMin;
+  return 0;
+}
 bool csEventOrRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
 // return true, if data is available
   if (!m_event->Duration() ) return false;
@@ -35,7 +42,9 @@ csRecording::csRecording(const cRecording *recording) :
   cString BaseName = m_recording->BaseName();
   if (BaseName[0] == '%') m_searchString = ( (const char *)BaseName ) + 1;
                      else m_searchString = ( (const char *)BaseName );
-  if (ShortText() && strstr(ShortText(), m_searchString.c_str() ) ) {
+  if ( Title() && strstr(Title(), m_searchString.c_str() ) ) return; // seems to be a movie
+  if (( ShortText() && strstr(ShortText(), m_searchString.c_str() ) ) ||
+      (!ShortText() && Description() && strstr(Description(), m_searchString.c_str() ) ) ) {
 // this is a series, BaseName == ShortText() == episode name
     m_baseNameEquShortText = true;
     m_searchString = Title();
@@ -51,7 +60,7 @@ bool csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
 // length of recording without adds
     int durationInSec = m_recording->IsEdited()?m_recording->LengthInSeconds():DurationInSecMarks();
     durationInMinLow  = durationInSec / 60 - 1;  // 1 min for inaccuracies
-    durationInMinHigh = durationInSec / 60 + 10; // extra 10 mins, a cut version might be broadcasted 
+    durationInMinHigh = durationInSec / 60 + 16; // extra 16 mins, a cut version might be broadcasted 
     return true;
   } else {
     return csEventOrRecording::DurationRange(durationInMinLow, durationInMinHigh);
@@ -93,8 +102,8 @@ int csRecording::DurationInSecMarks_int(void) {
 // no adds found, just recording margin at start / stop
     if (m_event->Duration() ) {
 // event duration is available, and should be equal to duration of cut recording
-      if (abs(m_event->Duration() - durationInSeconds) < 2*60) m_durationInSecMarks = durationInSeconds;
-        else esyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 2 mins difference to event length. Event  length %i length of cut out of recording %i filename \"%s\"", m_event->Duration(), durationInSeconds, m_recording->FileName() );
+      if (abs(m_event->Duration() - durationInSeconds) < 4*60) m_durationInSecMarks = durationInSeconds;
+        else esyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 4 mins difference to event length. Event  length %i length of cut out of recording %i filename \"%s\"", m_event->Duration(), durationInSeconds, m_recording->FileName() );
     } else {
 // event duration is not available, cut recording sould be recording - timer margin at start / stop
       if (DurationWithoutMarginSec() < durationInSeconds) m_durationInSecMarks = durationInSeconds;

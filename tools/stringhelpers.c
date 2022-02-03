@@ -67,7 +67,13 @@ void AddYears(vector<int> &years, const char *str) {
     last = firstNonDigit(first);
     if (last - first  == 4) {
       int year = atoi(first);
-      if (year > 1920 && year < 2100) if (find(years.begin(), years.end(), year) == years.end()) years.push_back(year);
+      if (year > 1920 && year < 2100) {
+        if (find(years.begin(), years.end(), year) == years.end()) years.push_back(year);
+        int yearp1 = ( year + 1 ) * (-1);
+        if (find(years.begin(), years.end(), yearp1) == years.end()) years.push_back(yearp1);
+        int yearm1 = ( year - 1 ) * (-1);
+        if (find(years.begin(), years.end(), yearm1) == years.end()) years.push_back(yearm1);
+      }
     }
   }
 }
