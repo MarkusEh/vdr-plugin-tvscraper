@@ -124,10 +124,17 @@ void cTVDBScraper::StoreMedia(cTVDBSeries *series, cTVDBSeriesMedia *media, cTVD
         media->Store(baseUrl.str(), destDir.str());
 //        if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreMedia, after media->Store");
     }
-    if (actors) {
-        actors->Store(baseUrl.str(), destDir.str());
-//        if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreMedia, after actors->Store");
-    }
+}
+void cTVDBScraper::StoreActors(int seriesID) {
+  stringstream baseUrl;
+  baseUrl << mirrors->GetMirrorBanner() << "/banners/";
+  stringstream destDir;
+  destDir << baseDir << "/" << seriesID << "/";
+  if (!CreateDirectory(destDir.str().c_str()) ) return;
+  for (const vector<string> &actor: db->GetActorsSeriesPath(seriesID) ) {
+    if (actor.size() != 2 || actor[1].empty() ) continue;
+    Download(baseUrl.str() + actor[1], destDir.str() + actor[0]);
+  }
 }
 void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename) {
     if (episodeFilename.empty() ) return;

@@ -11,6 +11,7 @@ private:
   int SearchTvCacheSearchString(searchResultTvMovie &searchResult, const string &searchString);
   int SearchTvEpisTitle(searchResultTvMovie &searchResult, string &movieName, string &episodeSearchString, char delimiter); // Title: name of TV series, and episode name (with : or - between them)
   int SearchMovie(void); // 0: no match; return movie ID, search result in m_searchResult_Movie
+  scrapType FindMovie(const std::string &prefix_delim);
   int SearchTvEpisShortText(searchResultTvMovie &searchResult); // Title: name of TV series, ShortText: Episode
   void initBaseNameOrTitile(void);
   void initSearchString(void);

@@ -119,4 +119,17 @@ void cMovieDBScraper::StoreMedia(cMovieDbMovie *movie, cMovieDbActors *actors) {
     CreateDirectory(actorsDestDir.str());
     actors->Store(actorsUrl.str(), actorsDestDir.str());
 }
+void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, const string &stillPathTvEpisode) {
+  if (stillPathTvEpisode.empty() ) return;
+  string stillUrl = GetStillBaseUrl() + stillPathTvEpisode;
+  stringstream pathStill;
+  pathStill << GetTvBaseDir() << tvID;
+  CreateDirectory(pathStill.str() );
+  pathStill << "/" << seasonNumber;
+  CreateDirectory(pathStill.str() );
+  pathStill << "/still_" << episodeNumber;
+  pathStill << ".jpg";
+  Download(stillUrl, pathStill.str());
+  return;
+}
 

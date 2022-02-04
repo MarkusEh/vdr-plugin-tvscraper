@@ -28,7 +28,6 @@ public:
     virtual ~cTVDBActors(void);
     void ReadActors(xmlDoc *doc, xmlNode *nodeActors);
     void StoreDB(cTVScraperDB *db, int series_id);
-    void Store(string baseUrl, string destDir);
     void Dump(bool verbose);
 };
 

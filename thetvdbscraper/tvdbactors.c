@@ -48,24 +48,7 @@ void cTVDBActors::StoreDB(cTVScraperDB *db, int series_id) {
     for (int i=0; i<size; i++) {
         stringstream strThumb;
         strThumb << "actor_" << i << ".jpg";
-        db->InsertActor(series_id, actors[i]->name, actors[i]->role, strThumb.str());
-    }
-}
-
-void cTVDBActors::Store(string baseUrl, string destDir) {
-    int size = actors.size();
-    string path;
-    string url;
-    for (int i=0; i<size; i++) {
-        stringstream strUrl;
-        strUrl << baseUrl << actors[i]->path;
-        url = strUrl.str();
-        stringstream fullPath;
-        fullPath << destDir << "actor_" << i << ".jpg";
-        path = fullPath.str();
-        if (actors[i]->path.size() > 0) {
-            Download(url, path);
-        }
+        db->InsertActor(series_id, actors[i]->name, actors[i]->role, strThumb.str(), actors[i]->path);
     }
 }
 

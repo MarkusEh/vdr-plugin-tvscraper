@@ -43,7 +43,6 @@ public:
    virtual ~cMovieDbTv(void);
    bool AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString);
    bool UpdateDb();
-   bool StoreStill(const string &stillPathTvEpisode);
    bool StoreSeasonPoster(const string &SeasonPosterPath);
    int tvID(void) { return m_tvID; };
    void SetTvID(int tvID) { m_tvID = tvID; };

@@ -42,6 +42,7 @@ public:
     const string GetTvBaseDir(void) { return baseDir + "/tv/";  }
     const string GetActorsBaseDir(void) { return baseDir + "/actors";  }
     void StoreMovie(cMovieDbMovie &movie);
+    void StoreStill(int tvID, int seasonNumber, int episodeNumber, const string &stillPathTvEpisode);
     int GetMovieRuntime(int movieID);
 };
 

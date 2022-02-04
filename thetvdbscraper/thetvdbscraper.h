@@ -23,6 +23,7 @@ public:
     const string GetLanguage(void) { return language; }
     int StoreSeries(int seriesID, bool onlyEpisodes);
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename);
+    void StoreActors(int seriesID);
 };
 
 

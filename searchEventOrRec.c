@@ -22,7 +22,8 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
 // initialize m_baseNameOrTitile
   const cRecording *recording = m_sEventOrRecording->Recording();
   if (recording) {
-    bool debug = strcmp(recording->Info()->Title(), "Hawaii Five-0") == 0;
+//    bool debug = strcmp(recording->Info()->Title(), "Hawaii Five-0") == 0;
+    bool debug = false;
     debug = false;
     cString baseName = recording->BaseName();
     size_t baseNameLen = strlen(baseName);
@@ -130,11 +131,6 @@ scrapType cSearchEventOrRec::ScrapFind(searchResultTvMovie &searchResult, string
   movieName = m_searchString;
   episodeSearchString = "";
   scrapType type_override = m_overrides->Type(m_baseNameOrTitile);
-/*
-  if (type_override != scrapMovie && m_baseNameEquShortText ) {
-    if (SearchTvEpisShortText(searchResult) < 1000) return scrapSeries;
-  }
-*/
 // check for movie: save best movie in m_searchResult_Movie
   if (type_override != scrapSeries) SearchMovie();
      else m_searchResult_Movie.id = 0;
@@ -162,12 +158,36 @@ scrapType cSearchEventOrRec::ScrapFind(searchResultTvMovie &searchResult, string
     return scrapSeries;
   }
 // nothing found so far
+// check: series, where name & episode name is in the title
   if (type_override != scrapMovie) {
     if (SearchTvEpisTitle(searchResult, movieName, episodeSearchString, ':') < 250) return scrapSeries;
     if (SearchTvEpisTitle(searchResult, movieName, episodeSearchString, '-') < 250) return scrapSeries;
   }
+// nothing found so far
+// check: movie, where prefix must be removed
+  if (type_override != scrapSeries) {
+    if (FindMovie(":" ) == scrapMovie) { searchResult = m_searchResult_Movie; return scrapMovie; }
+    if (FindMovie("'s") == scrapMovie) { searchResult = m_searchResult_Movie; return scrapMovie; }
+  }
   return scrapNone;
 }
+
+scrapType cSearchEventOrRec::FindMovie(const std::string &prefix_delim) {
+// remove part of search string before prefix_delim, and prefix_delim.
+  size_t found = m_searchString.find(prefix_delim);
+  if (found == std::string::npos) return scrapNone;
+  std::size_t ssnd;
+  for(ssnd = found + prefix_delim.length(); ssnd < m_searchString.length() && m_searchString[ssnd] == ' '; ssnd++);
+  if(m_searchString.length() - ssnd >= 4) {
+    string movieName = m_searchString;
+    m_searchString = movieName.substr(ssnd);
+    m_searchResult_Movie.distance = -1; // clear cache from last search
+    if (SearchMovie() ) return scrapMovie;
+    m_searchString = movieName;
+  }
+  return scrapNone;
+}
+
 bool CompareSearchResult2 (searchResultTvMovie i, searchResultTvMovie j) {
   if (i.distance == j.distance) return i.popularity > j.popularity;
   return i.distance < j.distance;
@@ -272,7 +292,8 @@ bool CompareSearchResultMovie1 (searchResultTvMovie i, searchResultTvMovie j) {
 
 int cSearchEventOrRec::SearchMovie(void) {
   if (m_searchResult_Movie.distance != -1) return m_searchResult_Movie.id;
-  bool debug = strcmp(m_sEventOrRecording->Title(), "Der kleine Lord") == 0;
+//  bool debug = strcmp(m_sEventOrRecording->Title(), "Der kleine Lord") == 0;
+  bool debug = false;
   vector<searchResultTvMovie> resultSet;
   extDbConnected = true;
   m_movie.AddMovieResults(resultSet, m_searchString, m_sEventOrRecording);
@@ -333,10 +354,22 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
   }
 }
 void cSearchEventOrRec::ScrapAssign(const sMovieOrTv &movieOrTv) {
-// assig found movieOrTv to event/recording in db
-  if(movieOrTv.type == scrapMovie || movieOrTv.type == scrapSeries) {
-    if (!m_sEventOrRecording->Recording() ) m_db->InsertEvent(m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
-               else m_db->InsertRecording2(m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+// assign found movieOrTv to event/recording in db
+// and download episode still
+  if(movieOrTv.type != scrapMovie && movieOrTv.type != scrapSeries) return; // if noting was found, there is nothing todo
+  if (!m_sEventOrRecording->Recording() )
+          m_db->InsertEvent     (m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+     else m_db->InsertRecording2(m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+  if(movieOrTv.type == scrapSeries) {
+    string episodeStillPath = m_db->GetEpisodeStillPath(movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+    if (!episodeStillPath.empty() ) {
+      if (movieOrTv.id > 0)
+            m_moviedbScraper->StoreStill(movieOrTv.id     , movieOrTv.season, movieOrTv.episode, episodeStillPath);
+      else {
+        m_tvdbScraper->StoreStill (movieOrTv.id * -1, movieOrTv.season, movieOrTv.episode, episodeStillPath);
+        m_tvdbScraper->StoreActors(movieOrTv.id * -1);
+      }
+    }
   }
 }
 

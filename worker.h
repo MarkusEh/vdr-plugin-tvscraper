@@ -23,21 +23,13 @@ private:
     cTVScraperDB *db;
     cMovieDBScraper *moviedbScraper;
     cTVDBScraper *tvdbScraper;
-    map<string, searchResultTvMovie> cacheTv;
-    scrapType GetScrapType(const csEventOrRecording *sEventOrRecording);
     bool ConnectScrapers(void);
     void DisconnectScrapers(void);
     void CheckRunningTimers(void);
     void ScrapEPG(void);
     void ScrapRecordings(void);
     bool StartScrapping(void);
-    bool Scrap(csEventOrRecording *sEventOrRecording);
-    scrapType Search(cTVDBSeries *TVtv, cMovieDbTv *tv, cMovieDbMovie *movie, const string &name, csEventOrRecording *sEventOrRecording, scrapType type_override, searchResultTvMovie &searchResult);
-    bool FindBestResult2(vector<searchResultTvMovie> &resultSet, searchResultTvMovie &searchResult, csEventOrRecording *sEventOrRecording);
-    bool ScrapFindAndStore(sMovieOrTv &movieOrTv, csEventOrRecording *sEventOrRecording);
-    void Scrap_assign(const sMovieOrTv &movieOrTv, csEventOrRecording *sEventOrRecording);
 public:
-    void UpdateEpisodeListIfRequired(int tvID);
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cTVScraperWorker(void);
     void SetLanguage(void);

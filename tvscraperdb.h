@@ -20,6 +20,8 @@ private:
     sqlite3_int64 QueryInt64(const string &query);
     int QueryInt(const string &query);
     vector<vector<string> > QueryEscaped(string query, string where);
+    bool TableColumnExists(const char *table, const char *column);
+    void AddCulumnIfNotExists(const char *table, const char *column, const char *type);
     int LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int isSave);
     bool CreateTables(void);
     std::size_t SearchEpisode_int(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString);
@@ -36,12 +38,13 @@ public:
     void DeleteMovie(int movieID, string movieDir);
     void DeleteSeries(int seriesID, const string &movieDir, const string &seriesDir);
     void InsertTv(int tvID, const string &name, const string &originalName, const string &overview, const string &firstAired, const string &networks, const string &genres, float popularity, float vote_average, const string &status, const vector<int> &EpisodeRunTimes);
-    void InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_id, const string &episode_name, const string &airDate, float vote_average, const string &episode_overview, const string &episode_guest_stars = "");
+    void InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_id, const string &episode_name, const string &airDate, float vote_average, const string &episode_overview, const string &episode_guest_stars, const string &episode_still_path);
+    string GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber);
     void TvSetEpisodesUpdated(int tvID);
     void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);
     bool TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes);
     void InsertEvent(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
-    void InsertActor(int seriesID, string name, string role, string thumb);
+    void InsertActor(int seriesID, const string &name, const string &role, const string &thumb, const string &path);
     void InsertMovie(int movieID, const string &title, const string &original_title, const string &tagline, const string &overview, bool adult, int collection_id, const string &collection_name, int budget, int revenue, const string &genres, const string &homepage, const string &release_date, int runtime, float popularity, float vote_average);
 
     void InsertMovieActor(int movieID, int actorID, string name, string role);
@@ -60,6 +63,7 @@ public:
     bool GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number);
     vector<vector<string> > GetActorsMovie(int movieID);
     vector<vector<string> > GetActorsSeries(int seriesID);
+    vector<vector<string> > GetActorsSeriesPath(int seriesID);
     int GetEpisodeID(int tvID, int seasonNumber, int episodeNumber);
     vector<vector<string> > GetGuestActorsTv(int episodeID);
     vector<vector<string> > GetActorsTv(int tvID);

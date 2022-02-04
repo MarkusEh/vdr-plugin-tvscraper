@@ -1,12 +1,10 @@
 #include "eventOrRec.h"
 
-csEventOrRecording::csEventOrRecording(const cEvent *event, bool rec):
+csEventOrRecording::csEventOrRecording(const cEvent *event):
   m_event(event)
 {
-  if(!rec) m_searchString = m_event->Title();
 }
 void csEventOrRecording::AddYears(vector<int> &years) const {
-  ::AddYears(years, SearchString().c_str() );
   ::AddYears(years, Title() );
   ::AddYears(years, ShortText() );
   ::AddYears(years, Description() );
@@ -35,20 +33,9 @@ const char *csEventOrRecording::EpisodeSearchString() const {
 // Recording
 
 csRecording::csRecording(const cRecording *recording) :
-  csEventOrRecording(recording->Info()->GetEvent(), true),
+  csEventOrRecording(recording->Info()->GetEvent() ),
   m_recording(recording)
 {
-// initialize m_searchString
-  cString BaseName = m_recording->BaseName();
-  if (BaseName[0] == '%') m_searchString = ( (const char *)BaseName ) + 1;
-                     else m_searchString = ( (const char *)BaseName );
-  if ( Title() && strstr(Title(), m_searchString.c_str() ) ) return; // seems to be a movie
-  if (( ShortText() && strstr(ShortText(), m_searchString.c_str() ) ) ||
-      (!ShortText() && Description() && strstr(Description(), m_searchString.c_str() ) ) ) {
-// this is a series, BaseName == ShortText() == episode name
-    m_baseNameEquShortText = true;
-    m_searchString = Title();
-  }
 }
 
 bool csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {

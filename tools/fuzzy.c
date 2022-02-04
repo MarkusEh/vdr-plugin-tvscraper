@@ -80,6 +80,28 @@ std::string stripExtra(const std::string &in) {
   }
   return out;
 }
+size_t sentenceFind(const std::string& sentence1, const std::string& sentence2) {
+  size_t len2 = sentence2.length();
+  if (len2 == 0 || sentence1.find(sentence2) !=std::string::npos) return len2;
+// not found
+  std::size_t il, im, ih, n_found = 0;
+
+  il = 0;
+  ih = len2;
+  im = ih;
+  while(ih - il > 1) {
+    im = (ih + il)/2; // (ih - il)/2 + il;
+    if (im == 0) return 0;
+    n_found = sentence1.find(sentence2.substr(0, im) );
+    if (n_found == std::string::npos)
+           ih = im;  // not found, continue in lower half
+      else il = im;  // found, continue in upper half
+  }
+  if (n_found == std::string::npos)
+         return im-1;
+    else return im;
+}
+
 int sentence_distance(const std::string& sentence1, const std::string& sentence2) {
 // return 0-1000
 // 0: Strings are equal
@@ -87,12 +109,13 @@ int sentence_distance(const std::string& sentence1, const std::string& sentence2
   size_t s2l = sentence2.length();
   if (s1l == 0 || s2l == 0) return 1000;
   size_t max_dist = std::max(s1l, s2l);
+  int match_find;
   if (s1l > s2l) {
-    if (sentence1.find(sentence2) != std::string::npos) return 400 * (s1l - s2l) / max_dist;
+    match_find = sentenceFind(sentence1, sentence2) * 1000 / s2l; // number between 0 & 1000, higher is better
   } else {
-    if (sentence2.find(sentence1) != std::string::npos) return 400 * (s2l - s1l) / max_dist;
+    match_find = sentenceFind(sentence2, sentence1) * 1000 / s1l;
   }
 
   size_t dist = sentence_distance_int(stripExtra(sentence1), stripExtra(sentence2) );
-  return 1000 * dist / max_dist;
+  return (600 * dist / max_dist) + (1000 - match_find) * 400 / 1000;
 }

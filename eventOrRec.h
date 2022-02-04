@@ -3,21 +3,19 @@
 class csEventOrRecording {
 
 public:
-  csEventOrRecording(const cEvent *event, bool rec = false);
+  csEventOrRecording(const cEvent *event);
   virtual ~csEventOrRecording() {};
 
   virtual tEventID EventID() const { return m_event->EventID(); }
   virtual time_t StartTime() const { return m_event->StartTime(); }
   virtual time_t EndTime() const { return m_event->EndTime(); }
   virtual int DurationInSec() const { return m_event->Duration(); }
-  virtual const std::string &SearchString() const { return m_searchString; }
   virtual const cString ChannelIDs() const { return ChannelID().ToString(); }
   virtual const cRecording *Recording() const { return NULL; }
   virtual void AddYears(vector<int> &years) const;
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
   int DurationDistance(int DurationInMin);
   virtual const char *EpisodeSearchString() const;
-  virtual int IsTvShow() { return !DurationInSec()?0:DurationInSec() > 80*60?-100:152; }  // return high number, if this is most likely a TV show. If it is most likely a movie, return high negative number
   virtual const char *Title() const { return m_event->Title(); }
 protected:
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
@@ -26,7 +24,6 @@ protected:
   virtual int DurationWithoutMarginSec(void) const { return m_event->Duration(); }
   virtual int DurationLowSec(void) const { return m_event->Vps()?DurationWithoutMarginSec():RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: for recording only if not cut, and no valid marks
   virtual int DurationHighSec(void) const { return m_event->Duration(); } // note: for recording only if not cut, and no valid marks
-  std::string m_searchString;
   const cEvent *m_event;
 private:
   int RemoveAdvTimeSec(int durationSec) const { return durationSec - durationSec / 3 - 2*60; } // 33% adds, 2 mins extra adds
@@ -41,7 +38,6 @@ public:
   virtual int DurationInSec() const { return m_event->Duration()?m_event->Duration():m_recording->FileName() ? m_recording->LengthInSeconds() : 0; }
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const cString ChannelIDs() const { return (EventID()&&ChannelID().Valid())?ChannelID().ToString():cString(m_recording->Name() ); } // if there is no eventID or no ChannelID(), use Name instead
-  virtual int IsTvShow() { return m_baseNameEquShortText?500:csEventOrRecording::IsTvShow(); }  // return high number, if this is most likely a TV show. If it is most likely a movie, return high negative number
   virtual const char *Title() const { return m_recording->Info()->Title(); }
 protected:
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }
@@ -55,7 +51,6 @@ private:
 // member vars
   const cRecording *m_recording;
   int m_durationInSecMarks = 0; // 0: Not initialized; -1: checked, no data
-  bool m_baseNameEquShortText = false; // this is a very strong indicator for TV show. For movies, base name == title
 };
 
 csEventOrRecording *GetsEventOrRecording(const cEvent *event, const cRecording *recording);

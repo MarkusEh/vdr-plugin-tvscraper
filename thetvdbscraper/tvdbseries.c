@@ -61,6 +61,8 @@ void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searc
         }
     }
     if(seriesID == 0) return;
+//    bool debug = SearchString == "cars toons";
+    bool debug = false;
     transform(name.begin(), name.end(), name.begin(), ::tolower);
     transform(aliasNames.begin(), aliasNames.end(), aliasNames.begin(), ::tolower);
     searchResultTvMovie sRes;
@@ -68,10 +70,12 @@ void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searc
     sRes.movie = false;
     sRes.year = 0;
     sRes.distance = sentence_distance(name, SearchString);
+    if (debug) esyslog("tvscraper: series SearchString %s, name %s, distance %i", SearchString.c_str(), name.c_str(), sRes.distance);
     std::size_t lDelim = aliasNames.find('|');
     if (lDelim !=std::string::npos) {
       for (std::size_t rDelim = aliasNames.find('|', lDelim +1); rDelim != std::string::npos; rDelim = aliasNames.find('|', lDelim +1) ) {
-        int dist = sentence_distance(aliasNames.substr(lDelim +1, rDelim - lDelim - 2), SearchString);
+        int dist = sentence_distance(aliasNames.substr(lDelim +1, rDelim - lDelim - 1), SearchString);
+        if (debug) esyslog("tvscraper: series SearchString \"%s\", alias name \"%s\", distance %i", SearchString.c_str(), aliasNames.substr(lDelim +1, rDelim - lDelim - 1).c_str(), dist);
         if (dist < sRes.distance) sRes.distance = dist;
         lDelim = rDelim;
       }
@@ -188,8 +192,7 @@ void cTVDBSeries::ParseXML_Episode(xmlDoc *doc, xmlNode *node) {
             xmlFree(node_content);
         }
     }
-    m_db->InsertTv_s_e(seriesID * (-1), seasonNumber, episodeNumber, episodeID, episodeName, episodeFirstAired, episodeRating, episodeOverview, episodeGuestStars);
-    m_TVDBScraper->StoreStill(seriesID, seasonNumber, episodeNumber, episodeFilename);
+    m_db->InsertTv_s_e(seriesID * (-1), seasonNumber, episodeNumber, episodeID, episodeName, episodeFirstAired, episodeRating, episodeOverview, episodeGuestStars, episodeFilename);
 }
 
 void cTVDBSeries::StoreDB(cTVScraperDB *db) {

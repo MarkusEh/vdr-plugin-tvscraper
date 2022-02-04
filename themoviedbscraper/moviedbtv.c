@@ -136,20 +136,6 @@ bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultS
   return true;
 }
 
-bool cMovieDbTv::StoreStill(const string &stillPathTvEpisode) {
-  if (stillPathTvEpisode.empty() ) return false;
-  string stillUrl = m_movieDBScraper->GetStillBaseUrl() + stillPathTvEpisode;
-  stringstream pathStill;
-  pathStill << m_movieDBScraper->GetTvBaseDir() << m_tvID;
-  CreateDirectory(pathStill.str() );
-  pathStill << "/" << m_seasonNumber;
-  CreateDirectory(pathStill.str() );
-  pathStill << "/still_" << m_episodeNumber;
-  pathStill << ".jpg";
-  Download(stillUrl, pathStill.str());
-  return true;
-}
-
 bool cMovieDbTv::StoreSeasonPoster(const string &SeasonPosterPath) {
   if (SeasonPosterPath.empty() ) return false;
   string seasonPosterUrl = m_movieDBScraper->GetPosterBaseUrl() + SeasonPosterPath;
@@ -234,14 +220,13 @@ bool cMovieDbTv::AddOneSeason(json_t *root) {
 
         string airDate = json_string_value_validated(episode, "air_date");
         float vote_average = json_number_value_validated(episode, "vote_average");
-
 // episode overview
-        string overview;
-        json_t *jOverview = json_object_get(episode, "overview");
-        if (json_is_string(jOverview)) overview = json_string_value(jOverview);
+        string overview = json_string_value_validated(episode, "overview");
+// stillPath
+        string episodeStillPath = json_string_value_validated(episode, "still_path");
 // save in db
-        m_db->InsertTv_s_e(m_tvID, m_seasonNumber, m_episodeNumber, id, episodeName, airDate, vote_average, overview);
-//  add still and actors
+        m_db->InsertTv_s_e(m_tvID, m_seasonNumber, m_episodeNumber, id, episodeName, airDate, vote_average, overview, "", episodeStillPath);
+//  add actors
         AddActors(episode, id);
     }
     return true;
@@ -305,9 +290,6 @@ bool cMovieDbTv::AddActors() {
 
 bool cMovieDbTv::AddActors(json_t *root, int episode_id) {
     if(!json_is_object(root)) return false;
-// stillPath
-    json_t *jStillPath = json_object_get(root, "still_path");
-    if (json_is_string(jStillPath)) StoreStill(json_string_value(jStillPath));
 // guest_stars
     json_t *jGuestStars = json_object_get(root, "guest_stars");
     if(!json_is_array(jGuestStars)) return false;
