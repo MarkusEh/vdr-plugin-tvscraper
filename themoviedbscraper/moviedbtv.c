@@ -88,13 +88,13 @@ bool cMovieDbTv::ReadTv(json_t *tv) {
     return true;
 }
 
-bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString) {
+bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext) {
 // search for tv series, add search results to resultSet
 
 // call api, get json
     string json;
     stringstream url;
-    url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << "&query=" << CurlEscape(tvSearchString.c_str());
+    url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << "&query=" << CurlEscape(tvSearchString_ext.c_str());
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
     if (!CurlGetUrl(url.str().c_str(), &json)) return false;
 // parse json
@@ -123,12 +123,13 @@ bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultS
         json_t *jId = json_object_get(result, "id");
         if (json_is_integer(jId)) {
             int id = (int)json_integer_value(jId);
+            for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id == id) continue;
             searchResultTvMovie sRes;
             sRes.id = id;
             sRes.movie = false;
+            sRes.positionInExternalResult = resultSet.size();
             sRes.year = 0;
             sRes.distance = min(sentence_distance(resultName, tvSearchString), sentence_distance(resultOriginalName, tvSearchString) );
-//            if (sRes.distance > 250) continue; // ignore if deviation too high (more than 1/4)
             sRes.distance += 1;  // avaid this, prefer TVDB
             resultSet.push_back(sRes);
         }

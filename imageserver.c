@@ -82,15 +82,25 @@ cTvMedia cImageServer::GetPoster(int id, int season_number, int episode_number) 
       }
 // no season poster, or no season information
 //    path  << config.GetBaseDir() << "/series/" << id * (-1) << "/poster_0.jpg";
-      path0 << "/poster_0.jpg";
-      string filePoster = path0.str();
+      string filePoster = path0.str() + "/poster_0.jpg";
 //      if (config.enableDebug) esyslog("tvscraper: cImageServer::GetPoster, path \"%s\" ", filePoster.c_str());
 
       if (FileExists(filePoster)) {
         media.path = filePoster;
         media.width = 680;
         media.height = 1000;
+        return media;
       }
+      const std::filesystem::path fs_path(path0.str() );
+      for (auto const& dir_entry : std::filesystem::directory_iterator{fs_path}) {
+        if (dir_entry.path().filename().string().find("season_poster_") != std::string::npos) {
+          media.path = dir_entry.path();
+          media.width = 680;
+          media.height = 1000;
+          return media;
+        }
+      }
+// no season poster (for this season), and no "normal" poster
       return media;
     }
 
@@ -103,6 +113,11 @@ cTvMedia cImageServer::GetPoster(int id, int season_number, int episode_number) 
           media.path = path.str();
           media.width = 500;
           media.height = 750;
+          return media;
+      }
+      int collection_id = db->GetMovieCollectionID(id);
+      if (collection_id) {
+        media = GetCollectionPoster(collection_id);
       }
       return media;
     }

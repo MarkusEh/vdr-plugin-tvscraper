@@ -48,6 +48,7 @@ private:
     int lastEventId;
     int lastSeasonNumber;
     int lastEpisodeNumber;
+    bool GetPosterOrOtherPicture(cTvMedia &media, const cEvent *event, const cRecording *recording);
 public:
     cPluginTvscraper(void);
     virtual ~cPluginTvscraper();
@@ -161,6 +162,27 @@ bool cPluginTvscraper::SetupParse(const char *Name, const char *Value) {
     return config.SetupParse(Name, Value);
 }
 
+bool cPluginTvscraper::GetPosterOrOtherPicture(cTvMedia &media, const cEvent *event, const cRecording *recording) {
+  csEventOrRecording *sEventOrRecording = GetsEventOrRecording(event, recording);
+  if (!sEventOrRecording) return false;
+
+  int id, sn, en;
+  scrapType type = imageServer->GetIDs(sEventOrRecording, id, sn, en);
+//      if (config.enableDebug) esyslog("tvscraper: GetPoster, id %i type %i", id, type);
+  delete sEventOrRecording;
+  if (type == scrapNone) return false;
+// we have an event or rec., which is assigned to a movie or tv show :)
+  media = imageServer->GetPoster(id, sn, en);
+  if (media.width != 0) return true;
+// try to add a picture as poster. As posters are used in lists, ...
+  vector<cTvMedia> fanarts = imageServer->GetSeriesFanarts(id, sn, en); // for movies, this will return the backdrop
+  if (fanarts.size() > 0) { media = fanarts[0]; return true; }
+// try banner, as last resort ...
+  if (id < 0 && imageServer->GetBanner(media, id) ) return true;
+  return false;
+}
+
+
 bool cPluginTvscraper::Service(const char *Id, void *Data) {
     if (Data == NULL)
         return false;
@@ -237,7 +259,30 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 
 //        if (imageServer->GetTvPoster(media, lastEventId, lastSeasonNumber) ) call->seasonPoster = media;
         call->seasonPoster = imageServer->GetPoster(lastEventId, lastSeasonNumber, lastEpisodeNumber);
-
+/*
+        bool debug = lastEventId == -252244;
+        if (debug) esyslog("tvscraper: getSeries, call->posters.size() = %lu, call->seasonPoster.width = %i, call->fanarts.size() = %lu", call->posters.size(), call->seasonPoster.width, call->fanarts.size() );
+        if (call->seasonPoster.width == 0) {
+// try to add a picture as poster. As posters are used in lists, ...
+          if (call->fanarts.size() > 0) {
+            cTvMedia media = imageServer->GetPoster(lastEventId, 1996, lastEpisodeNumber);
+            if (media.width) {
+              call->seasonPoster = media;
+              call->posters.push_back(media);
+              if (debug) esyslog("tvscraper: getSeries (2), call->posters.size() = %lu, call->fanarts.size() = %lu", call->posters.size(), call->fanarts.size() );
+              if (debug && call->posters.size() > 0) esyslog("tvscraper: getSeries (3), call->posters[0].width %i, call->posters[0].path %s", call->posters[0].width, call->posters[0].path.c_str() );
+            
+              return true;
+            }
+            call->seasonPoster = call->fanarts[0];
+            call->posters.push_back(call->seasonPoster);
+            return true;
+          }
+          if (call->episode.episodeImage.width) { call->posters.push_back(call->episode.episodeImage); return true; }
+// avoid banners, if possible. They have the wrong format ...
+          if (call->banners.size() > 0) { call->posters.push_back(call->banners[0]); return true; }
+        }
+*/
         return true;
     }
 
@@ -288,36 +333,14 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 
     if (strcmp(Id, "GetPoster") == 0) {
         ScraperGetPoster* call = (ScraperGetPoster*) Data;
-        csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
-        if (!sEventOrRecording) return false;
-
-        int id, sn, en;
-        scrapType type = imageServer->GetIDs(sEventOrRecording, id, sn, en);
-//      if (config.enableDebug) esyslog("tvscraper: GetPoster, id %i type %i", id, type);
-        delete sEventOrRecording;
-
-        if (type != scrapNone) {
-            call->poster = imageServer->GetPoster(id, sn, en);
-            return true;
-        }
-        return false;
+        return GetPosterOrOtherPicture(call->poster, call->event, call->recording);
     }
 
     if (strcmp(Id, "GetPosterThumb") == 0) {
         ScraperGetPosterThumb* call = (ScraperGetPosterThumb*) Data;
-        csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
-        if (!sEventOrRecording) return false;
-
-        int id, sn, en;
-        scrapType type = imageServer->GetIDs(sEventOrRecording, id, sn, en);
-        delete sEventOrRecording;
-        if (type != scrapNone) {
-            call->poster = imageServer->GetPoster(id, sn, en);
-            return true;
-        }
-        return false;
+        return GetPosterOrOtherPicture(call->poster, call->event, call->recording);
     }
-    return false;
+  return false;
 }
 
 const char **cPluginTvscraper::SVDRPHelpPages(void) {

@@ -163,41 +163,31 @@ scrapType cSearchEventOrRec::ScrapFind(searchResultTvMovie &searchResult, string
     if (SearchTvEpisTitle(searchResult, movieName, episodeSearchString, ':') < 250) return scrapSeries;
     if (SearchTvEpisTitle(searchResult, movieName, episodeSearchString, '-') < 250) return scrapSeries;
   }
-// nothing found so far
-// check: movie, where prefix must be removed
-  if (type_override != scrapSeries) {
-    if (FindMovie(":" ) == scrapMovie) { searchResult = m_searchResult_Movie; return scrapMovie; }
-    if (FindMovie("'s") == scrapMovie) { searchResult = m_searchResult_Movie; return scrapMovie; }
-  }
+// nothing found
   return scrapNone;
 }
 
-scrapType cSearchEventOrRec::FindMovie(const std::string &prefix_delim) {
-// remove part of search string before prefix_delim, and prefix_delim.
-  size_t found = m_searchString.find(prefix_delim);
-  if (found == std::string::npos) return scrapNone;
-  std::size_t ssnd;
-  for(ssnd = found + prefix_delim.length(); ssnd < m_searchString.length() && m_searchString[ssnd] == ' '; ssnd++);
-  if(m_searchString.length() - ssnd >= 4) {
-    string movieName = m_searchString;
-    m_searchString = movieName.substr(ssnd);
-    m_searchResult_Movie.distance = -1; // clear cache from last search
-    if (SearchMovie() ) return scrapMovie;
-    m_searchString = movieName;
-  }
-  return scrapNone;
-}
 
 bool CompareSearchResult2 (searchResultTvMovie i, searchResultTvMovie j) {
-  if (i.distance == j.distance) return i.popularity > j.popularity;
-  return i.distance < j.distance;
+// used for tv.
+  if (i.distance == j.distance) {
+    if (i.id > 0) return i.popularity > j.popularity;
+    return i.positionInExternalResult < j.positionInExternalResult;
+  }
+  return i.distance < j.distance;  // 0-1000, lower values are better
 }
 
 int cSearchEventOrRec::SearchTv(searchResultTvMovie &searchResult, const string &searchString) {
   vector<searchResultTvMovie> resultSet;
   extDbConnected = true;
-  m_tv.AddTvResults(resultSet, searchString);
-  m_TVtv.AddResults(resultSet, searchString);
+  string searchString1 = SecondPart(searchString, ":");
+  string searchString2 = SecondPart(searchString, "'s");
+  m_tv.AddTvResults(resultSet, searchString, searchString);
+  if (searchString1.length() > 4 ) m_tv.AddTvResults(resultSet, searchString, searchString1);
+  if (searchString2.length() > 4 ) m_tv.AddTvResults(resultSet, searchString, searchString2);
+  m_TVtv.AddResults(resultSet, searchString, searchString);
+  if (searchString1.length() > 4 ) m_TVtv.AddResults(resultSet, searchString, searchString1);
+  if (searchString2.length() > 4 ) m_TVtv.AddResults(resultSet, searchString, searchString2);
   if (resultSet.size() == 0) {
     searchResult.id = 0;          // nothing found
     searchResult.distance = 1000; // nothing found
@@ -296,7 +286,11 @@ int cSearchEventOrRec::SearchMovie(void) {
   bool debug = false;
   vector<searchResultTvMovie> resultSet;
   extDbConnected = true;
-  m_movie.AddMovieResults(resultSet, m_searchString, m_sEventOrRecording);
+  string searchString1 = SecondPart(m_searchString, ":");
+  string searchString2 = SecondPart(m_searchString, "'s");
+  m_movie.AddMovieResults(resultSet, m_searchString, m_searchString, m_sEventOrRecording);
+  if (searchString1.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString1, m_sEventOrRecording);
+  if (searchString2.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString2, m_sEventOrRecording);
   if (resultSet.size() == 0) {
     m_searchResult_Movie.id = 0       ; // nothing found
     m_searchResult_Movie.distance = 1000;

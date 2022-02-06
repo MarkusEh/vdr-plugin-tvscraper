@@ -41,7 +41,7 @@ public:
     void StoreDB(cTVScraperDB *db);
     void StoreBanner(string baseUrl, string destDir);
     void Dump();
-    bool AddResults(vector<searchResultTvMovie> &resultSet, const string &SearchString);
+    bool AddResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext);
 };
 
 

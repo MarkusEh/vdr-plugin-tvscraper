@@ -61,6 +61,8 @@ void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searc
         }
     }
     if(seriesID == 0) return;
+// is this series already in the list?
+    for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id == seriesID * (-1) ) return;
 //    bool debug = SearchString == "cars toons";
     bool debug = false;
     transform(name.begin(), name.end(), name.begin(), ::tolower);
@@ -68,6 +70,7 @@ void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searc
     searchResultTvMovie sRes;
     sRes.id = seriesID * (-1);
     sRes.movie = false;
+    sRes.positionInExternalResult = resultSet.size();
     sRes.year = 0;
     sRes.distance = sentence_distance(name, SearchString);
     if (debug) esyslog("tvscraper: series SearchString %s, name %s, distance %i", SearchString.c_str(), name.c_str(), sRes.distance);
@@ -215,10 +218,10 @@ void cTVDBSeries::Dump() {
     esyslog("tvscraper: series %s, id: %d, overview %s, imdb %s", name.c_str(), seriesID, overview.c_str(), imbdid.c_str());
 }
 
-bool cTVDBSeries::AddResults(vector<searchResultTvMovie> &resultSet, const string &SearchString) {
+bool cTVDBSeries::AddResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext) {
 // search for tv series, add search results to resultSet
    stringstream url;
-   url << m_TVDBScraper->GetMirrors()->GetMirrorXML() << "/api/GetSeries.php?seriesname=" << CurlEscape(SearchString.c_str()) << "&language=" << m_TVDBScraper->GetLanguage().c_str();
+   url << m_TVDBScraper->GetMirrors()->GetMirrorXML() << "/api/GetSeries.php?seriesname=" << CurlEscape(SearchString_ext.c_str()) << "&language=" << m_TVDBScraper->GetLanguage().c_str();
     string seriesXML;
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
     if (!CurlGetUrl(url.str().c_str(), &seriesXML)) return false;

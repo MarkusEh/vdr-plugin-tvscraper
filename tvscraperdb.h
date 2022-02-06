@@ -61,6 +61,7 @@ public:
     void ClearRecordings2(void);
     bool CheckStartScrapping(int minimumDistance);
     bool GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number);
+    int GetMovieCollectionID(int movieID);
     vector<vector<string> > GetActorsMovie(int movieID);
     vector<vector<string> > GetActorsSeries(int seriesID);
     vector<vector<string> > GetActorsSeriesPath(int seriesID);

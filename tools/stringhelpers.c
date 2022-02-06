@@ -44,6 +44,7 @@ void StringRemoveTrailingWhitespace(string &str) {
     str.clear();            // str is all whitespace
 }
 bool StringRemoveLastPartWithP(string &str) {
+// remove part with (...)
   StringRemoveTrailingWhitespace(str);
   if(str[str.length() -1] != ')') return false;
   std::size_t found = str.find_last_of("(");
@@ -51,6 +52,15 @@ bool StringRemoveLastPartWithP(string &str) {
   str.erase(found);
   StringRemoveLastPartWithP(str);
   return true;
+}
+string SecondPart(const string &str, const std::string &delim) {
+// Return part of str after first occurence of delim
+// if delim is not in str, return ""
+  size_t found = str.find(delim);
+  if (found == std::string::npos) return "";
+  std::size_t ssnd;
+  for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
+  return str.substr(ssnd);
 }
 
 const char *firstDigit(const char *found) {

@@ -120,7 +120,7 @@ bool cMovieDbMovie::ReadMovie(json_t *movie) {
     return true;
 }
 
-bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, csEventOrRecording *sEventOrRecording){
+bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, csEventOrRecording *sEventOrRecording){
     string json;
     stringstream url;
     bool ret;
@@ -129,7 +129,7 @@ bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
     sEventOrRecording->AddYears(years);
     string t = "";
 
-    url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&query=" << CurlEscape(SearchString_ext.c_str());
+    url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&query=" << CurlEscape(SearchString.c_str());
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
     if (!CurlGetUrl(url.str().c_str(), &json)) return false;
 
@@ -142,7 +142,7 @@ bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
       bool found = false;
       for (int &year: years) {
         stringstream url;
-        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext.c_str());
+        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString.c_str());
         if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
         if (!CurlGetUrl(url.str().c_str(), &json)) continue;
         json_t *root = json_loads(json.c_str(), 0, &error);
@@ -175,11 +175,9 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
         transform(resultOriginalTitle.begin(), resultOriginalTitle.end(), resultOriginalTitle.begin(), ::tolower);
         int id = json_integer_value_validated(result, "id");
         if (!id) continue;
-        for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id == id) continue;
         searchResultTvMovie sRes;
         sRes.id = id;
         sRes.movie = true;
-        sRes.positionInExternalResult = resultSet.size();
 // can we match the year?
         sRes.year = 0; // default, no year match
         string resultReleaseDate = json_string_value_validated(result, "release_date");

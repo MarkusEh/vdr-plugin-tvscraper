@@ -41,7 +41,7 @@ private:
 public:
    cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
    virtual ~cMovieDbTv(void);
-   bool AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString);
+   bool AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext);
    bool UpdateDb();
    bool StoreSeasonPoster(const string &SeasonPosterPath);
    int tvID(void) { return m_tvID; };

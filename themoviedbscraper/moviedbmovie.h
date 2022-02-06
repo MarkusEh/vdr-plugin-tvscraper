@@ -37,7 +37,7 @@ private:
 public:
     cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
     virtual ~cMovieDbMovie(void);
-    bool AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, csEventOrRecording *sEventOrRecording);
+    bool AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, csEventOrRecording *sEventOrRecording);
     bool ReadMovie(void);
     void SetID(int movieID) { id = movieID; };
     int ID(void) { return id; };

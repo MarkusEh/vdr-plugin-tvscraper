@@ -920,8 +920,8 @@ void cTVScraperDB::WriteRecordingInfo(const cRecording *recording, int movie_tv_
   } else jInfo = json_object();
 // "themoviedb / thetvdb" node: this is owned by "tvscraper", so we can overwrite (if it exists)
   json_t *jTvscraper = json_object();
-  if (movie_tv_id > 0) json_object_set(jInfo, "themoviedb", jTvscraper);
-                  else json_object_set(jInfo, "thetvdb", jTvscraper);
+  if (movie_tv_id > 0) { json_object_set(jInfo, "themoviedb", jTvscraper); json_object_del(jInfo, "thetvdb"); }
+                  else { json_object_set(jInfo, "thetvdb", jTvscraper);    json_object_del(jInfo, "themoviedb"); }
 // set attributes
   stringstream sql;
   if (season_number != -100) {
@@ -1087,6 +1087,12 @@ string cTVScraperDB::GetDescriptionTv(int tvID, int seasonNumber, int episodeNum
     return description;
 }
 
+int cTVScraperDB::GetMovieCollectionID(int movieID) {
+  stringstream sql;
+  sql << "select movie_collection_id from movies2 ";
+  sql << "where movie_id = " << movieID;
+  return cTVScraperDB::QueryInt(sql.str() );
+}
 bool cTVScraperDB::GetMovie(int movieID, string &title, string &original_title, string &tagline, string &overview, bool &adult, int &collection_id, string &collection_name, int &budget, int &revenue, string &genres, string &homepage, string &release_date, int &runtime, float &popularity, float &vote_average) {
     stringstream sql;
     sql << "select movie_title, movie_original_title, movie_tagline, movie_overview, movie_adult, movie_collection_id, movie_collection_name, movie_budget, movie_revenue, movie_genres, movie_homepage, movie_release_date, movie_runtime, movie_popularity, movie_vote_average from movies2 ";
