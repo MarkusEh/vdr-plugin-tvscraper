@@ -24,6 +24,11 @@ public:
     int StoreSeries(int seriesID, bool onlyEpisodes);
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename);
     void StoreActors(int seriesID);
+    vector<vector<string>> GetTvRuntimes(int seriesID);
+    void GetTvVote(int seriesID, float &vote_average, int &vote_count);
+    void DownloadMedia (int tvID);
+    void DownloadMedia (int tvID, int mediaType, const string &destDir, const string &baseUrl);
+    void DownloadMediaBanner (int tvID, const string &destPath, const string &baseUrl);
 };
 
 

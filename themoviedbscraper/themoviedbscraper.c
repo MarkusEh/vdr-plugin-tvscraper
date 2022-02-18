@@ -37,6 +37,16 @@ int cMovieDBScraper::GetMovieRuntime(int movieID) {
   return runtime;
 }
 
+vector<vector<string>> cMovieDBScraper::GetTvRuntimes(int tvID) {
+  vector<vector<string>> runtimes = db->GetTvRuntimes(tvID);
+  if (runtimes.size() > 0) return runtimes;
+// themoviedb never checked for runtime, check now
+  cMovieDbTv tv(db, this);
+  tv.SetTvID(tvID);
+  tv.UpdateDb();
+  return db->GetTvRuntimes(tvID);
+}
+
 void cMovieDBScraper::StoreMovie(cMovieDbMovie &movie) {
 // if movie does not exist in DB, download movie and store it in DB
       int movieID = movie.ID();
@@ -105,20 +115,80 @@ cMovieDbActors *cMovieDBScraper::ReadActors(int movieID) {
 }
 
 void cMovieDBScraper::StoreMedia(cMovieDbMovie *movie, cMovieDbActors *actors) {
-    stringstream posterUrl;
-    posterUrl << imageUrl << posterSize;
-    stringstream backdropUrl;
-    backdropUrl << imageUrl << backdropSize;
-    stringstream destDir;
-    destDir << baseDir << "/";
-    movie->StoreMedia(posterUrl.str(), backdropUrl.str(), destDir.str());
-    stringstream actorsUrl;
-    actorsUrl << imageUrl << actorthumbSize;
-    stringstream actorsDestDir;
-    actorsDestDir << baseDir << "/actors";
-    CreateDirectory(actorsDestDir.str());
-    actors->Store(actorsUrl.str(), actorsDestDir.str());
+    movie->StoreMedia();
+    // actors->Store(actorsUrl.str(), actorsDestDir.str());
+    actors->Store(db, movie->ID() );
 }
+
+void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
+  stringstream actorsUrl;
+  actorsUrl << imageUrl << actorthumbSize;
+  stringstream actorsDestDir;
+  actorsDestDir << baseDir << "/actors";
+  CreateDirectory(actorsDestDir.str());
+  for (const vector<string> &actor: db->GetActorDownload(tvID, movie) )
+    if (actor.size() == 2 && !actor[1].empty() )
+      Download(actorsUrl.str() + actor[1], actorsDestDir.str() + "/actor_" + actor[0] + ".jpg");
+  db->DeleteActorDownload (tvID, movie);
+}
+
+void cMovieDBScraper::DownloadMediaTv(int tvID) {
+  for (vector<string> &media:db->GetTvMedia(tvID, 5, false) ) if (media.size() == 2 ) {
+    int season = atoi(media[1].c_str() );
+    if (season >= 0) {
+      stringstream pathPoster;
+      pathPoster << GetTvBaseDir() << tvID;
+      CreateDirectory(pathPoster.str() );
+      pathPoster << "/";
+      DownloadFile(GetPosterBaseUrl(), media[0], pathPoster.str(), season, "/poster.jpg", false);
+      break;
+    }
+  }
+  for (int type = 1; type <= 2; type ++) {
+    for (vector<string> &media:db->GetTvMedia(tvID, type, false) ) if (media.size() == 2 ) {
+      int season = atoi(media[1].c_str() );
+      if (season >= 0) {
+        DownloadFile(GetPosterBaseUrl(), media[0], GetTvBaseDir(), tvID, type==1?"/poster.jpg":"/backdrop.jpg", false);
+        break;
+      }
+    }
+  }
+  db->deleteTvMedia (tvID, false);
+}
+void cMovieDBScraper::DownloadMedia(int movieID) {
+  stringstream posterUrl;
+  posterUrl << imageUrl << posterSize;
+  stringstream backdropUrl;
+  backdropUrl << imageUrl << backdropSize;
+  stringstream destDir;
+  destDir << baseDir << "/";
+  string destDirCollections = destDir.str() +  "collections/";
+  CreateDirectory(destDirCollections);
+
+  for (int type = -2; type <= 2; type ++) if (type !=0) {
+    for (vector<string> &media:db->GetTvMedia(movieID, type, true) ) if (media.size() == 2 ) {
+      int season = atoi(media[1].c_str() );
+      if (season < 0) {
+        DownloadFile((abs(type)==1?posterUrl:backdropUrl).str(), media[0], type > 0?destDir.str():destDirCollections, type > 0?movieID:season * -1, abs(type)==1?"_poster.jpg":"_backdrop.jpg", true);
+        break;
+      }
+    }
+  }
+  db->deleteTvMedia (movieID, true);
+}
+bool cMovieDBScraper::DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName, bool movie) {
+// download urlBase urlFileName to destDir destID destFileName
+// fo tv shows (movie == false), create the directory destDir destID
+    if(urlFileName.empty() ) return false;
+    stringstream destFullPath;
+    destFullPath << destDir << destID;
+    if (!movie) CreateDirectory(destFullPath.str() );
+    destFullPath << destFileName;
+    stringstream urlFull;
+    urlFull << urlBase << urlFileName;
+    return Download(urlFull.str(), destFullPath.str());
+}
+
 void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, const string &stillPathTvEpisode) {
   if (stillPathTvEpisode.empty() ) return;
   string stillUrl = GetStillBaseUrl() + stillPathTvEpisode;

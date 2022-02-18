@@ -20,7 +20,9 @@ bool csEventOrRecording::DurationRange(int &durationInMinLow, int &durationInMin
 // return true, if data is available
   if (!m_event->Duration() ) return false;
   durationInMinLow  = DurationLowSec() / 60 - 1;
-  durationInMinHigh = DurationHighSec() / 60 + 10;
+  durationInMinHigh = DurationHighSec() / 60 + (10 * DurationHighSec())  / 60 / 60;  // add 10 mins for 60 min duration, mor for longer durations. This is because often a cut version of the movie is broadcasted
+//  if (Recording() && Title() && strcmp("The Expendables 3", Title() ) == 0) 
+//  esyslog("tvscraper: csEventOrRecording::DurationRange, title = %s, durationInMinLow  = %i,  durationInMinHigh = %i", Title(), durationInMinLow, durationInMinHigh);
   return true;
 }
 
@@ -47,7 +49,7 @@ bool csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
 // length of recording without adds
     int durationInSec = m_recording->IsEdited()?m_recording->LengthInSeconds():DurationInSecMarks();
     durationInMinLow  = durationInSec / 60 - 1;  // 1 min for inaccuracies
-    durationInMinHigh = durationInSec / 60 + 16; // extra 16 mins, a cut version might be broadcasted 
+    durationInMinHigh = durationInSec / 60 +  (12 * durationInSec)  / 60 / 60;  // add 12 mins for 60 min duration, mor for longer durations. This is because often a cut version of the movie is broadcasted 
     return true;
   } else {
     return csEventOrRecording::DurationRange(durationInMinLow, durationInMinHigh);

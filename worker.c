@@ -13,7 +13,7 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
     moviedbScraper = NULL;
     tvdbScraper = NULL;
 //    initSleep = 2 * 60 * 1000;
-    initSleep =     20 * 1000;
+    initSleep =     30 * 1000;
     loopSleep = 5 * 60 * 1000;
     language = "";
 }
@@ -225,7 +225,6 @@ int minTime = 24 * 60 * 60;
 return db->CheckStartScrapping(minTime);
 }
 
-
 void cTVScraperWorker::Action(void) {
 if (!startLoop)
 return;
@@ -251,11 +250,10 @@ if (StartScrapping()) {
 	ScrapEPG();
     }
     DisconnectScrapers();
-    db->ClearOutdated(movieDir, seriesDir);
+    cMovieOrTv::DeleteAllIfUnused(db);
     db->BackupToDisc();
     dsyslog("tvscraper: epg scraping done");
 }
 waitCondition.TimedWait(mutex, loopSleep);
 }
 }
-

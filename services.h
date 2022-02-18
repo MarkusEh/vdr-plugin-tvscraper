@@ -13,13 +13,25 @@ enum tvType {
 *********************************************************************/
 class cTvMedia {
 public:
-	cTvMedia(void) {
-		path = "";
-		width = height = 0;
-	};
-    std::string path;
-    int width;
-    int height;
+  cTvMedia(void) {
+	path = "";
+	width = height = 0;
+  };
+  bool setIfExists(const string &path, int width, int height) {
+    if (!FileExists (path) ) {
+      this->path = "";
+      this->width = 0;
+      this->height = 0;
+      return false;
+    }
+    this->path = path;
+    this->width = width;
+    this->height = height;
+    return true;
+  }
+  std::string path;
+  int width;
+  int height;
 };
 
 class cEpisode {

@@ -30,7 +30,7 @@ public:
     virtual ~cMovieDbActors(void);
     void ParseJSON(void);
     void StoreDB(cTVScraperDB *db, int movieID);
-    void Store(string baseUrl, string destDir);
+    void Store(cTVScraperDB *db, int movieID);
     void Dump(void);
 };
 

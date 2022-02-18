@@ -21,6 +21,7 @@ private:
     string genres = "";
     string networks = "";
     float rating = 0.0;
+    int ratingCount = 0;
     int runtime = 0;
     string status = "";
     string banner = "";
@@ -39,7 +40,7 @@ public:
     void SetSeriesID(int id) { seriesID = id; }
     const char *Name(void) { return name.c_str(); };
     void StoreDB(cTVScraperDB *db);
-    void StoreBanner(string baseUrl, string destDir);
+    void StoreMedia(int tvID);
     void Dump();
     bool AddResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext);
 };

@@ -5,7 +5,6 @@
 #include <jansson.h>
 #include "moviedbtv.h"
 #include "themoviedbscraper.h"
-#include "../tools/searchResultTvMovie.h"
 
 
 using namespace std;
@@ -50,7 +49,7 @@ bool cMovieDbTv::ReadTv(bool exits_in_db) {
     if(ret) {
       if(!exits_in_db) {
 // no database entry for tvID, create the db entry
-        m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks, m_genres, m_popularity, m_vote_average, m_status, m_episodeRunTimes);
+        m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks, m_genres, m_popularity, m_vote_average, m_vote_count, m_status, m_episodeRunTimes);
         json_t *jCredits = json_object_get(tv, "credits");
         AddActorsTv(jCredits);
       }
@@ -68,6 +67,7 @@ bool cMovieDbTv::ReadTv(json_t *tv) {
     m_genres = json_concatenate_array(tv, "genres", "name");
     m_popularity = json_number_value_validated(tv, "popularity");
     m_vote_average = json_number_value_validated(tv, "vote_average");
+    m_vote_count = json_integer_value_validated(tv, "vote_count");
     m_status = json_string_value_validated(tv, "status");
     m_tvBackdropPath = json_string_value_validated(tv, "backdrop_path");
     m_tvPosterPath = json_string_value_validated(tv, "poster_path");
@@ -123,51 +123,25 @@ bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultS
         json_t *jId = json_object_get(result, "id");
         if (json_is_integer(jId)) {
             int id = (int)json_integer_value(jId);
-            for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id == id) continue;
-            searchResultTvMovie sRes;
-            sRes.id = id;
-            sRes.movie = false;
-            sRes.positionInExternalResult = resultSet.size();
-            sRes.year = 0;
-            sRes.distance = min(sentence_distance(resultName, tvSearchString), sentence_distance(resultOriginalName, tvSearchString) );
-            sRes.distance += 1;  // avaid this, prefer TVDB
+            for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) continue;
+            searchResultTvMovie sRes(id, false, json_string_value_validated(result, "release_date") );
+            sRes.setPositionInExternalResult(resultSet.size() );
+            sRes.setMatchText(min(sentence_distance(resultName, tvSearchString), sentence_distance(resultOriginalName, tvSearchString) )  + 1); // avaid this, prefer TVDB
+            sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
             resultSet.push_back(sRes);
         }
     }
   return true;
 }
 
-bool cMovieDbTv::StoreSeasonPoster(const string &SeasonPosterPath) {
-  if (SeasonPosterPath.empty() ) return false;
-  string seasonPosterUrl = m_movieDBScraper->GetPosterBaseUrl() + SeasonPosterPath;
-  stringstream pathPoster;
-  pathPoster << m_movieDBScraper->GetTvBaseDir() << m_tvID;
-  CreateDirectory(pathPoster.str() );
-  pathPoster << "/" << m_seasonNumber;
-  CreateDirectory(pathPoster.str() );
-  pathPoster << "/poster.jpg";
-  return Download(seasonPosterUrl, pathPoster.str());
+void cMovieDbTv::StoreSeasonPoster(const string &SeasonPosterPath) {
+  if (SeasonPosterPath.empty() ) return;
+  m_db->insertTvMediaSeasonPoster (m_tvID, SeasonPosterPath, 5, m_seasonNumber);
 }
 
 void cMovieDbTv::StoreMedia(void) {
-    if(!m_tvPosterPath.empty()){
-      stringstream pathPoster;
-      pathPoster << m_movieDBScraper->GetTvBaseDir() << m_tvID;
-      CreateDirectory(pathPoster.str() );
-      pathPoster << "/poster.jpg";
-      stringstream posterUrl;
-      posterUrl << m_movieDBScraper->GetPosterBaseUrl() << m_tvPosterPath;
-      Download(posterUrl.str(), pathPoster.str());
-    }
-    if(!m_tvBackdropPath.empty()){
-      stringstream pathBackdrop;
-      pathBackdrop << m_movieDBScraper->GetTvBaseDir() << m_tvID;
-      CreateDirectory(pathBackdrop.str() );
-      pathBackdrop << "/backdrop.jpg";
-      stringstream backdropUrl;
-      backdropUrl << m_movieDBScraper->GetBackdropBaseUrl() << m_tvBackdropPath;
-      Download(backdropUrl.str(), pathBackdrop.str());
-    }
+  if (!m_tvPosterPath.empty() )   m_db->insertTvMedia (m_tvID, m_tvPosterPath,   1);
+  if (!m_tvBackdropPath.empty() ) m_db->insertTvMedia (m_tvID, m_tvBackdropPath, 2);
 }
 
 void cMovieDbTv::Dump(void) {
@@ -256,6 +230,9 @@ bool cMovieDbTv::AddActorsTv(json_t *jCredits) {
         if(json_is_string(jPath)) {
           string actor_path = json_string_value(jPath);
           if(!actor_path.empty()){
+            m_db->AddActorDownload (m_tvID, false, actor_id, actor_path);
+
+/*
             stringstream fullPath;
             fullPath << m_movieDBScraper->GetActorsBaseDir();
             CreateDirectory(fullPath.str());
@@ -264,6 +241,7 @@ bool cMovieDbTv::AddActorsTv(json_t *jCredits) {
             stringstream strUrl;
             strUrl << m_movieDBScraper->GetActorsBaseUrl() << actor_path;
             Download(strUrl.str(), path);
+*/
           }
         }
     }
@@ -313,6 +291,8 @@ bool cMovieDbTv::AddActors(json_t *root, int episode_id) {
         if(json_is_string(jPath)) {
           string actor_path = json_string_value(jPath);
           if(!actor_path.empty()){
+            m_db->AddActorDownload (m_tvID, false, actor_id, actor_path);
+/*
             stringstream fullPath;
             fullPath << m_movieDBScraper->GetActorsBaseDir();
             CreateDirectory(fullPath.str());
@@ -321,6 +301,7 @@ bool cMovieDbTv::AddActors(json_t *root, int episode_id) {
             stringstream strUrl;
             strUrl << m_movieDBScraper->GetActorsBaseUrl() << actor_path;
             Download(strUrl.str(), path);
+*/
           }
         }
     }

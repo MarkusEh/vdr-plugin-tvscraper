@@ -1,0 +1,92 @@
+#include <vector>
+#include <algorithm>
+#include <math.h>       /* sqrt */
+
+searchResultTvMovie::searchResultTvMovie(int id, bool movie, const std::string &year):
+     m_id(id), m_movie(movie) {
+// year
+  if (year.length() >= 4) m_year = atoi(year.substr(0,4).c_str() );
+              else m_year = 0;
+// defaults for m_matches
+  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) m_matches[i].match = -1.;
+  m_matches[0].weight = 0.6; // match text
+  m_matches[1].weight = 0.3; // match year
+  m_matches[2].weight = 0.2; // match popularity, vote and vote_count
+  m_matches[3].weight = 0.2; // match duration
+  m_matches[4].weight = 0.3; // match actors
+  m_matches[5].weight = 0.5; // match episode (for tv shows with episode only)
+  m_matches[6].weight = 0.3; // baseNameEquShortText -> extra points for series
+  m_matches[7].weight = 0.0001; // positionInExternalResult
+}
+searchResultTvMovie::~searchResultTvMovie() {
+//  if (m_id == 689390) log("Merlin movie 1998-04-26");
+//  if (m_id == -83269) log("Merlin series Sam Neill");
+//  if (m_id == -72449) log("Stargate SG-1");
+  if (m_id == 138103) log("The Expendables 3");
+  if (m_id == 27578) log("The Expendables");
+}
+
+void searchResultTvMovie::log(const char *title) {
+  esyslog("tvscraper: searchResultTvMovie::log, id: %i, title: \"%s\"", m_id, title);
+  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) if (m_matches[i].match >= 0) {
+    esyslog("tvscraper: searchResultTvMovie::log, i: %lu, match: %f, weight %f", i, m_matches[i].match, m_matches[i].weight);
+  }
+  esyslog("tvscraper: searchResultTvMovie::log, getMatch(): %f, delim: %c", getMatch(), m_delim?m_delim:' ' );
+}
+
+bool searchResultTvMovie::operator< (const searchResultTvMovie &srm) const {
+// true if this has a better match than srm
+  if (srm.id() == 0) return true;
+  return getMatch() > srm.getMatch();
+}
+
+void searchResultTvMovie::updateMatchText(int distance) {
+// input: distance between 0 and 1000, lower values are better
+// update, if new match is better than old value
+  float newMatch = (1000 - distance) / 1000.;
+  if (newMatch > m_matches[0].match) m_matches[0].match = newMatch;
+}
+void searchResultTvMovie::setPopularity(float vote_average, int vote_count) {
+// note: this is for thetvdb, vote_average -> Rating -> <values between 0 and 10>
+  float voteCountFactor = normMatch(vote_count / 100.);
+  m_matches[2].match = 0.5*voteCountFactor + 0.5*vote_average/10.;
+}
+
+void searchResultTvMovie::setPopularity(float popularity, float vote_average, int vote_count) {
+// this is for themoviedb; vote_average -> <values between 0 and 10>
+  float popularityFactor = normMatch(popularity / 5.);
+  float voteCountFactor = normMatch(vote_count / 100.);
+  m_matches[2].match = 0.4*voteCountFactor + 0.3*vote_average/10. + 0.3*popularityFactor;
+}
+
+void searchResultTvMovie::setMatchYear(const std::vector<int> &years, int durationInSec) {
+// input: list of years in texts
+  if (m_year <= 0) { m_matches[1].match = 0.; return; }
+  if (!m_movie &&  durationInSec < 80*60) m_matches[1].weight = 0.1; // for a series, this matching is more irrelevant. Except a min series with long episodes
+  if (std::find (years.begin(), years.end(), m_year    ) != years.end() ) { m_yearMatch =  1; m_matches[1].match = 1.; return; }
+  if (std::find (years.begin(), years.end(), m_year *-1) != years.end() ) { m_yearMatch = -1; m_matches[1].match = .8; return; }
+  m_matches[1].match = .3; // some points for the existing year ...
+}
+
+float searchResultTvMovie::getMatch() const {
+// return value between 0 and 1
+// higher values are better match
+  float sumWeight = 0.;
+  float sumMatch  = 0.;
+  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) if (m_matches[i].match >= 0) {
+    sumWeight += m_matches[i].weight;
+    sumMatch  += m_matches[i].match  * m_matches[i].weight;
+  }
+  return sumMatch/sumWeight;
+}
+
+float searchResultTvMovie::normMatch(float x) {
+// input:  number between 0 and infinity
+// output: number between 0 and 1
+// normMatch(1) = 0.5
+// you can call normMatch(x/n), which will return 0.5 for x = n 
+  if (x <= 0) return 0;
+  if (x <  1) return sqrt (x)/2;
+  return 1 - 1/(x+1);
+}
+

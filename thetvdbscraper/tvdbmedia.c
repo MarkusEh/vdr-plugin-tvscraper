@@ -44,6 +44,8 @@ void cTVDBSeriesMedia::ReadEntry(xmlDoc *doc, xmlNode *node) {
                     media->type = mediaFanart;
                 else if (!xmlStrcmp(node_content, (const xmlChar *)"banner"))
                     media->type = mediaBanner;
+                else if (!xmlStrcmp(node_content, (const xmlChar *)"series"))
+                    media->type = mediaBanner;  // the api returns banners as "series"
                 else if (!xmlStrcmp(node_content, (const xmlChar *)"season"))
                     media->type = mediaSeason;
                 else
@@ -64,63 +66,12 @@ void cTVDBSeriesMedia::ReadEntry(xmlDoc *doc, xmlNode *node) {
         medias.push_back(media);
 }
 
-void cTVDBSeriesMedia::Store(string baseUrl, string destDir) {
-    int size = medias.size();
-    string path;
-    string url;
-    int maxPix = 3;
-    int numFanart = 0;
-    int numPoster = 0;
-    int numSeason = 0;
-    int numBanner = 0;
-    for (int i=0; i<size; i++) {
-        if (medias[i]->path.size() == 0)
-            continue;
-        stringstream strUrl;
-        strUrl << baseUrl << medias[i]->path;
-        url = strUrl.str();
-        switch (medias[i]->type) {
-            case mediaFanart: {
-                if (numFanart >= maxPix)
-                    continue;
-                stringstream fullPath;
-                fullPath << destDir << "fanart_" << numFanart << ".jpg";
-                path = fullPath.str();
-                numFanart++;
-                break; }
-            case mediaPoster: {
-                if (numPoster >= maxPix)
-                    continue;
-                stringstream fullPath;
-                fullPath << destDir << "poster_" << numPoster << ".jpg";
-                path = fullPath.str();
-                numPoster++;
-                break; }
-            case mediaSeason: {
-                stringstream fullPath;
-                if (medias[i]->season > 0) {
-                    fullPath << destDir << "season_poster_" << medias[i]->season << ".jpg";
-                } else {
-                    if (numSeason >= maxPix)
-                        continue;
-                    fullPath << destDir << "season_" << numSeason << ".jpg";
-                    numSeason++;
-                }
-                path = fullPath.str();
-                break; }
-            case mediaBanner: {
-                if (numBanner > 9)
-                    continue;
-                stringstream fullPath;
-                fullPath << destDir << "banner_" << numBanner << ".jpg";
-                path = fullPath.str();
-                numBanner++;
-                break; }
-            default:
-                break;
-        }
-        Download(url, path);
-    }
+void cTVDBSeriesMedia::Store(int tvID, cTVScraperDB *db) {
+  for (const auto media: medias) {
+    if (media->path.size() == 0) continue;
+    if (media->type == mediaSeason) db->insertTvMediaSeasonPoster (tvID *-1, media->path, mediaSeason, media->season);
+      else db->insertTvMedia (tvID *-1, media->path, media->type);
+  }
 }
 
 void cTVDBSeriesMedia::Dump(bool verbose) {

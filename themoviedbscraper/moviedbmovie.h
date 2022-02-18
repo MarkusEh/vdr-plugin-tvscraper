@@ -28,12 +28,12 @@ private:
     int runtime;
     float popularity;
     float voteAverage;
+    int voteCount;
 
     string backdropPath;
     string posterPath;
     bool ReadMovie(json_t *movie);
-    bool AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString, const vector<int> &years, csEventOrRecording *sEventOrRecording);
-    bool DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName);
+    bool AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString);
 public:
     cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
     virtual ~cMovieDbMovie(void);
@@ -42,7 +42,7 @@ public:
     void SetID(int movieID) { id = movieID; };
     int ID(void) { return id; };
     void StoreDB(void);
-    void StoreMedia(string posterBaseUrl, string backdropBaseUrl, string destDir);
+    void StoreMedia();
     void Dump();
 };
 

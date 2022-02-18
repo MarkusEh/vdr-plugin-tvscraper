@@ -74,7 +74,7 @@ std::string stripExtra(const std::string &in) {
   std::string out;
   out.reserve(in.length() );
   for (const char &c: in) {
-    if ( (c > 0 && c < 48) || ( c > 57 && c < 65 ) || ( c > 90 && c < 97 ) || ( c > 122  && c < 128) ) {
+    if ( (c > 0 && c < 46) || c == 46 || c == 47 || ( c > 57 && c < 65 ) || ( c > 90 && c < 97 ) || ( c > 122  && c < 128) ) {
       out.append(1, ' ');
     } else out.append(1, c);
   }
@@ -111,10 +111,13 @@ int sentence_distance(const std::string& sentence1, const std::string& sentence2
   size_t max_dist = std::max(s1l, s2l);
   int match_find;
   if (s1l > s2l) {
-    match_find = sentenceFind(sentence1, sentence2) * 1000 / s2l; // number between 0 & 1000, higher is better
+    match_find = sentenceFind(sentence1, sentence2);
   } else {
-    match_find = sentenceFind(sentence2, sentence1) * 1000 / s1l;
+    match_find = sentenceFind(sentence2, sentence1);
   }
+  if (match_find < 5) match_find *= 100;
+  else if (match_find <= 15 ) match_find = 500 + (match_find-5) * 40;
+  else match_find = 1000;  // number between 0 & 1000, higher is better
 
   size_t dist = sentence_distance_int(stripExtra(sentence1), stripExtra(sentence2) );
   return (600 * dist / max_dist) + (1000 - match_find) * 400 / 1000;

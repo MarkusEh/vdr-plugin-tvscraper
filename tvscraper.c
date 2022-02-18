@@ -7,6 +7,8 @@
  */
 #include <getopt.h>
 #include <vdr/plugin.h>
+#include "searchResultTvMovie.h"
+#include "searchResultTvMovie.c"
 #include "tools/splitstring.c"
 #include "tools/stringhelpers.c"
 #include "config.c"
@@ -27,13 +29,14 @@ cTVScraperConfig config;
 #include "themoviedbscraper/moviedbmovie.c"
 #include "themoviedbscraper/moviedbactors.c"
 #include "themoviedbscraper/themoviedbscraper.c"
+#include "movieOrTv.c"
 #include "searchEventOrRec.c"
 #include "worker.c"
 #include "services.h"
 #include "imageserver.c"
 #include "setup.c"
 
-static const char *VERSION        = "0.9.4";
+static const char *VERSION        = "0.9.5";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
@@ -373,6 +376,22 @@ cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, 
     if ( Option && *Option ) {
       int del_entries = db->DeleteFromCache(Option);
       return cString::sprintf("%i cache entry/entries deleted", del_entries);
+    }
+    ReplyCode = 550;
+    return cString("Option missing");
+  }
+  if ((strcasecmp(Command, "DELS") == 0) || (strcasecmp(Command, "DeleteSeries") == 0)) {
+    if ( Option && *Option ) {
+      int del_entries = db->DeleteSeries(atoi(Option) );
+      return cString::sprintf("%i series entry/entries deleted", del_entries);
+    }
+    ReplyCode = 550;
+    return cString("Option missing");
+  }
+  if ((strcasecmp(Command, "DELM") == 0) || (strcasecmp(Command, "DeleteMovie") == 0)) {
+    if ( Option && *Option ) {
+      int del_entries = db->DeleteMovie(atoi(Option) );
+      return cString::sprintf("%i movie entry/entries deleted", del_entries);
     }
     ReplyCode = 550;
     return cString("Option missing");

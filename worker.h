@@ -1,8 +1,6 @@
 #ifndef __TVSCRAPER_WORKER_H
 #define __TVSCRAPER_WORKER_H
 
-#include "tools/searchResultTvMovie.h"
-
 // --- cTVScraperWorker -------------------------------------------------------------
 
 class cTVScraperWorker : public cThread {

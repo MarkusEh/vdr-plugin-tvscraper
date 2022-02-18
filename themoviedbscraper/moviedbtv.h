@@ -2,7 +2,6 @@
 #define __TVSCRAPER_MOVIEDBTV_H
 
 using namespace std;
-#include "../tools/searchResultTvMovie.h"
 
 class cMovieDBScraper;
 
@@ -22,6 +21,7 @@ private:
    string m_genres = "";
    float m_popularity = 0.0;
    float m_vote_average = 0.0;
+   int m_vote_count = 0;
    string m_status = "";
    string m_tvBackdropPath = "";
    string m_tvPosterPath = "";
@@ -43,7 +43,7 @@ public:
    virtual ~cMovieDbTv(void);
    bool AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext);
    bool UpdateDb();
-   bool StoreSeasonPoster(const string &SeasonPosterPath);
+   void StoreSeasonPoster(const string &SeasonPosterPath);
    int tvID(void) { return m_tvID; };
    void SetTvID(int tvID) { m_tvID = tvID; };
    void StoreMedia(void);

@@ -36,7 +36,7 @@ public:
     cTVDBSeriesMedia(string language);
     virtual ~cTVDBSeriesMedia(void);
     void ReadMedia(xmlDoc *doc, xmlNode *nodeBanners);
-    void Store(string baseUrl, string destDir);
+    void Store(int tvID, cTVScraperDB *db);
     void Dump(bool verbose);
 };
 

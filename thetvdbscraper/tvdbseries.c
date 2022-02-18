@@ -7,7 +7,6 @@
 #include "tvdbmedia.h"
 #include "tvdbactors.h"
 #include "thetvdbscraper.h"
-#include "../tools/searchResultTvMovie.h"
 
 using namespace std;
 
@@ -62,28 +61,26 @@ void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searc
     }
     if(seriesID == 0) return;
 // is this series already in the list?
-    for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id == seriesID * (-1) ) return;
+    for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == seriesID * (-1) ) return;
 //    bool debug = SearchString == "cars toons";
     bool debug = false;
     transform(name.begin(), name.end(), name.begin(), ::tolower);
     transform(aliasNames.begin(), aliasNames.end(), aliasNames.begin(), ::tolower);
-    searchResultTvMovie sRes;
-    sRes.id = seriesID * (-1);
-    sRes.movie = false;
-    sRes.positionInExternalResult = resultSet.size();
-    sRes.year = 0;
-    sRes.distance = sentence_distance(name, SearchString);
-    if (debug) esyslog("tvscraper: series SearchString %s, name %s, distance %i", SearchString.c_str(), name.c_str(), sRes.distance);
+
+    searchResultTvMovie sRes(seriesID * (-1), false, firstAired);
+    sRes.setPositionInExternalResult(resultSet.size() );
+    int dist_a = sentence_distance(name, SearchString);
+    if (debug) esyslog("tvscraper: series SearchString %s, name %s, distance %i", SearchString.c_str(), name.c_str(), dist_a);
     std::size_t lDelim = aliasNames.find('|');
     if (lDelim !=std::string::npos) {
       for (std::size_t rDelim = aliasNames.find('|', lDelim +1); rDelim != std::string::npos; rDelim = aliasNames.find('|', lDelim +1) ) {
         int dist = sentence_distance(aliasNames.substr(lDelim +1, rDelim - lDelim - 1), SearchString);
         if (debug) esyslog("tvscraper: series SearchString \"%s\", alias name \"%s\", distance %i", SearchString.c_str(), aliasNames.substr(lDelim +1, rDelim - lDelim - 1).c_str(), dist);
-        if (dist < sRes.distance) sRes.distance = dist;
+        if (dist < dist_a) dist_a = dist;
         lDelim = rDelim;
       }
     }
-//    sRes.distance += 100; // avoid TVDB if possible
+    sRes.setMatchText(dist_a);
     resultSet.push_back(sRes);
 }
 
@@ -143,6 +140,8 @@ void cTVDBSeries::ParseXML_Series(xmlDoc *doc, xmlNode *node) {
                 networks = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Rating")) {
                 rating = atof( (const char *)node_content );
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"RatingCount")) {
+                ratingCount = atoi( (const char *)node_content );
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Runtime")) {
                 runtime = atof( (const char *)node_content );
                 if (runtime) episodeRunTimes.push_back(runtime);
@@ -199,19 +198,13 @@ void cTVDBSeries::ParseXML_Episode(xmlDoc *doc, xmlNode *node) {
 }
 
 void cTVDBSeries::StoreDB(cTVScraperDB *db) {
-    db->InsertTv(seriesID * (-1), name, "", overview, firstAired, networks, genres, 0.0, rating, status, episodeRunTimes);
+    db->InsertTv(seriesID * (-1), name, "", overview, firstAired, networks, genres, 0.0, rating, ratingCount, status, episodeRunTimes);
 }
 
-void cTVDBSeries::StoreBanner(string baseUrl, string destDir) {
-    if (banner.size() == 0)
-        return;
-    stringstream strUrl;
-    strUrl << baseUrl << banner;
-    string url = strUrl.str();
-    stringstream fullPath;
-    fullPath << destDir << "banner.jpg";
-    string path = fullPath.str();
-    Download(url, path);
+void cTVDBSeries::StoreMedia(int tvID) {
+    if (banner.size() > 0) m_db->insertTvMedia (tvID *-1, banner, mediaBanner);
+    if (poster.size() > 0) m_db->insertTvMedia (tvID *-1, poster, mediaPoster);
+    if (fanart.size() > 0) m_db->insertTvMedia (tvID *-1, fanart, mediaFanart);
 }
 
 void cTVDBSeries::Dump() {

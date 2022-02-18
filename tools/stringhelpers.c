@@ -43,6 +43,32 @@ void StringRemoveTrailingWhitespace(string &str) {
   else
     str.clear();            // str is all whitespace
 }
+
+const char *strstr_word (const char *str1, const char *str2) {
+// as strstr, but str2 must be a word (surrounded by non-alphanumerical characters
+  if (!str1 || !str2 || !(*str2) ) return NULL;
+  int len = strlen(str2);
+  for (const char *f = strstr(str1, str2); f && *(f+1); f = strstr (f + 1, str2) ) {
+    if (f != str1   && isalpha(*(f-1) )) continue;
+    if (f[len] != 0 && isalpha(f[len]) ) continue;
+    return f;
+  }
+  return NULL;
+}
+
+bool splitString(const std::string &str, char delimiter, size_t minLengh, std::string &first, std::string &second) {
+  std::size_t found = str.find(delimiter);
+  if(found == std::string::npos || found <= minLengh) return false; // nothing found
+  std::size_t ssnd;
+  for(ssnd = found + 1; ssnd < str.length() && str[ssnd] == ' '; ssnd++);
+  if(str.length() - ssnd <= minLengh) return false; // nothing found, second part to short
+
+  second = str.substr(ssnd);
+  first = str.substr(0, found);
+  StringRemoveTrailingWhitespace(first);
+  return true;
+}
+
 bool StringRemoveLastPartWithP(string &str) {
 // remove part with (...)
   StringRemoveTrailingWhitespace(str);

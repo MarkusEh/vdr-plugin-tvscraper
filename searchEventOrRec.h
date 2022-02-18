@@ -7,18 +7,23 @@ public:
 private:
   scrapType ScrapFind(searchResultTvMovie &searchResult, string &movieName, string &episodeSearchString);
   void Store(const sMovieOrTv &movieOrTv);
-  int SearchTv(searchResultTvMovie &searchResult, const string &searchString);
-  int SearchTvCacheSearchString(searchResultTvMovie &searchResult, const string &searchString);
-  int SearchTvEpisTitle(searchResultTvMovie &searchResult, string &movieName, string &episodeSearchString, char delimiter); // Title: name of TV series, and episode name (with : or - between them)
-  int SearchMovie(void); // 0: no match; return movie ID, search result in m_searchResult_Movie
-  int SearchTvEpisShortText(searchResultTvMovie &searchResult); // Title: name of TV series, ShortText: Episode
+  void SearchTv(vector<searchResultTvMovie> &resultSet, const string &searchString);
+  void SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet, char delimiter); // Title: name of TV series, and episode name (with : or - between them)
+  void SearchMovie(vector<searchResultTvMovie> &searchResults); // 0: no match; return movie ID, search result in m_searchResult_Movie
+  void SearchTvAll(vector<searchResultTvMovie> &searchResults);
   void initBaseNameOrTitile(void);
   void initSearchString(void);
   void setFastMatch(searchResultTvMovie &searchResult);
+  int GetTvDurationDistance(int tvID);
   void ScrapFindAndStore(sMovieOrTv &movieOrTv);
   bool CheckCache(sMovieOrTv &movieOrTv);
   void ScrapAssign(const sMovieOrTv &movieOrTv);
   void UpdateEpisodeListIfRequired(int tvID);
+  void getActorMatches(const std::string &actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure);
+  void getActorMatches(searchResultTvMovie &sR, const std::vector<std::vector<std::string>> &actors);
+  bool selectBestAndEnhanvceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));
+  static void enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
+  static void enhance2(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
 // passed from constructor
   csEventOrRecording *m_sEventOrRecording;
   cOverRides *m_overrides;
@@ -34,8 +39,7 @@ private:
   cTVDBSeries m_TVtv;
   cMovieDbTv m_tv;
   cMovieDbMovie m_movie;
-  bool extDbConnected = false; // true, if request to rate limited internet db was required. Otherwise, false
-  searchResultTvMovie m_searchResult_TvEpisShortText;
   searchResultTvMovie m_searchResult_Movie;
-  map<string,searchResultTvMovie> m_cacheTv;
+  bool extDbConnected = false; // true, if request to rate limited internet db was required. Otherwise, false
+  bool m_episodeFound = false;
 };
