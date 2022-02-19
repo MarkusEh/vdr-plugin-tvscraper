@@ -5,7 +5,7 @@ public:
   cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, cTVScraperDB *db);
   bool Scrap(void); // return true, if request to rate limited internet db was required. Otherwise, false
 private:
-  scrapType ScrapFind(searchResultTvMovie &searchResult, string &movieName, string &episodeSearchString);
+  scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, string &movieName, string &episodeSearchString);
   void Store(const sMovieOrTv &movieOrTv);
   void SearchTv(vector<searchResultTvMovie> &resultSet, const string &searchString);
   void SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet, char delimiter); // Title: name of TV series, and episode name (with : or - between them)

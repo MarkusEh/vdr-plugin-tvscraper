@@ -10,11 +10,11 @@ searchResultTvMovie::searchResultTvMovie(int id, bool movie, const std::string &
 // defaults for m_matches
   for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) m_matches[i].match = -1.;
   m_matches[0].weight = 0.6; // match text
-  m_matches[1].weight = 0.3; // match year
+  m_matches[1].weight = 0.2; // match year
   m_matches[2].weight = 0.2; // match popularity, vote and vote_count
   m_matches[3].weight = 0.2; // match duration
   m_matches[4].weight = 0.3; // match actors
-  m_matches[5].weight = 0.5; // match episode (for tv shows with episode only)
+  m_matches[5].weight = 0.3; // match episode (for tv shows with episode only)
   m_matches[6].weight = 0.3; // baseNameEquShortText -> extra points for series
   m_matches[7].weight = 0.0001; // positionInExternalResult
 }
@@ -22,8 +22,9 @@ searchResultTvMovie::~searchResultTvMovie() {
 //  if (m_id == 689390) log("Merlin movie 1998-04-26");
 //  if (m_id == -83269) log("Merlin series Sam Neill");
 //  if (m_id == -72449) log("Stargate SG-1");
-  if (m_id == 138103) log("The Expendables 3");
-  if (m_id == 27578) log("The Expendables");
+//  if (m_id == 138103) log("The Expendables 3");
+//  if (m_id == 27578) log("The Expendables");
+    if (m_id == -364093) log("Star Trek: Picard");
 }
 
 void searchResultTvMovie::log(const char *title) {

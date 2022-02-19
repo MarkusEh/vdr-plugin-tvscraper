@@ -35,7 +35,7 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
 
     if (!recording->Info()->Title() ) return; // no title, test makes no sense
 // check: title part of the first part of the name, excluding the basename
-    if (strstr(recording->Info()->Title(), m_baseNameOrTitile.c_str() ) > 0) return; // basename is part of title, seems not to be the subtitle
+    if (strstr(recording->Info()->Title(), m_baseNameOrTitile.c_str() ) != NULL) return; // basename is part of title, seems not to be the subtitle
     const char * title_pos = strstr(recording->Name(), recording->Info()->Title() );
     if (debug) esyslog("tvscraper: TEST (1.1) size_t(title_pos - recording->Name() ) %lu, strlen(recording->Name() ) - baseNameLen %lu", size_t(title_pos - recording->Name() ), strlen(recording->Name() ) - baseNameLen);
     if (!title_pos || (size_t(title_pos - recording->Name() ) >= strlen(recording->Name()) - baseNameLen)  ) return; // title not part of the name, or title only part of the base name-> does not match the pattern -> return
@@ -82,30 +82,35 @@ bool cSearchEventOrRec::Scrap(void) {
 void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
   if (CheckCache(movieOrTv) ) return;
   if (config.enableDebug) esyslog("tvscraper: scraping \"%s\"", m_searchString.c_str());
-  searchResultTvMovie searchResult(0, true, "");
+  vector<searchResultTvMovie> searchResults;
   string episodeSearchString;
   string movieName;
-  scrapType sType = ScrapFind(searchResult, movieName, episodeSearchString);
-
-  if (searchResult.id() == 0) sType = scrapNone;
-  movieOrTv.id = searchResult.id();
+  scrapType sType = ScrapFind(searchResults, movieName, episodeSearchString);
+  if (searchResults.size() == 0) sType = scrapNone;
   movieOrTv.type = sType;
-  movieOrTv.year = searchResult.m_yearMatch?searchResult.year()*searchResult.m_yearMatch:0;
-  Store(movieOrTv);
-  if(sType == scrapMovie) {
-    movieOrTv.season = -100;
-    movieOrTv.episode = 0;
-    if (config.enableDebug) esyslog("tvscraper: movie \"%s\" successfully scraped, id %i", movieName.c_str(), searchResult.id() );
-    if (config.enableDebug) searchResult.log(m_searchString.c_str() );
-  } else if(sType == scrapSeries) {
+  if (sType == scrapNone) {
+// nothing found
+    movieOrTv.id = 0;
+    if (config.enableDebug) esyslog("tvscraper: nothing found for \"%s\" ", movieName.c_str());
+  } else {
+// something found
+    movieOrTv.id = searchResults[0].id();
+    movieOrTv.year = searchResults[0].m_yearMatch?searchResults[0].year()*searchResults[0].m_yearMatch:0;
+    Store(movieOrTv);
+    if(sType == scrapMovie) {
+      movieOrTv.season = -100;
+      movieOrTv.episode = 0;
+      if (config.enableDebug) esyslog("tvscraper: movie \"%s\" successfully scraped, id %i", movieName.c_str(), searchResults[0].id() );
+    } else if(sType == scrapSeries) {
 // search episode
-    movieOrTv.episodeSearchWithShorttext = episodeSearchString.empty();
-    if (movieOrTv.episodeSearchWithShorttext) episodeSearchString = m_sEventOrRecording->EpisodeSearchString();
-    UpdateEpisodeListIfRequired(movieOrTv.id);
-    m_db->SearchEpisode(movieOrTv, episodeSearchString);
-    if (config.enableDebug) esyslog("tvscraper: %stv \"%s\", episode \"%s\" successfully scraped, id %i season %i episode %i", searchResult.id() > 0?"":"TV", movieName.c_str(), episodeSearchString.c_str(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
-    if (config.enableDebug) searchResult.log(m_searchString.c_str() );
-  } else if (config.enableDebug) esyslog("tvscraper: nothing found for \"%s\" ", movieName.c_str());
+      movieOrTv.episodeSearchWithShorttext = episodeSearchString.empty();
+      if (movieOrTv.episodeSearchWithShorttext) episodeSearchString = m_sEventOrRecording->EpisodeSearchString();
+      UpdateEpisodeListIfRequired(movieOrTv.id);
+      m_db->SearchEpisode(movieOrTv, episodeSearchString);
+      if (config.enableDebug) esyslog("tvscraper: %stv \"%s\", episode \"%s\" successfully scraped, id %i season %i episode %i", searchResults[0].id() > 0?"":"TV", movieName.c_str(), episodeSearchString.c_str(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+    }
+    if (config.enableDebug) searchResults[0].log(m_searchString.c_str() );
+  }
   m_db->InsertCache(m_searchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
   return;
 }
@@ -128,9 +133,10 @@ void cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
   }
 }
 
-scrapType cSearchEventOrRec::ScrapFind(searchResultTvMovie &searchResult, string &movieName, string &episodeSearchString) {
-  vector<searchResultTvMovie> searchResults;
-  bool debug = m_searchString == "james cameron's dark angel";
+scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResults, string &movieName, string &episodeSearchString) {
+//  bool debug = m_searchString == "james cameron's dark angel";
+//  bool debug = m_searchString == "mercenario - der gefürchtete";
+  bool debug = false;
   movieName = m_searchString;
   episodeSearchString = "";
   scrapType type_override = m_overrides->Type(m_baseNameOrTitile);
@@ -139,25 +145,24 @@ scrapType cSearchEventOrRec::ScrapFind(searchResultTvMovie &searchResult, string
 // check for series
   if (type_override != scrapMovie) SearchTvAll(searchResults);
   if (searchResults.size() == 0) return scrapNone; // nothing found
-
-//    if (!titleSep && m_sEventOrRecording->DurationInSec() > 80*60) { searchResult = m_searchResult_Movie; movieName = m_searchString; return scrapMovie; }
+//    if (!titleSep && m_sEventOrRecording->DurationInSec() > 80*60)
+// something was found. Add all information which is available for free
   if (m_baseNameEquShortText) for (searchResultTvMovie &searchResult: searchResults) if (!searchResult.movie() && searchResult.delim() == 0) searchResult.setBaseNameEquShortText();
   for (searchResultTvMovie &searchResult: searchResults) searchResult.setMatchYear(m_years, m_sEventOrRecording->DurationInSec() );
   sort(searchResults.begin(), searchResults.end() );
-  if (debug) {
-    for (searchResultTvMovie &searchResult: searchResults) searchResult.log(m_searchString.c_str() );
-  }
+  if (debug) for (searchResultTvMovie &searchResult: searchResults) searchResult.log(m_searchString.c_str() );
   m_episodeFound = false;
   std::vector<searchResultTvMovie>::iterator new_end;
+// in case of results which are "similar" good, add more information to find the best one
   if (selectBestAndEnhanvceIfRequired(searchResults.begin(), searchResults.end(), new_end, 0.2,  &enhance1) ) {
-      esyslog("tvscraper: ScrapFind (5), about to call enhance2 search string = %s", m_searchString.c_str()  );
-      selectBestAndEnhanvceIfRequired(searchResults.begin(), new_end            , new_end, 0.10, &enhance2);
+//      esyslog("tvscraper: ScrapFind (5), about to call enhance2 search string = %s", m_searchString.c_str()  );
+// if we still have results which are "similar" good, add even more (and more expensive) information
+      selectBestAndEnhanvceIfRequired(searchResults.begin(), new_end            , new_end, 0.15, &enhance2);
   }
-  if (debug) esyslog("tvscraper: ScrapFind, (6)" );
-  searchResult = *searchResults.begin();
-  if (searchResult.id() == 353808) esyslog("tvscraper: ScrapFind, found: %i, title: \"%s\"", searchResult.id(), m_searchString.c_str() );
-  if (searchResult.movie() ) return scrapMovie;
-  if (searchResult.delim() ) splitString(m_searchString, searchResult.delim(), 4, movieName, episodeSearchString);
+// no more inforamtion can be added. Best result is in searchResults[0]
+  if (debug) esyslog("tvscraper: ScrapFind, found: %i, title: \"%s\"", searchResults[0].id(), m_searchString.c_str() );
+  if (searchResults[0].movie() ) return scrapMovie;
+  if (searchResults[0].delim() ) splitString(m_searchString, searchResults[0].delim(), 4, movieName, episodeSearchString);
   return scrapSeries;
 }
 
@@ -213,9 +218,11 @@ void cSearchEventOrRec::SearchMovie(vector<searchResultTvMovie> &resultSet) {
   extDbConnected = true;
   string searchString1 = SecondPart(m_searchString, ":");
   string searchString2 = SecondPart(m_searchString, "'s");
+  string searchString3 = SecondPart(m_searchString, "-");
   m_movie.AddMovieResults(resultSet, m_searchString, m_searchString, m_sEventOrRecording);
   if (searchString1.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString1, m_sEventOrRecording);
   if (searchString2.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString2, m_sEventOrRecording);
+  if (searchString3.length() > 5 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString3, m_sEventOrRecording);
 }
 
 bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
