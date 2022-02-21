@@ -71,6 +71,8 @@ void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searc
     sRes.setPositionInExternalResult(resultSet.size() );
     int dist_a = sentence_distance(name, SearchString);
     if (debug) esyslog("tvscraper: series SearchString %s, name %s, distance %i", SearchString.c_str(), name.c_str(), dist_a);
+// (2013) or similar at the end of a name in thetvdb indicates a year. This year is not given in the EPG. 
+    if (StringRemoveLastPartWithP(name) ) dist_a = min(dist_a, sentence_distance(name, SearchString) );
     std::size_t lDelim = aliasNames.find('|');
     if (lDelim !=std::string::npos) {
       for (std::size_t rDelim = aliasNames.find('|', lDelim +1); rDelim != std::string::npos; rDelim = aliasNames.find('|', lDelim +1) ) {

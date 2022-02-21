@@ -14,7 +14,7 @@ searchResultTvMovie::searchResultTvMovie(int id, bool movie, const std::string &
   m_matches[2].weight = 0.2; // match popularity, vote and vote_count
   m_matches[3].weight = 0.2; // match duration
   m_matches[4].weight = 0.3; // match actors
-  m_matches[5].weight = 0.3; // match episode (for tv shows with episode only)
+  m_matches[5].weight = 0.5; // match episode (for tv shows with episode only)
   m_matches[6].weight = 0.3; // baseNameEquShortText -> extra points for series
   m_matches[7].weight = 0.0001; // positionInExternalResult
 }
@@ -24,13 +24,30 @@ searchResultTvMovie::~searchResultTvMovie() {
 //  if (m_id == -72449) log("Stargate SG-1");
 //  if (m_id == 138103) log("The Expendables 3");
 //  if (m_id == 27578) log("The Expendables");
-    if (m_id == -364093) log("Star Trek: Picard");
+//  if (m_id == -364093) log("Star Trek: Picard");
+//  if (m_id ==  -76107) log("Doctor Who (1963) classic");
+//  if (m_id ==  -78804) log("Doctor Who (2005) was wir jetzt sehen");
+//  if (m_id == -112671) log("Doctor Who (2009), series of short fan films");
+//  if (m_id == -329847) log("Doctor Who (DDK Productions), youTube");
+//  if (m_id == -383868) log("Doctor Who: Origin kein year, ... wohl irrelevant");
 }
 
 void searchResultTvMovie::log(const char *title) {
   esyslog("tvscraper: searchResultTvMovie::log, id: %i, title: \"%s\"", m_id, title);
   for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) if (m_matches[i].match >= 0) {
-    esyslog("tvscraper: searchResultTvMovie::log, i: %lu, match: %f, weight %f", i, m_matches[i].match, m_matches[i].weight);
+    const char *d;
+    switch (i) {
+      case 0: d = "Text"; break;
+      case 1: d = "Year"; break;
+      case 2: d = "Vote, .."; break;
+      case 3: d = "Duration"; break;
+      case 4: d = "Actors"; break;
+      case 5: d = "Episode"; break;
+      case 6: d = "BaseNameEquShortText"; break;
+      case 7: d = "PositionInExternalResult"; break;
+      default: d = "ERROR!!!!";
+    }
+    esyslog("tvscraper: searchResultTvMovie::log, i: %lu, match: %f, weight %f, desc: %s", i, m_matches[i].match, m_matches[i].weight, d);
   }
   esyslog("tvscraper: searchResultTvMovie::log, getMatch(): %f, delim: %c", getMatch(), m_delim?m_delim:' ' );
 }

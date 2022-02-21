@@ -81,7 +81,7 @@ public:
     bool GetTv(int tvID, time_t &lastUpdated, string &status);
     bool GetTvVote(int tvID, float &vote_average, int &vote_count);
     bool GetTvEpisode(int tvID, int seasonNumber, int episodeNumber, int &episodeID, string &name, string &airDate, float &vote_average, string &overview, string &episodeGuestStars);
-    bool SearchEpisode(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString);
+    std::size_t SearchEpisode(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString);
     bool GetFromCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
     void InsertCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
     void DeleteOutdatedCache();

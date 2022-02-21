@@ -18,10 +18,10 @@ public:
   void updateMatchText(int distance);
   void setPopularity(float popularity, float vote_average, int vote_count);
   void setPopularity(float vote_average, int vote_count);
-  void setDuration(int durationDeviation) { m_matches[3].match = 1 - normMatch(durationDeviation / 15.); }
+  void setDuration(int durationDeviation) { m_matches[3].match = 1 - normMatch(durationDeviation / 10.); }
   void setActors(int numMatches)  { m_matches[4].match = normMatch(numMatches/4.); }
   void setMatchYear(const std::vector<int> &years, int durationInSec);
-  void setMatchEpisode(std::size_t nmatch ) { m_matches[5].match = normMatch(nmatch / 4.); }
+  void setMatchEpisode() { m_matches[5].match = 1.0; }
   void setBaseNameEquShortText() { m_matches[6].match = 1.0; }
   void setPositionInExternalResult(int positionInExternalResult) { m_matches[7].match = 1.0 - normMatch(positionInExternalResult); }
 

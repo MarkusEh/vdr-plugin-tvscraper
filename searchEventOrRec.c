@@ -109,7 +109,10 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
       m_db->SearchEpisode(movieOrTv, episodeSearchString);
       if (config.enableDebug) esyslog("tvscraper: %stv \"%s\", episode \"%s\" successfully scraped, id %i season %i episode %i", searchResults[0].id() > 0?"":"TV", movieName.c_str(), episodeSearchString.c_str(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
     }
-    if (config.enableDebug) searchResults[0].log(m_searchString.c_str() );
+    if (config.enableDebug) {
+      searchResults[0].log(m_searchString.c_str() );
+      if (searchResults.size() > 1 ) searchResults[1].log(m_searchString.c_str() );
+    }
   }
   m_db->InsertCache(m_searchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
   return;
@@ -219,10 +222,15 @@ void cSearchEventOrRec::SearchMovie(vector<searchResultTvMovie> &resultSet) {
   string searchString1 = SecondPart(m_searchString, ":");
   string searchString2 = SecondPart(m_searchString, "'s");
   string searchString3 = SecondPart(m_searchString, "-");
+  size_t n_entries = resultSet.size();
   m_movie.AddMovieResults(resultSet, m_searchString, m_searchString, m_sEventOrRecording);
   if (searchString1.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString1, m_sEventOrRecording);
   if (searchString2.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString2, m_sEventOrRecording);
   if (searchString3.length() > 5 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString3, m_sEventOrRecording);
+  if (n_entries == resultSet.size() ) {
+    string first;
+    if (splitString(m_searchString, '-', 5, first, searchString3)) m_movie.AddMovieResults(resultSet, m_searchString, first, m_sEventOrRecording);
+  }
 }
 
 bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
@@ -305,7 +313,7 @@ void cSearchEventOrRec::UpdateEpisodeListIfRequired(int tvID) {
 
 }
 
-void cSearchEventOrRec::getActorMatches(const std::string &actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure) {
+void cSearchEventOrRec::getActorMatches(const std::string &actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, vector<string> &alreadyFound) {
   if (actor.length() < 3) return;
   const char *description = m_sEventOrRecording->Description();
   if (!description) return;
@@ -315,9 +323,9 @@ void cSearchEventOrRec::getActorMatches(const std::string &actor, int &numMatche
   size_t pos_start = actor.rfind(' ', pos_blank-1);
   if (pos_start == std::string::npos) pos_start = 0;
     else pos_start++; // first character after the blank
-  if ((actor.length() - pos_blank > 3) && (strstr_word(description, actor.c_str() + pos_blank + 1) != 0)) numMatchesSure++;
+  if ((actor.length() - pos_blank > 3) ) addActor(description, actor.c_str() + pos_blank + 1, numMatchesSure, alreadyFound);
   if (pos_blank - pos_start > 2) {
-    if (strstr_word(description, std::string(actor, pos_start, pos_blank - pos_start).c_str() ) != 0) numMatchesFirst++;
+    addActor(description, string(actor, pos_start, pos_blank - pos_start), numMatchesFirst, alreadyFound);
   } else {
 // word (first name) too short, could be an article, try word before this
     pos_blank = pos_start - 1;
@@ -325,23 +333,33 @@ void cSearchEventOrRec::getActorMatches(const std::string &actor, int &numMatche
     pos_start = actor.rfind(' ', pos_blank-1);
     if (pos_start == std::string::npos) pos_start = 0;
       else pos_start++; // first character after the blank
-    if ((pos_blank - pos_start > 2) && (strstr_word(description, std::string(actor, pos_start, pos_blank - pos_start).c_str() ) != 0)) numMatchesFirst++;
+    addActor(description, string(actor, pos_start, pos_blank - pos_start), numMatchesFirst, alreadyFound);
   }
 }
+void cSearchEventOrRec::addActor(const char *description, const string &name, int &numMatches, vector<string> &alreadyFound) {
+// search name in description, if found, increase &numMatches. But only once for each name found
+  if (name.length() < 3) return; // ignore if name is too short
+  if (strstr_word(description, name.c_str() ) == NULL) return;   // name not found in description
+  if (find (alreadyFound.begin(), alreadyFound.end(), name) != alreadyFound.end() ) return;
+  alreadyFound.push_back(name);
+  numMatches++;
+}
+
 
 void cSearchEventOrRec::getActorMatches(searchResultTvMovie &sR, const std::vector<std::vector<std::string>> &actors) {
   int numMatchesAll = 0;
   int numMatchesFirst = 0;
   int numMatchesSure = 0;
+  vector<string> alreadyFound;
   bool debug = false;
 //  bool debug = (sR.id() == -83269) || (sR.id() == 689390);
 //  debug = sR.id() == -353808;
   if (debug) esyslog("tvscraper: getActorMatches, id: %i", sR.id() );
   for(const std::vector<std::string> &actor : actors) if (actor.size() == 3) {
     if (debug) esyslog("tvscraper: getActorMatches, Actor: %s, numMatchesAll %i, numMatchesFirst %i, numMatchesSure %i", actor[1].c_str(), numMatchesAll, numMatchesFirst, numMatchesSure);
-    getActorMatches(actor[1], numMatchesAll, numMatchesFirst, numMatchesSure);
+    getActorMatches(actor[1], numMatchesAll, numMatchesFirst, numMatchesSure, alreadyFound);
     if (debug) esyslog("tvscraper: getActorMatches, Actor: %s, numMatchesAll %i, numMatchesFirst %i, numMatchesSure %i", actor[2].c_str(), numMatchesAll, numMatchesFirst, numMatchesSure);
-    getActorMatches(actor[2], numMatchesAll, numMatchesFirst, numMatchesSure);
+    getActorMatches(actor[2], numMatchesAll, numMatchesFirst, numMatchesSure, alreadyFound);
   }
   int sum = numMatchesFirst + numMatchesSure + 2*numMatchesAll;
   sR.setActors(numMatchesFirst + numMatchesSure + 2*numMatchesAll);
@@ -440,8 +458,7 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   debug = false;
   if (debug) esyslog("tvscraper: enhance2 (1)" );
 
-  if (searchEventOrRec.m_episodeFound || searchResult.movie() ) return;
-  if (debug) esyslog("tvscraper: enhance2 (2)" );
+  if (searchEventOrRec.m_episodeFound || searchResult.movie() ) { searchResult.setMatchEpisode(0); return; }
   string movieName;
   string episodeSearchString;
   sMovieOrTv movieOrTv;
@@ -453,11 +470,8 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   movieOrTv.episodeSearchWithShorttext = searchResult.delim()?false:true;
   if (movieOrTv.episodeSearchWithShorttext) episodeSearchString = searchEventOrRec.m_sEventOrRecording->EpisodeSearchString();
     else splitString(searchEventOrRec.m_searchString, searchResult.delim(), 4, movieName, episodeSearchString);
-  if (debug) esyslog("tvscraper: enhance2 (4)" );
   searchEventOrRec.UpdateEpisodeListIfRequired(movieOrTv.id);
-  if (debug) esyslog("tvscraper: enhance2 (5)" );
-  searchEventOrRec.m_episodeFound = searchEventOrRec.m_db->SearchEpisode(movieOrTv, episodeSearchString);
-  if (debug) esyslog("tvscraper: enhance2 (6)" );
-  if (searchEventOrRec.m_episodeFound) searchResult.setMatchEpisode();
-  if (debug) esyslog("tvscraper: enhance2 (7)" );
+  std::size_t nmatch = searchEventOrRec.m_db->SearchEpisode(movieOrTv, episodeSearchString);
+  searchEventOrRec.m_episodeFound = nmatch > 0;
+  searchResult.setMatchEpisode(nmatch);
 }

@@ -72,9 +72,10 @@ bool splitString(const std::string &str, char delimiter, size_t minLengh, std::s
 bool StringRemoveLastPartWithP(string &str) {
 // remove part with (...)
   StringRemoveTrailingWhitespace(str);
-  if(str[str.length() -1] != ')') return false;
+  if (str[str.length() -1] != ')') return false;
   std::size_t found = str.find_last_of("(");
-  if(found == std::string::npos) return false;
+  if (found == std::string::npos) return false;
+  if (!isdigit(str[found +1])) return false; // we don't remove (asw), but (149) or (4/13)
   str.erase(found);
   StringRemoveLastPartWithP(str);
   return true;

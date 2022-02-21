@@ -19,8 +19,9 @@ private:
   bool CheckCache(sMovieOrTv &movieOrTv);
   void ScrapAssign(const sMovieOrTv &movieOrTv);
   void UpdateEpisodeListIfRequired(int tvID);
-  void getActorMatches(const std::string &actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure);
+  void getActorMatches(const std::string &actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, vector<string> &alreadyFound);
   void getActorMatches(searchResultTvMovie &sR, const std::vector<std::vector<std::string>> &actors);
+  void addActor(const char *description, const string &name, int &numMatches, vector<string> &alreadyFound);
   bool selectBestAndEnhanvceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));
   static void enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
   static void enhance2(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);

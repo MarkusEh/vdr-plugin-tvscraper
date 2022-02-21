@@ -686,15 +686,15 @@ int cTVScraperDB::SearchTvEpisode(int tvID, const string &episode_search_name, c
     return 0;
 }
 
-bool cTVScraperDB::SearchEpisode(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString) {
+std::size_t cTVScraperDB::SearchEpisode(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString) {
 // in: movieOrTv.id, tvSearchEpisodeString
 // out: movieOrTv.season, movieOrTv.episode
-   if (SearchEpisode_int(movieOrTv, tvSearchEpisodeString) ) return true;
-   if (!isdigit(tvSearchEpisodeString[0]) ) return false;
+   std::size_t nmatch = SearchEpisode_int(movieOrTv, tvSearchEpisodeString);
+   if (nmatch > 0) return nmatch;
+   if (!isdigit(tvSearchEpisodeString[0]) ) return nmatch;
    std::size_t found_blank = tvSearchEpisodeString.find(' ');
-   if (found_blank ==std::string::npos || found_blank > 7 || found_blank + 1 >= tvSearchEpisodeString.length() ) return false;
-   if (SearchEpisode_int(movieOrTv, tvSearchEpisodeString.substr(found_blank + 1) )) return true;
-   return false;
+   if (found_blank == std::string::npos || found_blank > 7 || found_blank + 1 >= tvSearchEpisodeString.length() ) return nmatch;
+   return SearchEpisode_int(movieOrTv, tvSearchEpisodeString.substr(found_blank + 1) );
 }
 
 std::size_t cTVScraperDB::SearchEpisode_int(sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString) {
