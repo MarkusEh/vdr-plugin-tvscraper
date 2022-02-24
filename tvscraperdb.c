@@ -1013,12 +1013,12 @@ bool cTVScraperDB::SetRecording(csEventOrRecording *sEventOrRecording) {
     tEventID eventID = sEventOrRecording->EventID();
     cString channelIDs = sEventOrRecording->ChannelIDs();
     sql << "select movie_tv_id, season_number, episode_number from event where event_id = " << eventID;
-    sql << " and channel_id = '" << (const char *)channelIDs << "'";
-    vector<string> result;
-    if (QueryLine(result, sql.str() ) && result.size() == 3) {
-        int movieTvId = atoi(result[0].c_str());
-        int seasonNumber = atoi(result[1].c_str());
-        int episodeNumber = atoi(result[2].c_str());
+    sql << " and channel_id = ?";
+    vector<vector<string>> result = QueryEscaped(sql.str(), (const char *)channelIDs);
+    if (result.size() > 0 && result[0].size() == 3) {
+        int movieTvId = atoi(result[0][0].c_str());
+        int seasonNumber = atoi(result[0][1].c_str());
+        int episodeNumber = atoi(result[0][2].c_str());
 
         InsertRecording2(sEventOrRecording, movieTvId, seasonNumber, episodeNumber);
         return true;
@@ -1059,18 +1059,18 @@ bool cTVScraperDB::GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movi
     stringstream sql;
     if (!sEventOrRecording->Recording() ){
         sql << "select movie_tv_id, season_number, episode_number from event where event_id = " << eventID;
-        sql << " and channel_id = '" << (const char *)channelIDs << "'";
+        sql << " and channel_id = ?";
          }
     else {
         sql << "select movie_tv_id, season_number, episode_number from recordings2 where event_id = " << eventID;
         sql << " and event_start_time = " << eventStartTime;
-        sql << " and channel_id = '" << (const char *)channelIDs << "'";
+        sql << " and channel_id = ?";
           }
-    vector<string> result;
-    if (QueryLine(result, sql.str() ) && result.size() == 3 ) {
-            movie_tv_id = atoi(result[0].c_str());
-            season_number = atoi(result[1].c_str());
-            episode_number = atoi(result[2].c_str());
+    vector<vector<string>> result = QueryEscaped(sql.str(), (const char *)channelIDs );
+    if (result.size() > 0 && result[0].size() == 3 ) {
+            movie_tv_id = atoi(result[0][0].c_str());
+            season_number = atoi(result[0][1].c_str());
+            episode_number = atoi(result[0][2].c_str());
             return true;
     }
     return false;
