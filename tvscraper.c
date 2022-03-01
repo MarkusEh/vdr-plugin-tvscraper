@@ -36,7 +36,7 @@ cTVScraperConfig config;
 #include "imageserver.c"
 #include "setup.c"
 
-static const char *VERSION        = "0.9.6";
+static const char *VERSION        = "0.9.7";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
@@ -88,16 +88,21 @@ const char *cPluginTvscraper::CommandLineHelp(void) {
 bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
     static const struct option long_options[] = {
         { "dir", required_argument, NULL, 'd' },
+        { "themoviedbSearchOption", required_argument, NULL, 's' },
         { 0, 0, 0, 0 }
     };
 
     int c;
     cacheDirSet = false;
-    while ((c = getopt_long(argc, argv, "d:", long_options, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "d:s:", long_options, NULL)) != -1) {
         switch (c) {
             case 'd':
                 cacheDirSet = true;
                 config.SetBaseDir(optarg);
+                break;
+            case 's':
+                config.SetThemoviedbSearchOption(optarg);
+//              esyslog("tvscraper: SetThemoviedbSearchOption %s", optarg);
                 break;
             default:
                 return false;

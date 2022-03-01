@@ -22,13 +22,16 @@ struct sMovieOrTv {
 class cTVScraperConfig {
     private:
         string baseDir;
+        string themoviedbSearchOption = "";
         vector<string> channels; 
     public:
         cTVScraperConfig();
         ~cTVScraperConfig();
         int enableDebug;
         void SetBaseDir(string dir) { baseDir = dir; };
+        void SetThemoviedbSearchOption(const string &option) { themoviedbSearchOption = option; };
         string GetBaseDir(void) { return baseDir; };
+        string GetThemoviedbSearchOption(void) { return themoviedbSearchOption; };
         void ClearChannels(void);
         void AddChannel(string channelID);
         bool ChannelActive(int channelNum);

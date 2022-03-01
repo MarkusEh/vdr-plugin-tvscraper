@@ -14,11 +14,11 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
   initBaseNameOrTitile();
   initSearchString();
   m_sEventOrRecording->AddYears(m_years);
-  ::AddYears(m_years, m_baseNameOrTitile.c_str() );
+  ::AddYears(m_years, m_baseNameOrTitle.c_str() );
   ::AddYears(m_years, m_searchString.c_str() );
   }
 void cSearchEventOrRec::initBaseNameOrTitile(void) {
-// initialize m_baseNameOrTitile
+// initialize m_baseNameOrTitle
   const cRecording *recording = m_sEventOrRecording->Recording();
   if (recording) {
 //    bool debug = strcmp(recording->Info()->Title(), "Hawaii Five-0") == 0;
@@ -26,33 +26,60 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
     debug = false;
     cString baseName = recording->BaseName();
     size_t baseNameLen = strlen(baseName);
-    if (baseName[0] == '%') m_baseNameOrTitile = ( (const char *)baseName ) + 1;
-                       else m_baseNameOrTitile = ( (const char *)baseName );
+    if (baseName[0] == '%') m_baseNameOrTitle = ( (const char *)baseName ) + 1;
+                       else m_baseNameOrTitle = ( (const char *)baseName );
+    if (!recording->Info()->Title() ) return; // no title, go ahead with basename, best what we have (should not happen)
+    if (isVdrDate(m_baseNameOrTitle) ) {
+// this normally happens if VDR records a series, and the subtitle is empty)
+      m_baseNameOrTitle = recording->Info()->Title();
+      if (recording->Info()->ShortText() ) return; // strange, but go ahead with title
+      const char * title_pos = strstr(recording->Name(), recording->Info()->Title() );
+      if (!title_pos || (size_t(title_pos - recording->Name() ) >= strlen(recording->Name()) - baseNameLen)  ) return; // title not part of the name, or title only part of the base name-> does not match the pattern -> return
+      m_baseNameEquShortText = true;
+      return;
+    }
 // if the title is somewhere in the recording name (except the basename part), 
 // and the basename is part of the ShortText() (or Description()), we assume that this is a series
 // like Merlin~1/13. The Dragon's Call
     if (debug) esyslog("tvscraper: TEST recording->Info()->Title() ) \"%s\", recording->Name() \"%s\", recording->Info()->ShortText() \"%s\"", recording->Info()->Title(), recording->Name(), recording->Info()->ShortText() );
 
-    if (!recording->Info()->Title() ) return; // no title, test makes no sense
 // check: title part of the first part of the name, excluding the basename
-    if (strstr(recording->Info()->Title(), m_baseNameOrTitile.c_str() ) != NULL) return; // basename is part of title, seems not to be the subtitle
+    if (strstr(recording->Info()->Title(), m_baseNameOrTitle.c_str() ) != NULL) return; // basename is part of title, seems not to be the subtitle
     const char * title_pos = strstr(recording->Name(), recording->Info()->Title() );
     if (debug) esyslog("tvscraper: TEST (1.1) size_t(title_pos - recording->Name() ) %lu, strlen(recording->Name() ) - baseNameLen %lu", size_t(title_pos - recording->Name() ), strlen(recording->Name() ) - baseNameLen);
     if (!title_pos || (size_t(title_pos - recording->Name() ) >= strlen(recording->Name()) - baseNameLen)  ) return; // title not part of the name, or title only part of the base name-> does not match the pattern -> return
     if (debug) esyslog("tvscraper: TEST (2) recording->Info()->Title() ) \"%s\", recording->Name() \"%s\", recording->Info()->ShortText() \"%s\"", recording->Info()->Title(), recording->Name(), recording->Info()->ShortText() );
 // check: basename is part of the ShortText() (or Description())
-    if (( recording->Info()->ShortText() && strstr(recording->Info()->ShortText(), m_baseNameOrTitile.c_str() ) ) ||
-        (!recording->Info()->ShortText() && recording->Info()->Description() && strstr(recording->Info()->Description(), m_baseNameOrTitile.c_str() ) ) ) {
+    if (( recording->Info()->ShortText() && strstr(recording->Info()->ShortText(), m_baseNameOrTitle.c_str() ) ) ||
+        (!recording->Info()->ShortText() && recording->Info()->Description() && strstr(recording->Info()->Description(), m_baseNameOrTitle.c_str() ) ) ) {
 // this is a series, BaseName == ShortText() == episode name
     if (debug) esyslog("tvscraper: TEST (3) recording->Info()->Title() ) \"%s\", recording->Name() \"%s\", recording->Info()->ShortText() \"%s\"", recording->Info()->Title(), recording->Name(), recording->Info()->ShortText() );
       m_baseNameEquShortText = true;
-      m_baseNameOrTitile = recording->Info()->Title();
+      m_baseNameOrTitle = recording->Info()->Title();
     }
-  } else m_baseNameOrTitile = m_sEventOrRecording->Title();
+  } else m_baseNameOrTitle = m_sEventOrRecording->Title();
+}
+
+bool cSearchEventOrRec::isVdrDate(const std::string &baseName) {
+// return true if string matches the 2020.01.12-02:35 pattern.
+  if (baseName.length() < 16) return false;
+
+  int n;
+  for (n = 0; n < 4; n ++) if (!isdigit(baseName[n]) ) return false;
+  if (baseName[n] != '.') return false;
+  for (n++ ; n < 7; n ++) if (!isdigit(baseName[n]) ) return false;
+  if (baseName[n] != '.') return false;
+  for (n++ ; n < 10; n ++) if (!isdigit(baseName[n]) ) return false;
+  if (baseName[n] != '-') return false;
+  for (n++ ; n < 13; n ++) if (!isdigit(baseName[n]) ) return false;
+  if (baseName[n] != ':') return false;
+  for (n++ ; n < 16; n ++) if (!isdigit(baseName[n]) ) return false;
+
+  return true;
 }
 
 void cSearchEventOrRec::initSearchString(void) {
-  m_searchString = m_baseNameOrTitile;
+  m_searchString = m_baseNameOrTitle;
   m_searchStringSubstituted = m_overrides->Substitute(m_searchString);
   if (!m_searchStringSubstituted) {
 // some more, but only if no explicit substitution
@@ -65,12 +92,12 @@ void cSearchEventOrRec::initSearchString(void) {
 bool cSearchEventOrRec::Scrap(void) {
 // return true, if request to rate limited internet db was required. Otherwise, false
   if (config.enableDebug) esyslog("tvscraper: Scrap Event ID , search string \"%s\", title \"%s\"", m_searchString.c_str(), m_sEventOrRecording->Title());
-  if (m_overrides->Ignore(m_baseNameOrTitile)) return extDbConnected;
+  if (m_overrides->Ignore(m_baseNameOrTitle)) return extDbConnected;
   sMovieOrTv movieOrTv;
   ScrapFindAndStore(movieOrTv);
   if(movieOrTv.type != scrapMovie && movieOrTv.type != scrapSeries) {
 // nothing found, try again with title
-    m_baseNameOrTitile = m_sEventOrRecording->Title();
+    m_baseNameOrTitle = m_sEventOrRecording->Title();
     m_baseNameEquShortText = false;
     initSearchString();
     ScrapFindAndStore(movieOrTv);
@@ -142,7 +169,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   bool debug = false;
   movieName = m_searchString;
   episodeSearchString = "";
-  scrapType type_override = m_overrides->Type(m_baseNameOrTitile);
+  scrapType type_override = m_overrides->Type(m_baseNameOrTitle);
 // check for movie: save best movie in m_searchResult_Movie
   if (type_override != scrapSeries) SearchMovie(searchResults);
 // check for series

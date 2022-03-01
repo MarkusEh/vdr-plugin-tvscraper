@@ -129,7 +129,7 @@ bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
     vector<int> years;
     AddYears(years, SearchString.c_str() );
     sEventOrRecording->AddYears(years);
-    string t = "";
+    string t = config.GetThemoviedbSearchOption();
 
     url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&query=" << CurlEscape(SearchString_ext.c_str());
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());

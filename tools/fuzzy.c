@@ -102,9 +102,12 @@ size_t sentenceFind(const std::string& sentence1, const std::string& sentence2) 
     else return im;
 }
 
-int sentence_distance(const std::string& sentence1, const std::string& sentence2) {
+int sentence_distance(const std::string& sentence1a, const std::string& sentence2a) {
 // return 0-1000
 // 0: Strings are equal
+  std::string sentence1 = stripExtra(sentence1a);
+  std::string sentence2 = stripExtra(sentence2a);
+//  std::cout << "sentence1 = " << sentence1 << " sentence2 = " << sentence2 << std::endl;
   size_t s1l = sentence1.length();
   size_t s2l = sentence2.length();
   if (s1l == 0 || s2l == 0) return 1000;
@@ -119,6 +122,8 @@ int sentence_distance(const std::string& sentence1, const std::string& sentence2
   else if (match_find <= 15 ) match_find = 500 + (match_find-5) * 40;
   else match_find = 1000;  // number between 0 & 1000, higher is better
 
-  size_t dist = sentence_distance_int(stripExtra(sentence1), stripExtra(sentence2) );
+  size_t dist = sentence_distance_int(sentence1, sentence2);
+  if (dist > max_dist) max_dist = dist;
+//  std::cout << "match_find = " << match_find << " dist = " << dist << " max_dist = " << max_dist << std::endl;
   return (600 * dist / max_dist) + (1000 - match_find) * 400 / 1000;
 }

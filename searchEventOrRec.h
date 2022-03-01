@@ -12,6 +12,7 @@ private:
   void SearchMovie(vector<searchResultTvMovie> &searchResults); // 0: no match; return movie ID, search result in m_searchResult_Movie
   void SearchTvAll(vector<searchResultTvMovie> &searchResults);
   void initBaseNameOrTitile(void);
+  bool isVdrDate(const std::string &baseName);
   void initSearchString(void);
   void setFastMatch(searchResultTvMovie &searchResult);
   int GetTvDurationDistance(int tvID);
@@ -32,7 +33,7 @@ private:
   cTVDBScraper *m_tvdbScraper;
   cTVScraperDB *m_db; 
 // "calculated"
-  std::string m_baseNameOrTitile;
+  std::string m_baseNameOrTitle;
   std::string m_searchString;
   bool m_searchStringSubstituted;
   vector<int> m_years;

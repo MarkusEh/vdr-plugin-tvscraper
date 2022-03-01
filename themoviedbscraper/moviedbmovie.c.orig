@@ -29,6 +29,7 @@ cMovieDbMovie::cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper):
     runtime = 0;
     popularity = 0.0;
     voteAverage = 0.0;
+    voteCount = 0;
     backdropPath = "";
     posterPath = "";
 }
@@ -107,6 +108,7 @@ bool cMovieDbMovie::ReadMovie(json_t *movie) {
     if(json_is_number(jPopularity)) popularity = json_number_value(jPopularity);
     json_t *jVoteAverage = json_object_get(movie, "vote_average");
     if(json_is_number(jVoteAverage)) voteAverage = json_number_value(jVoteAverage);
+    voteCount = json_integer_value_validated(movie, "vote_count");
 
 // backdropPath, posterPath
     json_t *jBackdrop = json_object_get(movie, "backdrop_path");
@@ -140,7 +142,7 @@ bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
     if (num_pages > 1 && years.size() > 0) {
 // several pages, restrict with years
       bool found = false;
-      for (int &year: years) {
+      for (int &year: years) if (year > 0) {
         stringstream url;
         url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext.c_str());
         if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
@@ -148,18 +150,18 @@ bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
         json_t *root = json_loads(json.c_str(), 0, &error);
         if (!root) continue;
         if (json_integer_value_validated(root, "total_results") > 0) found = true;
-        ret = AddMovieResults(root, resultSet, SearchString, years, sEventOrRecording);
+        ret = AddMovieResults(root, resultSet, SearchString);
         json_decref(root);
       }
-      if (!found) ret = AddMovieResults(root, resultSet, SearchString, years, sEventOrRecording);
+      if (!found) ret = AddMovieResults(root, resultSet, SearchString);
     } else {
 // only one page (or no years avilable), check all results in this page
-      ret = AddMovieResults(root, resultSet, SearchString, years, sEventOrRecording);
+      ret = AddMovieResults(root, resultSet, SearchString);
     }
     json_decref(root);
     return ret;
 }
-bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString, const vector<int> &years, csEventOrRecording *sEventOrRecording){
+bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString){
     if(!json_is_object(root)) return false;
     json_t *results = json_object_get(root, "results");
     if(!json_is_array(results)) return false;
@@ -175,62 +177,26 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
         transform(resultOriginalTitle.begin(), resultOriginalTitle.end(), resultOriginalTitle.begin(), ::tolower);
         int id = json_integer_value_validated(result, "id");
         if (!id) continue;
-        for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id == id) continue;
-        searchResultTvMovie sRes;
-        sRes.id = id;
-        sRes.movie = true;
-        sRes.positionInExternalResult = resultSet.size();
-// can we match the year?
-        sRes.year = 0; // default, no year match
-        string resultReleaseDate = json_string_value_validated(result, "release_date");
-        if(resultReleaseDate.length() >= 4) {
-          int resultReleaseYear = atoi(resultReleaseDate.substr(0, 4).c_str() );
-          if ( find(years.begin(), years.end(), resultReleaseYear) != years.end() ) {
-            sRes.year = resultReleaseYear;  // year match
-          } else {
-            resultReleaseYear *= -1;
-            if ( find(years.begin(), years.end(), resultReleaseYear) != years.end() ) sRes.year = resultReleaseYear;  // match of year +-1
-          }
-        }
-        sRes.distance = min(sentence_distance(resultTitle, SearchString), sentence_distance(resultOriginalTitle, SearchString) );
-        sRes.popularity = json_number_value_validated(result, "popularity");
+        for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) continue;
 
-//        if(matchYear) sRes.distance -= 150;
-//        sRes.distance += sEventOrRecording->IsTvShow();
-/*
-        int durationInSec = sEventOrRecording->DurationInSec();
-        if (durationInSec) {
-          if ( durationInSec > 80*60 ) {
-// event longer than 80 mins, add some points that this is a movie
-            sRes.distance -= 100;
-          } else sRes.distance += 152; // shorter than 80 mins, most likely not a movie
-        }
-*/
+        searchResultTvMovie sRes(id, true, json_string_value_validated(result, "release_date") );
+        sRes.setPositionInExternalResult(resultSet.size() );
+        sRes.setMatchText(min(sentence_distance(resultTitle, SearchString), sentence_distance(resultOriginalTitle, SearchString) ) );
+        sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
         resultSet.push_back(sRes);
     }
     return true;
 }
 
-void cMovieDbMovie::StoreMedia(string posterBaseUrl, string backdropBaseUrl, string destDir) {
-  DownloadFile(posterBaseUrl,   posterPath, destDir, id, "_poster.jpg");
-  DownloadFile(backdropBaseUrl, backdropPath, destDir, id, "_backdrop.jpg");
-  string destDirCollections = destDir +  "collections/";
-  CreateDirectory(destDirCollections);
-  DownloadFile(posterBaseUrl, collectionPosterPath, destDirCollections, collectionId, "_poster.jpg");
-  DownloadFile(backdropBaseUrl, collectionBackdropPath, destDirCollections, collectionId, "_backdrop.jpg");
+void cMovieDbMovie::StoreMedia() {
+  if (!posterPath.empty() )             m_db->insertTvMediaSeasonPoster (id, posterPath,   1, -100);
+  if (!backdropPath.empty() )           m_db->insertTvMediaSeasonPoster (id, backdropPath, 2, -100);
+  if (!collectionPosterPath.empty() )   m_db->insertTvMediaSeasonPoster (id, collectionPosterPath, -1, collectionId * -1);
+  if (!collectionBackdropPath.empty() ) m_db->insertTvMediaSeasonPoster (id, collectionBackdropPath, -2, collectionId * -1);
 }
 
-bool cMovieDbMovie::DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName) {
-// download urlBase urlFileName to destDir destID destFileName
-    if(urlFileName.empty() ) return false;
-    stringstream destFullPath;
-    destFullPath << destDir << destID << destFileName;
-    stringstream urlFull;
-    urlFull << urlBase << urlFileName;
-    return Download(urlFull.str(), destFullPath.str());
-}
 void cMovieDbMovie::StoreDB(void) {
-    m_db->InsertMovie(id, title, originalTitle, tagline, overview, adult, collectionId, collectionName, budget, revenue, genres, homepage, releaseDate, runtime, popularity, voteAverage);
+    m_db->InsertMovie(id, title, originalTitle, tagline, overview, adult, collectionId, collectionName, budget, revenue, genres, homepage, releaseDate, runtime, popularity, voteAverage, voteCount);
 }
 
 void cMovieDbMovie::Dump(void) {
