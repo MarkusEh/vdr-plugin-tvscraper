@@ -16,7 +16,7 @@ struct sMovieOrTv {
     int season;
     int episode;
     int year;
-    bool episodeSearchWithShorttext;
+    int episodeSearchWithShorttext;
 };
 
 class cTVScraperConfig {

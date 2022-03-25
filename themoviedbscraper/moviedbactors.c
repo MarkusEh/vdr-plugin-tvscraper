@@ -27,6 +27,9 @@ void cMovieDbActors::ParseJSON(json_t *jActors) {
     if(!json_is_object(jActors)) {
         return;
     }
+    json_t *jCrew = json_object_get(jActors, "crew");
+    director = cMovieDbTv::GetCrewMember(jCrew, "job", "Director");
+    writer   = cMovieDbTv::GetCrewMember(jCrew, "department", "Writing");
     json_t *cast = json_object_get(jActors, "cast");
     if(!json_is_array(cast)) {
         return;
@@ -54,8 +57,9 @@ void cMovieDbActors::ParseJSON(json_t *jActors) {
 void cMovieDbActors::StoreDB(cTVScraperDB *db, int movieID) {
     int numActors = actors.size();
     for (int i=0; i<numActors; i++) {
-        db->InsertMovieActor(movieID, actors[i]->id, actors[i]->name, actors[i]->role);
+      db->InsertMovieActor(movieID, actors[i]->id, actors[i]->name, actors[i]->role, !actors[i]->path.empty() );
     }
+    db->InsertMovieDirectorWriter(movieID, director, writer);
 }
 
 void cMovieDbActors::Store(cTVScraperDB *db, int movieID) {

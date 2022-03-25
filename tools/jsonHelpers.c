@@ -1,7 +1,7 @@
 #include <jansson.h>
 #include <string>
 
-string json_string_value_validated(json_t *j, const char *attributeName){
+string json_string_value_validated(const json_t *j, const char *attributeName){
     json_t *jAttribute = json_object_get(j, attributeName);
     if(json_is_string(jAttribute)) return json_string_value(jAttribute);
     return "";
@@ -23,13 +23,15 @@ string json_concatenate_array(json_t *j, const char *arrayName, const char *attr
   json_t *jArray = json_object_get(j, arrayName);
   if(json_is_array(jArray)) {
       size_t numElements = json_array_size(jArray);
+      if (numElements == 0) return "";
+      result = "|";
       for (size_t i = 0; i < numElements; i++) {
         json_t *jElement = json_array_get(jArray, i);
         json_t *jElementName = json_object_get(jElement, attributeName);
         if(json_is_string(jElementName)) {
-          if(result.empty() ) result = json_string_value(jElementName);
-            else { result.append("; "); result.append(json_string_value(jElementName)); }
-          }
+          result.append(json_string_value(jElementName));
+          result.append("|");
+        }
       }
     }
   return result;

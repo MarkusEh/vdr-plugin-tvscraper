@@ -133,9 +133,10 @@ void cTVDBSeries::ParseXML_Series(xmlDoc *doc, xmlNode *node) {
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"FirstAired")) {
                 firstAired = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"IMDB_ID")) {
-                imbdid = (const char *)node_content;
-            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Actors")) {
-                actors = (const char *)node_content;
+                IMDB_ID = (const char *)node_content;
+// ignore Actors here. Actors (including images) are taken from the <Actors> section
+//            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Actors")) {
+//                actors = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Genre")) {
                 genres = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Network")) {
@@ -160,12 +161,17 @@ void cTVDBSeries::ParseXML_Episode(xmlDoc *doc, xmlNode *node) {
     int episodeID = 0;
     int seasonNumber = 0;
     int episodeNumber = 0;
+    int episodeAbsoluteNumber = 0;
     string episodeName("");
     string episodeOverview("");
     string episodeFirstAired("");
     string episodeGuestStars("");
     string episodeFilename("");
+    string episodeDirector("");
+    string episodeWriter("");
+    string episodeIMDB_ID("");
     float episodeRating = 0.0;
+    int episodeVoteCount = 0;
 
     xmlNode *cur_node = NULL;
     node = node->children;
@@ -180,6 +186,8 @@ void cTVDBSeries::ParseXML_Episode(xmlDoc *doc, xmlNode *node) {
                 seasonNumber = atoi((const char *)node_content);
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"EpisodeNumber")) {
                 episodeNumber = atoi((const char *)node_content);
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"absolute_number")) {
+                episodeAbsoluteNumber = atoi((const char *)node_content);
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"EpisodeName")) {
                 episodeName = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Overview")) {
@@ -190,17 +198,25 @@ void cTVDBSeries::ParseXML_Episode(xmlDoc *doc, xmlNode *node) {
                 episodeGuestStars = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Rating")) {
                 episodeRating = atof( (const char *)node_content );
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"RatingCount")) {
+                episodeVoteCount = atoi( (const char *)node_content );
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Director")) {
+                episodeDirector = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"Writer")) {
+                episodeWriter = (const char *)node_content;
+            } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"IMDB_ID")) {
+                episodeIMDB_ID = (const char *)node_content;
             } else if (!xmlStrcmp(cur_node->name, (const xmlChar *)"filename")) {
                 episodeFilename = (const char *)node_content;
             }
             xmlFree(node_content);
         }
     }
-    m_db->InsertTv_s_e(seriesID * (-1), seasonNumber, episodeNumber, episodeID, episodeName, episodeFirstAired, episodeRating, episodeOverview, episodeGuestStars, episodeFilename);
+    m_db->InsertTv_s_e(seriesID * (-1), seasonNumber, episodeNumber, episodeAbsoluteNumber, episodeID, episodeName, episodeFirstAired, episodeRating, episodeVoteCount, episodeOverview, episodeGuestStars, episodeDirector, episodeWriter, episodeIMDB_ID, episodeFilename);
 }
 
 void cTVDBSeries::StoreDB(cTVScraperDB *db) {
-    db->InsertTv(seriesID * (-1), name, "", overview, firstAired, networks, genres, 0.0, rating, ratingCount, status, episodeRunTimes);
+    db->InsertTv(seriesID * (-1), name, "", overview, firstAired, networks, genres, 0.0, rating, ratingCount, poster, fanart, IMDB_ID, status, episodeRunTimes, "");
 }
 
 void cTVDBSeries::StoreMedia(int tvID) {
@@ -210,7 +226,7 @@ void cTVDBSeries::StoreMedia(int tvID) {
 }
 
 void cTVDBSeries::Dump() {
-    esyslog("tvscraper: series %s, id: %d, overview %s, imdb %s", name.c_str(), seriesID, overview.c_str(), imbdid.c_str());
+    esyslog("tvscraper: series %s, id: %d, overview %s, imdb %s", name.c_str(), seriesID, overview.c_str(), IMDB_ID.c_str());
 }
 
 bool cTVDBSeries::AddResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext) {

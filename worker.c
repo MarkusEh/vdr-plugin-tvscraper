@@ -173,6 +173,7 @@ void cTVScraperWorker::ScrapRecordings(void) {
     if (recEvent) {
           cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, moviedbScraper, tvdbScraper, db);  
           SearchEventOrRec.Scrap();
+          if (!Running() ) break;
     }
   }
 }
@@ -244,6 +245,7 @@ if (scanVideoDir) {
     continue;
 }
 CheckRunningTimers();
+if (!Running() ) break;
 if (StartScrapping()) {
     dsyslog("tvscraper: start scraping epg");
     if (ConnectScrapers()) {

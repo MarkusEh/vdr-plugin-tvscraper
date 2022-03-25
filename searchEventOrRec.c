@@ -130,10 +130,13 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
       if (config.enableDebug) esyslog("tvscraper: movie \"%s\" successfully scraped, id %i", movieName.c_str(), searchResults[0].id() );
     } else if(sType == scrapSeries) {
 // search episode
-      movieOrTv.episodeSearchWithShorttext = episodeSearchString.empty();
-      if (movieOrTv.episodeSearchWithShorttext) episodeSearchString = m_sEventOrRecording->EpisodeSearchString();
+      movieOrTv.episodeSearchWithShorttext = episodeSearchString.empty()?1:0;
+      if (movieOrTv.episodeSearchWithShorttext == 1) {
+        episodeSearchString = m_sEventOrRecording->EpisodeSearchString();
+        if (searchResults[0].getMatchEpisode() ) movieOrTv.episodeSearchWithShorttext = 3;
+      }
       UpdateEpisodeListIfRequired(movieOrTv.id);
-      m_db->SearchEpisode(movieOrTv, episodeSearchString);
+      cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString);
       if (config.enableDebug) esyslog("tvscraper: %stv \"%s\", episode \"%s\" successfully scraped, id %i season %i episode %i", searchResults[0].id() > 0?"":"TV", movieName.c_str(), episodeSearchString.c_str(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
     }
     if (config.enableDebug) {
@@ -246,30 +249,35 @@ void cSearchEventOrRec::SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet
 
 void cSearchEventOrRec::SearchMovie(vector<searchResultTvMovie> &resultSet) {
   extDbConnected = true;
+
   string searchString1 = SecondPart(m_searchString, ":");
   string searchString2 = SecondPart(m_searchString, "'s");
-  string searchString3 = SecondPart(m_searchString, "-");
-  size_t n_entries = resultSet.size();
-  m_movie.AddMovieResults(resultSet, m_searchString, m_searchString, m_sEventOrRecording);
-  if (searchString1.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString1, m_sEventOrRecording);
-  if (searchString2.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString2, m_sEventOrRecording);
-  if (searchString3.length() > 5 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString3, m_sEventOrRecording);
-  if (n_entries == resultSet.size() ) {
-    string first;
-    if (splitString(m_searchString, '-', 5, first, searchString3)) m_movie.AddMovieResults(resultSet, m_searchString, first, m_sEventOrRecording);
+  string searchString3, searchString4;
+  m_movie.AddMovieResults(resultSet, m_searchString, m_searchString, m_years);
+  if (searchString1.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString1, m_years);
+  if (searchString2.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString2, m_years);
+  if (splitString(m_searchString, '-', 4, searchString3, searchString4) ) {
+    if (searchString3.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString3, m_years);
+    if (searchString4.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString4, m_years);
   }
 }
 
 bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
   if (!m_db->GetFromCache(m_searchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText) ) return false;
 // cache found
-   Store(movieOrTv);
-// do we have to search the episode?
   string episodeSearchString;
-  if (movieOrTv.season != -100 && movieOrTv.episodeSearchWithShorttext) {
-    UpdateEpisodeListIfRequired(movieOrTv.id);
-    episodeSearchString = m_sEventOrRecording->EpisodeSearchString();
-    m_db->SearchEpisode(movieOrTv, episodeSearchString);
+  if (movieOrTv.type != scrapNone && movieOrTv.id != 0) {
+// something "real" was found
+    Store(movieOrTv);
+// do we have to search the episode?
+    if (movieOrTv.season != -100 && movieOrTv.episodeSearchWithShorttext) {
+      UpdateEpisodeListIfRequired(movieOrTv.id);
+      episodeSearchString = m_sEventOrRecording->EpisodeSearchString();
+      cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString);
+      if (movieOrTv.episodeSearchWithShorttext == 3 &&
+        movieOrTv.season == 0 && movieOrTv.episode == 0) return false;
+// episode match required for cache, but not found
+    }
   }
 
   if (!config.enableDebug) return true;
@@ -291,7 +299,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
 void cSearchEventOrRec::ScrapAssign(const sMovieOrTv &movieOrTv) {
 // assign found movieOrTv to event/recording in db
 // and download episode still
-  if(movieOrTv.type != scrapMovie && movieOrTv.type != scrapSeries) return; // if noting was found, there is nothing todo
+  if(movieOrTv.type != scrapMovie && movieOrTv.type != scrapSeries) return; // if nothing was found, there is nothing todo
   if (!m_sEventOrRecording->Recording() )
           m_db->InsertEvent     (m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
      else m_db->InsertRecording2(m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
@@ -323,8 +331,10 @@ void cSearchEventOrRec::UpdateEpisodeListIfRequired(int tvID) {
   time_t now = time(0);
 
   m_db->GetTv(tvID, lastUpdated, status);
+  if (config.enableDebug && tvID == -232731) esyslog("tvscraper: cSearchEventOrRec::UpdateEpisodeListIfRequired, 1, tvID %i, now %li, lastUpdated %li, difftime %f, status %s", tvID, now, lastUpdated, difftime(now, lastUpdated), status.c_str() );
+
   if (lastUpdated) {
-    if (difftime(now, lastUpdated) < 7*24*60*60 ) return; // min one week between updates
+    if (difftime(now, lastUpdated) < 7.*24*60*60 ) return; // min one week between updates
     if (status.compare("Ended") == 0) return; // see https://thetvdb-api.readthedocs.io/api/series.html
     if (status.compare("Canceled") == 0) return;
 // not documented for themoviedb, see https://developers.themoviedb.org/3/tv/get-tv-details . But test indicates the same values ("Ended" & "Canceled")...
@@ -494,11 +504,11 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   searchEventOrRec.Store(movieOrTv);
   if (debug) esyslog("tvscraper: enhance2 (3)" );
 // search episode
-  movieOrTv.episodeSearchWithShorttext = searchResult.delim()?false:true;
+  movieOrTv.episodeSearchWithShorttext = searchResult.delim()?0:1;
   if (movieOrTv.episodeSearchWithShorttext) episodeSearchString = searchEventOrRec.m_sEventOrRecording->EpisodeSearchString();
     else splitString(searchEventOrRec.m_searchString, searchResult.delim(), 4, movieName, episodeSearchString);
   searchEventOrRec.UpdateEpisodeListIfRequired(movieOrTv.id);
-  std::size_t nmatch = searchEventOrRec.m_db->SearchEpisode(movieOrTv, episodeSearchString);
+  std::size_t nmatch = cMovieOrTv::searchEpisode(searchEventOrRec.m_db, movieOrTv, episodeSearchString);
   searchEventOrRec.m_episodeFound = nmatch > 0;
   searchResult.setMatchEpisode(nmatch);
 }

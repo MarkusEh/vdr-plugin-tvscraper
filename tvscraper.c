@@ -5,6 +5,16 @@
  *
  * $Id$
  */
+enum eMediaType {
+    mediaFanartCollection = -2,
+    mediaPosterCollection = -1,
+    mediaUnknown = 0,
+    mediaPoster = 1,
+    mediaFanart = 2,
+    mediaSeason = 3,
+    mediaBanner = 4,
+};
+
 #include <getopt.h>
 #include <vdr/plugin.h>
 #include "searchResultTvMovie.h"
@@ -195,6 +205,22 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     if (Data == NULL)
         return false;
     
+    if (strcmp(Id, "GetScraperMovieOrTv") == 0) {
+        cScraperMovieOrTv* call = (cScraperMovieOrTv*) Data;
+        call->found = false;
+        csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
+        if (!sEventOrRecording) return false;
+
+        cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, sEventOrRecording);
+        delete sEventOrRecording;
+        if (!movieOrTv) return false;
+
+        call->found = true;
+        movieOrTv->getScraperMovieOrTv(call, imageServer);
+        delete movieOrTv;
+	
+        return true;
+    }
     if (strcmp(Id, "GetEventType") == 0) {
         ScraperGetEventType* call = (ScraperGetEventType*) Data;
         csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
@@ -257,7 +283,12 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         call->episode.episodeImage = imageServer->GetStill(lastEventId, lastSeasonNumber, lastEpisodeNumber);
 
 // more not episode related data
-        call->actors = imageServer->GetActors(lastEventId, episodeID, scrapSeries);
+        cMovieOrTv *movieOrTv;
+        if (lastEventId > 0) movieOrTv = new cTvMoviedb(db, lastEventId, lastSeasonNumber, lastEpisodeNumber);
+            else             movieOrTv = new cTvTvdb(db, -1*lastEventId, lastSeasonNumber, lastEpisodeNumber);
+        call->actors = movieOrTv->GetActors();
+        delete movieOrTv;
+//        call->actors = imageServer->GetActors(lastEventId, episodeID, scrapSeries);
         call->posters = imageServer->GetPosters(lastEventId, scrapSeries);
         cTvMedia media;
         call->seasonPoster = media;  // default: empty
@@ -307,8 +338,10 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         call->fanart = imageServer->GetMovieFanart(lastEventId);
         call->collectionPoster = imageServer->GetCollectionPoster(collection_id);
         call->collectionFanart = imageServer->GetCollectionFanart(collection_id);
-        int episodeID = 0;
-        call->actors = imageServer->GetActors(lastEventId, episodeID, scrapMovie);
+//        int episodeID = 0;
+//        call->actors = imageServer->GetActors(lastEventId, episodeID, scrapMovie);
+        cMovieMoviedb movieMoviedb(db, lastEventId);
+        call->actors = movieMoviedb.GetActors();
 
         return true;
     }

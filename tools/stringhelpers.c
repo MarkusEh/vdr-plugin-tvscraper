@@ -58,6 +58,8 @@ const char *strstr_word (const char *str1, const char *str2) {
 
 bool splitString(const std::string &str, char delimiter, size_t minLengh, std::string &first, std::string &second) {
   std::size_t found = str.find(delimiter);
+  if(found == std::string::npos) return false; // nothing found
+  while (found <= minLengh && found != std::string::npos) found = str.find(delimiter, found + 1);
   if(found == std::string::npos || found <= minLengh) return false; // nothing found
   std::size_t ssnd;
   for(ssnd = found + 1; ssnd < str.length() && str[ssnd] == ' '; ssnd++);
@@ -113,4 +115,35 @@ void AddYears(vector<int> &years, const char *str) {
       }
     }
   }
+}
+
+/*
+void stringToVector(std::vector<std::string> &vec, const string &str) {
+  if (str[0] != '|') { vec.push_back(str); return; }
+  std::size_t lDelim = str.find('|');
+  if (lDelim !=std::string::npos)
+    for (std::size_t rDelim = str.find('|', lDelim +1); rDelim != std::string::npos; rDelim = str.find('|', lDelim +1) ) {
+      vec.push_back(str.substr(lDelim +1, rDelim - lDelim - 1));
+      lDelim = rDelim;
+    }
+}
+*/
+
+void stringToVector(std::vector<std::string> &vec, const char *str) {
+  if (!str || !*str) return;
+  if (str[0] != '|') { vec.push_back(str); return; }
+  const char *lDelimPos = str;
+  for (const char *rDelimPos = strchr(lDelimPos + 1, '|'); rDelimPos != NULL; rDelimPos = strchr(lDelimPos + 1, '|') ) {
+    vec.push_back(string(lDelimPos + 1, rDelimPos - lDelimPos - 1));
+    lDelimPos = rDelimPos;
+  }
+}
+
+int stringToYear(const string &str) {
+  if (str.length() < 4) return 0;
+  int i;
+  for (i = 0; i < 4 && isdigit(str[i]); i++);
+  if (i != 4) return 0;
+  if (str.length() > 4 && isdigit(str[4]) ) return 0;
+  return atoi(str.c_str() );
 }

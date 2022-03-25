@@ -28,7 +28,6 @@ public:
     cTvMedia GetMovieFanart(int id);
     cTvMedia GetCollectionPoster(int id);
     cTvMedia GetCollectionFanart(int id);
-    vector<cActor> GetActors(int id, int episodeID, scrapType type);
     string GetDescription(int id, int season_number, int episode_number, scrapType type);
     bool GetTvPoster(cTvMedia &media, int id, int season_number);
 };

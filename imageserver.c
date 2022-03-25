@@ -179,60 +179,6 @@ cTvMedia cImageServer::GetCollectionFanart(int id) {
     return fanart;
 }
 
-vector<cActor> cImageServer::GetActors(int id, int episodeID, scrapType type) {
-    vector<cActor> actors;
-    if (type == scrapNone) return actors;
-    vector<vector<string> > actorsDB;
-    if (type == scrapSeries && id < 0) {
-        actorsDB = db->GetActorsSeries(id * (-1));
-        int numActors = actorsDB.size();
-        for (int i=0; i < numActors; i++) {
-            vector<string> row = actorsDB[i];
-            if (row.size() == 3) {
-                cActor actor;
-                actor.name = row[1];
-                actor.role = row[2];
-                cTvMedia thumb;
-                stringstream thumbPath;
-                thumbPath << config.GetBaseDir() << "/series/" << id * (-1) << "/actor_" << row[0] << ".jpg";
-                thumb.path = thumbPath.str();
-                thumb.width = 300;
-                thumb.height = 450;
-                actor.actorThumb = thumb;
-                actors.push_back(actor);
-            }
-        }
-      return actors;
-    }
-    if (type == scrapSeries) {
-        actorsDB = db->GetActorsTv(id);
-        if(episodeID) {
-          vector<vector<string> > actorsDB_Guest = db->GetGuestActorsTv(episodeID);
-          actorsDB.insert(actorsDB.end(), actorsDB_Guest.begin(), actorsDB_Guest.end());
-        }
-
-    } else if (type == scrapMovie) {
-        actorsDB = db->GetActorsMovie(id);
-    }
-        int numActors = actorsDB.size();
-        for (int i=0; i < numActors; i++) {
-            vector<string> row = actorsDB[i];
-            if (row.size() == 3) {
-                cActor actor;
-                actor.name = row[1];
-                actor.role = row[2];
-                stringstream thumbPath;
-                thumbPath << config.GetBaseDir() << "/movies/actors/actor_" << row[0] << ".jpg";
-                cTvMedia thumb;
-                thumb.path = thumbPath.str();
-                thumb.width = 421;
-                thumb.height = 632;
-                actor.actorThumb = thumb;
-                actors.push_back(actor);
-            }
-       }
-    return actors;
-}
 
 string cImageServer::GetDescription(int id, int season_number, int episode_number, scrapType type) {
     string description;

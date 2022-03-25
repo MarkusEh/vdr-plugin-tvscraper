@@ -19,6 +19,7 @@ private:
    string m_first_air_date = "";
    string m_networks = "";
    string m_genres = "";
+   string m_createdBy = "";
    float m_popularity = 0.0;
    float m_vote_average = 0.0;
    int m_vote_count = 0;
@@ -40,6 +41,7 @@ private:
    bool AddActorsTv(json_t *jCredits);
 public:
    cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
+   static string GetCrewMember(json_t *jCrew, const char *field, const string &value);
    virtual ~cMovieDbTv(void);
    bool AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext);
    bool UpdateDb();

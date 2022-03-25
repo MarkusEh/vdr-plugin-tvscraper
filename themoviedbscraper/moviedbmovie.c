@@ -83,19 +83,10 @@ bool cMovieDbMovie::ReadMovie(json_t *movie) {
     if(json_is_integer(jBudget)) budget = json_integer_value(jBudget);
     json_t *jRevenue = json_object_get(movie, "revenue");
     if(json_is_integer(jRevenue)) revenue = json_integer_value(jRevenue);
-// genres
-    json_t *jGenres = json_object_get(movie, "genres");
-    if(json_is_array(jGenres)) {
-      size_t numGenres = json_array_size(jGenres);
-      for (size_t iGenre = 0; iGenre < numGenres; iGenre++) {
-        json_t *jGenre = json_array_get(jGenres, iGenre);
-        json_t *jGenreName = json_object_get(jGenre, "name");
-        if(json_is_string(jGenreName)) {
-          if(genres.empty() ) genres = json_string_value(jGenreName);
-            else { genres.append("; "); genres.append(json_string_value(jGenreName)); }
-          }
-      }
-    }
+// genres, productionCountries, imdb_id
+    genres = json_concatenate_array(movie, "genres", "name");
+    productionCountries = json_concatenate_array(movie, "production_countries", "name");
+    imdb_id = json_string_value_validated(movie, "imdb_id");
 // homepage, releaseDate, runtime
     json_t *jHomepage = json_object_get(movie, "homepage");
     if(json_is_string(jHomepage)) homepage = json_string_value(jHomepage);
@@ -122,44 +113,45 @@ bool cMovieDbMovie::ReadMovie(json_t *movie) {
     return true;
 }
 
-bool cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, csEventOrRecording *sEventOrRecording){
-    string json;
+void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const vector<int> &years){
     stringstream url;
-    bool ret;
-    vector<int> years;
-    AddYears(years, SearchString.c_str() );
-    sEventOrRecording->AddYears(years);
     string t = config.GetThemoviedbSearchOption();
 
     url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&query=" << CurlEscape(SearchString_ext.c_str());
-    if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
-    if (!CurlGetUrl(url.str().c_str(), &json)) return false;
-
-    json_error_t error;
-    json_t *root = json_loads(json.c_str(), 0, &error);
-    if (!root) return false;
-    int num_pages = json_integer_value_validated(root, "total_pages");
-    if (num_pages > 1 && years.size() > 0) {
+    size_t num_pages = AddMovieResultsForUrl(url.str(), resultSet, SearchString);
+    bool found = false;
+    if (num_pages > 3 && years.size() + 1 < num_pages) {
 // several pages, restrict with years
-      bool found = false;
-      for (int &year: years) if (year > 0) {
+      for (const int &year: years) {
         stringstream url;
         url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext.c_str());
-        if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
-        if (!CurlGetUrl(url.str().c_str(), &json)) continue;
-        json_t *root = json_loads(json.c_str(), 0, &error);
-        if (!root) continue;
-        if (json_integer_value_validated(root, "total_results") > 0) found = true;
-        ret = AddMovieResults(root, resultSet, SearchString);
-        json_decref(root);
+        if (AddMovieResultsForUrl(url.str(), resultSet, SearchString) > 0) found = true;
       }
-      if (!found) ret = AddMovieResults(root, resultSet, SearchString);
-    } else {
-// only one page (or no years avilable), check all results in this page
-      ret = AddMovieResults(root, resultSet, SearchString);
     }
-    json_decref(root);
-    return ret;
+    if (! found) {
+// no years avilable, or not found with the available year. Check all results in all pages
+      if (num_pages > 10) num_pages = 10;
+      for (size_t page = 2; page <= num_pages; page ++) {
+        stringstream url;
+        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&page=" << page << "&query=" << CurlEscape(SearchString_ext.c_str());
+        AddMovieResultsForUrl(url.str(), resultSet, SearchString);
+      }
+    }
+}
+int cMovieDbMovie::AddMovieResultsForUrl(const string &url, vector<searchResultTvMovie> &resultSet, const string &SearchString) {
+// return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
+// add search results from URL to resultSet
+  string json;
+  json_error_t error;
+  if (config.enableDebug) esyslog("tvscraper: calling %s", url.c_str());
+  if (!CurlGetUrl(url.c_str(), &json)) return 0;
+  json_t *root = json_loads(json.c_str(), 0, &error);
+  if (!root) return 0;
+  if (json_integer_value_validated(root, "total_results") == 0) return 0;
+  int num_pages = json_integer_value_validated(root, "total_pages");
+  AddMovieResults(root, resultSet, SearchString);
+  json_decref(root);
+  return num_pages;
 }
 bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString){
     if(!json_is_object(root)) return false;
@@ -169,15 +161,19 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
     for (size_t res = 0; res < numResults; res++) {
         json_t *result = json_array_get(results, res);
         if (!json_is_object(result)) continue;
+// id of result
+        int id = json_integer_value_validated(result, "id");
+        if (!id) continue;
+        bool alreadyInList = false;
+        for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) { alreadyInList = true; break; }
+        if (alreadyInList) continue;
+// Title & OriginalTitle
         string resultTitle = json_string_value_validated(result, "title");
         string resultOriginalTitle = json_string_value_validated(result, "original_title");
         if (resultTitle.empty() ) continue;
 //convert result title to lower case
         transform(resultTitle.begin(), resultTitle.end(), resultTitle.begin(), ::tolower);
         transform(resultOriginalTitle.begin(), resultOriginalTitle.end(), resultOriginalTitle.begin(), ::tolower);
-        int id = json_integer_value_validated(result, "id");
-        if (!id) continue;
-        for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) continue;
 
         searchResultTvMovie sRes(id, true, json_string_value_validated(result, "release_date") );
         sRes.setPositionInExternalResult(resultSet.size() );
@@ -189,14 +185,17 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
 }
 
 void cMovieDbMovie::StoreMedia() {
-  if (!posterPath.empty() )             m_db->insertTvMediaSeasonPoster (id, posterPath,   1, -100);
-  if (!backdropPath.empty() )           m_db->insertTvMediaSeasonPoster (id, backdropPath, 2, -100);
-  if (!collectionPosterPath.empty() )   m_db->insertTvMediaSeasonPoster (id, collectionPosterPath, -1, collectionId * -1);
-  if (!collectionBackdropPath.empty() ) m_db->insertTvMediaSeasonPoster (id, collectionBackdropPath, -2, collectionId * -1);
+  if (!posterPath.empty() )             m_db->insertTvMediaSeasonPoster (id, posterPath,   mediaPoster, -100);
+  if (!backdropPath.empty() )           m_db->insertTvMediaSeasonPoster (id, backdropPath, mediaFanart, -100);
+  if (!collectionPosterPath.empty() )   m_db->insertTvMediaSeasonPoster (id, collectionPosterPath,   mediaPosterCollection, collectionId * -1);
+  if (!collectionBackdropPath.empty() ) m_db->insertTvMediaSeasonPoster (id, collectionBackdropPath, mediaFanartCollection, collectionId * -1);
 }
 
 void cMovieDbMovie::StoreDB(void) {
-    m_db->InsertMovie(id, title, originalTitle, tagline, overview, adult, collectionId, collectionName, budget, revenue, genres, homepage, releaseDate, runtime, popularity, voteAverage, voteCount);
+    string poster, fanart;
+    if (!posterPath.empty()   ) poster = posterPath;   else poster = collectionPosterPath;
+    if (!backdropPath.empty() ) fanart = backdropPath; else fanart = collectionBackdropPath;
+    m_db->InsertMovie(id, title, originalTitle, tagline, overview, adult, collectionId, collectionName, budget, revenue, genres, homepage, releaseDate, runtime, popularity, voteAverage, voteCount, productionCountries, poster, fanart, imdb_id);
 }
 
 void cMovieDbMovie::Dump(void) {

@@ -23,6 +23,8 @@ private:
     int budget;
     int revenue;
     std::string genres;
+    std::string productionCountries;
+    std::string imdb_id;
     std::string homepage;
     std::string releaseDate;
     int runtime;
@@ -34,10 +36,11 @@ private:
     string posterPath;
     bool ReadMovie(json_t *movie);
     bool AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString);
+    int AddMovieResultsForUrl(const string &url, vector<searchResultTvMovie> &resultSet, const string &SearchString);
 public:
     cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
     virtual ~cMovieDbMovie(void);
-    bool AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, csEventOrRecording *sEventOrRecording);
+    void AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const vector<int> &years);
     bool ReadMovie(void);
     void SetID(int movieID) { id = movieID; };
     int ID(void) { return id; };

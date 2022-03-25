@@ -16,12 +16,12 @@ private:
     string name = "";
     string overview = "";
     string firstAired = "";
-    string imbdid = "";
-    string actors = "";
+//    string actors = "";
     string genres = "";
     string networks = "";
     float rating = 0.0;
     int ratingCount = 0;
+    string IMDB_ID = "";
     int runtime = 0;
     string status = "";
     string banner = "";

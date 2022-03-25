@@ -34,6 +34,18 @@ public:
   int height;
 };
 
+class cActor {
+public:
+    cActor(void) {
+        name = "";
+        role = "";
+    };
+    std::string name;
+    std::string role;
+    cTvMedia actorThumb;
+};
+
+
 class cEpisode {
 public:
     cEpisode(void) {
@@ -55,15 +67,22 @@ public:
     cTvMedia episodeImage;
 };
 
-class cActor {
+class cEpisode2 {
 public:
-    cActor(void) {
-        name = "";
-        role = "";
-    };
+    int number;
+    int season;
+    int absoluteNumber;
     std::string name;
-    std::string role;
-    cTvMedia actorThumb;
+    std::string firstAired;
+    std::vector<cActor> guestStars;
+    std::string overview;
+    float vote_average;
+    int vote_count;
+    cTvMedia episodeImage;
+    std::string episodeImageUrl;
+    std::vector<std::string> director;
+    std::vector<std::string> writer;
+    std::string IMDB_ID;
 };
 
 /*********************************************************************
@@ -200,4 +219,62 @@ public:
 //out
     cTvMedia poster;
 };
+// Data structure for Kodi
+// see https://alwinesch.github.io/group__cpp__kodi__addon__pvr___defs__epg___p_v_r_e_p_g_tag.html
+// see https://alwinesch.github.io/group__cpp__kodi__addon__pvr___defs___recording___p_v_r_recording.html
+// Series link: If set for an epg-based timer rule, matching events will be found by checking strSeriesLink instead of strTitle (and bFullTextEpgSearch)  see https://github.com/xbmc/xbmc/pull/12609/files
+// tag.SetFlags(PVR_RECORDING_FLAG_IS_SERIES);
+// SetSeriesNumber (this is the season number)
+
+//Data structure for full information
+class cScraperMovieOrTv {
+public:
+//IN
+    const cEvent *event;             // provide data forthis event 
+    const cRecording *recording;     // or for this recording
+    bool httpImagePaths;             // if true, provide http paths to images
+    bool media;                      // if true, provide local filenames for media
+//OUT
+    bool found;
+    bool movie;
+    std::string title;
+    std::string originalTitle;
+    std::string tagline;
+    std::string overview;
+    std::vector<std::string> genres;
+    std::string homepage;
+    std::string releaseDate;  // for TV shows: firstAired
+    bool adult;
+    std::vector<int> runtimes;
+    float popularity;
+    float voteAverage;
+    int voteCount;
+    std::vector<std::string> productionCountries;
+    std::vector<cActor> actors;
+    std::string IMDB_ID;
+    std::string posterUrl;   // only if httpImagePaths == true
+    std::string fanartUrl;   // only if httpImagePaths == true
+    std::vector<cTvMedia> posters;
+    std::vector<cTvMedia> banners;
+    std::vector<cTvMedia> fanarts;
+// only for movies
+    int budget;
+    int revenue;
+    int collectionId;
+    std::string collectionName;
+    cTvMedia collectionPoster;
+    cTvMedia collectionFanart;
+    std::vector<std::string> director;
+    std::vector<std::string> writer;
+// only for TV Shows
+    std::string status;
+    std::vector<std::string> networks;
+    std::vector<std::string> createdBy;
+// episode related
+    bool episodeFound;
+    cTvMedia seasonPoster;
+    cEpisode2 episode;
+};
+
+
 #endif // __TVSCRAPER_SERVICES_H

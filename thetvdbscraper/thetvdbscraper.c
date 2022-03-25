@@ -24,11 +24,13 @@ cTVDBScraper::~cTVDBScraper() {
 
 int cTVDBScraper::StoreSeries(int seriesID, bool onlyEpisodes) {
     int ns, ne;
+    if (config.enableDebug && seriesID == 232731) esyslog("tvscraper: cTVDBScraper::StoreSeries, 1, seriesID %i, onlyEpisodes %i", seriesID, onlyEpisodes);
     if (!onlyEpisodes && db->TvGetNumberOfEpisodes(seriesID * (-1), ns, ne)) return seriesID; // already in db
     cTVDBSeries *series = NULL;
     cTVDBSeriesMedia *media = NULL;
     cTVDBActors *actors = NULL;
     if (!ReadAll(seriesID, series, actors, media, onlyEpisodes)) return 0; // this also stores the series + episodes
+    if (config.enableDebug && seriesID == 232731) esyslog("tvscraper: cTVDBScraper::StoreSeries, 3, seriesID %i, onlyEpisodes %i", seriesID, onlyEpisodes);
     if (!series) return 0;
     if (!onlyEpisodes) {
       if (actors) actors->StoreDB(db, series->ID());
@@ -134,7 +136,8 @@ void cTVDBScraper::StoreActors(int seriesID) {
   if (!CreateDirectory(destDir.str().c_str()) ) return;
   destDir << "/actor_";
   for (const vector<string> &actor: db->GetActorDownload(seriesID * -1, false) ) {
-    if (actor.size() != 2 || actor[1].empty() ) continue;
+    if (config.enableDebug && seriesID == 232731) esyslog("tvscraper: cTVDBScraper::StoreActors, seriesID %i destDir %s baseUrl %s, actor[0] %s actor[1] %s", seriesID, destDir.str().c_str(), baseUrl.str().c_str(), actor[0].c_str(), actor[1].c_str() );
+    if (actor.size() < 2 || actor[1].empty() ) continue;
     Download(baseUrl.str() + actor[1], destDir.str() + actor[0] + ".jpg");
   }
   db->DeleteActorDownload (seriesID * -1, false);
@@ -174,12 +177,12 @@ void cTVDBScraper::DownloadMedia (int tvID) {
 
   DownloadMedia (tvID, mediaPoster, destDir.str() + "poster_", baseUrl.str() );
   DownloadMedia (tvID, mediaFanart, destDir.str() + "fanart_", baseUrl.str() );
-  DownloadMedia (tvID, mediaSeason, destDir.str() + "season_", baseUrl.str() );
+  DownloadMedia (tvID, mediaSeason, destDir.str() + "season_poster_", baseUrl.str() );
   DownloadMediaBanner (tvID, destDir.str() + "banner.jpg", baseUrl.str() );
-  db->deleteTvMedia (tvID * -1);
+  db->deleteTvMedia (tvID * -1, false, true);
 }
 
-void cTVDBScraper::DownloadMedia (int tvID, int mediaType, const string &destDir, const string &baseUrl) {
+void cTVDBScraper::DownloadMedia (int tvID, eMediaType mediaType, const string &destDir, const string &baseUrl) {
 //  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::DownloadMedia, tvID %i mediaType %i destDir %s baseUrl %s", tvID, mediaType, destDir.c_str(), baseUrl.c_str() );
   for (const vector<string> &media: db->GetTvMedia(tvID * -1, mediaType) ) if (media.size() == 2) {
 //    if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::DownloadMedia, media[0] %s media[1] %s", media[0].c_str(), media[1].c_str() );

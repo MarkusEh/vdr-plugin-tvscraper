@@ -50,14 +50,10 @@ vector<vector<string>> cMovieDBScraper::GetTvRuntimes(int tvID) {
 void cMovieDBScraper::StoreMovie(cMovieDbMovie &movie) {
 // if movie does not exist in DB, download movie and store it in DB
       int movieID = movie.ID();
-      if (db->MovieExists(movieID)) {
-        stringstream destDir;
-        destDir << baseDir << "/" << movieID << "_poster.jpg";
-        if(FileExists(destDir.str())) return;
-      }
-      if (config.enableDebug) esyslog("tvscraper: movie \"%i\" does not jet exist in db", movieID);
+      if (db->MovieExists(movieID)) return;
+      if (config.enableDebug) esyslog("tvscraper: movie \"%i\" does not yet exist in db", movieID);
       if(!movie.ReadMovie()) {
-        if (config.enableDebug) esyslog("tvscraper: error reading movie \"%i\" ", movieID);
+        esyslog("tvscraper: ERROR reading movie \"%i\" ", movieID);
         return;
       }
       movie.StoreDB();
@@ -133,19 +129,20 @@ void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
 }
 
 void cMovieDBScraper::DownloadMediaTv(int tvID) {
-  for (vector<string> &media:db->GetTvMedia(tvID, 5, false) ) if (media.size() == 2 ) {
-    int season = atoi(media[1].c_str() );
-    if (season >= 0) {
+  int season;
+  const char *path;
+  for (sqlite3_stmt *statement = db->QueryPrepare("select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0", "ii", tvID, (int)mediaSeason);
+    db->QueryStep(statement, "si", &path, &season);) {
       stringstream pathPoster;
       pathPoster << GetTvBaseDir() << tvID;
       CreateDirectory(pathPoster.str() );
       pathPoster << "/";
-      DownloadFile(GetPosterBaseUrl(), media[0], pathPoster.str(), season, "/poster.jpg", false);
+      DownloadFile(GetPosterBaseUrl(), path, pathPoster.str(), season, "/poster.jpg", false);
+      sqlite3_finalize(statement);
       break;
-    }
   }
   for (int type = 1; type <= 2; type ++) {
-    for (vector<string> &media:db->GetTvMedia(tvID, type, false) ) if (media.size() == 2 ) {
+    for (vector<string> &media:db->GetTvMedia(tvID, (eMediaType) type, false) ) if (media.size() == 2 ) {
       int season = atoi(media[1].c_str() );
       if (season >= 0) {
         DownloadFile(GetPosterBaseUrl(), media[0], GetTvBaseDir(), tvID, type==1?"/poster.jpg":"/backdrop.jpg", false);
@@ -153,7 +150,7 @@ void cMovieDBScraper::DownloadMediaTv(int tvID) {
       }
     }
   }
-  db->deleteTvMedia (tvID, false);
+  db->deleteTvMedia (tvID, false, true);
 }
 void cMovieDBScraper::DownloadMedia(int movieID) {
   stringstream posterUrl;
@@ -166,19 +163,19 @@ void cMovieDBScraper::DownloadMedia(int movieID) {
   CreateDirectory(destDirCollections);
 
   for (int type = -2; type <= 2; type ++) if (type !=0) {
-    for (vector<string> &media:db->GetTvMedia(movieID, type, true) ) if (media.size() == 2 ) {
+    for (vector<string> &media:db->GetTvMedia(movieID, (eMediaType) type, true) ) if (media.size() == 2 ) {
       int season = atoi(media[1].c_str() );
       if (season < 0) {
-        DownloadFile((abs(type)==1?posterUrl:backdropUrl).str(), media[0], type > 0?destDir.str():destDirCollections, type > 0?movieID:season * -1, abs(type)==1?"_poster.jpg":"_backdrop.jpg", true);
+        DownloadFile((abs(type)==1?posterUrl:backdropUrl).str(), media[0], (type > 0)?(destDir.str()):destDirCollections, type > 0?movieID:season * -1, abs(type)==1?"_poster.jpg":"_backdrop.jpg", true);
         break;
       }
     }
   }
-  db->deleteTvMedia (movieID, true);
+  db->deleteTvMedia (movieID, true, true);
 }
 bool cMovieDBScraper::DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName, bool movie) {
 // download urlBase urlFileName to destDir destID destFileName
-// fo tv shows (movie == false), create the directory destDir destID
+// for tv shows (movie == false), create the directory destDir destID
     if(urlFileName.empty() ) return false;
     stringstream destFullPath;
     destFullPath << destDir << destID;

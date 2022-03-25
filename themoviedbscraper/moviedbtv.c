@@ -49,7 +49,7 @@ bool cMovieDbTv::ReadTv(bool exits_in_db) {
     if(ret) {
       if(!exits_in_db) {
 // no database entry for tvID, create the db entry
-        m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks, m_genres, m_popularity, m_vote_average, m_vote_count, m_status, m_episodeRunTimes);
+        m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks, m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, "", m_status, m_episodeRunTimes, m_createdBy);
         json_t *jCredits = json_object_get(tv, "credits");
         AddActorsTv(jCredits);
       }
@@ -73,6 +73,7 @@ bool cMovieDbTv::ReadTv(json_t *tv) {
     m_tvPosterPath = json_string_value_validated(tv, "poster_path");
     m_tvNumberOfSeasons = json_integer_value_validated(tv, "number_of_seasons");
     m_tvNumberOfEpisodes = json_integer_value_validated(tv, "number_of_episodes");
+    m_createdBy = GetCrewMember(json_object_get(tv, "created_by"), NULL, "");
 // episode run time
     json_t *jArray = json_object_get(tv, "episode_run_time");
     if(json_is_array(jArray)) {
@@ -123,7 +124,11 @@ bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultS
         json_t *jId = json_object_get(result, "id");
         if (json_is_integer(jId)) {
             int id = (int)json_integer_value(jId);
-            for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) continue;
+            if (!id) continue;
+            bool alreadyInList = false;
+            for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) { alreadyInList = true; break; }
+            if (alreadyInList) continue;
+
             searchResultTvMovie sRes(id, false, json_string_value_validated(result, "release_date") );
             sRes.setPositionInExternalResult(resultSet.size() );
             sRes.setMatchText(min(sentence_distance(resultName, tvSearchString), sentence_distance(resultOriginalName, tvSearchString) )  + 1); // avaid this, prefer TVDB
@@ -136,12 +141,12 @@ bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultS
 
 void cMovieDbTv::StoreSeasonPoster(const string &SeasonPosterPath) {
   if (SeasonPosterPath.empty() ) return;
-  m_db->insertTvMediaSeasonPoster (m_tvID, SeasonPosterPath, 5, m_seasonNumber);
+  m_db->insertTvMediaSeasonPoster (m_tvID, SeasonPosterPath, mediaSeason, m_seasonNumber);
 }
 
 void cMovieDbTv::StoreMedia(void) {
-  if (!m_tvPosterPath.empty() )   m_db->insertTvMedia (m_tvID, m_tvPosterPath,   1);
-  if (!m_tvBackdropPath.empty() ) m_db->insertTvMedia (m_tvID, m_tvBackdropPath, 2);
+  if (!m_tvPosterPath.empty() )   m_db->insertTvMedia (m_tvID, m_tvPosterPath,   mediaPoster);
+  if (!m_tvBackdropPath.empty() ) m_db->insertTvMedia (m_tvID, m_tvBackdropPath, mediaFanart);
 }
 
 void cMovieDbTv::Dump(void) {
@@ -195,17 +200,34 @@ bool cMovieDbTv::AddOneSeason(json_t *root) {
 
         string airDate = json_string_value_validated(episode, "air_date");
         float vote_average = json_number_value_validated(episode, "vote_average");
+        int vote_count = json_integer_value_validated(episode, "vote_count");
 // episode overview
         string overview = json_string_value_validated(episode, "overview");
 // stillPath
         string episodeStillPath = json_string_value_validated(episode, "still_path");
+        json_t *jCrew = json_object_get(episode, "crew");
 // save in db
-        m_db->InsertTv_s_e(m_tvID, m_seasonNumber, m_episodeNumber, id, episodeName, airDate, vote_average, overview, "", episodeStillPath);
+        m_db->InsertTv_s_e(m_tvID, m_seasonNumber, m_episodeNumber, 0, id, episodeName, airDate, vote_average, vote_count, overview, "", GetCrewMember(jCrew, "job", "Director"), GetCrewMember(jCrew, "department", "Writing"), "", episodeStillPath);
 //  add actors
         AddActors(episode, id);
     }
     return true;
 }
+string cMovieDbTv::GetCrewMember(json_t *jCrew, const char *field, const string &value) {
+  if(!json_is_array(jCrew)) return "";
+  size_t numCrew = json_array_size(jCrew);
+  string result = "";
+  for (size_t iCrew = 0; iCrew < numCrew; iCrew++) {
+    json_t *jCrewMember = json_array_get(jCrew, iCrew);
+    if (!json_is_object(jCrewMember)) continue;
+    if (field != NULL && value.compare(json_string_value_validated(jCrewMember, field)) != 0) continue;
+    if (result.empty() ) result = "|";
+    result.append(json_string_value_validated(jCrewMember, "name"));
+    result.append("|");
+  }
+  return result;
+}
+
 bool cMovieDbTv::AddActorsTv(json_t *jCredits) {
   if(!json_is_object(jCredits)) return false;
 // cast
@@ -220,29 +242,16 @@ bool cMovieDbTv::AddActorsTv(json_t *jCredits) {
         json_t *jName = json_object_get(jStar, "name");
         json_t *jRole = json_object_get(jStar, "character");
         if (!json_is_integer(jId) || !json_is_string(jName) || !json_is_string(jRole) ) continue;
+// download actor, and save in db
         int actor_id = json_integer_value(jId);
         string actor_name = json_string_value(jName);
         string actor_role = json_string_value(jRole);
-// save in db
-        m_db->InsertTvActor(m_tvID, actor_id, actor_name, actor_role);
-// download actor
-        json_t *jPath = json_object_get(jStar, "profile_path");
-        if(json_is_string(jPath)) {
-          string actor_path = json_string_value(jPath);
-          if(!actor_path.empty()){
-            m_db->AddActorDownload (m_tvID, false, actor_id, actor_path);
-
-/*
-            stringstream fullPath;
-            fullPath << m_movieDBScraper->GetActorsBaseDir();
-            CreateDirectory(fullPath.str());
-            fullPath << "/actor_" << actor_id << ".jpg";
-            string path = fullPath.str();
-            stringstream strUrl;
-            strUrl << m_movieDBScraper->GetActorsBaseUrl() << actor_path;
-            Download(strUrl.str(), path);
-*/
-          }
+        string actor_path = json_string_value_validated(jStar, "profile_path");
+        if (actor_path.empty()) {
+          m_db->InsertTvActor(m_tvID, actor_id, actor_name, actor_role, false);
+        } else {
+          m_db->InsertTvActor(m_tvID, actor_id, actor_name, actor_role, true);
+          m_db->AddActorDownload (m_tvID, false, actor_id, actor_path);
         }
     }
     return true;
@@ -281,28 +290,16 @@ bool cMovieDbTv::AddActors(json_t *root, int episode_id) {
         json_t *jName = json_object_get(jGuestStar, "name");
         json_t *jRole = json_object_get(jGuestStar, "character");
         if (!json_is_integer(jId) || !json_is_string(jName) || !json_is_string(jRole) ) continue;
+// save in db
         int actor_id = json_integer_value(jId);
         string actor_name = json_string_value(jName);
         string actor_role = json_string_value(jRole);
-// save in db
-        m_db->InsertTvEpisodeActor(episode_id, actor_id, actor_name, actor_role);
-// download actor
-        json_t *jPath = json_object_get(jGuestStar, "profile_path");
-        if(json_is_string(jPath)) {
-          string actor_path = json_string_value(jPath);
-          if(!actor_path.empty()){
-            m_db->AddActorDownload (m_tvID, false, actor_id, actor_path);
-/*
-            stringstream fullPath;
-            fullPath << m_movieDBScraper->GetActorsBaseDir();
-            CreateDirectory(fullPath.str());
-            fullPath << "/actor_" << actor_id << ".jpg";
-            string path = fullPath.str();
-            stringstream strUrl;
-            strUrl << m_movieDBScraper->GetActorsBaseUrl() << actor_path;
-            Download(strUrl.str(), path);
-*/
-          }
+        string actor_path = json_string_value_validated(jGuestStar, "profile_path");
+        if (actor_path.empty() ) {
+          m_db->InsertTvEpisodeActor(episode_id, actor_id, actor_name, actor_role, false);
+        } else {
+          m_db->InsertTvEpisodeActor(episode_id, actor_id, actor_name, actor_role, true);
+          m_db->AddActorDownload (m_tvID, false, actor_id, actor_path);
         }
     }
     return 0;

@@ -24,6 +24,8 @@ class cMovieDbActors {
 private:
     string json;
     vector<cMovieDBActor*> actors;
+    string director = "";
+    string writer = "";
     void ParseJSON(json_t *jActors);
 public:
     cMovieDbActors(string json);

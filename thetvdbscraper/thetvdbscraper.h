@@ -27,7 +27,7 @@ public:
     vector<vector<string>> GetTvRuntimes(int seriesID);
     void GetTvVote(int seriesID, float &vote_average, int &vote_count);
     void DownloadMedia (int tvID);
-    void DownloadMedia (int tvID, int mediaType, const string &destDir, const string &baseUrl);
+    void DownloadMedia (int tvID, eMediaType mediaType, const string &destDir, const string &baseUrl);
     void DownloadMediaBanner (int tvID, const string &destPath, const string &baseUrl);
 };
 

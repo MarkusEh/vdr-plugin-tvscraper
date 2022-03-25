@@ -3,14 +3,6 @@
 
 using namespace std; 
 
-enum mediaType {
-    mediaUnknown,
-    mediaPoster,
-    mediaFanart,
-    mediaSeason,
-    mediaBanner,
-};
-
 // --- cTVDBMedia -------------------------------------------------------------
 class cTVDBMedia {
 public:
@@ -19,7 +11,7 @@ public:
         language = "";
         season = 0;
     };
-    mediaType type;
+    eMediaType type;
     string path;
     string language;
     int season;
