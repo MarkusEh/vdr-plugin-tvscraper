@@ -9,6 +9,20 @@ cImageServer::cImageServer(cTVScraperDB *db) {
 cImageServer::~cImageServer() {
 }
 
+bool setMediaIfExists(cTvMedia &media, const std::string &path, int width, int height) {
+    if (!FileExists (path) ) {
+      media.path = "";
+      media.width = 0;
+      media.height = 0;
+      return false;
+    }
+    media.path = path;
+    media.width = width;
+    media.height = height;
+    return true;
+}
+
+
 scrapType cImageServer::GetIDs(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number) {
     if(db->GetMovieTvID(sEventOrRecording, movie_tv_id, season_number, episode_number)) {
        if(season_number == -100) return scrapMovie;
@@ -24,7 +38,7 @@ cTvMedia cImageServer::GetPosterOrBanner(int id, int season_number, int episode_
     if (type == scrapSeries && id < 0) {
         stringstream path;
         path << config.GetBaseDir() << "/series/" << id *(-1)<< "/banner.jpg";
-        media.setIfExists(path.str(), 758, 140);
+        setMediaIfExists(media, path.str(), 758, 140);
         return media;
     }
     if (type == scrapSeries) {
@@ -40,7 +54,7 @@ cTvMedia cImageServer::GetPosterOrBanner(int id, int season_number, int episode_
     } else if (type == scrapMovie) {
         stringstream path;
         path << config.GetBaseDir() << "/movies/" << id << "_poster.jpg";
-        if (media.setIfExists(path.str(), 500, 750) ) return media;
+        if (setMediaIfExists(media, path.str(), 500, 750) ) return media;
     }
     return media;
 }
@@ -57,18 +71,18 @@ cTvMedia cImageServer::GetPoster(int id, int season_number, int episode_number) 
 // check: is there a season poster?
         stringstream pathS;
         pathS << path0.str() << "/season_poster_" << season_number << ".jpg";
-        if (media.setIfExists(pathS.str(), 680, 1000) ) return media;
+        if (setMediaIfExists(media, pathS.str(), 680, 1000) ) return media;
       }
 // no season poster, or no season information
 //    path  << config.GetBaseDir() << "/series/" << id * (-1) << "/poster_0.jpg";
 
-      if (media.setIfExists(path0.str() + "/poster_0.jpg", 680, 1000) ) return media;
-      if (media.setIfExists(path0.str() + "/poster.jpg", 680, 1000) ) return media;
+      if (setMediaIfExists(media, path0.str() + "/poster_0.jpg", 680, 1000) ) return media;
+      if (setMediaIfExists(media, path0.str() + "/poster.jpg", 680, 1000) ) return media;
       const std::filesystem::path fs_path(path0.str() );
       if (std::filesystem::exists(fs_path) ) {
       for (auto const& dir_entry : std::filesystem::directory_iterator{fs_path}) {
         if (dir_entry.path().filename().string().find("season_poster_") != std::string::npos) {
-          if (media.setIfExists(dir_entry.path(), 680, 1000) ) return media;
+          if (setMediaIfExists(media, dir_entry.path(), 680, 1000) ) return media;
         }
       }
       } else esyslog("tvscraper:imageserver ERROR dir %s does not exist", path0.str().c_str() );
@@ -82,7 +96,7 @@ cTvMedia cImageServer::GetPoster(int id, int season_number, int episode_number) 
 // movie
       stringstream path;
       path << config.GetBaseDir() << "/movies/" << id << "_poster.jpg";
-      if (media.setIfExists(path.str(), 500, 750) ) return media;
+      if (setMediaIfExists(media, path.str(), 500, 750) ) return media;
       int collection_id = db->GetMovieCollectionID(id);
       if (collection_id) media = GetCollectionPoster(collection_id);
       return media;
@@ -101,10 +115,10 @@ bool cImageServer::GetBanner(cTvMedia &media, int id) {
     stringstream path;
     if(id < 0) {
       path << config.GetBaseDir() << "/series/" << id * (-1) << "/banner.jpg";
-      if (media.setIfExists(path.str(), 758, 140) ) return true;
+      if (setMediaIfExists(media, path.str(), 758, 140) ) return true;
       stringstream path2;
       path2 << config.GetBaseDir() << "/series/" << id * (-1) << "/fanart_0.jpg";
-      if (media.setIfExists(path2.str(), 758, 140) ) return true;
+      if (setMediaIfExists(media, path2.str(), 758, 140) ) return true;
       return false;
     }
 // tv
@@ -119,7 +133,7 @@ vector<cTvMedia> cImageServer::GetPosters(int id, scrapType type) {
             stringstream path;
             path << config.GetBaseDir() << "/series/" << id * (-1) << "/poster_" << i << ".jpg";
             cTvMedia media;
-            if (media.setIfExists(path.str(), 680, 1000) ) posters.push_back(media);
+            if (setMediaIfExists(media, path.str(), 680, 1000) ) posters.push_back(media);
               else break;
         }
         return posters;
@@ -131,7 +145,7 @@ vector<cTvMedia> cImageServer::GetPosters(int id, scrapType type) {
         stringstream path;
         path << config.GetBaseDir() << "/movies/" << id << "_poster.jpg";
         cTvMedia media;
-        if (media.setIfExists(path.str(), 500, 750) ) posters.push_back(media);
+        if (setMediaIfExists(media, path.str(), 500, 750) ) posters.push_back(media);
     }
     return posters;
 }
@@ -143,7 +157,7 @@ vector<cTvMedia> cImageServer::GetSeriesFanarts(int id, int season_number, int e
         stringstream path;
         path << config.GetBaseDir() << "/series/" << id * (-1) << "/fanart_" << i << ".jpg";
         cTvMedia media;
-        if (media.setIfExists(path.str(), 1920, 1080) ) fanart.push_back(media);
+        if (setMediaIfExists(media, path.str(), 1920, 1080) ) fanart.push_back(media);
           else break;
       }
       return fanart;
@@ -158,7 +172,7 @@ cTvMedia cImageServer::GetMovieFanart(int id) {
     cTvMedia media;
     stringstream path;
     path << config.GetBaseDir() << "/movies/" << id << "_backdrop.jpg";
-    media.setIfExists(path.str(), 1280, 720);
+    setMediaIfExists(media, path.str(), 1280, 720);
     return media;
 }
 
@@ -167,7 +181,7 @@ cTvMedia cImageServer::GetCollectionPoster(int id) {
     cTvMedia poster;
     stringstream path;
     path << config.GetBaseDir() << "/movies/collections/" << id << "_poster.jpg";
-    poster.setIfExists(path.str(), 500, 750);
+    setMediaIfExists(poster, path.str(), 500, 750);
     return poster;
 }
 
@@ -175,7 +189,7 @@ cTvMedia cImageServer::GetCollectionFanart(int id) {
     cTvMedia fanart;
     stringstream path;
     path << config.GetBaseDir() << "/movies/collections/" << id << "_backdrop.jpg";
-    fanart.setIfExists(path.str(), 1280, 720);
+    setMediaIfExists(fanart, path.str(), 1280, 720);
     return fanart;
 }
 
@@ -201,7 +215,7 @@ bool cImageServer::GetTvStill (cTvMedia &media, int id, int season_number, int e
       stringstream path;
       if (id > 0) path << config.GetBaseDir() << "/movies/tv/" << id << "/" << season_number << "/still_" << episode_number << ".jpg";
              else path << config.GetBaseDir() << "/series/" << id *(-1) << "/" << season_number << "/still_" << episode_number << ".jpg";
-      return media.setIfExists(path.str(), 300, 200);
+      return setMediaIfExists(media, path.str(), 300, 200);
 //          media.height = 200; // actually, values are 165, 169, 225, and 229
 }
 

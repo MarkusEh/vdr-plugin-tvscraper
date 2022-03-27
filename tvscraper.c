@@ -208,6 +208,10 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     if (strcmp(Id, "GetScraperMovieOrTv") == 0) {
         cScraperMovieOrTv* call = (cScraperMovieOrTv*) Data;
         call->found = false;
+        if (call->event && call->recording) {
+          esyslog("tvscraper: ERROR calling vdr service interface \"GetScraperMovieOrTv\", call->event && call->recording are provided. Please set one of these parameters to NULL");
+          return false;
+        }
         csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
         if (!sEventOrRecording) return false;
 
@@ -215,6 +219,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         delete sEventOrRecording;
         if (!movieOrTv) return false;
 
+        movieOrTv->clearScraperMovieOrTv(call);
         call->found = true;
         movieOrTv->getScraperMovieOrTv(call, imageServer);
         delete movieOrTv;

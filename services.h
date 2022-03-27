@@ -1,5 +1,9 @@
 #ifndef __TVSCRAPER_SERVICES_H
 #define __TVSCRAPER_SERVICES_H
+#include <vdr/epg.h>
+#include <vdr/recording.h>
+#include <string>
+#include <vector>
 
 enum tvType {
     tSeries,
@@ -17,18 +21,6 @@ public:
 	path = "";
 	width = height = 0;
   };
-  bool setIfExists(const string &path, int width, int height) {
-    if (!FileExists (path) ) {
-      this->path = "";
-      this->width = 0;
-      this->height = 0;
-      return false;
-    }
-    this->path = path;
-    this->width = width;
-    this->height = height;
-    return true;
-  }
   std::string path;
   int width;
   int height;
@@ -230,11 +222,12 @@ public:
 class cScraperMovieOrTv {
 public:
 //IN
-    const cEvent *event;             // provide data forthis event 
-    const cRecording *recording;     // or for this recording
+    const cEvent *event;             // must be NULL for recordings ; provide data for this event 
+    const cRecording *recording;     // must be NULL for events     ; or for this recording
     bool httpImagePaths;             // if true, provide http paths to images
     bool media;                      // if true, provide local filenames for media
 //OUT
+// Note: tvscraper will clear all output parameters, so you don't have to do this before calling tvscraper
     bool found;
     bool movie;
     std::string title;
