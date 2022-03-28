@@ -255,7 +255,7 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv, cImageServer 
   scraperMovieOrTv->episodeFound = (m_seasonNumber != 0 || m_episodeNumber != 0);
   const char *posterUrl;
   if (scraperMovieOrTv->episodeFound && scraperMovieOrTv->httpImagePaths) {
-    const char sql_sp[] = "select media_path from tv_media where tv_id = ? and media_number = ? and and media_type = ?";
+    const char sql_sp[] = "select media_path from tv_media where tv_id = ? and media_number = ? and media_type = ?";
     sqlite3_stmt *statement = m_db->QueryPrepare(sql_sp, "iii", dbID(), m_seasonNumber, mediaSeason);
     if (m_db->QueryStep(statement, "s", &posterUrl)) {
       if (posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = bannerBaseUrl() + posterUrl;
@@ -290,7 +290,7 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv, cImageServer 
 // if no poster was found, use first season poster
   if (scraperMovieOrTv->httpImagePaths && scraperMovieOrTv->posterUrl.empty() ) {
     const char sql_spa[] =
-      "select media_path from tv_media where tv_id = ? and media_number >= 0 and and media_type = ?";
+      "select media_path from tv_media where tv_id = ? and media_number >= 0 and media_type = ?";
     for (sqlite3_stmt *statement = m_db->QueryPrepare(sql_spa, "ii", dbID(), mediaSeason);
          m_db->QueryStep(statement, "s", &posterUrl);) 
       if (posterUrl && *posterUrl) {
