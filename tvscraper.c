@@ -46,7 +46,7 @@ cTVScraperConfig config;
 #include "imageserver.c"
 #include "setup.c"
 
-static const char *VERSION        = "0.9.8";
+static const char *VERSION        = "0.9.9";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
