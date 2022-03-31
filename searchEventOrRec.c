@@ -234,7 +234,8 @@ void cSearchEventOrRec::SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet
   string movieName;
   string episodeSearchString;
   if (!splitString(m_searchString, delimiter, 4, movieName, episodeSearchString) ) return;
-  bool debug = movieName == "rose" && delimiter == '-';
+//  bool debug = movieName == "rose" && delimiter == '-';
+  bool debug = false;
   size_t oldSize = resultSet.size();
   if (debug) esyslog("tvscraper: cSearchEventOrRec::SearchTvEpisTitle (1), oldSize %lu", oldSize);
   SearchTv(resultSet, movieName);
@@ -408,7 +409,8 @@ bool cSearchEventOrRec::selectBestAndEnhanvceIfRequired(std::vector<searchResult
 // return true if enhancement was required
 // in this case, return the end of the enhance list in new_end
 // minDiff must be > 0, otherwise an empty list my be returned
-  bool debug = m_searchString == "james cameron's dark angel";
+//  bool debug = m_searchString == "james cameron's dark angel";
+  bool debug = false;
   float minDiffSame = max (minDiff - 0.05, 0.01);
   float minDiffOther = minDiff;
   new_end = end;
@@ -446,7 +448,7 @@ bool cSearchEventOrRec::selectBestAndEnhanvceIfRequired(std::vector<searchResult
 void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec) {
 // add all information which is in database cache
 // this is all except the episode list
-//  if (sR.id() == 689390 || sR.id() == -83269)
+/*
   bool debug = sR.id() == -353808 || sR.id() == -250822 || sR.id() == 440757 || sR.id() == -258828 || sR.id() == -412485 || sR.id() == -295683;
   debug = debug || searchEventOrRec.m_searchString == "die göttliche sophie";
   debug = debug || searchEventOrRec.m_searchString == "rose - königin der blumen";
@@ -455,7 +457,8 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
   debug = debug || searchEventOrRec.m_searchString == "exploding sun 1";
   debug = debug || searchEventOrRec.m_searchString == "exploding sun 2";
   debug = debug || searchEventOrRec.m_searchString == "stargate";
-  debug = false;
+*/
+  bool debug = false;
   if (debug) sR.log(searchEventOrRec.m_searchString.c_str() );
   std::vector<std::vector<std::string>> actors;
   if (sR.movie() ) {

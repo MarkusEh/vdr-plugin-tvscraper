@@ -91,7 +91,17 @@ void cMovieMoviedb::DeleteMediaAndDb() {
   DeleteFile(base.str() + "_poster.jpg");
   m_db->DeleteMovie(m_id);
 } 
+string cMovieMoviedb::getPosterUrl() {
+  string path = m_db->getMoviePosterUrl(dbID() );
+  if (path.empty() ) return path;
+  return bannerBaseUrl() + path;
+}
 
+string cMovieMoviedb::getFanartUrl() {
+  string path = m_db->getMovieFanartUrl(dbID() );
+  if (path.empty() ) return path;
+  return bannerBaseUrl() + path;
+}
 void cMovieMoviedb::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv, cImageServer *imageServer) {
   scraperMovieOrTv->movie = true;
   const char *genres;
@@ -153,6 +163,33 @@ std::vector<cActor> cMovieMoviedb::GetActors() {
 }
 
 // implemntation of cTv  *********************
+string cTv::getPosterUrl() {
+  if (m_seasonNumber != 0 || m_episodeNumber !=0) {
+// is there a poster for this season?
+    for (vector<string> &media: m_db->GetTvMedia(dbID(), mediaSeason, false) )
+      if (media.size() == 2 && atoi(media[1].c_str()) == m_seasonNumber && !media[0].empty() ) return bannerBaseUrl() + media[0];
+  }
+// no season information available, or no season poster
+  string path = m_db->getTvPosterUrl(dbID() );
+  if (!path.empty() ) return bannerBaseUrl() + path;
+// no poster for tv show, no poster for this season ... try poster for any season
+  for (vector<string> &media: m_db->GetTvMedia(dbID(), mediaSeason, false) )
+    if (media.size() == 2 && !media[0].empty() ) return bannerBaseUrl() + media[0];
+  return ""; // no poster found
+}
+
+string cTv::getFanartUrl() {
+  string path = m_db->getTvFanartUrl(dbID() );
+  if (path.empty() ) return path;
+  return bannerBaseUrl() + path;
+}
+
+string cTv::getStillUrl() {
+  string path = m_db->GetEpisodeStillPath(dbID(), m_seasonNumber, m_episodeNumber);
+  if (path.empty() ) return path;
+  return bannerBaseUrl() + path;
+}
+
 std::size_t cTv::searchEpisode(const string &tvSearchEpisodeString) {
 // return 0, if no match was found
 // otherwise, number of matching characters & set m_seasonNumber and m_episodeNumber

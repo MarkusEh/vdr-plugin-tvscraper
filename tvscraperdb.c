@@ -13,7 +13,7 @@ using namespace std;
 cTVScraperDB::cTVScraperDB(void) {
     db = NULL;
     string memHD = "/dev/shm/";
-    inMem = CheckDirExists(memHD.c_str());
+    inMem = !config.GetReadOnlyClient() && CheckDirExists(memHD.c_str());
     if (inMem) {
         stringstream sstrDbFileMem;
         sstrDbFileMem << memHD << "tvscraper2.db";
@@ -572,22 +572,8 @@ bool cTVScraperDB::CreateTables(void) {
         sqlite3_close(db);
         return false;
     }
-    AddCulumnIfNotExists("tv2", "tv_created_by", "text");
-    AddCulumnIfNotExists("tv2", "tv_posterUrl", "text");
-    AddCulumnIfNotExists("tv2", "tv_fanartUrl", "text");
-    AddCulumnIfNotExists("tv2", "tv_IMDB_ID", "text");
-    AddCulumnIfNotExists("tv_s_e", "episode_still_path", "nvarchar");
-    AddCulumnIfNotExists("tv_s_e", "episode_director", "nvarchar");
-    AddCulumnIfNotExists("tv_s_e", "episode_writer", "nvarchar");
-    AddCulumnIfNotExists("tv_s_e", "episode_IMDB_ID", "text");
-    AddCulumnIfNotExists("tv_s_e", "episode_vote_count", "integer");
-    AddCulumnIfNotExists("tv_s_e", "episode_absolute_number", "integer");
     AddCulumnIfNotExists("movie_runtime2", "movie_director", "nvarchar");
     AddCulumnIfNotExists("movie_runtime2", "movie_writer", "nvarchar");
-    AddCulumnIfNotExists("movies3", "movie_production_countries", "nvarchar");
-    AddCulumnIfNotExists("movies3", "movie_posterUrl", "text");
-    AddCulumnIfNotExists("movies3", "movie_fanartUrl", "text");
-    AddCulumnIfNotExists("movies3", "movie_IMDB_ID", "text");
     AddCulumnIfNotExists("actors", "actor_has_image", "integer");
 // move from actor_thumbnail to actor_number, and delete culumn actor_path (if exists)
     if (TableColumnExists("series_actors", "actor_thumbnail") ) {
@@ -731,7 +717,7 @@ bool cTVScraperDB::TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberO
 }
 
 bool cTVScraperDB::SearchTvEpisode(int tvID, const string &episode_search_name, int &season_number, int &episode_number) {
-// return true if an episode natch like episode_search_name was found
+// return true if an episode match like episode_search_name was found
   return QueryLine("select season_number, episode_number from tv_s_e where tv_id = ? and episode_name like ?",
     "is", "ii", tvID, episode_search_name.c_str(), &season_number, &episode_number);
 }
@@ -994,9 +980,6 @@ vector<vector<string> > cTVScraperDB::GetActorsSeries(int seriesID) {
     "i", seriesID);
 }
 
-int cTVScraperDB::GetEpisodeID(int tvID, int seasonNumber, int episodeNumber) {
-  return QueryInt("select episode_id from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", tvID, seasonNumber, episodeNumber);
-}
 std::string cTVScraperDB::GetEpisodeName(int tvID, int seasonNumber, int episodeNumber) {
   if (seasonNumber == 0 && episodeNumber == 0) return "";
   return QueryString("select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", tvID, seasonNumber, episodeNumber);
@@ -1030,13 +1013,6 @@ bool cTVScraperDB::GetMovie(int movieID, string &title, string &original_title, 
       "i", "SSSSbiSiiSSSiff", movieID,
        &title, &original_title, &tagline, &overview, &adult, &collection_id, &collection_name,
        &budget, &revenue, &genres, &homepage, &release_date, &runtime, &popularity, &vote_average);
-}
-string cTVScraperDB::getMoviePosterUrl(int movie_id) {
-  return QueryString("select movie_posterUrl from movies3 where movie_id = ?", "i", movie_id);
-}
-
-string cTVScraperDB::getMovieFanartUrl(int movie_id) {
-  return QueryString("select movie_fanartUrl from movies3 where movie_id = ?", "i", movie_id);
 }
 
 bool cTVScraperDB::GetTv(int tvID, string &name, string &overview, string &firstAired, string &networks, string &genres, float &popularity, float &vote_average, string &status) {
@@ -1165,13 +1141,6 @@ void cTVScraperDB::insertTvMedia (int tvID, const string &path, eMediaType media
     if (mediaType == mediaFanart)
       execSql("UPDATE tv2 set tv_fanartUrl = ? where tv_id= ?", "si", path.c_str(), tvID);
   }
-}
-string cTVScraperDB::getTvPosterUrl(int tvID) {
-  return QueryString("select tv_posterUrl from tv2 where tv_id = ?", "i", tvID);
-}
-
-string cTVScraperDB::getTvFanartUrl(int tvID) {
-  return QueryString("select tv_fanartUrl from tv2 where tv_id = ?", "i", tvID);
 }
 
 void cTVScraperDB::insertTvMediaSeasonPoster (int tvID, const string &path, eMediaType mediaType, int season) {

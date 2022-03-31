@@ -13,7 +13,7 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
     moviedbScraper = NULL;
     tvdbScraper = NULL;
 //    initSleep = 2 * 60 * 1000;
-    initSleep =     30 * 1000;
+    initSleep =     60 * 1000;
     loopSleep = 5 * 60 * 1000;
     language = "";
 }
@@ -115,6 +115,7 @@ tvdbScraper = NULL;
 }
 
 void cTVScraperWorker::ScrapEPG(void) {
+if (config.GetReadOnlyClient() ) return;
 vector<string> channels = config.GetChannels();
 int numChannels = channels.size();
 for (int i=0; i<numChannels; i++) {
@@ -157,6 +158,7 @@ if (Schedule) {
 }
 
 void cTVScraperWorker::ScrapRecordings(void) {
+  if (config.GetReadOnlyClient() ) return;
   db->ClearRecordings2();
 #if APIVERSNUM < 20301
   for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec)) {
@@ -179,6 +181,7 @@ void cTVScraperWorker::ScrapRecordings(void) {
 }
 
 void cTVScraperWorker::CheckRunningTimers(void) {
+if (config.GetReadOnlyClient() ) return;
 #if APIVERSNUM < 20301
 for (cTimer *timer = Timers.First(); timer; timer = Timers.Next(timer)) {
 #else
@@ -229,6 +232,7 @@ return db->CheckStartScrapping(minTime);
 void cTVScraperWorker::Action(void) {
 if (!startLoop)
 return;
+if (config.GetReadOnlyClient() ) return;
 
 mutex.Lock();
 dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
@@ -242,6 +246,8 @@ if (scanVideoDir) {
 	ScrapRecordings();
     }
     DisconnectScrapers();
+    db->BackupToDisc();
+    dsyslog("tvscraper: scanning video dir done");
     continue;
 }
 CheckRunningTimers();

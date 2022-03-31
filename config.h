@@ -23,6 +23,7 @@ class cTVScraperConfig {
     private:
         string baseDir;
         string themoviedbSearchOption = "";
+        bool readOnlyClient = false;
         vector<string> channels; 
     public:
         cTVScraperConfig();
@@ -30,8 +31,10 @@ class cTVScraperConfig {
         int enableDebug;
         void SetBaseDir(string dir) { baseDir = dir; };
         void SetThemoviedbSearchOption(const string &option) { themoviedbSearchOption = option; };
+        void SetReadOnlyClient() { readOnlyClient = true; };
         string GetBaseDir(void) { return baseDir; };
         string GetThemoviedbSearchOption(void) { return themoviedbSearchOption; };
+        bool GetReadOnlyClient() { return readOnlyClient; }
         void ClearChannels(void);
         void AddChannel(string channelID);
         bool ChannelActive(int channelNum);

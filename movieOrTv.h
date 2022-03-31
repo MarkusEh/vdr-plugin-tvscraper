@@ -14,9 +14,6 @@ public:
   virtual void DeleteMediaAndDb() = 0;
   virtual bool IsUsed() { return m_db->CheckMovieOutdatedEvents(dbID(), m_seasonNumber, m_episodeNumber) || m_db->CheckMovieOutdatedRecordings(dbID(), m_seasonNumber, m_episodeNumber); }
   void DeleteIfUnused() { if(!IsUsed()) DeleteMediaAndDb(); }
-  virtual string getPosterUrl() = 0;
-  virtual string getFanartUrl() = 0;
-  virtual string getStillUrl() = 0;
   virtual string getEpisodeName() { return "";}
   virtual std::size_t searchEpisode(const string &tvSearchEpisodeString) { return 0;}
 // fill vdr service interface
@@ -49,9 +46,6 @@ public:
   cMovieMoviedb(cTVScraperDB *db, int id): cMovieOrTv(db, id, -100, 0) {}
   virtual void DeleteMediaAndDb();
   static void DeleteAllIfUnused(cTVScraperDB *db);
-  virtual string getPosterUrl();
-  virtual string getFanartUrl();
-  virtual string getStillUrl() { return ""; }
 // fill vdr service interface
   virtual void getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv, cImageServer *imageServer);
   virtual vector<cActor> GetActors();
@@ -66,9 +60,6 @@ class cTv : public cMovieOrTv {
 
 public:
   virtual void DeleteMediaAndDb() = 0;
-  virtual string getPosterUrl();
-  virtual string getFanartUrl();
-  virtual string getStillUrl();
   virtual string getEpisodeName() { return m_db->GetEpisodeName(dbID(), m_seasonNumber, m_episodeNumber);}
   virtual std::size_t searchEpisode(const string &tvSearchEpisodeString);
 // fill vdr service interface

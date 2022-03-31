@@ -92,19 +92,21 @@ cPluginTvscraper::~cPluginTvscraper() {
 }
 
 const char *cPluginTvscraper::CommandLineHelp(void) {
-    return "  -d <CACHEDIR>, --dir=<CACHEDIR> Set directory where database and images are stored\n";
+    return "  -d <CACHEDIR>, --dir=<CACHEDIR> Set directory where database and images are stored\n" \
+           "  -c, --readOnlyClient Don't update any data, just read the data\n";
 }
 
 bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
     static const struct option long_options[] = {
         { "dir", required_argument, NULL, 'd' },
+        { "readOnlyClient", no_argument, NULL, 'c' },
         { "themoviedbSearchOption", required_argument, NULL, 's' },
         { 0, 0, 0, 0 }
     };
 
     int c;
     cacheDirSet = false;
-    while ((c = getopt_long(argc, argv, "d:s:", long_options, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "d:s:c", long_options, NULL)) != -1) {
         switch (c) {
             case 'd':
                 cacheDirSet = true;
@@ -112,7 +114,9 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
                 break;
             case 's':
                 config.SetThemoviedbSearchOption(optarg);
-//              esyslog("tvscraper: SetThemoviedbSearchOption %s", optarg);
+                break;
+            case 'c':
+                config.SetReadOnlyClient();
                 break;
             default:
                 return false;
@@ -293,7 +297,6 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
             else             movieOrTv = new cTvTvdb(db, -1*lastEventId, lastSeasonNumber, lastEpisodeNumber);
         call->actors = movieOrTv->GetActors();
         delete movieOrTv;
-//        call->actors = imageServer->GetActors(lastEventId, episodeID, scrapSeries);
         call->posters = imageServer->GetPosters(lastEventId, scrapSeries);
         cTvMedia media;
         call->seasonPoster = media;  // default: empty
@@ -301,32 +304,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         if (imageServer->GetBanner(media, lastEventId) ) call->banners.push_back(media);
         call->fanarts = imageServer->GetSeriesFanarts(lastEventId, lastSeasonNumber, lastEpisodeNumber);
 
-//        if (imageServer->GetTvPoster(media, lastEventId, lastSeasonNumber) ) call->seasonPoster = media;
         call->seasonPoster = imageServer->GetPoster(lastEventId, lastSeasonNumber, lastEpisodeNumber);
-/*
-        bool debug = lastEventId == -252244;
-        if (debug) esyslog("tvscraper: getSeries, call->posters.size() = %lu, call->seasonPoster.width = %i, call->fanarts.size() = %lu", call->posters.size(), call->seasonPoster.width, call->fanarts.size() );
-        if (call->seasonPoster.width == 0) {
-// try to add a picture as poster. As posters are used in lists, ...
-          if (call->fanarts.size() > 0) {
-            cTvMedia media = imageServer->GetPoster(lastEventId, 1996, lastEpisodeNumber);
-            if (media.width) {
-              call->seasonPoster = media;
-              call->posters.push_back(media);
-              if (debug) esyslog("tvscraper: getSeries (2), call->posters.size() = %lu, call->fanarts.size() = %lu", call->posters.size(), call->fanarts.size() );
-              if (debug && call->posters.size() > 0) esyslog("tvscraper: getSeries (3), call->posters[0].width %i, call->posters[0].path %s", call->posters[0].width, call->posters[0].path.c_str() );
-            
-              return true;
-            }
-            call->seasonPoster = call->fanarts[0];
-            call->posters.push_back(call->seasonPoster);
-            return true;
-          }
-          if (call->episode.episodeImage.width) { call->posters.push_back(call->episode.episodeImage); return true; }
-// avoid banners, if possible. They have the wrong format ...
-          if (call->banners.size() > 0) { call->posters.push_back(call->banners[0]); return true; }
-        }
-*/
         return true;
     }
 
@@ -343,8 +321,6 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         call->fanart = imageServer->GetMovieFanart(lastEventId);
         call->collectionPoster = imageServer->GetCollectionPoster(collection_id);
         call->collectionFanart = imageServer->GetCollectionFanart(collection_id);
-//        int episodeID = 0;
-//        call->actors = imageServer->GetActors(lastEventId, episodeID, scrapMovie);
         cMovieMoviedb movieMoviedb(db, lastEventId);
         call->actors = movieMoviedb.GetActors();
 

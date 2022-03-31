@@ -73,7 +73,6 @@ public:
     int GetMovieCollectionID(int movieID);
     vector<vector<string> > GetActorsMovie(int movieID);
     vector<vector<string> > GetActorsSeries(int seriesID);
-    int GetEpisodeID(int tvID, int seasonNumber, int episodeNumber);
     std::string GetEpisodeName(int tvID, int seasonNumber, int episodeNumber);
     vector<vector<string> > GetGuestActorsTv(int episodeID);
     vector<vector<string> > GetActorsTv(int tvID);
@@ -101,10 +100,6 @@ public:
     vector<vector<string> > GetActorDownload(int tvID, bool movie);
     void DeleteActorDownload (int tvID, bool movie);
     sqlite3_stmt *GetAllMovies();
-    string getTvPosterUrl(int tvID);
-    string getTvFanartUrl(int tvID);
-    string getMoviePosterUrl(int movie_id);
-    string getMovieFanartUrl(int movie_id);
 };
 
 #endif //__TVSCRAPER_TVSCRAPPERDB_H
