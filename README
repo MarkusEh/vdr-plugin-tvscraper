@@ -1,7 +1,7 @@
 This is a "plugin" for the Video Disk Recorder (VDR).
 
-Written by:                  Stefan Braun <louis.braun@gmx.de>
-Maintained by:               Markus Ehrnsperger (MarkusE @ vdr-portal.de)
+Written by:                   Stefan Braun <louis.braun@gmx.de>
+Re-written and maintained by: Markus Ehrnsperger (MarkusE @ vdr-portal.de)
 
 Old Project's homepage:
 http://projects.vdr-developer.org/projects/plg-tvscraper
@@ -58,8 +58,18 @@ If no directory is provided, the plugin uses VDRCACHEDIR as default.
 Please care about that the user who runs VDR has full read/write access 
 to this directory, otherwise the plugin will not start.
 
+If a client can access this directory (because it is mounted), and the
+parameter
+
+--readOnlyClient
+
+is provided, the client needs only read access, and will not scrap.
+This feature is experimental, and might not work in all situations,
+e.g. for very old recordings with missing data in the info/info.vdr file
+
 As already mentioned, after first installations no channels are activated
 to be scrapped. Please configure these channels in the plugin setup menu. 
+(not required in --readOnlyClient mode).
 Additionally you can trigger that your already existing recordings are 
 scrapped, so that also for this recordings metadata is available.
 
@@ -83,7 +93,7 @@ at least every 24 hours for new EPG events and collects the metadata for
 these events automatically. 
 
 After each run the plugin performs a cleanup, all images for movies which
-are not available in the current EPG are deleted. Series and actors thumbs 
+are not available in the current EPG are deleted. Actors thumbs 
 are kept to avoid unnecessary traffic for the web services, because the 
 propability that this data is needed in the future again is rather high. 
 
@@ -94,7 +104,7 @@ Usage of override.conf: even if tvscraper tries to do everything correct on
 it's own, in some cases scraping delivers wrong results. Some EPG Events are
 not reasonable to scrap, because they reoccur constantly but deliver wrong 
 results everytime, or tvscraper searchs for a movie instead of a series 
-(for instance german "Tatort"). In such cases it is possible to use 
+(for instance german "Heute"). In such cases it is possible to use 
 <PLGCFGDIR>/override.conf to adjust the scraping behaviour. Each line in
 this file has to start either with "ignore", "settype", "substitute" or
 "ignorePath":
@@ -119,10 +129,8 @@ Service Interface
 Other Plugins can request information about meta data from tvscraper via
 a call to the provided service interface. 
 
-In general each call expects a pointer to a cEvent object as input variable 
-inside the struct passed to the call . This event object can either originate 
-directly from EPG data or from a recording. In this case the event object can 
-be retreived by Recording->Info()->GetEvent()).
+In general each call expects a pointer to a cEvent or cRecording
+object as input variable inside the struct passed to the call.
 
 As output variables tvscraper provides media info via the "cTvMedia" struct:
 
@@ -234,3 +242,4 @@ Example: (see services.h for data structures of cSeries & cMovie, and for enum t
       }
     }
 
+see services.h for more available methods

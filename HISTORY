@@ -58,3 +58,9 @@ Version 0.9.0
 - Support season / episode
 - Add support for themoviedb tv shows
 - Improve automated detection, if it is a movie or a TV show
+
+Version 0.9.9
+- Improvements to identify match
+- Additional API, providing more data (see services.h for details)
+- Add SVDRP commands
+- Add client support (only if data directory on server is mounted on client)
