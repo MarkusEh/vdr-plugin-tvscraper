@@ -1,5 +1,6 @@
 #ifndef __TVSCRAPER_WORKER_H
 #define __TVSCRAPER_WORKER_H
+#include <set>
 
 // --- cTVScraperWorker -------------------------------------------------------------
 
@@ -21,6 +22,11 @@ private:
     cTVScraperDB *db;
     cMovieDBScraper *moviedbScraper;
     cTVDBScraper *tvdbScraper;
+#if APIVERSNUM >= 20301
+    cStateKey schedulesStateKey;
+#endif
+    map<string, set<int>*> lastEvents;
+
     bool ConnectScrapers(void);
     void DisconnectScrapers(void);
     void CheckRunningTimers(void);

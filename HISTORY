@@ -64,3 +64,6 @@ Version 0.9.9
 - Additional API, providing more data (see services.h for details)
 - Add SVDRP commands
 - Add client support (only if data directory on server is mounted on client)
+
+Version 0.9.10
+- Check for new EPG events about every 15 min, and scrape new EPG events

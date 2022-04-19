@@ -153,17 +153,69 @@ std::vector<cActor> cMovieMoviedb::GetActors() {
 }
 
 // implemntation of cTv  *********************
-std::size_t cTv::searchEpisode(const string &tvSearchEpisodeString) {
-// return 0, if no match was found
-// otherwise, number of matching characters & set m_seasonNumber and m_episodeNumber
-   std::size_t nmatch = searchEpisode_int(tvSearchEpisodeString);
-   if (nmatch > 0) return nmatch;
-   if (!isdigit(tvSearchEpisodeString[0]) ) return nmatch;
+int cTv::searchEpisode(const string &tvSearchEpisodeString, const string &baseNameOrTitle) {
+// return 1000, if no match was found
+// otherwise, distance
+  int distance = searchEpisode(tvSearchEpisodeString);
+  if (distance != 1000) return distance;
+// no match with episode name found, try episode number as part of title
+  int episodeNumber = NumberInLastPartWithP(baseNameOrTitle);
+  if (episodeNumber != 0) {
+    char sql[] = "select season_number, episode_number from tv_s_e where tv_id = ? and episode_absolute_number = ?";
+    if (m_db->QueryLine(sql, "ii", "ii", dbID(), episodeNumber, &m_seasonNumber, &m_episodeNumber)) return 200;
+  }
+  episodeNumber = NumberInLastPartWithPS(baseNameOrTitle);
+  if (episodeNumber != 0) {
+    char sql[] = "select season_number, episode_number from tv_s_e where tv_id = ? and episode_number = ? and season_number = ?";
+    if (m_db->QueryLine(sql, "iii", "ii", dbID(), episodeNumber, 1, &m_seasonNumber, &m_episodeNumber)) return 200;
+  }
+  return 1000;
+}
+
+int cTv::searchEpisode(const string &tvSearchEpisodeString) {
+// return 1000, if no match was found
+// otherwise, distance
+   int distance = searchEpisode_int(tvSearchEpisodeString);
+   if (distance != 1000) return distance;
+   if (!isdigit(tvSearchEpisodeString[0]) ) return distance;
    std::size_t found_blank = tvSearchEpisodeString.find(' ');
-   if (found_blank == std::string::npos || found_blank > 7 || found_blank + 1 >= tvSearchEpisodeString.length() ) return nmatch;
+   if (found_blank == std::string::npos || found_blank > 7 || found_blank + 1 >= tvSearchEpisodeString.length() ) return distance;
    return searchEpisode_int(tvSearchEpisodeString.substr(found_blank + 1) );
 }
 
+int cTv::searchEpisode_int(string tvSearchEpisodeString) {
+// return 1000, if no match was found
+// otherwise, distance
+  transform(tvSearchEpisodeString.begin(), tvSearchEpisodeString.end(), tvSearchEpisodeString.begin(), ::tolower);
+  int best_distance = 1000;
+  int best_season = 0;
+  int best_episode = 0;
+  std::string episodeName;
+  int distance;
+  int episode;
+  int season;
+  const char sql[] = "select episode_name, season_number, episode_number from tv_s_e  where tv_id =?";
+  for( sqlite3_stmt *stmt = m_db->QueryPrepare(sql, "i", dbID() );
+       m_db->QueryStep(stmt, "Sii", &episodeName, &season, &episode); ) {
+    transform(episodeName.begin(), episodeName.end(), episodeName.begin(), ::tolower);
+    distance = sentence_distance(tvSearchEpisodeString, episodeName);
+    if (season == 0) distance += 10; // avoid season == 0, could be making of, ...
+    if (distance < best_distance) {
+      best_distance = distance;
+      best_season = season;
+      best_episode = episode;
+    }
+  }
+  if (best_distance > 600) {
+    m_seasonNumber = 0;
+    m_episodeNumber = 0;
+    return 1000;
+  }
+  m_seasonNumber = best_season;
+  m_episodeNumber = best_episode;
+  return best_distance;
+}
+/*
 std::size_t cTv::searchEpisode_int(const string &tvSearchEpisodeString) {
 // return 0, if no match was found
 // otherwise, number of matching characters & set m_seasonNumber and m_episodeNumber
@@ -212,6 +264,7 @@ std::size_t cTv::searchEpisode_int(const string &tvSearchEpisodeString) {
   m_episodeNumber = 0;
   return 0;
 }
+*/
 
 void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv, cImageServer *imageServer) {
   scraperMovieOrTv->movie = false;
@@ -418,18 +471,18 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(cTVScraperDB *db, csEventOrRecording *sEven
 }
 
 // search episode
-std::size_t cMovieOrTv::searchEpisode(cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString) {
+int cMovieOrTv::searchEpisode(cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle) {
   movieOrTv.season  = 0;
   movieOrTv.episode = 0;
   cMovieOrTv *mv =  cMovieOrTv::getMovieOrTv(db, movieOrTv);
-  if (!mv) return 0;
-  std::size_t result = mv->searchEpisode(tvSearchEpisodeString);
-  if (result > 0) {
+  if (!mv) return 1000;
+  int distance = mv->searchEpisode(tvSearchEpisodeString, baseNameOrTitle);
+  if (distance != 1000) {
     movieOrTv.season  = mv->m_seasonNumber;
     movieOrTv.episode = mv->m_episodeNumber;
   }
   delete (mv);
-  return result;
+  return distance;
 }
 
 // delete unused *****

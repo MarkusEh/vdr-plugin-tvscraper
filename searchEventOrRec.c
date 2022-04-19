@@ -21,15 +21,14 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
 // initialize m_baseNameOrTitle
   const cRecording *recording = m_sEventOrRecording->Recording();
   if (recording) {
-//    bool debug = strcmp(recording->Info()->Title(), "Hawaii Five-0") == 0;
     bool debug = false;
-    debug = false;
+    debug = strcmp(recording->Info()->Title(), "Raumschiff Enterprise") == 0;
     cString baseName = recording->BaseName();
     size_t baseNameLen = strlen(baseName);
     if (baseName[0] == '%') m_baseNameOrTitle = ( (const char *)baseName ) + 1;
                        else m_baseNameOrTitle = ( (const char *)baseName );
     if (!recording->Info()->Title() ) return; // no title, go ahead with basename, best what we have (should not happen)
-    if (isVdrDate(m_baseNameOrTitle) ) {
+    if (isVdrDate(m_baseNameOrTitle) || isVdrDate2(m_baseNameOrTitle) ) {
 // this normally happens if VDR records a series, and the subtitle is empty)
       m_baseNameOrTitle = recording->Info()->Title();
       if (recording->Info()->ShortText() ) return; // strange, but go ahead with title
@@ -45,8 +44,9 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
 
 // check: title part of the first part of the name, excluding the basename
     if (strstr(recording->Info()->Title(), m_baseNameOrTitle.c_str() ) != NULL) return; // basename is part of title, seems not to be the subtitle
-    const char * title_pos = strstr(recording->Name(), recording->Info()->Title() );
-    if (debug) esyslog("tvscraper: TEST (1.1) size_t(title_pos - recording->Name() ) %lu, strlen(recording->Name() ) - baseNameLen %lu", size_t(title_pos - recording->Name() ), strlen(recording->Name() ) - baseNameLen);
+    const char *title_pos = strstr(recording->Name(), recording->Info()->Title() );
+    if (debug) esyslog("tvscraper: TEST (1.1a) recording->Name() %s, recording->Info()->Title() %s", recording->Name(), recording->Info()->Title());
+    if (debug) esyslog("tvscraper: TEST (1.1) (title_pos - recording->Name() ) %lu, strlen(recording->Name() ) - baseNameLen %lu", size_t(title_pos - recording->Name() ), strlen(recording->Name() ) - baseNameLen);
     if (!title_pos || (size_t(title_pos - recording->Name() ) >= strlen(recording->Name()) - baseNameLen)  ) return; // title not part of the name, or title only part of the base name-> does not match the pattern -> return
     if (debug) esyslog("tvscraper: TEST (2) recording->Info()->Title() ) \"%s\", recording->Name() \"%s\", recording->Info()->ShortText() \"%s\"", recording->Info()->Title(), recording->Name(), recording->Info()->ShortText() );
 // check: basename is part of the ShortText() (or Description())
@@ -62,18 +62,40 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
 
 bool cSearchEventOrRec::isVdrDate(const std::string &baseName) {
 // return true if string matches the 2020.01.12-02:35 pattern.
-  if (baseName.length() < 16) return false;
+  int start;
+  for (start = 0; !isdigit(baseName[start]) && start < (int)baseName.length(); start++);
+  if ((int)baseName.length() < 16 + start) return false;
 
   int n;
-  for (n = 0; n < 4; n ++) if (!isdigit(baseName[n]) ) return false;
+  for (n = start; n < 4 + start; n ++) if (!isdigit(baseName[n]) ) return false;
   if (baseName[n] != '.') return false;
-  for (n++ ; n < 7; n ++) if (!isdigit(baseName[n]) ) return false;
+  for (n++ ; n <  7 + start; n ++) if (!isdigit(baseName[n]) ) return false;
   if (baseName[n] != '.') return false;
-  for (n++ ; n < 10; n ++) if (!isdigit(baseName[n]) ) return false;
+  for (n++ ; n < 10 + start; n ++) if (!isdigit(baseName[n]) ) return false;
   if (baseName[n] != '-') return false;
-  for (n++ ; n < 13; n ++) if (!isdigit(baseName[n]) ) return false;
+  for (n++ ; n < 13 + start; n ++) if (!isdigit(baseName[n]) ) return false;
   if (baseName[n] != ':') return false;
-  for (n++ ; n < 16; n ++) if (!isdigit(baseName[n]) ) return false;
+  for (n++ ; n < 16 + start; n ++) if (!isdigit(baseName[n]) ) return false;
+
+  return true;
+}
+
+bool cSearchEventOrRec::isVdrDate2(const std::string &baseName) {
+// return true if string matches the "Mit 01.12.2009-02:35" pattern.
+  int start;
+  for (start = 0; !isdigit(baseName[start]) && start < (int)baseName.length(); start++);
+  if ((int)baseName.length() < 16 + start) return false;
+
+  int n;
+  for (n = start; n <  2 + start; n ++) if (!isdigit(baseName[n]) ) return false;
+  if (baseName[n] != '.') return false;
+  for (n++ ; n <  5 + start; n ++) if (!isdigit(baseName[n]) ) return false;
+  if (baseName[n] != '.') return false;
+  for (n++ ; n < 10 + start; n ++) if (!isdigit(baseName[n]) ) return false;
+  if (baseName[n] != '-') return false;
+  for (n++ ; n < 13 + start; n ++) if (!isdigit(baseName[n]) ) return false;
+  if (baseName[n] != ':') return false;
+  for (n++ ; n < 16 + start; n ++) if (!isdigit(baseName[n]) ) return false;
 
   return true;
 }
@@ -136,7 +158,7 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
         if (searchResults[0].getMatchEpisode() ) movieOrTv.episodeSearchWithShorttext = 3;
       }
       UpdateEpisodeListIfRequired(movieOrTv.id);
-      cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString);
+      cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString, m_baseNameOrTitle);
       if (config.enableDebug) esyslog("tvscraper: %stv \"%s\", episode \"%s\" successfully scraped, id %i season %i episode %i", searchResults[0].id() > 0?"":"TV", movieName.c_str(), episodeSearchString.c_str(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
     }
     if (config.enableDebug) {
@@ -274,7 +296,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
     if (movieOrTv.season != -100 && movieOrTv.episodeSearchWithShorttext) {
       UpdateEpisodeListIfRequired(movieOrTv.id);
       episodeSearchString = m_sEventOrRecording->EpisodeSearchString();
-      cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString);
+      cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString, m_baseNameOrTitle);
       if (movieOrTv.episodeSearchWithShorttext == 3 &&
         movieOrTv.season == 0 && movieOrTv.episode == 0) return false;
 // episode match required for cache, but not found
@@ -374,6 +396,16 @@ void cSearchEventOrRec::getActorMatches(const std::string &actor, int &numMatche
     addActor(description, string(actor, pos_start, pos_blank - pos_start), numMatchesFirst, alreadyFound);
   }
 }
+
+void cSearchEventOrRec::getDirectorWriterMatches(const std::string &directorWriter, int &numMatchesAll, int &numMatchesSure, vector<string> &alreadyFound) {
+  if (directorWriter.length() < 3) return;
+  const char *description = m_sEventOrRecording->Description();
+  if (!description) return;
+  if (strstr_word(description, directorWriter.c_str() ) != 0) { numMatchesAll++; return; }
+  size_t pos_blank = directorWriter.rfind(' ');
+  if (pos_blank == std::string::npos || pos_blank == 0) return;
+  if (directorWriter.length() - pos_blank > 3) addActor(description, directorWriter.c_str() + pos_blank + 1, numMatchesSure, alreadyFound);
+}
 void cSearchEventOrRec::addActor(const char *description, const string &name, int &numMatches, vector<string> &alreadyFound) {
 // search name in description, if found, increase &numMatches. But only once for each name found
   if (name.length() < 3) return; // ignore if name is too short
@@ -382,7 +414,6 @@ void cSearchEventOrRec::addActor(const char *description, const string &name, in
   alreadyFound.push_back(name);
   numMatches++;
 }
-
 
 void cSearchEventOrRec::getActorMatches(searchResultTvMovie &sR, const std::vector<std::vector<std::string>> &actors) {
   int numMatchesAll = 0;
@@ -403,6 +434,19 @@ void cSearchEventOrRec::getActorMatches(searchResultTvMovie &sR, const std::vect
   sR.setActors(numMatchesFirst + numMatchesSure + 2*numMatchesAll);
   // if (debug) esyslog("tvscraper: getActorMatches, numMatchesAll %i, numMatchesFirst %i, numMatchesSure %i, sum %i, weight", numMatchesAll, numMatchesFirst, numMatchesSure, sum);
   if (debug) esyslog("tvscraper: getActorMatches, numMatchesAll %i, numMatchesFirst %i, numMatchesSure %i, sum %i, weight %f", numMatchesAll, numMatchesFirst, numMatchesSure, sum, searchResultTvMovie::normMatch(sum/4.));
+}
+
+void cSearchEventOrRec::getDirectorWriterMatches(searchResultTvMovie &sR, const std::vector<std::string> &directorWriters) {
+  int numMatchesAll = 0;
+  int numMatchesSure = 0;
+  vector<string> alreadyFound;
+//  bool debug = false;
+//  bool debug = (sR.id() == -83269) || (sR.id() == 689390);
+//  debug = sR.id() == -353808;
+  for(const std::string &directorWriter : directorWriters) {
+    getDirectorWriterMatches(directorWriter, numMatchesAll, numMatchesSure, alreadyFound);
+  }
+  sR.setDirectorWriter(numMatchesSure + 2*numMatchesAll);
 }
 
 bool cSearchEventOrRec::selectBestAndEnhanvceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec)) {
@@ -466,11 +510,21 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
     sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(searchEventOrRec.m_moviedbScraper->GetMovieRuntime(sR.id() )) );
     sR.updateMatchText(sentence_distance(searchEventOrRec.m_db->GetMovieTagline(sR.id() ), searchEventOrRec.m_searchString));
     actors = searchEventOrRec.m_db->GetActorsMovie(sR.id() );
+    std::string director;
+    std::string writer;
+    const char sql[] = "select movie_director, movie_writer from movie_runtime2 where movie_id = ?";
+    if (searchEventOrRec.m_db->QueryLine(sql, "i", "SS", sR.id(), &director, &writer)) {
+      std::vector<std::string> directors;
+      stringToVector(directors, director.c_str() );
+      stringToVector(directors, writer.c_str() );
+      searchEventOrRec.getDirectorWriterMatches(sR, directors);
+    }
   } else {
 // tv show
     if (debug) esyslog("tvscraper: enhance1 (1)" );
     if (!debug) sR.setDuration(searchEventOrRec.GetTvDurationDistance(sR.id() ) );
     if (debug) esyslog("tvscraper: enhance1 (2)" );
+    sR.setDirectorWriter(0);
     if (sR.id() < 0) {
 // tv show from thetvdb
       float voteAverage;
@@ -498,7 +552,8 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   debug = false;
   if (debug) esyslog("tvscraper: enhance2 (1)" );
 
-  if (searchEventOrRec.m_episodeFound || searchResult.movie() ) { searchResult.setMatchEpisode(0); return; }
+  if (searchResult.movie() ) { searchResult.setMatchEpisode(1000); return; }
+//  if (searchEventOrRec.m_episodeFound || searchResult.movie() ) { searchResult.setMatchEpisode(0); return; }
   string movieName;
   string episodeSearchString;
   sMovieOrTv movieOrTv;
@@ -511,7 +566,7 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   if (movieOrTv.episodeSearchWithShorttext) episodeSearchString = searchEventOrRec.m_sEventOrRecording->EpisodeSearchString();
     else splitString(searchEventOrRec.m_searchString, searchResult.delim(), 4, movieName, episodeSearchString);
   searchEventOrRec.UpdateEpisodeListIfRequired(movieOrTv.id);
-  std::size_t nmatch = cMovieOrTv::searchEpisode(searchEventOrRec.m_db, movieOrTv, episodeSearchString);
-  searchEventOrRec.m_episodeFound = nmatch > 0;
-  searchResult.setMatchEpisode(nmatch);
+  int distance = cMovieOrTv::searchEpisode(searchEventOrRec.m_db, movieOrTv, episodeSearchString, "");
+  searchEventOrRec.m_episodeFound = distance != 1000;
+  searchResult.setMatchEpisode(distance);
 }

@@ -13,6 +13,7 @@ private:
   void SearchTvAll(vector<searchResultTvMovie> &searchResults);
   void initBaseNameOrTitile(void);
   bool isVdrDate(const std::string &baseName);
+  bool isVdrDate2(const std::string &baseName);
   void initSearchString(void);
   void setFastMatch(searchResultTvMovie &searchResult);
   int GetTvDurationDistance(int tvID);
@@ -21,6 +22,8 @@ private:
   void ScrapAssign(const sMovieOrTv &movieOrTv);
   void UpdateEpisodeListIfRequired(int tvID);
   void getActorMatches(const std::string &actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, vector<string> &alreadyFound);
+  void getDirectorWriterMatches(const std::string &directorWriter, int &numMatchesAll, int &numMatchesSure, vector<string> &alreadyFound);
+  void getDirectorWriterMatches(searchResultTvMovie &sR, const std::vector<std::string> &directorWriters);
   void getActorMatches(searchResultTvMovie &sR, const std::vector<std::vector<std::string>> &actors);
   void addActor(const char *description, const string &name, int &numMatches, vector<string> &alreadyFound);
   bool selectBestAndEnhanvceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));

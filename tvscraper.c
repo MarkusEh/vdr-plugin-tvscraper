@@ -46,7 +46,7 @@ cTVScraperConfig config;
 #include "imageserver.c"
 #include "setup.c"
 
-static const char *VERSION        = "0.9.9";
+static const char *VERSION        = "0.9.10";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
@@ -302,6 +302,12 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         call->seasonPoster = media;  // default: empty
         call->banners.clear();
         if (imageServer->GetBanner(media, lastEventId) ) call->banners.push_back(media);
+        else {
+          media.path = "areognaer";
+          media.width = 100;
+          media.height = 100;
+//          call->banners.push_back(media);
+        }
         call->fanarts = imageServer->GetSeriesFanarts(lastEventId, lastSeasonNumber, lastEpisodeNumber);
 
         call->seasonPoster = imageServer->GetPoster(lastEventId, lastSeasonNumber, lastEpisodeNumber);

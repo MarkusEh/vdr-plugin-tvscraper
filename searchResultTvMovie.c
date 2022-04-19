@@ -14,9 +14,10 @@ searchResultTvMovie::searchResultTvMovie(int id, bool movie, const std::string &
   m_matches[2].weight = 0.2; // match popularity, vote and vote_count
   m_matches[3].weight = 0.2; // match duration
   m_matches[4].weight = 0.3; // match actors
-  m_matches[5].weight = 0.5; // match episode (for tv shows with episode only)
-  m_matches[6].weight = 0.3; // baseNameEquShortText -> extra points for series
-  m_matches[7].weight = 0.0001; // positionInExternalResult
+  m_matches[5].weight = 0.1; // match director writer
+  m_matches[6].weight = 0.4; // match episode (for tv shows with episode only)
+  m_matches[7].weight = 0.3; // baseNameEquShortText -> extra points for series
+  m_matches[8].weight = 0.0001; // positionInExternalResult
 }
 searchResultTvMovie::~searchResultTvMovie() {
 //  if (m_id == 689390) log("Merlin movie 1998-04-26");
@@ -42,9 +43,10 @@ void searchResultTvMovie::log(const char *title) {
       case 2: d = "Vote, .."; break;
       case 3: d = "Duration"; break;
       case 4: d = "Actors"; break;
-      case 5: d = "Episode"; break;
-      case 6: d = "BaseNameEquShortText"; break;
-      case 7: d = "PositionInExternalResult"; break;
+      case 5: d = "Director Writer"; break;
+      case 6: d = "Episode"; break;
+      case 7: d = "BaseNameEquShortText"; break;
+      case 8: d = "PositionInExternalResult"; break;
       default: d = "ERROR!!!!";
     }
     esyslog("tvscraper: searchResultTvMovie::log, i: %lu, match: %f, weight %f, desc: %s", i, m_matches[i].match, m_matches[i].weight, d);

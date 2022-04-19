@@ -82,79 +82,104 @@ void cTVScraperWorker::SetDirectories(void) {
 }
 
 bool cTVScraperWorker::ConnectScrapers(void) {
-if (!moviedbScraper) {
-moviedbScraper = new cMovieDBScraper(movieDir, db, language, overrides);
-if (!moviedbScraper->Connect()) {
-    esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
-    delete moviedbScraper;
-    moviedbScraper = NULL;
-    return false;
-}
-}
-if (!tvdbScraper) {
-tvdbScraper = new cTVDBScraper(seriesDir, db, language);
-if (!tvdbScraper->Connect()) {
-    esyslog("tvscraper: ERROR, connection to TheTVDB failed");
-    delete tvdbScraper;
-    tvdbScraper = NULL;
-    return false;
-}
-}
-return true;
+  if (!moviedbScraper) {
+    moviedbScraper = new cMovieDBScraper(movieDir, db, language, overrides);
+    if (!moviedbScraper->Connect()) {
+	esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
+	delete moviedbScraper;
+	moviedbScraper = NULL;
+	return false;
+    }
+  }
+  if (!tvdbScraper) {
+    tvdbScraper = new cTVDBScraper(seriesDir, db, language);
+    if (!tvdbScraper->Connect()) {
+	esyslog("tvscraper: ERROR, connection to TheTVDB failed");
+	delete tvdbScraper;
+	tvdbScraper = NULL;
+	return false;
+    }
+  }
+  return true;
 }
 
 void cTVScraperWorker::DisconnectScrapers(void) {
-if (moviedbScraper) {
-delete moviedbScraper;
-moviedbScraper = NULL;
-}
-if (tvdbScraper) {
-delete tvdbScraper;
-tvdbScraper = NULL;
-}
+  if (moviedbScraper) {
+    delete moviedbScraper;
+    moviedbScraper = NULL;
+  }
+  if (tvdbScraper) {
+    delete tvdbScraper;
+    tvdbScraper = NULL;
+  }
 }
 
 void cTVScraperWorker::ScrapEPG(void) {
-if (config.GetReadOnlyClient() ) return;
-vector<string> channels = config.GetChannels();
-int numChannels = channels.size();
-for (int i=0; i<numChannels; i++) {
-string channelID = channels[i];
+  if (config.GetReadOnlyClient() ) return;
+  vector<string> channels = config.GetChannels();
+  int numChannels = channels.size();
+  if (numChannels == 0) return;
 #if APIVERSNUM < 20301
-const cChannel *channel = Channels.GetByChannelID(tChannelID::FromString(channelID.c_str()));
+  cSchedulesLock schedulesLock;
+  const cSchedules *Schedules = cSchedules::Schedules(schedulesLock);
 #else
-LOCK_CHANNELS_READ;
-const cChannel *channel = Channels->GetByChannelID(tChannelID::FromString(channelID.c_str()));
+  LOCK_CHANNELS_READ;
+//schedulesStateKey.Reset();  // this would force a channel scan, even in case of no changes
+  const cSchedules *Schedules = cSchedules::GetSchedulesRead(schedulesStateKey);
 #endif
-if (!channel) {
-    dsyslog("tvscraper: Channel %s %s is not availible, skipping", channel->Name(), channelID.c_str());
-    continue;
-}
-dsyslog("tvscraper: scraping Channel %s %s", channel->Name(), channelID.c_str());
+  if (!Schedules) {
+    dsyslog("tvscraper: Schedule was not changed, skipping scan");
+    return;
+  }
+  map<string, set<int>*> currentEvents;
+  for (int i=0; i<numChannels; i++) {
+    string channelID = channels[i];
+    map<string, set<int>*>::iterator currentEventsCurrentChannelIT = currentEvents.find(channelID);
+    if (currentEventsCurrentChannelIT == currentEvents.end() ) {
+      currentEvents.insert(pair<string, set<int>*>(channelID, new set<int>));
+      currentEventsCurrentChannelIT = currentEvents.find(channelID);
+    }
+    map<string, set<int>*>::iterator lastEventsCurrentChannelIT = lastEvents.find(channelID);
+
 #if APIVERSNUM < 20301
-cSchedulesLock schedulesLock;
-const cSchedules *schedules = cSchedules::Schedules(schedulesLock);
-const cSchedule *Schedule = schedules->GetSchedule(channel);
+    const cChannel *channel = Channels.GetByChannelID(tChannelID::FromString(channelID.c_str()));
 #else
-LOCK_SCHEDULES_READ;
-const cSchedule *Schedule = Schedules->GetSchedule(channel);
+    const cChannel *channel = Channels->GetByChannelID(tChannelID::FromString(channelID.c_str()));
 #endif
-if (Schedule) {
-    const cEvent *event = NULL;
-    time_t now = time(0);
-    for (event = Schedule->Events()->First(); event; event =  Schedule->Events()->Next(event)) {
+    if (!channel) {
+      dsyslog("tvscraper: Channel %s %s is not availible, skipping", channel->Name(), channelID.c_str());
+      continue;
+    }
+    dsyslog("tvscraper: scraping Channel %s %s", channel->Name(), channelID.c_str());
+    const cSchedule *Schedule = Schedules->GetSchedule(channel);
+    if (Schedule) {
+      const cEvent *event = NULL;
+      time_t now = time(0);
+      for (event = Schedule->Events()->First(); event; event =  Schedule->Events()->Next(event)) {
 //	if(event->EventID() == 14724) dsyslog("tvscraper: scraping event %i, %s", event->EventID(), event->Title() );
         if (event->EndTime() < now) continue; // do not scrap past events. Avoid to scrap them, and delete directly afterwards
-	if (!Running())
-	    return;
-        csEventOrRecording sEvent(event);
-        cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);  
-	if( SearchEventOrRec.Scrap() ) waitCondition.TimedWait(mutex, 100);
-    }
-} else {
-    dsyslog("tvscraper: Schedule is not availible, skipping");
-}
-}
+	if (!Running()) {
+#if APIVERSNUM >= 20301
+          schedulesStateKey.Remove();
+#endif
+          for (auto &event: currentEvents) delete event.second;
+	  return;
+        }
+        currentEventsCurrentChannelIT->second->insert(event->EventID() );
+	if (lastEventsCurrentChannelIT == lastEvents.end() ||
+            lastEventsCurrentChannelIT->second->find(event->EventID()) == lastEventsCurrentChannelIT->second->end() ) {
+	  csEventOrRecording sEvent(event);
+	  cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);
+	  if( SearchEventOrRec.Scrap() ) waitCondition.TimedWait(mutex, 100);
+        }
+      }
+    } else dsyslog("tvscraper: Schedule is not availible, skipping");
+  }
+#if APIVERSNUM >= 20301
+  schedulesStateKey.Remove();
+#endif
+  currentEvents.swap(lastEvents);
+  for (auto &event: currentEvents) delete event.second;
 }
 
 void cTVScraperWorker::ScrapRecordings(void) {
@@ -220,13 +245,23 @@ DisconnectScrapers();
 }
 
 bool cTVScraperWorker::StartScrapping(void) {
-if (manualScan) {
-manualScan = false;
-return true;
-}
-//wait at least one day from last scrapping to scrap again
-int minTime = 24 * 60 * 60;
-return db->CheckStartScrapping(minTime);
+  bool resetScrapeTime = false;
+  if (manualScan) {
+    manualScan = false;
+    for (auto &event: lastEvents) event.second->clear();
+    resetScrapeTime = true;
+  }
+  if (resetScrapeTime || lastEvents.empty() ) {
+// a full scrape will be done, write this to db, so next full scrape will be in one day
+    db->execSql("delete from scrap_checker", "");
+    char sql[] = "INSERT INTO scrap_checker (last_scrapped) VALUES (?)";
+    db->execSql(sql, "t", time(0));
+    return true;
+  }
+// Delete the scraped event IDs once a day, to update data
+  int minTime = 24 * 60 * 60;
+  if (db->CheckStartScrapping(minTime)) for (auto &event: lastEvents) event.second->clear();
+  return true;
 }
 
 void cTVScraperWorker::Action(void) {

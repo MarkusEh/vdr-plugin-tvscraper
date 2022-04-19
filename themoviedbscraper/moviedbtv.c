@@ -216,16 +216,14 @@ bool cMovieDbTv::AddOneSeason(json_t *root) {
 string cMovieDbTv::GetCrewMember(json_t *jCrew, const char *field, const string &value) {
   if(!json_is_array(jCrew)) return "";
   size_t numCrew = json_array_size(jCrew);
-  string result = "";
+  vector<string> members;
   for (size_t iCrew = 0; iCrew < numCrew; iCrew++) {
     json_t *jCrewMember = json_array_get(jCrew, iCrew);
     if (!json_is_object(jCrewMember)) continue;
     if (field != NULL && value.compare(json_string_value_validated(jCrewMember, field)) != 0) continue;
-    if (result.empty() ) result = "|";
-    result.append(json_string_value_validated(jCrewMember, "name"));
-    result.append("|");
+    push_back_new(members, json_string_value_validated(jCrewMember, "name"));
   }
-  return result;
+  return vectorToString(members);
 }
 
 bool cMovieDbTv::AddActorsTv(json_t *jCredits) {

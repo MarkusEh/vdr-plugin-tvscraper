@@ -63,7 +63,7 @@ bool splitString(const std::string &str, char delimiter, size_t minLengh, std::s
   if(found == std::string::npos || found <= minLengh) return false; // nothing found
   std::size_t ssnd;
   for(ssnd = found + 1; ssnd < str.length() && str[ssnd] == ' '; ssnd++);
-  if(str.length() - ssnd <= minLengh) return false; // nothing found, second part to short
+  if(str.length() - ssnd <= minLengh - 2) return false; // nothing found, second part to short
 
   second = str.substr(ssnd);
   first = str.substr(0, found);
@@ -73,6 +73,7 @@ bool splitString(const std::string &str, char delimiter, size_t minLengh, std::s
 
 bool StringRemoveLastPartWithP(string &str) {
 // remove part with (...)
+  if (str.length() < 2 ) return false;
   StringRemoveTrailingWhitespace(str);
   if (str[str.length() -1] != ')') return false;
   std::size_t found = str.find_last_of("(");
@@ -81,6 +82,28 @@ bool StringRemoveLastPartWithP(string &str) {
   str.erase(found);
   StringRemoveLastPartWithP(str);
   return true;
+}
+int NumberInLastPartWithPS(const string &str) {
+// return number in last part with (./.), 0 if not found / invalid
+  if (str.length() < 3 ) return 0;
+  if (str[str.length() - 1] != ')') return 0;
+  std::size_t found = str.find_last_of("(");
+  if (found == std::string::npos) return 0;
+  for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
+    if (!isdigit(str[i]) && str[i] != '/') return 0; // we gnore (asw), and return only number with digits only
+  }
+  return atoi(str.c_str() + found + 1);
+}
+int NumberInLastPartWithP(const string &str) {
+// return number in last part with (...), 0 if not found / invalid
+  if (str.length() < 3 ) return 0;
+  if (str[str.length() - 1] != ')') return 0;
+  std::size_t found = str.find_last_of("(");
+  if (found == std::string::npos) return 0;
+  for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
+    if (!isdigit(str[i])) return 0; // we gnore (asw), and return only number with digits only
+  }
+  return atoi(str.c_str() + found + 1);
 }
 string SecondPart(const string &str, const std::string &delim) {
 // Return part of str after first occurence of delim
@@ -117,26 +140,29 @@ void AddYears(vector<int> &years, const char *str) {
   }
 }
 
-/*
-void stringToVector(std::vector<std::string> &vec, const string &str) {
-  if (str[0] != '|') { vec.push_back(str); return; }
-  std::size_t lDelim = str.find('|');
-  if (lDelim !=std::string::npos)
-    for (std::size_t rDelim = str.find('|', lDelim +1); rDelim != std::string::npos; rDelim = str.find('|', lDelim +1) ) {
-      vec.push_back(str.substr(lDelim +1, rDelim - lDelim - 1));
-      lDelim = rDelim;
-    }
+void push_back_new(std::vector<std::string> &vec, const std::string str) {
+// add str to vec, but only if str is not yet in vec and if str is not empty
+  if (str.empty() ) return;
+  if (find (vec.begin(), vec.end(), str) != vec.end() ) return;
+  vec.push_back(str);
 }
-*/
 
 void stringToVector(std::vector<std::string> &vec, const char *str) {
   if (!str || !*str) return;
   if (str[0] != '|') { vec.push_back(str); return; }
   const char *lDelimPos = str;
   for (const char *rDelimPos = strchr(lDelimPos + 1, '|'); rDelimPos != NULL; rDelimPos = strchr(lDelimPos + 1, '|') ) {
-    vec.push_back(string(lDelimPos + 1, rDelimPos - lDelimPos - 1));
+    push_back_new(vec, string(lDelimPos + 1, rDelimPos - lDelimPos - 1));
     lDelimPos = rDelimPos;
   }
+}
+
+std::string vectorToString(const std::vector<std::string> &vec) {
+  if (vec.size() == 0) return "";
+  if (vec.size() == 1) return vec[0];
+  std::string result("|");
+  for (const std::string &str: vec) { result.append(str); result.append("|"); }
+  return result;
 }
 
 int stringToYear(const string &str) {

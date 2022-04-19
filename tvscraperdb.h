@@ -13,7 +13,6 @@ private:
     bool inMem;
 // methods to execute sql statements
     int execSql(const string &sql);
-    int execSql(const char *query, const char *bind, ...);
     string QueryString(const char *query, const char *bind, ...);
     int QueryInt(const char *query, const char *bind, ...);
     sqlite3_int64 QueryInt64(const char *query, const char *bind, ...);
@@ -37,6 +36,7 @@ public:
     bool Connect(void);
     void BackupToDisc(void);
 // allow sql statments from outside this class
+    int execSql(const char *query, const char *bind, ...);
     bool QueryLine(const char *query, const char *bind, const char *fmt_result, ...);
     sqlite3_stmt *QueryPrepare(const char *query, const char *bind, ...);
     bool QueryStep(sqlite3_stmt *&statement, const char *fmt_result, ...);

@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <math.h>
  
 // see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
 template<typename T, typename C>
@@ -81,11 +82,12 @@ std::string stripExtra(const std::string &in) {
   return out;
 }
 size_t sentenceFind(const std::string& sentence1, const std::string& sentence2) {
+// return 0 if not found
+// otherwise, return number of characters in sentence2 which are found in sentence1
   size_t len2 = sentence2.length();
   if (len2 == 0 || sentence1.find(sentence2) !=std::string::npos) return len2;
-// not found
-  std::size_t il, im, ih, n_found = 0;
 
+  std::size_t il, im, ih, n_found = 0;
   il = 0;
   ih = len2;
   im = ih;
@@ -102,6 +104,22 @@ size_t sentenceFind(const std::string& sentence1, const std::string& sentence2) 
     else return im;
 }
 
+float normMatch(float x) {
+// input:  number between 0 and infinity
+// output: number between 0 and 1
+// normMatch(1) = 0.5
+// you can call normMatch(x/n), which will return 0.5 for x = n
+  if (x <= 0) return 0;
+  if (x <  1) return sqrt (x)/2;
+  return 1 - 1/(x+1);
+}
+int normMatch(int i, int n) {
+// return number between 0 and 1000
+// for i == n, return 500
+  if (n == 0) return 1000;
+  return normMatch((float)i / (float)n) * 1000;
+}
+
 int sentence_distance(const std::string& sentence1a, const std::string& sentence2a) {
 // return 0-1000
 // 0: Strings are equal
@@ -112,18 +130,20 @@ int sentence_distance(const std::string& sentence1a, const std::string& sentence
   size_t s2l = sentence2.length();
   if (s1l == 0 || s2l == 0) return 1000;
   size_t max_dist = std::max(s1l, s2l);
-  int match_find;
+  int match_find, upper;
   if (s1l > s2l) {
     match_find = sentenceFind(sentence1, sentence2);
+    if (match_find == (int)s2l) upper = std::min(std::max((int)s2l/3, 2), 9);
+      else upper = 10;
   } else {
     match_find = sentenceFind(sentence2, sentence1);
+    if (match_find == (int)s1l) upper = std::min(std::max((int)s1l/3, 2), 9);
+      else upper = 10;
   }
-  if (match_find < 5) match_find *= 100;
-  else if (match_find <= 15 ) match_find = 500 + (match_find-5) * 40;
-  else match_find = 1000;  // number between 0 & 1000, higher is better
+  match_find = normMatch(match_find, upper);
 
   size_t dist = sentence_distance_int(sentence1, sentence2);
   if (dist > max_dist) max_dist = dist;
 //  std::cout << "match_find = " << match_find << " dist = " << dist << " max_dist = " << max_dist << std::endl;
-  return (600 * dist / max_dist) + (1000 - match_find) * 400 / 1000;
+  return (500 * dist / max_dist) + (1000 - match_find) * 500 / 1000;
 }

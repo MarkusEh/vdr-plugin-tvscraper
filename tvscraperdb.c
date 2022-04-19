@@ -348,8 +348,7 @@ bool cTVScraperDB::Connect(void) {
         }
         esyslog("tvscraper: connecting to db %s", dbPathPhys.c_str());
     }
-    CreateTables();
-    return true;
+    return CreateTables();
 }
 
 void cTVScraperDB::BackupToDisc(void) {
@@ -448,7 +447,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "episode_still_path nvarchar";
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e on tv_s_e (tv_id, season_number, episode_number); ";
-    sql << "CREATE INDEX IF NOT EXISTS idx_tv_s_e_episode on tv_s_e (tv_id, episode_name COLLATE NOCASE); ";
+    sql << "DROP INDEX IF EXISTS idx_tv_s_e_episode;";
 
     sql << "CREATE TABLE IF NOT EXISTS actor_tv (";
     sql << "tv_id integer, ";
@@ -935,20 +934,17 @@ bool cTVScraperDB::CheckStartScrapping(int minimumDistance) {
     bool startScrapping = false;
     time_t now = time(0);
     time_t last_scrapped = QueryInt64("select last_scrapped from scrap_checker", "");
+    char sql[] =  "INSERT INTO scrap_checker (last_scrapped) VALUES (?)";
     if (last_scrapped) {
-            int difference = (int)(now - last_scrapped);
-            if (difference > minimumDistance) {
-                startScrapping = true;
-                execSql("delete from scrap_checker");
-                stringstream sql3;
-                sql3 << "INSERT INTO scrap_checker (last_scrapped) VALUES (" << now << ")";
-                execSql(sql3.str() );
-        }
+      int difference = (int)(now - last_scrapped);
+      if (difference > minimumDistance) {
+	startScrapping = true;
+	execSql("delete from scrap_checker");
+	execSql(sql, "t", now);
+      }
     } else {
-            startScrapping = true;
-            stringstream sql2;
-            sql2 << "INSERT INTO scrap_checker (last_scrapped) VALUES (" << now << ")";
-            execSql(sql2.str() );
+      startScrapping = true;
+      execSql(sql, "t", now);
     }
     return startScrapping;
 }

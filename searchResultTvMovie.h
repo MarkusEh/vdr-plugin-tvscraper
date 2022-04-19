@@ -20,11 +20,12 @@ public:
   void setPopularity(float vote_average, int vote_count);
   void setDuration(int durationDeviation) { m_matches[3].match = 1 - normMatch(durationDeviation / 15.); }
   void setActors(int numMatches)  { m_matches[4].match = normMatch(numMatches/4.); }
+  void setDirectorWriter(int numMatches)  { m_matches[5].match = normMatch(numMatches/2.); }
   void setMatchYear(const std::vector<int> &years, int durationInSec);
-  void setMatchEpisode(std::size_t nmatch ) { m_matches[5].match = normMatch(nmatch / 4.); }
-  bool getMatchEpisode() { return m_matches[5].match > 0.; }
-  void setBaseNameEquShortText() { m_matches[6].match = 1.0; }
-  void setPositionInExternalResult(int positionInExternalResult) { m_matches[7].match = 1.0 - normMatch(positionInExternalResult); }
+  void setMatchEpisode(int distance) { m_matches[6].match = (1000 - distance) / 1000.; }
+  bool getMatchEpisode() { return m_matches[6].match > 0.; }
+  void setBaseNameEquShortText() { m_matches[7].match = 1.0; }
+  void setPositionInExternalResult(int positionInExternalResult) { m_matches[8].match = 1.0 - normMatch(positionInExternalResult); }
 
   void setDelim(char delim) { m_delim = delim; }
   int delim(void) { return m_delim; }
@@ -36,6 +37,6 @@ private:
   int m_id;
   bool m_movie;
   int m_year;
-  sMatchWeight m_matches[8];
+  sMatchWeight m_matches[9];
   char m_delim = 0;
 };

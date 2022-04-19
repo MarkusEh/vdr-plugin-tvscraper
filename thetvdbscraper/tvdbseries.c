@@ -62,8 +62,9 @@ void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searc
     if(seriesID == 0) return;
 // is this series already in the list?
     for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == seriesID * (-1) ) return;
-//    bool debug = SearchString == "cars toons";
     bool debug = false;
+//    debug = SearchString == "cars toons";
+//    debug = seriesID == 250498;
     transform(name.begin(), name.end(), name.begin(), ::tolower);
     transform(aliasNames.begin(), aliasNames.end(), aliasNames.begin(), ::tolower);
 
