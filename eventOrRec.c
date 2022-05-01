@@ -20,7 +20,7 @@ bool csEventOrRecording::DurationRange(int &durationInMinLow, int &durationInMin
 // return true, if data is available
   if (!m_event->Duration() ) return false;
   durationInMinLow  = DurationLowSec() / 60 - 1;
-  durationInMinHigh = DurationHighSec() / 60 + (10 * DurationHighSec())  / 60 / 60;  // add 10 mins for 60 min duration, mor for longer durations. This is because often a cut version of the movie is broadcasted
+  durationInMinHigh = DurationHighSec() / 60 + (10 * DurationHighSec())  / 60 / 60;  // add 10 mins for 60 min duration, more for longer durations. This is because often a cut version of the movie is broadcasted
 //  if (Recording() && Title() && strcmp("The Expendables 3", Title() ) == 0) 
 //  esyslog("tvscraper: csEventOrRecording::DurationRange, title = %s, durationInMinLow  = %i,  durationInMinHigh = %i", Title(), durationInMinLow, durationInMinHigh);
   return true;
@@ -35,9 +35,20 @@ const char *csEventOrRecording::EpisodeSearchString() const {
 // Recording
 
 csRecording::csRecording(const cRecording *recording) :
-  csEventOrRecording(recording->Info()->GetEvent() ),
+  csEventOrRecording((recording && recording->Info())?recording->Info()->GetEvent():NULL),
   m_recording(recording)
 {
+  if (!recording ) {
+    esyslog("tvscraper: ERROR: csRecording::csRecording !recording");
+    return;
+  }
+  if (!recording->Info() ) {
+    esyslog("tvscraper: ERROR: csRecording::csRecording !recording->Info()");
+    return;
+  }
+  if (!recording->Info()->GetEvent() ) {
+    esyslog("tvscraper: ERROR: csRecording::csRecording !recording->Info()->GetEvent()");
+  }
 }
 
 bool csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
@@ -48,8 +59,8 @@ bool csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
   if (m_recording->IsEdited() || DurationInSecMarks() != -1) {
 // length of recording without adds
     int durationInSec = m_recording->IsEdited()?m_recording->LengthInSeconds():DurationInSecMarks();
-    durationInMinLow  = durationInSec / 60 - 1;  // 1 min for inaccuracies
-    durationInMinHigh = durationInSec / 60 +  (12 * durationInSec)  / 60 / 60;  // add 12 mins for 60 min duration, mor for longer durations. This is because often a cut version of the movie is broadcasted 
+    durationInMinLow  = durationInSec / 60 - 2;  // 2 min for inaccuracies
+    durationInMinHigh = durationInSec / 60 +  (15 * durationInSec)  / 60 / 60;  // add 15 mins for 60 min duration, more for longer durations. This is because often a cut version of the movie is broadcasted. Also, the markad results are not really reliable
     return true;
   } else {
     return csEventOrRecording::DurationRange(durationInMinLow, durationInMinHigh);

@@ -1,4 +1,5 @@
 #include <string>
+#include <string.h>
 #include <vector>
 #include <algorithm>
 using namespace std;
@@ -44,13 +45,26 @@ void StringRemoveTrailingWhitespace(string &str) {
     str.clear();            // str is all whitespace
 }
 
-const char *strstr_word (const char *str1, const char *str2) {
-// as strstr, but str2 must be a word (surrounded by non-alphanumerical characters
-  if (!str1 || !str2 || !(*str2) ) return NULL;
-  int len = strlen(str2);
-  for (const char *f = strstr(str1, str2); f && *(f+1); f = strstr (f + 1, str2) ) {
-    if (f != str1   && isalpha(*(f-1) )) continue;
-    if (f[len] != 0 && isalpha(f[len]) ) continue;
+const char *strnstr(const char *haystack, const char *needle, size_t len) {
+// if len >  0: use only len characters of needle
+// if len == 0: use strlen(needle) characters of needle
+
+  if (len == 0) return strstr(haystack, needle);
+  for (;haystack = strchr(haystack, needle[0]); haystack++)
+    if (!strncmp(haystack, needle, len)) return haystack;
+  return 0;
+}
+
+const char *strstr_word (const char *haystack, const char *needle, size_t len = 0) {
+// as strstr, but needle must be a word (surrounded by non-alphanumerical characters)
+// if len >  0: use only len characters of needle
+// if len == 0: use strlen(needle) characters of needle
+  if (!haystack || !needle || !(*needle) ) return NULL;
+  size_t len2 = (len == 0) ? strlen(needle) : len;
+  if (len2 == 0) return NULL;
+  for (const char *f = strnstr(haystack, needle, len); f && *(f+1); f = strnstr (f + 1, needle, len) ) {
+    if (f != haystack   && isalpha(*(f-1) )) continue;
+    if (f[len2] != 0 && isalpha(f[len2]) ) continue;
     return f;
   }
   return NULL;
@@ -148,6 +162,8 @@ void push_back_new(std::vector<std::string> &vec, const std::string str) {
 }
 
 void stringToVector(std::vector<std::string> &vec, const char *str) {
+// if str does not start with '|', don't split, just add str to vec
+// otherwise, split str at '|', and add each part to vec
   if (!str || !*str) return;
   if (str[0] != '|') { vec.push_back(str); return; }
   const char *lDelimPos = str;

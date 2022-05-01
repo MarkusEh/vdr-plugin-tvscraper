@@ -738,6 +738,7 @@ void cTVScraperDB::InsertEvent(csEventOrRecording *sEventOrRecording, int movie_
     tEventID eventID = sEventOrRecording->EventID();
     time_t validTill = sEventOrRecording->EndTime();
     cString channelIDs = sEventOrRecording->ChannelIDs();
+    if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::InsertEvent, !channelIDs");
     execSql("INSERT OR REPLACE INTO event (event_id, channel_id, valid_till, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?);",
       "isliii", (int)eventID, (const char *)channelIDs, (sqlite3_int64)validTill, movie_tv_id, season_number, episode_number);
 }
@@ -829,6 +830,7 @@ void cTVScraperDB::InsertRecording2(csEventOrRecording *sEventOrRecording, int m
     tEventID eventID = sEventOrRecording->EventID();
     time_t eventStartTime = sEventOrRecording->StartTime();
     cString channelIDs = sEventOrRecording->ChannelIDs();
+    if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::InsertEvent, !channelIDs");
   execSql("INSERT OR REPLACE INTO recordings2 (event_id, event_start_time, channel_id, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?)",
     "ilsiii", (int)eventID, (sqlite3_int64)eventStartTime, (const char *)channelIDs,
                movie_tv_id, season_number, episode_number);
@@ -914,6 +916,7 @@ bool cTVScraperDB::SetRecording(csEventOrRecording *sEventOrRecording) {
     stringstream sql;
     tEventID eventID = sEventOrRecording->EventID();
     cString channelIDs = sEventOrRecording->ChannelIDs();
+    if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::SetRecording, !channelIDs");
     sql << "select movie_tv_id, season_number, episode_number from event where event_id = " << eventID;
     sql << " and channel_id = ?";
     int movieTvId;
@@ -953,6 +956,7 @@ bool cTVScraperDB::GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movi
     tEventID eventID = sEventOrRecording->EventID();
     time_t eventStartTime = sEventOrRecording->StartTime();
     cString channelIDs = sEventOrRecording->ChannelIDs();
+    if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID, !channelIDs");
     stringstream sql;
     if (!sEventOrRecording->Recording() ){
         sql << "select movie_tv_id, season_number, episode_number from event where event_id = " << eventID;

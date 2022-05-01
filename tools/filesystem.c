@@ -62,8 +62,9 @@ bool Download(const std::string &url, const std::string &localPath) {
   string error;
   int err_code;
   if (config.enableDebug) esyslog("tvscraper: download file, url: \"%s\" local path: \"%s\"", url.c_str(), localPath.c_str() );
-  for(int i=0; i < 10; i++) {
-    if (i != 0) sleep(i);
+  for(int i=0; i < 11; i++) {
+    if (i !=  0) sleep(i);
+    if (i == 10) sleep(i); // extra long sleep before last try
     if (CurlGetUrlFile2(url.c_str(), localPath.c_str(), err_code, error) && FileExists(localPath) ) return true;
   }
   esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url.c_str(), localPath.c_str(), error.c_str(), err_code );

@@ -25,7 +25,8 @@ private:
   void getDirectorWriterMatches(const std::string &directorWriter, int &numMatchesAll, int &numMatchesSure, vector<string> &alreadyFound);
   void getDirectorWriterMatches(searchResultTvMovie &sR, const std::vector<std::string> &directorWriters);
   void getActorMatches(searchResultTvMovie &sR, const std::vector<std::vector<std::string>> &actors);
-  void addActor(const char *description, const string &name, int &numMatches, vector<string> &alreadyFound);
+  bool addActor(const char *description, const char *name, size_t len, int &numMatches, vector<string> &alreadyFound);
+  bool addActor(const char *description, const string &name, int &numMatches, vector<string> &alreadyFound);
   bool selectBestAndEnhanvceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));
   static void enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
   static void enhance2(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
@@ -37,6 +38,7 @@ private:
   cTVScraperDB *m_db; 
 // "calculated"
   std::string m_baseNameOrTitle;
+  std::string m_episodeName;
   std::string m_searchString;
   bool m_searchStringSubstituted;
   vector<int> m_years;
