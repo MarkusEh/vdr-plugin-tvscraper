@@ -182,23 +182,39 @@ bool cTVScraperWorker::ScrapEPG(void) {
 void cTVScraperWorker::ScrapRecordings(void) {
   if (config.GetReadOnlyClient() ) return;
   db->ClearRecordings2();
+
 #if APIVERSNUM < 20301
   for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec)) {
-#else
-  LOCK_RECORDINGS_READ;
-  for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
-#endif
-    if (config.enableDebug) esyslog("tvscraper: Scrap recording \"%s\"", rec->FileName() );
-
     if (overrides->IgnorePath(rec->FileName())) continue;
-    csRecording csRecording(rec);
-    const cRecordingInfo *recInfo = rec->Info();
-    const cEvent *recEvent = recInfo->GetEvent();
-    if (recEvent) {
+    {
+#else
+  vector<string> recordingFileNames;
+  {
+    LOCK_RECORDINGS_READ;
+    for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
+      if (overrides->IgnorePath(rec->FileName())) continue;
+      if (rec->FileName()) recordingFileNames.push_back(rec->FileName());
+    }
+  }
+  for (const string &filename: recordingFileNames) {
+    {
+      LOCK_RECORDINGS_READ;
+      const cRecording *rec = Recordings->GetByName(filename.c_str() );
+      if (!rec) continue;
+#endif
+      if (config.enableDebug) esyslog("tvscraper: Scrap recording \"%s\"", rec->FileName() );
+
+      csRecording csRecording(rec);
+      const cRecordingInfo *recInfo = rec->Info();
+      const cEvent *recEvent = recInfo->GetEvent();
+      if (recEvent) {
           cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, moviedbScraper, tvdbScraper, db);  
           SearchEventOrRec.Scrap();
           if (!Running() ) break;
+      }
     }
+// here, the read lock is released, so wait a sort time, in case someone needs a write lock
+    waitCondition.TimedWait(mutex, 100);
   }
 }
 
