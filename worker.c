@@ -104,76 +104,79 @@ bool cTVScraperWorker::ConnectScrapers(void) {
 }
 
 bool cTVScraperWorker::ScrapEPG(void) {
-// true if one ore more new events were scraped
+// true if one or more new events were scraped
   bool newEvent = false;
   if (config.GetReadOnlyClient() ) return newEvent;
-  vector<string> channels = config.GetChannels();
-  int numChannels = channels.size();
-  if (numChannels == 0) return newEvent;
-#if APIVERSNUM < 20301
-  cSchedulesLock schedulesLock;
-  const cSchedules *Schedules = cSchedules::Schedules(schedulesLock);
-#else
-  LOCK_CHANNELS_READ;
-//schedulesStateKey.Reset();  // this would force a channel scan, even in case of no changes
-  const cSchedules *Schedules = cSchedules::GetSchedulesRead(schedulesStateKey);
-#endif
-  if (!Schedules) {
-    dsyslog("tvscraper: Schedule was not changed, skipping scan");
+// check far changes in schedule (works only if APIVERSNUM >= 20301
+#if APIVERSNUM >= 20301
+  if (!cSchedules::GetSchedulesRead(schedulesStateKey)) {
+    if (config.enableDebug) dsyslog("tvscraper: Schedule was not changed, skipping scan");
     return newEvent;
   }
+  schedulesStateKey.Remove();
+#endif
+// loop over all channels configured for scraping, and create map to enable check for new events
   map<string, set<int>*> currentEvents;
-  for (int i=0; i<numChannels; i++) {
-    string channelID = channels[i];
+  for (const string &channelID: config.GetChannels() ) {
     map<string, set<int>*>::iterator currentEventsCurrentChannelIT = currentEvents.find(channelID);
     if (currentEventsCurrentChannelIT == currentEvents.end() ) {
       currentEvents.insert(pair<string, set<int>*>(channelID, new set<int>));
       currentEventsCurrentChannelIT = currentEvents.find(channelID);
     }
     map<string, set<int>*>::iterator lastEventsCurrentChannelIT = lastEvents.find(channelID);
-
+// start the block where we lock channels. After this block, all locks are released
+    {
 #if APIVERSNUM < 20301
-    const cChannel *channel = Channels.GetByChannelID(tChannelID::FromString(channelID.c_str()));
+      const cChannel *channel = Channels.GetByChannelID(tChannelID::FromString(channelID.c_str()));
 #else
-    const cChannel *channel = Channels->GetByChannelID(tChannelID::FromString(channelID.c_str()));
+      LOCK_CHANNELS_READ;
+      const cChannel *channel = Channels->GetByChannelID(tChannelID::FromString(channelID.c_str()));
 #endif
-    if (!channel) {
-      dsyslog("tvscraper: Channel %s %s is not availible, skipping", channel->Name(), channelID.c_str());
-      continue;
-    }
-    bool newEventSchedule = false;
-    const cSchedule *Schedule = Schedules->GetSchedule(channel);
-    if (Schedule) {
-      const cEvent *event = NULL;
-      time_t now = time(0);
-      for (event = Schedule->Events()->First(); event; event =  Schedule->Events()->Next(event)) {
-//	if(event->EventID() == 14724) dsyslog("tvscraper: scraping event %i, %s", event->EventID(), event->Title() );
-        if (event->EndTime() < now) continue; // do not scrap past events. Avoid to scrap them, and delete directly afterwards
-	if (!Running()) {
-#if APIVERSNUM >= 20301
-          schedulesStateKey.Remove();
-#endif
-          for (auto &event: currentEvents) delete event.second;
-	  return newEvent;
-        }
-        currentEventsCurrentChannelIT->second->insert(event->EventID() );
-	if (lastEventsCurrentChannelIT == lastEvents.end() ||
-            lastEventsCurrentChannelIT->second->find(event->EventID()) == lastEventsCurrentChannelIT->second->end() ) {
-          newEvent = true;
-          if (!newEventSchedule) {
-            dsyslog("tvscraper: scraping Channel %s %s", channel->Name(), channelID.c_str());
-            newEventSchedule = true;
-          }
-	  csEventOrRecording sEvent(event);
-	  cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);
-	  if( SearchEventOrRec.Scrap() ) waitCondition.TimedWait(mutex, 100);
-        }
+      if (!channel) {
+          dsyslog("tvscraper: Channel %s %s is not availible, skipping", channel->Name(), channelID.c_str());
+          continue;
       }
-    } else dsyslog("tvscraper: Schedule is not availible, skipping");
-  }
-#if APIVERSNUM >= 20301
-  schedulesStateKey.Remove();
+
+// now get and lock the schedule
+#if APIVERSNUM < 20301
+      cSchedulesLock schedulesLock;
+      const cSchedules *Schedules = cSchedules::Schedules(schedulesLock);
+#else
+      LOCK_SCHEDULES_READ;
 #endif
+      bool newEventSchedule = false;
+      const cSchedule *Schedule = Schedules->GetSchedule(channel);
+      if (Schedule) {
+        for (const cEvent *event = Schedule->Events()->First(); event; event =  Schedule->Events()->Next(event)) {
+          if (event->EndTime() < time(0) ) continue; // do not scrape past events. Avoid to scrape them, and delete directly afterwards
+          if (!Running()) {
+            for (auto &event: currentEvents) delete event.second;
+	    return newEvent;
+          }
+          currentEventsCurrentChannelIT->second->insert(event->EventID() );
+          if (lastEventsCurrentChannelIT == lastEvents.end() ||
+              lastEventsCurrentChannelIT->second->find(event->EventID()) == lastEventsCurrentChannelIT->second->end() ) {
+            newEvent = true;
+            if (!newEventSchedule) {
+              dsyslog("tvscraper: scraping Channel %s %s", channel->Name(), channelID.c_str());
+              newEventSchedule = true;
+            }
+/*
+            char buff[20];
+            time_t event_time = event->StartTime();
+            strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&event_time));
+            dsyslog("tvscraper: scrape event title %s, event start time: %s", event->Title(), buff );
+*/
+  	    csEventOrRecording sEvent(event);
+  	    cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);
+      	    SearchEventOrRec.Scrap();
+//     	    if( SearchEventOrRec.Scrap() ) waitCondition.TimedWait(mutex, 100);
+          }
+        }
+      } else dsyslog("tvscraper: Schedule for channel %s %s is not availible, skipping", channel->Name(), channelID.c_str());
+    } // end of block with locks
+    waitCondition.TimedWait(mutex, 100);
+  } // end loop over all channels
   currentEvents.swap(lastEvents);
   for (auto &event: currentEvents) delete event.second;
   return newEvent;
