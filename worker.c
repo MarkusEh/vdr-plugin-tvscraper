@@ -133,7 +133,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
       const cChannel *channel = Channels->GetByChannelID(tChannelID::FromString(channelID.c_str()));
 #endif
       if (!channel) {
-          dsyslog("tvscraper: Channel %s %s is not availible, skipping", channel->Name(), channelID.c_str());
+          dsyslog("tvscraper: Channel %s is not availible, skipping", channelID.c_str());
           continue;
       }
 
