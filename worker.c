@@ -133,7 +133,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
       const cChannel *channel = Channels->GetByChannelID(tChannelID::FromString(channelID.c_str()));
 #endif
       if (!channel) {
-          dsyslog("tvscraper: Channel %s is not availible, skipping", channelID.c_str());
+          dsyslog("tvscraper: Channel %s is not availible, skipping. Most likely this channel does not exist. To get rid of this message, goto tvscraper settings and edit the channel list.", channelID.c_str());
           continue;
       }
 
@@ -153,24 +153,20 @@ bool cTVScraperWorker::ScrapEPG(void) {
             for (auto &event: currentEvents) delete event.second;
 	    return newEvent;
           }
+// insert this event in the list of screped events
           currentEventsCurrentChannelIT->second->insert(event->EventID() );
+// check: was this event scraped already?
           if (lastEventsCurrentChannelIT == lastEvents.end() ||
               lastEventsCurrentChannelIT->second->find(event->EventID()) == lastEventsCurrentChannelIT->second->end() ) {
+// this event was not yet scraped, scrape it now
             newEvent = true;
             if (!newEventSchedule) {
               dsyslog("tvscraper: scraping Channel %s %s", channel->Name(), channelID.c_str());
               newEventSchedule = true;
             }
-/*
-            char buff[20];
-            time_t event_time = event->StartTime();
-            strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&event_time));
-            dsyslog("tvscraper: scrape event title %s, event start time: %s", event->Title(), buff );
-*/
   	    csEventOrRecording sEvent(event);
   	    cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);
-      	    SearchEventOrRec.Scrap();
-//     	    if( SearchEventOrRec.Scrap() ) waitCondition.TimedWait(mutex, 100);
+      	    SearchEventOrRec.Scrape();
           }
         }
       } else dsyslog("tvscraper: Schedule for channel %s %s is not availible, skipping", channel->Name(), channelID.c_str());
@@ -212,7 +208,7 @@ void cTVScraperWorker::ScrapRecordings(void) {
       const cEvent *recEvent = recInfo->GetEvent();
       if (recEvent) {
           cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, moviedbScraper, tvdbScraper, db);  
-          SearchEventOrRec.Scrap();
+          SearchEventOrRec.Scrape();
           if (!Running() ) break;
       }
     }
@@ -269,7 +265,7 @@ void cTVScraperWorker::CheckRunningTimers(void) {
       esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", eventID, (const char *)channelIDs, rc->FileName() );
       if (ConnectScrapers() ) { 
         cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, moviedbScraper, tvdbScraper, db);  
-        SearchEventOrRec.Scrap();
+        SearchEventOrRec.Scrape();
       }
     }
   }

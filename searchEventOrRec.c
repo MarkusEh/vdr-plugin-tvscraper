@@ -119,9 +119,14 @@ void cSearchEventOrRec::initSearchString(void) {
   transform(m_searchString.begin(), m_searchString.end(), m_searchString.begin(), ::tolower);
 }
 
-bool cSearchEventOrRec::Scrap(void) {
+bool cSearchEventOrRec::Scrape(void) {
 // return true, if request to rate limited internet db was required. Otherwise, false
-  if (config.enableDebug) esyslog("tvscraper: Scrap Event ID , search string \"%s\", title \"%s\"", m_searchString.c_str(), m_sEventOrRecording->Title());
+  if (config.enableDebug) {
+    char buff[20];
+    time_t event_time = m_sEventOrRecording->StartTime();
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&event_time));
+    esyslog("tvscraper: Scrap event: search string \"%s\", title \"%s\", start time: %s", m_searchString.c_str(), m_sEventOrRecording->Title(), buff);
+  }
   if (m_overrides->Ignore(m_baseNameOrTitle)) return extDbConnected;
   sMovieOrTv movieOrTv;
   ScrapFindAndStore(movieOrTv);

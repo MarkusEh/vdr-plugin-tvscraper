@@ -3,7 +3,7 @@
 class cSearchEventOrRec {
 public:
   cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, cTVScraperDB *db);
-  bool Scrap(void); // return true, if request to rate limited internet db was required. Otherwise, false
+  bool Scrape(void); // return true, if request to rate limited internet db was required. Otherwise, false
 private:
   scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, string &movieName, string &episodeSearchString);
   void Store(const sMovieOrTv &movieOrTv);
