@@ -46,7 +46,7 @@ cTVScraperConfig config;
 #include "imageserver.c"
 #include "setup.c"
 
-static const char *VERSION        = "1.0.2";
+static const char *VERSION        = "1.0.3";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
@@ -58,7 +58,7 @@ private:
     cTVScraperWorker *workerThread;
     cImageServer *imageServer;
     cOverRides *overrides;
-    int lastEventId;
+    int lastEventId = 0;
     int lastSeasonNumber;
     int lastEpisodeNumber;
     bool GetPosterOrOtherPicture(cTvMedia &media, const cEvent *event, const cRecording *recording);
@@ -206,22 +206,21 @@ bool cPluginTvscraper::GetPosterOrOtherPicture(cTvMedia &media, const cEvent *ev
 
 
 bool cPluginTvscraper::Service(const char *Id, void *Data) {
-    if (Data == NULL)
-        return false;
-    
     if (strcmp(Id, "GetScraperMovieOrTv") == 0) {
+        if (Data == NULL) return true;
+    
         cScraperMovieOrTv* call = (cScraperMovieOrTv*) Data;
         call->found = false;
         if (call->event && call->recording) {
           esyslog("tvscraper: ERROR calling vdr service interface \"GetScraperMovieOrTv\", call->event && call->recording are provided. Please set one of these parameters to NULL");
-          return false;
+          return true;
         }
         csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
-        if (!sEventOrRecording) return false;
+        if (!sEventOrRecording) return true;
 
         cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, sEventOrRecording);
         delete sEventOrRecording;
-        if (!movieOrTv) return false;
+        if (!movieOrTv) return true;
 
         movieOrTv->clearScraperMovieOrTv(call);
         call->found = true;
@@ -231,11 +230,17 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         return true;
     }
     if (strcmp(Id, "GetEventType") == 0) {
+// Keep old (and wrong) behavior, and return false if no event was found.
+// Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity fixes a bug in SkinNopacity. Once this fix is applied, we can also change this method and always return true 
+        if (Data == NULL) return true;
         ScraperGetEventType* call = (ScraperGetEventType*) Data;
         csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
         if (!sEventOrRecording) {
-            call->type = tNone;
             lastEventId = 0;
+            call->type = tNone;
+	    call->movieId = 0;
+	    call->seriesId = 0;
+	    call->episodeId = 0;
             return false;
 	}
 
@@ -244,6 +249,9 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 
         if( lastEventId == 0 ) {
             call->type = tNone;
+	    call->movieId = 0;
+	    call->seriesId = 0;
+	    call->episodeId = 0;
             return false;
         }
 
@@ -254,19 +262,32 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
             call->type = tMovie;
             call->movieId = 1234;
         } else {
+            lastEventId = 0;
             call->type = tNone;
+	    call->movieId = 0;
+	    call->seriesId = 0;
+	    call->episodeId = 0;
+            return false;
         }
 	
         return true;
     }
 
     if (strcmp(Id, "GetSeries") == 0) {
+        if (Data == NULL) return true;
         cSeries* call = (cSeries*) Data;
-        if( call->seriesId == 0 || lastEventId == 0 )
-            return false;
+        if( call->seriesId == 0 || lastEventId == 0 ) {
+            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", call->seriesId == 0 || lastEventId == 0");
+            call->name = "Error calling VDR service interface GetSeries";
+            return true;
+        }
 
         float popularity, vote_average;
-        db->GetTv(lastEventId, call->name, call->overview, call->firstAired, call->network, call->genre, popularity, vote_average, call->status);
+        if (!db->GetTv(lastEventId, call->name, call->overview, call->firstAired, call->network, call->genre, popularity, vote_average, call->status)) {
+            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", lastEventId = %i not found", lastEventId);
+            call->name = "Error calling VDR service interface GetSeries";
+            return true;
+        }
         call->rating = vote_average;
 
 // data for cEpisode episode;
@@ -302,12 +323,6 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         call->seasonPoster = media;  // default: empty
         call->banners.clear();
         if (imageServer->GetBanner(media, lastEventId) ) call->banners.push_back(media);
-        else {
-          media.path = "areognaer";
-          media.width = 100;
-          media.height = 100;
-//          call->banners.push_back(media);
-        }
         call->fanarts = imageServer->GetSeriesFanarts(lastEventId, lastSeasonNumber, lastEpisodeNumber);
 
         call->seasonPoster = imageServer->GetPoster(lastEventId, lastSeasonNumber, lastEpisodeNumber);
@@ -315,13 +330,20 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     }
 
     if (strcmp(Id, "GetMovie") == 0) {
+        if (Data == NULL) return true;
         cMovie* call = (cMovie*) Data;
-        if (call->movieId == 0 || lastEventId == 0)
-            return false;
+        if (call->movieId == 0 || lastEventId == 0) {
+            esyslog("tvscraper: ERROR calling vdr service interface \"GetMovie\", call->movieId == 0 || lastEventId == 0");
+            call->title = "Error calling VDR service interface GetMovie";
+            return true;
+        }
 
         int collection_id;
-        db->GetMovie(lastEventId, call->title, call->originalTitle, call->tagline, call->overview, call->adult, collection_id, call->collectionName, call->budget, call->revenue, call->genres, call->homepage, call->releaseDate, call->runtime, call->popularity, call->voteAverage);
-
+        if (!db->GetMovie(lastEventId, call->title, call->originalTitle, call->tagline, call->overview, call->adult, collection_id, call->collectionName, call->budget, call->revenue, call->genres, call->homepage, call->releaseDate, call->runtime, call->popularity, call->voteAverage)) {
+            esyslog("tvscraper: ERROR calling vdr service interface \"GetMovie\", lastEventId = %i not found", lastEventId);
+            call->title = "Error calling VDR service interface GetMovie";
+            return true;
+        }
 
         call->poster = imageServer->GetPoster(lastEventId, lastSeasonNumber, lastEpisodeNumber);
         call->fanart = imageServer->GetMovieFanart(lastEventId);
@@ -334,9 +356,11 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     }
     
     if (strcmp(Id, "GetPosterBanner") == 0) {
+        if (Data == NULL) return true;
         ScraperGetPosterBanner* call = (ScraperGetPosterBanner*) Data;
         csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, NULL);
-        if (!sEventOrRecording) return false;
+        call->type = tNone;
+        if (!sEventOrRecording) return true;
         int id, sn, en;
         scrapType type = imageServer->GetIDs(sEventOrRecording, id, sn, en);
 //        if (config.enableDebug) esyslog("tvscraper: GetPosterBanner, id %i type %i", id, type);
@@ -356,17 +380,29 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
             }
             return true;
         }
-        return false;
+        return true;
     }
 
     if (strcmp(Id, "GetPoster") == 0) {
+        if (Data == NULL) return true;
         ScraperGetPoster* call = (ScraperGetPoster*) Data;
-        return GetPosterOrOtherPicture(call->poster, call->event, call->recording);
+        if (!GetPosterOrOtherPicture(call->poster, call->event, call->recording)) {
+          call->poster.path = "";
+          call->poster.width = 0;
+          call->poster.height = 0;
+        }
+        return true;
     }
 
     if (strcmp(Id, "GetPosterThumb") == 0) {
+        if (Data == NULL) return true;
         ScraperGetPosterThumb* call = (ScraperGetPosterThumb*) Data;
-        return GetPosterOrOtherPicture(call->poster, call->event, call->recording);
+        if (!GetPosterOrOtherPicture(call->poster, call->event, call->recording)) {
+          call->poster.path = "";
+          call->poster.width = 0;
+          call->poster.height = 0;
+        }
+        return true;
     }
   return false;
 }

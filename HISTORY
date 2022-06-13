@@ -67,3 +67,8 @@ Version 0.9.9
 
 Version 0.9.10
 - Check for new EPG events about every 15 min, and scrape new EPG events
+
+Version 1.0.3
+- Fix a bug in the VDR service interface: Return "true" for all implemented services
+- Exception: GetEventType still returns false if no event was found, as workaround for a bug in SkinNopacity
+-            This bug is fixed with Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity
