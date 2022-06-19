@@ -71,9 +71,12 @@ void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id,
   for (sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", id);
        m_db->QueryStep(statement, "sSSi", &actorId, &actor.name, &actor.role, &hasImage); ) {
     if (hasImage) {
+      actor.actorThumb.path = basePath + actorId + ".jpg";
+      if (!FileExists(actor.actorThumb.path)) hasImage = false;
+    }
+    if (hasImage) {
       actor.actorThumb.width = width;
       actor.actorThumb.height = height;
-      actor.actorThumb.path = basePath + actorId + ".jpg";
     } else {
       actor.actorThumb.width = width;
       actor.actorThumb.height = height;
