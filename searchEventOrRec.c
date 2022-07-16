@@ -335,7 +335,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
 }
 void cSearchEventOrRec::ScrapAssign(const sMovieOrTv &movieOrTv) {
 // assign found movieOrTv to event/recording in db
-// and download episode still
+// and download images
   if(movieOrTv.type != scrapMovie && movieOrTv.type != scrapSeries) return; // if nothing was found, there is nothing todo
   if (!m_sEventOrRecording->Recording() )
           m_db->InsertEvent     (m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
@@ -357,6 +357,13 @@ void cSearchEventOrRec::ScrapAssign(const sMovieOrTv &movieOrTv) {
       if (movieOrTv.id > 0)
         m_moviedbScraper->StoreStill (movieOrTv.id     , movieOrTv.season, movieOrTv.episode, episodeStillPath);
       else m_tvdbScraper->StoreStill (movieOrTv.id * -1, movieOrTv.season, movieOrTv.episode, episodeStillPath);
+    }
+  }
+  if (m_sEventOrRecording->Recording() ) {
+    cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(m_db, m_sEventOrRecording);
+    if (movieOrTv) {
+      movieOrTv->copyImagesToRecordingFolder(m_sEventOrRecording->Recording() );
+      delete movieOrTv;
     }
   }
 }
@@ -548,7 +555,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
   } else {
 // tv show
     if (debug) esyslog("tvscraper: enhance1 (1)" );
-    if (!debug) sR.setDuration(searchEventOrRec.GetTvDurationDistance(sR.id() ) );
+    sR.setDuration(searchEventOrRec.GetTvDurationDistance(sR.id() ) );
     if (debug) esyslog("tvscraper: enhance1 (2)" );
     sR.setDirectorWriter(0);
     if (sR.id() < 0) {

@@ -9,6 +9,19 @@ cTVScraperConfig::cTVScraperConfig() {
 cTVScraperConfig::~cTVScraperConfig() {
 }
 
+void cTVScraperConfig::SetBaseDir(const string &dir) {
+  if (dir.empty() || dir[dir.length()-1] == '/') baseDir = dir;
+  else baseDir = dir + "/";
+  baseDirLen = baseDir.length();
+  if (baseDirLen) {
+    baseDirSeries = baseDir + "series/";
+    baseDirMovies = baseDir + "movies/";
+    baseDirMovieActors = baseDirMovies + "actors/";
+    baseDirMovieCollections = baseDirMovies + "collections/";
+    baseDirMovieTv = baseDirMovies + "tv/";
+  }
+}
+
 void cTVScraperConfig::ClearChannels(void) {
     channels.clear();
 }

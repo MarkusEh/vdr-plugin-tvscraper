@@ -44,6 +44,7 @@ To run the plugin the following libaries have to be installed:
 - libcurl
 - libXML2
 - libjansson
+- gcc-8. If you have gcc-7, a patch might help, see https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517
 
 Installation and configuration
 ------------------------------

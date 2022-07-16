@@ -69,7 +69,7 @@ public:
     bool SetRecording(csEventOrRecording *sEventOrRecording);
     void ClearRecordings2(void);
     bool CheckStartScrapping(int minimumDistance);
-    bool GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number);
+    bool GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = NULL);
     int GetMovieCollectionID(int movieID);
     vector<vector<string> > GetActorsMovie(int movieID);
     vector<vector<string> > GetActorsSeries(int seriesID);
@@ -100,6 +100,7 @@ public:
     vector<vector<string> > GetActorDownload(int tvID, bool movie);
     void DeleteActorDownload (int tvID, bool movie);
     sqlite3_stmt *GetAllMovies();
+    int GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
 };
 
 #endif //__TVSCRAPER_TVSCRAPPERDB_H

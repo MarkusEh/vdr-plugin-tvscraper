@@ -58,15 +58,20 @@ void cTVScraperWorker::InitManualScan(void) {
 }
 
 void cTVScraperWorker::SetDirectories(void) {
+    if (config.GetBaseDirLen() == 0) {
+      esyslog("tvscraper: ERROR: no base dir");
+      startLoop = false;
+      return;
+    }
     plgBaseDir = config.GetBaseDir();
     stringstream strSeriesDir;
-    strSeriesDir << plgBaseDir << "/series";
+    strSeriesDir << plgBaseDir << "series";
     seriesDir = strSeriesDir.str();
     stringstream strMovieDir;
-    strMovieDir << plgBaseDir << "/movies";
+    strMovieDir << plgBaseDir << "movies";
     movieDir = strMovieDir.str();
     bool ok = false;
-    ok = CreateDirectory(plgBaseDir);
+    ok = CreateDirectory(plgBaseDir.substr(0, config.GetBaseDirLen()-1 ));
     if (ok)
         ok = CreateDirectory(seriesDir);
     if (ok)
@@ -259,7 +264,14 @@ void cTVScraperWorker::CheckRunningTimers(void) {
       continue;
     }
     csRecording sRecording(recording);
-    if (!db->SetRecording(&sRecording)) {
+
+    if (db->SetRecording(&sRecording)) {
+      cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, &sRecording);
+      if (movieOrTv) {
+        movieOrTv->copyImagesToRecordingFolder(recording);
+        delete movieOrTv;
+      }
+    } else {
       tEventID eventID = sRecording.EventID();
       cString channelIDs = sRecording.ChannelIDs();
       esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", eventID, (const char *)channelIDs, rc->FileName() );

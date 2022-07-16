@@ -21,20 +21,32 @@ struct sMovieOrTv {
 
 class cTVScraperConfig {
     private:
-        string baseDir;
         string themoviedbSearchOption = "";
         bool readOnlyClient = false;
         vector<string> channels; 
+        string baseDir;
+        int baseDirLen;
+        string baseDirSeries = "";
+        string baseDirMovies = "";
+        string baseDirMovieActors = "";
+        string baseDirMovieCollections = "";
+        string baseDirMovieTv = "";
     public:
         cTVScraperConfig();
         ~cTVScraperConfig();
         int enableDebug;
-        void SetBaseDir(string dir) { baseDir = dir; };
         void SetThemoviedbSearchOption(const string &option) { themoviedbSearchOption = option; };
         void SetReadOnlyClient() { readOnlyClient = true; };
-        string GetBaseDir(void) { return baseDir; };
-        string GetThemoviedbSearchOption(void) { return themoviedbSearchOption; };
-        bool GetReadOnlyClient() { return readOnlyClient; }
+        void SetBaseDir(const string &dir);
+        const string &GetBaseDir(void) const { return baseDir; };
+        int GetBaseDirLen(void) const { return baseDirLen; };
+        const string &GetBaseDirSeries(void) const { return baseDirSeries; };
+        const string &GetBaseDirMovies(void) const { return baseDirMovies; };
+        const string &GetBaseDirMovieActors(void) const { return baseDirMovieActors; };
+        const string &GetBaseDirMovieCollections(void) const { return baseDirMovieCollections; };
+        const string &GetBaseDirMovieTv(void) const { return baseDirMovieTv; };
+        const string &GetThemoviedbSearchOption(void) const { return themoviedbSearchOption; };
+        bool GetReadOnlyClient() const { return readOnlyClient; }
         void ClearChannels(void);
         void AddChannel(string channelID);
         bool ChannelActive(int channelNum);

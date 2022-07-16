@@ -7,7 +7,6 @@
 #include <filesystem>
 #include "tvscraperdb.h"
 #include "services.h"
-#include "imageserver.h"
 using namespace std;
 
 cTVScraperDB::cTVScraperDB(void) {
@@ -20,7 +19,7 @@ cTVScraperDB::cTVScraperDB(void) {
         dbPathMem = sstrDbFileMem.str();
     }
     stringstream sstrDbFile;
-    sstrDbFile << config.GetBaseDir() << "/tvscraper2.db";
+    sstrDbFile << config.GetBaseDir() << "tvscraper2.db";
     dbPathPhys = sstrDbFile.str();
 }
 
@@ -382,6 +381,9 @@ int cTVScraperDB::LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int is
 
 bool cTVScraperDB::CreateTables(void) {
     stringstream sql;
+// tv2: data for a TV show.
+// tv_id > 0 -> data from themoviedb
+// tv_id < 0 -> data from thetvdb
     sql << "DROP TABLE IF EXISTS tv;";
     sql << "CREATE TABLE IF NOT EXISTS tv2 (";
     sql << "tv_id integer primary key, ";
@@ -429,6 +431,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "movie_director nvarchar, ";
     sql << "movie_writer nvarchar);";
 
+// episode information for tv
     sql << "CREATE TABLE IF NOT EXISTS tv_s_e (";
     sql << "tv_id integer, ";
     sql << "season_number integer, ";
@@ -463,6 +466,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_actor_tv on actor_tv_episode (episode_id, actor_id); ";
 
+// actors for tv shows from thetvdb
     sql << "CREATE TABLE IF NOT EXISTS series_actors (";
     sql << "actor_series_id integer, ";
     sql << "actor_name nvarchar(255), ";
@@ -472,6 +476,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_series_actors on series_actors (actor_series_id, actor_name, actor_role); ";
     sql << "CREATE INDEX IF NOT EXISTS idx1 on series_actors (actor_series_id); ";
 
+// data for movies from themoviedb
     sql << "DROP TABLE IF EXISTS movies;";
     sql << "DROP TABLE IF EXISTS movies2;";
     sql << "CREATE TABLE IF NOT EXISTS movies3 (";
@@ -498,6 +503,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "movie_IMDB_ID text";
     sql << ");";
 
+// actors from themoviedb
     sql << "CREATE TABLE IF NOT EXISTS actors (";
     sql << "actor_id integer primary key, ";
     sql << "actor_has_image integer , ";
@@ -535,20 +541,24 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "DROP INDEX IF EXISTS idx_cache;";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_cache2 on cache (movie_name_cache, recording, duration, year); ";
 
+// mapping EPG event to tv show / movie
     sql << "CREATE TABLE IF NOT EXISTS event (";
     sql << "event_id integer, ";
     sql << "channel_id nvarchar(255), ";
     sql << "valid_till integer, ";
+    sql << "runtime integer, ";       // runtime of thetvdb, which does best match to runtime of event
     sql << "movie_tv_id integer, ";   // movie if season_number == -100. Otherwisse, tv
     sql << "season_number integer, ";
     sql << "episode_number integer";
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_event on event (event_id, channel_id); ";
 
+// mapping recording to tv show / movie
     sql << "CREATE TABLE IF NOT EXISTS recordings2 (";
     sql << "event_id integer, ";
     sql << "event_start_time integer, ";
     sql << "channel_id nvarchar(255), ";
+    sql << "runtime integer, ";       // runtime of thetvdb, which does best match to runtime of recording
     sql << "movie_tv_id integer, ";   // movie if season_number == -100. Otherwisse, tv
     sql << "season_number integer, ";
     sql << "episode_number integer";
@@ -574,6 +584,8 @@ bool cTVScraperDB::CreateTables(void) {
     AddCulumnIfNotExists("movie_runtime2", "movie_director", "nvarchar");
     AddCulumnIfNotExists("movie_runtime2", "movie_writer", "nvarchar");
     AddCulumnIfNotExists("actors", "actor_has_image", "integer");
+    AddCulumnIfNotExists("event", "runtime", "integer");
+    AddCulumnIfNotExists("recordings2", "runtime", "integer");
 // move from actor_thumbnail to actor_number, and delete culumn actor_path (if exists)
     if (TableColumnExists("series_actors", "actor_thumbnail") ) {
       stringstream sql;
@@ -738,9 +750,10 @@ void cTVScraperDB::InsertEvent(csEventOrRecording *sEventOrRecording, int movie_
     tEventID eventID = sEventOrRecording->EventID();
     time_t validTill = sEventOrRecording->EndTime();
     cString channelIDs = sEventOrRecording->ChannelIDs();
+    int runtime = GetRuntime(sEventOrRecording, movie_tv_id, season_number, episode_number);
     if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::InsertEvent, !channelIDs");
-    execSql("INSERT OR REPLACE INTO event (event_id, channel_id, valid_till, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?);",
-      "isliii", (int)eventID, (const char *)channelIDs, (sqlite3_int64)validTill, movie_tv_id, season_number, episode_number);
+    execSql("INSERT OR REPLACE INTO event (event_id, channel_id, valid_till, runtime, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?, ?);",
+      "isliiii", (int)eventID, (const char *)channelIDs, (sqlite3_int64)validTill, runtime, movie_tv_id, season_number, episode_number);
 }
 
 void cTVScraperDB::InsertMovie(int movieID, const string &title, const string &original_title, const string &tagline, const string &overview, bool adult, int collection_id, const string &collection_name, int budget, int revenue, const string &genres, const string &homepage, const string &release_date, int runtime, float popularity, float vote_average, int vote_count, const string &productionCountries, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID){
@@ -826,104 +839,115 @@ bool cTVScraperDB::TvExists(int tvID) {
   return QueryInt("select count(tv_id) as found from tv2 where tv_id = ?", "i", tvID) == 1;
 }
 
+int cTVScraperDB::GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number) {
+// return runtime from internat database, which matches best the runtime of the current event
+if (season_number == -100) return GetMovieRuntime(movie_tv_id);
+  char sql[] = "select episode_run_time from tv_episode_run_time where tv_id = ?";
+  if (QueryInt("select count(episode_run_time) from tv_episode_run_time where tv_id = ?", "i", movie_tv_id) <= 1)
+    return QueryInt(sql, "i", movie_tv_id);
+// tv show, more than one runtime is available. Select the best fitting one
+  int runtime_distance = 20000;
+  int best_runtime = 0;
+  int runtime;
+  for (sqlite3_stmt *statement = QueryPrepare(sql, "i", movie_tv_id); QueryStep(statement, "i", &runtime);) {
+    int dist = sEventOrRecording->DurationDistance(runtime);
+    if (dist < runtime_distance) {
+      best_runtime = runtime;
+      dist = runtime_distance;
+    }
+  }
+  return best_runtime;
+}
+
 void cTVScraperDB::InsertRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number) {
     tEventID eventID = sEventOrRecording->EventID();
     time_t eventStartTime = sEventOrRecording->StartTime();
     cString channelIDs = sEventOrRecording->ChannelIDs();
-    if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::InsertEvent, !channelIDs");
-  execSql("INSERT OR REPLACE INTO recordings2 (event_id, event_start_time, channel_id, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?)",
-    "ilsiii", (int)eventID, (sqlite3_int64)eventStartTime, (const char *)channelIDs,
+    int runtime = GetRuntime(sEventOrRecording, movie_tv_id, season_number, episode_number);
+    if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::InsertRecording2, !channelIDs");
+  execSql("INSERT OR REPLACE INTO recordings2 (event_id, event_start_time, channel_id, runtime, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "ilsiiii", (int)eventID, (sqlite3_int64)eventStartTime, (const char *)channelIDs, runtime,
                movie_tv_id, season_number, episode_number);
 
     const cRecording *recording = sEventOrRecording->Recording();
-    if (recording) {
+    if (recording)
       WriteRecordingInfo(sEventOrRecording->Recording(), movie_tv_id, season_number, episode_number);
-// copy pictures to recording folder
-// get poster path
-      cImageServer imageServer(this);
-      cTvMedia poster = imageServer.GetPoster(movie_tv_id, season_number, episode_number);
-      if (!poster.path.empty() ) CopyFile(poster.path, string(recording->FileName() ) + "/poster.jpg" );
-      if (season_number == -100) {
-        cTvMedia fanart = imageServer.GetMovieFanart(movie_tv_id);
-        if (!fanart.path.empty() ) CopyFile(fanart.path, string(recording->FileName() ) + "/fanart.jpg" );
-      } else {
-        vector<cTvMedia> fanarts = imageServer.GetSeriesFanarts(movie_tv_id, season_number, episode_number);
-        if (fanarts.size() > 0) CopyFile(fanarts[0].path, string(recording->FileName() ) + "/fanart.jpg" );
-      }
-    }
+// copy images to recording folder will be done later, with cMovieOrTv->copyImagesToRecordingFolder(
+// required as InsertRecording2 is called before the images are downloaded
 }
+
 void cTVScraperDB::WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number) {
-  if (!recording || !recording->FileName() ) return;  // no place to write the information
-  string filename = recording->FileName();
-  filename.append("/tvscrapper.json");
+if (!recording || !recording->FileName() ) return;  // no place to write the information
+string filename = recording->FileName();
+filename.append("/tvscrapper.json");
 // get "root" json (this is *jInfo)
-  json_t *jInfo;
-  if (std::filesystem::exists(filename) ) {
+json_t *jInfo;
+if (std::filesystem::exists(filename) ) {
 // read existing json file
-    json_error_t error;
-    jInfo = json_load_file(filename.c_str(), 0, &error);
-    if (!jInfo) {
-      esyslog("tvscraper: ERROR cannot load json \"%s\", error \"%s\"", filename.c_str(), error.text);
+  json_error_t error;
+  jInfo = json_load_file(filename.c_str(), 0, &error);
+  if (!jInfo) {
+    esyslog("tvscraper: ERROR cannot load json \"%s\", error \"%s\"", filename.c_str(), error.text);
 // this file will be overwritten, so create a copy
-      std::error_code ec;
-      std::filesystem::copy_file(filename, filename + ".bak", ec);
-      if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to copy \"%s\" to \"%s.bak\"", ec.message().c_str(), ec.value(), filename.c_str(), filename.c_str() );
-      jInfo = json_object();
-    }
-  } else jInfo = json_object();
+    std::error_code ec;
+    std::filesystem::copy_file(filename, filename + ".bak", ec);
+    if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to copy \"%s\" to \"%s.bak\"", ec.message().c_str(), ec.value(), filename.c_str(), filename.c_str() );
+    jInfo = json_object();
+  }
+} else jInfo = json_object();
 // "themoviedb / thetvdb" node: this is owned by "tvscraper", so we can overwrite (if it exists)
-  json_t *jTvscraper = json_object();
-  if (movie_tv_id > 0) { json_object_set(jInfo, "themoviedb", jTvscraper); json_object_del(jInfo, "thetvdb"); }
-                  else { json_object_set(jInfo, "thetvdb", jTvscraper);    json_object_del(jInfo, "themoviedb"); }
+json_t *jTvscraper = json_object();
+if (movie_tv_id > 0) { json_object_set(jInfo, "themoviedb", jTvscraper); json_object_del(jInfo, "thetvdb"); }
+                else { json_object_set(jInfo, "thetvdb", jTvscraper);    json_object_del(jInfo, "themoviedb"); }
 // set attributes
-  const char sql_tv[] = "select tv_name, tv_first_air_date from tv2 where tv_id = ?";
-  const char sql_mv[] = "select movie_title, movie_release_date from movies3 where movie_id = ?";
-  const char *sql;
-  if (season_number != -100) {
+const char sql_tv[] = "select tv_name, tv_first_air_date from tv2 where tv_id = ?";
+const char sql_mv[] = "select movie_title, movie_release_date from movies3 where movie_id = ?";
+const char *sql;
+if (season_number != -100) {
 // TV Show
-    json_object_set_new(jTvscraper, "type", json_string("tv show"));
-    sql = sql_tv;
-    if( season_number != 0 || episode_number != 0) {  // season / episode was found
-      json_object_set_new(jTvscraper, "season_number", json_integer(season_number) );
-      json_object_set_new(jTvscraper, "episode_number", json_integer(episode_number) );
+  json_object_set_new(jTvscraper, "type", json_string("tv show"));
+  sql = sql_tv;
+  if( season_number != 0 || episode_number != 0) {  // season / episode was found
+    json_object_set_new(jTvscraper, "season_number", json_integer(season_number) );
+    json_object_set_new(jTvscraper, "episode_number", json_integer(episode_number) );
 // get episode name
-      string episode_name = QueryString("select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", movie_tv_id, season_number, episode_number);
-      if (!episode_name.empty() ) json_object_set_new(jTvscraper, "episode_name", json_string(episode_name.c_str()) );
-  }} else {
+    string episode_name = QueryString("select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", movie_tv_id, season_number, episode_number);
+    if (!episode_name.empty() ) json_object_set_new(jTvscraper, "episode_name", json_string(episode_name.c_str()) );
+}} else {
 // movie
-    json_object_set_new(jTvscraper, "type", json_string("movie"));
-    sql = sql_mv;
-  }
-  string title;
-  string date;
-  if (QueryLine(sql, "i", "SS", movie_tv_id, &title, &date ) ) {
-    json_object_set_new(jTvscraper, "name", json_string(title.c_str()) );
-    if (date.length() >= 4)
-      json_object_set_new(jTvscraper, "year", json_integer(atoi(date.substr(0, 4).c_str()) ));
-  }
-  json_object_set_new(jTvscraper, "movie_tv_id", json_integer(abs(movie_tv_id) ));
+  json_object_set_new(jTvscraper, "type", json_string("movie"));
+  sql = sql_mv;
+}
+string title;
+string date;
+if (QueryLine(sql, "i", "SS", movie_tv_id, &title, &date ) ) {
+  json_object_set_new(jTvscraper, "name", json_string(title.c_str()) );
+  if (date.length() >= 4)
+    json_object_set_new(jTvscraper, "year", json_integer(atoi(date.substr(0, 4).c_str()) ));
+}
+json_object_set_new(jTvscraper, "movie_tv_id", json_integer(abs(movie_tv_id) ));
 
 // write file
-  json_dump_file(jInfo, filename.c_str(), JSON_INDENT(2));
-  json_decref(jInfo);
-  json_decref(jTvscraper);
+json_dump_file(jInfo, filename.c_str(), JSON_INDENT(2));
+json_decref(jInfo);
+json_decref(jTvscraper);
 }
 
 bool cTVScraperDB::SetRecording(csEventOrRecording *sEventOrRecording) {
 // used to be an event, is now a recording
 // only called in workers, if a timer is recording
 // event is attached to timer
-    stringstream sql;
-    tEventID eventID = sEventOrRecording->EventID();
-    cString channelIDs = sEventOrRecording->ChannelIDs();
-    if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::SetRecording, !channelIDs");
-    sql << "select movie_tv_id, season_number, episode_number from event where event_id = " << eventID;
-    sql << " and channel_id = ?";
-    int movieTvId;
-    int seasonNumber;
-    int episodeNumber;
-    if (QueryLine(sql.str().c_str(), "s", "iii", (const char *)channelIDs, &movieTvId, &seasonNumber, &episodeNumber)) {
-      InsertRecording2(sEventOrRecording, movieTvId, seasonNumber, episodeNumber);
+  stringstream sql;
+  tEventID eventID = sEventOrRecording->EventID();
+  cString channelIDs = sEventOrRecording->ChannelIDs();
+  if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::SetRecording, !channelIDs");
+  sql << "select movie_tv_id, season_number, episode_number from event where event_id = " << eventID;
+  sql << " and channel_id = ?";
+  int movieTvId;
+  int seasonNumber;
+  int episodeNumber;
+  if (QueryLine(sql.str().c_str(), "s", "iii", (const char *)channelIDs, &movieTvId, &seasonNumber, &episodeNumber)) {
+    InsertRecording2(sEventOrRecording, movieTvId, seasonNumber, episodeNumber);
       return true;
     }
     return false;
@@ -952,22 +976,28 @@ bool cTVScraperDB::CheckStartScrapping(int minimumDistance) {
     return startScrapping;
 }
 
-bool cTVScraperDB::GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number) {
-    tEventID eventID = sEventOrRecording->EventID();
-    time_t eventStartTime = sEventOrRecording->StartTime();
-    cString channelIDs = sEventOrRecording->ChannelIDs();
-    if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID, !channelIDs");
-    stringstream sql;
-    if (!sEventOrRecording->Recording() ){
-        sql << "select movie_tv_id, season_number, episode_number from event where event_id = " << eventID;
-        sql << " and channel_id = ?";
-         }
-    else {
-        sql << "select movie_tv_id, season_number, episode_number from recordings2 where event_id = " << eventID;
-        sql << " and event_start_time = " << eventStartTime;
-        sql << " and channel_id = ?";
-          }
-    return QueryLine(sql.str().c_str(), "s", "iii", (const char *)channelIDs, &movie_tv_id, &season_number, &episode_number);
+bool cTVScraperDB::GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime) {
+  tEventID eventID = sEventOrRecording->EventID();
+  time_t eventStartTime = sEventOrRecording->StartTime();
+  cString channelIDs = sEventOrRecording->ChannelIDs();
+  if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID, !channelIDs");
+  stringstream sql;
+  if (runtime) sql << "select runtime, movie_tv_id, season_number, episode_number ";
+  else         sql << "select          movie_tv_id, season_number, episode_number ";
+  if (!sEventOrRecording->Recording() ){
+    sql << "from event where event_id = " << eventID;
+    sql << " and channel_id = ?";
+  } else {
+    sql << "from recordings2 where event_id = " << eventID;
+    sql << " and event_start_time = " << eventStartTime;
+    sql << " and channel_id = ?";
+  }
+  if (runtime)
+    return QueryLine(sql.str().c_str(), "s", "iiii",
+      (const char *)channelIDs, runtime, &movie_tv_id, &season_number, &episode_number);
+  else
+    return QueryLine(sql.str().c_str(), "s", "iii",
+      (const char *)channelIDs,          &movie_tv_id, &season_number, &episode_number);
 }
 
 vector<vector<string> > cTVScraperDB::GetActorsMovie(int movieID) {

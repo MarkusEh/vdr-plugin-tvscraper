@@ -1,0 +1,168 @@
+--- tvscraper.c	2022-07-06 17:24:16.600567557 +0200
++++ tvscraper.c	2022-07-16 19:23:17.409584662 +0200
+@@ -180,117 +176,98 @@
+     return config.SetupParse(Name, Value);
+ }
+ 
+-bool cPluginTvscraper::GetPosterOrOtherPicture(cTvMedia &media, const cEvent *event, const cRecording *recording) {
++cMovieOrTv *cPluginTvscraper::GetMovieOrTv(const cEvent *event, const cRecording *recording, int *runtime) {
++// NULL will be returned in case of errors or if nothing was found
++// otherwiese, a new cMovieOrTv will be created. Don't forget to delete the cMovieOrTv!!!
++  if (event && recording) {
++    esyslog("tvscraper: ERROR calling vdr service interface, call->event && call->recording are provided. Please set one of these parameters to NULL");
++    return NULL;
++  }
+   csEventOrRecording *sEventOrRecording = GetsEventOrRecording(event, recording);
+-  if (!sEventOrRecording) return false;
++  if (!sEventOrRecording) return NULL;
+ 
+-  int id, sn, en;
+-  scrapType type = imageServer->GetIDs(sEventOrRecording, id, sn, en);
+-//      if (config.enableDebug) esyslog("tvscraper: GetPoster, id %i type %i", id, type);
++  cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, sEventOrRecording, runtime);
+   delete sEventOrRecording;
+-  if (type == scrapNone) return false;
+-// we have an event or rec., which is assigned to a movie or tv show :)
+-  media = imageServer->GetPoster(id, sn, en);
+-  if (media.width != 0) return true;
+-// try to add a picture as poster. As posters are used in lists, ...
+-  vector<cTvMedia> fanarts = imageServer->GetSeriesFanarts(id, sn, en); // for movies, this will return the backdrop
+-  if (fanarts.size() > 0) { media = fanarts[0]; return true; }
+-// try banner, as last resort ...
+-  if (id < 0 && imageServer->GetBanner(media, id) ) return true;
+-  return false;
++  return movieOrTv;
+ }
+ 
+-
+ bool cPluginTvscraper::Service(const char *Id, void *Data) {
++    if (strcmp(Id, "GetScraperOverview") == 0) {
++        if (Data == NULL) return true;
++        cGetScraperOverview* call = (cGetScraperOverview*) Data;
++        cMovieOrTv *movieOrTv = GetMovieOrTv(call->m_event, call->m_recording, &call->m_runtime);
++        if (!movieOrTv) { call->m_found = false; return true;}
++        if (call->m_runtime < 0) call->m_runtime = 0;
++        movieOrTv->getScraperOverview(call);
++        delete movieOrTv;
++        return true;
++    }
++    if (strcmp(Id, "GetScraperImageDir") == 0) {
++        if (Data == NULL) return true;
++        cGetScraperImageDir* call = (cGetScraperImageDir*) Data;
++        call->scraperImageDir = config.GetBaseDir();
++        return true;
++    }
+     if (strcmp(Id, "GetScraperMovieOrTv") == 0) {
+         if (Data == NULL) return true;
+     
+         cScraperMovieOrTv* call = (cScraperMovieOrTv*) Data;
+         call->found = false;
+-        if (call->event && call->recording) {
+-          esyslog("tvscraper: ERROR calling vdr service interface \"GetScraperMovieOrTv\", call->event && call->recording are provided. Please set one of these parameters to NULL");
+-          return true;
+-        }
+-        csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
+-        if (!sEventOrRecording) return true;
+-
+-        cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, sEventOrRecording);
+-        delete sEventOrRecording;
++        cMovieOrTv *movieOrTv = GetMovieOrTv(call->event, call->recording);
+         if (!movieOrTv) return true;
+ 
+         movieOrTv->clearScraperMovieOrTv(call);
+         call->found = true;
+-        movieOrTv->getScraperMovieOrTv(call, imageServer);
++        movieOrTv->getScraperMovieOrTv(call);
+         delete movieOrTv;
+ 	
+         return true;
+     }
++
+     if (strcmp(Id, "GetEventType") == 0) {
+ // Keep old (and wrong) behavior, and return false if no event was found.
+-// Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity fixes a bug in SkinNopacity. Once this fix is applied, we can also change this method and always return true 
++// Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity fixes a bug in SkinNopacity. Part of SkinNopacity 1.1.12
++// Once all fixes is applied, we can also change this method and always return true 
+         if (Data == NULL) return true;
+         ScraperGetEventType* call = (ScraperGetEventType*) Data;
+-        csEventOrRecording *sEventOrRecording = GetsEventOrRecording(call->event, call->recording);
+-        if (!sEventOrRecording) {
+-            lastEventId = 0;
+-            call->type = tNone;
+-	    call->movieId = 0;
+-	    call->seriesId = 0;
+-	    call->episodeId = 0;
+-            return true;
+-	}
+-
+-        scrapType type = imageServer->GetIDs(sEventOrRecording, lastEventId, lastSeasonNumber, lastEpisodeNumber);
+-        delete sEventOrRecording;
+-
+-        if( lastEventId == 0 ) {
+-            call->type = tNone;
+-	    call->movieId = 0;
+-	    call->seriesId = 0;
+-	    call->episodeId = 0;
+-            return true;
+-        }
+-
+-        if (type == scrapSeries) {
+-            call->type = tSeries;
++        if (lastMovieOrTv) delete lastMovieOrTv;
++        lastMovieOrTv = GetMovieOrTv(call->event, call->recording);
++        call->type = tNone;
++        call->movieId = 0;
++        call->seriesId = 0;
++        call->episodeId = 0;
++        if (!lastMovieOrTv) return true;
++        call->type = lastMovieOrTv->getType();
++        if (call->type == tSeries) {
+             call->seriesId = 1234;
+-        } else if (type == scrapMovie) {
+-            call->type = tMovie;
+-            call->movieId = 1234;
+         } else {
+-            lastEventId = 0;
+-            call->type = tNone;
+-	    call->movieId = 0;
+-	    call->seriesId = 0;
+-	    call->episodeId = 0;
+-            return true;
++            call->movieId = 1234;
+         }
+-	
+         return true;
+     }
+ 
+     if (strcmp(Id, "GetSeries") == 0) {
+         if (Data == NULL) return true;
+         cSeries* call = (cSeries*) Data;
+-        if( call->seriesId == 0 || lastEventId == 0 ) {
+-            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", call->seriesId == 0 || lastEventId == 0");
++        if( call->seriesId == 0 || lastMovieOrTv == NULL) {
++            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", call->seriesId == 0 || lastMovieOrTv == 0");
+             call->name = "Error calling VDR service interface GetSeries";
+             return true;
+         }
+ 
+         float popularity, vote_average;
+-        if (!db->GetTv(lastEventId, call->name, call->overview, call->firstAired, call->network, call->genre, popularity, vote_average, call->status)) {
+-            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", lastEventId = %i not found", lastEventId);
++        if (!db->GetTv(lastMovieOrTv->dbID(), call->name, call->overview, call->firstAired, call->network, call->genre, popularity, vote_average, call->status)) {
++            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", Id = %i not found", lastMovieOrTv->dbID());
+             call->name = "Error calling VDR service interface GetSeries";
+             return true;
+         }
+         call->rating = vote_average;
+ 
+ // data for cEpisode episode;
+-        call->episode.season = lastSeasonNumber;
+-        call->episode.number = lastEpisodeNumber;
++        call->episode.season = lastMovieOrTv->getSeason();
++        call->episode.number = lastMovieOrTv->getEpisode();
+         int episodeID;
+-        db->GetTvEpisode(lastEventId, lastSeasonNumber, lastEpisodeNumber, episodeID, call->episode.name, call->episode.firstAired, vote_average, call->episode.overview, call->episode.guestStars);
++        db->GetTvEpisode(lastMovieOrTv->dbID(), lastMovieOrTv->getSeason(), lastMovieOrTv->getEpisode(), episodeID, call->episode.name, call->episode.firstAired, vote_average, call->episode.overview, call->episode.guestStars);
+         call->episode.rating = vote_average;
+ // guestStars
+         if(call->episode.guestStars.empty() ) {
