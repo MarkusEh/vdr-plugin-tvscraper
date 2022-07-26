@@ -476,6 +476,12 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_series_actors on series_actors (actor_series_id, actor_name, actor_role); ";
     sql << "CREATE INDEX IF NOT EXISTS idx1 on series_actors (actor_series_id); ";
 
+// very similar TV shows
+    sql << "CREATE TABLE IF NOT EXISTS tv_similar (";
+    sql << "tv_id integer primary key, ";
+    sql << "equal_id integer);";
+    sql << "CREATE INDEX IF NOT EXISTS idx1 on tv_similar (equal_id); ";
+
 // data for movies from themoviedb
     sql << "DROP TABLE IF EXISTS movies;";
     sql << "DROP TABLE IF EXISTS movies2;";
@@ -1212,4 +1218,34 @@ void cTVScraperDB::DeleteActorDownload (int tvID, bool movie) {
   stringstream sql;
   sql << "delete from actor_download where movie_id = " << tvID << " and is_movie = " << int(movie);
   execSql(sql.str() );
+}
+
+vector<int> cTVScraperDB::getSimilarTvShows(int tv_id) {
+  char sql[] = "select equal_id from tv_similar where tv_id = ?";
+  int equalId = QueryInt(sql, "i", tv_id);
+  if (equalId == 0) return {tv_id};
+  vector<int> result;
+  int id;
+  char sql2[] = "select tv_id from tv_similar where equal_id = ?";
+  for (sqlite3_stmt *stmt = QueryPrepare(sql2, "i", equalId); QueryStep(stmt, "i", &id);) result.push_back(id);
+  return result;
+}
+void cTVScraperDB::setSimilar(int tv_id1, int tv_id2) {
+  char sqlInList[] = "select equal_id from tv_similar where tv_id = ?";
+  int equalId1 = QueryInt(sqlInList, "i", tv_id1);
+  int equalId2 = QueryInt(sqlInList, "i", tv_id2);
+  char sqlInsert[] = "insert INTO tv_similar (tv_id, equal_id) VALUES (?, ?);";
+  if (equalId1 == 0 && equalId2 == 0) {
+    int equalId = QueryInt("select max(equal_id) from tv_similar;", "");
+    if (equalId <= 0) equalId = 1;
+    else equalId++;
+    execSql(sqlInsert, "ii", tv_id1, equalId);
+    execSql(sqlInsert, "ii", tv_id2, equalId);
+    return;
+  }
+  if (equalId1 == equalId2) return; // nothing to do, already marked as equal
+  if (equalId1 != 0 && equalId2 == 0) { execSql(sqlInsert, "ii", tv_id2, equalId1); return; }
+  if (equalId1 == 0 && equalId2 != 0) { execSql(sqlInsert, "ii", tv_id1, equalId2); return; }
+// both ar in the table, but with different IDs
+  execSql("UPDATE tv_similar set equal_id = ?  WHERE equal_id = ?", "ii", equalId1, equalId2);
 }

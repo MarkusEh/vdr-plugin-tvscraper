@@ -34,7 +34,7 @@ searchResultTvMovie::~searchResultTvMovie() {
 //  if (m_id == 5548) log("RoboCop");
 }
 
-void searchResultTvMovie::log(const char *title) {
+void searchResultTvMovie::log(const char *title) const {
   esyslog("tvscraper: searchResultTvMovie::log, id: %i, title: \"%s\"", m_id, title);
   for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) if (m_matches[i].match >= 0) {
     const char *d;

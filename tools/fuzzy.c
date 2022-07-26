@@ -5,7 +5,9 @@
 #include <sstream>
 #include <iostream>
 #include <math.h>
+#include <set>
  
+std::set<std::string> ignoreWords = {"der", "die", "das", "the", "I"};
 // see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
 template<typename T, typename C>
 size_t
@@ -51,25 +53,32 @@ word_distance(const std::string& word1, const std::string& word2) {
   return seq_distance(word1, word2, &letter_distance);
 }
  
+std::vector<std::string> word_list(const std::string &sentence, int &len) {
+// return list of words
+  len = 0;
+  std::vector<std::string> words;
+  std::istringstream iss(sentence);
+  for(std::istream_iterator<std::string> it(iss), end; ; ) {
+  if (ignoreWords.find(*it) == ignoreWords.end()  )
+    {
+      words.push_back(*it);
+      len += it->length();
+//      std::cout << "word = \"" << *it << "\" ";
+    }
+    if(++it == end) break;
+  }
+//  std::cout << std::endl;
+/*
+  std::copy(std::istream_iterator<std::string>(iss),
+            std::istream_iterator<std::string>(),
+            std::back_inserter(words));
+*/
+  return words;
+}
+
 size_t
-sentence_distance_int(const std::string& sentence1, const std::string& sentence2) {
-  std::vector<std::string> words1;
-  std::vector<std::string> words2;
-  std::istringstream iss1(sentence1);
-  std::istringstream iss2(sentence2);
-  for(std::istream_iterator<std::string> it(iss1), end; ; ) {
-    words1.push_back(*it);
-    if(++it == end)
-      break;
-    words1.push_back(" ");
-  }
-  for(std::istream_iterator<std::string> it(iss2), end; ; ) {
-    words2.push_back(*it);
-    if(++it == end)
-      break;
-    words2.push_back(" ");
-  }
-  return seq_distance(words1, words2, &word_distance);
+sentence_distance_int(const std::string& sentence1, const std::string& sentence2, int &len1, int &len2) {
+  return seq_distance(word_list(sentence1, len1), word_list(sentence2, len2), &word_distance);
 }
 std::string stripExtra(const std::string &in) {
   std::string out;
@@ -81,27 +90,32 @@ std::string stripExtra(const std::string &in) {
   }
   return out;
 }
-size_t sentenceFind(const std::string& sentence1, const std::string& sentence2) {
-// return 0 if not found
-// otherwise, return number of characters in sentence2 which are found in sentence1
-  size_t len2 = sentence2.length();
-  if (len2 == 0 || sentence1.find(sentence2) !=std::string::npos) return len2;
 
-  std::size_t il, im, ih, n_found = 0;
-  il = 0;
-  ih = len2;
-  im = ih;
-  while(ih - il > 1) {
-    im = (ih + il)/2; // (ih - il)/2 + il;
-    if (im == 0) return 0;
-    n_found = sentence1.find(sentence2.substr(0, im) );
-    if (n_found == std::string::npos)
-           ih = im;  // not found, continue in lower half
-      else il = im;  // found, continue in upper half
+// find longest common substring
+// https://iq.opengenus.org/longest-common-substring/
+int lcsubstr( const std::string &s1, const std::string &s2)
+{
+  int len1=s1.length(),len2=s2.length();
+  int dp[2][len2+1];
+  int curr=0, res=0;
+//  int end=0;
+  for(int i=0; i<=len1; i++) {
+    for(int j=0; j<=len2; j++) {
+      if(i==0 || j==0) dp[curr][j]=0;
+      else if(s1[i-1] == s2[j-1]) {
+        dp[curr][j] = dp[1-curr][j-1] + 1;
+        if(res < dp[curr][j]) {
+          res = dp[curr][j];
+//          end = i-1;
+        }
+      } else {
+          dp[curr][j] = 0;
+      }
+    }
+    curr = 1-curr;
   }
-  if (n_found == std::string::npos)
-         return im-1;
-    else return im;
+//  std::cout << s1 << " " << s2 << " length= " << res << " substr= " << s1.substr(end-res+1,res) << std::endl;
+  return res;
 }
 
 float normMatch(float x) {
@@ -129,21 +143,25 @@ int sentence_distance(const std::string& sentence1a, const std::string& sentence
   size_t s1l = sentence1.length();
   size_t s2l = sentence2.length();
   if (s1l == 0 || s2l == 0) return 1000;
-  size_t max_dist = std::max(s1l, s2l);
-  int match_find, upper;
-  if (s1l > s2l) {
-    match_find = sentenceFind(sentence1, sentence2);
-    if (match_find == (int)s2l) upper = std::min(std::max((int)s2l/3, 2), 9);
-      else upper = 10;
-  } else {
-    match_find = sentenceFind(sentence2, sentence1);
-    if (match_find == (int)s1l) upper = std::min(std::max((int)s1l/3, 2), 9);
-      else upper = 10;
-  }
-  match_find = normMatch(match_find, upper);
 
-  size_t dist = sentence_distance_int(sentence1, sentence2);
-  if (dist > max_dist) max_dist = dist;
-//  std::cout << "match_find = " << match_find << " dist = " << dist << " max_dist = " << max_dist << std::endl;
-  return (500 * dist / max_dist) + (1000 - match_find) * 500 / 1000;
+  int slengt = lcsubstr(sentence1, sentence2);
+  int min_s1s2 = (int)std::min(s1l, s2l);
+  int upper = 10; // match of more than upper characters: good
+  if (slengt == min_s1s2) upper = std::min(std::max(min_s1s2/3, 2), 9);  // if the shorter string is part of the longer string: reduce upper
+  int max_dist_lcsubstr = 1000;
+  int dist_lcsubstr = 1000 - normMatch(slengt, upper);
+  int dist_lcsubstr_norm = 1000 * dist_lcsubstr / max_dist_lcsubstr;
+
+  int max_s1s2 = (int)std::max(s1l, s2l);
+  if (max_s1s2 > 20 and max_s1s2 > 2*min_s1s2) {
+    if (s1l > s2l) sentence1.resize(2*min_s1s2);
+    else           sentence2.resize(2*min_s1s2);
+  }
+  int l1, l2;
+  int dist = sentence_distance_int(sentence1, sentence2, l1, l2);
+//  std::cout << "l1 = " << l1 << " l2 = " << l2 << " dist = " << dist << std::endl;
+  int max_dist = std::max(std::max(l1, l2), dist);
+  int dist_norm = 1000 * dist / max_dist;
+//  std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
+  return dist_norm / 2 + dist_lcsubstr_norm / 2;
 }

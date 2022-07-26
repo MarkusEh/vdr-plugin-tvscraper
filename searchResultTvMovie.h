@@ -10,7 +10,7 @@ class searchResultTvMovie {
 public:
   searchResultTvMovie(int id, bool movie, const std::string &year);
   ~searchResultTvMovie();
-  void log(const char *title);
+  void log(const char *title) const;
   static float normMatch(float x);
   float getMatch() const;
   bool operator< (const searchResultTvMovie &srm) const;
@@ -23,12 +23,13 @@ public:
   void setDirectorWriter(int numMatches)  { m_matches[5].match = normMatch(numMatches/2.); }
   void setMatchYear(const std::vector<int> &years, int durationInSec);
   void setMatchEpisode(int distance) { m_matches[6].match = (1000 - distance) / 1000.; }
-  bool getMatchEpisode() { return m_matches[6].match > 0.; }
+  bool getMatchEpisode() const { return m_matches[6].match > 0.; }
+  float getMatchText() const { return m_matches[0].match; }
   void setBaseNameEquShortText() { m_matches[7].match = 1.0; }
   void setPositionInExternalResult(int positionInExternalResult) { m_matches[8].match = 1.0 - normMatch(positionInExternalResult); }
 
   void setDelim(char delim) { m_delim = delim; }
-  int delim(void) { return m_delim; }
+  int delim(void) const { return m_delim; }
   int id() const { return m_id; }
   bool movie() const { return m_movie; }
   int year() const { return m_year; }

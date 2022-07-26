@@ -46,7 +46,7 @@ cTVScraperConfig config;
 #include "setup.c"
 #include "images.c"
 
-static const char *VERSION        = "1.0.5";
+static const char *VERSION        = "1.1.0";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
@@ -200,7 +200,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         if (Data == NULL) return true;
         cGetScraperOverview* call = (cGetScraperOverview*) Data;
         cMovieOrTv *movieOrTv = GetMovieOrTv(call->m_event, call->m_recording, &call->m_runtime);
-        if (!movieOrTv) { call->m_found = false; return true;}
+        if (!movieOrTv) { call->m_videoType = eVideoType::none; return true;}
         if (call->m_runtime < 0) call->m_runtime = 0;
         movieOrTv->getScraperOverview(call);
         delete movieOrTv;
@@ -229,9 +229,9 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     }
 
     if (strcmp(Id, "GetEventType") == 0) {
-// Keep old (and wrong) behavior, and return false if no event was found.
-// Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity fixes a bug in SkinNopacity. Part of SkinNopacity 1.1.12
-// Once all fixes is applied, we can also change this method and always return true 
+// Wrong behavior corrected, and return true if no event was found.
+// Required: Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity fixes a bug in SkinNopacity. Part of SkinNopacity 1.1.12
+// Required: TVGuide 1.3.6
         if (Data == NULL) return true;
         ScraperGetEventType* call = (ScraperGetEventType*) Data;
         if (lastMovieOrTv) delete lastMovieOrTv;

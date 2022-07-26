@@ -86,6 +86,7 @@ class cTv : public cMovieOrTv {
 
 public:
   virtual int dbID() = 0;
+  virtual bool IsUsed();
   virtual void DeleteMediaAndDb() = 0;
   virtual string getEpisodeName() { return m_db->GetEpisodeName(dbID(), m_seasonNumber, m_episodeNumber);}
   virtual int searchEpisode(const string &tvSearchEpisodeString);
@@ -105,7 +106,6 @@ protected:
   cTv(cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): cMovieOrTv(db, id, seasonNumber,  episodeNumber) {}
   virtual string bannerBaseUrl() = 0;
 private:
-  int searchEpisode_int(string tvSearchEpisodeString);
   std::vector<cActor> getGuestStars(const char *str);
 };
 

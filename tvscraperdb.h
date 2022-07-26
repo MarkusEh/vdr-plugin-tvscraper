@@ -101,6 +101,8 @@ public:
     void DeleteActorDownload (int tvID, bool movie);
     sqlite3_stmt *GetAllMovies();
     int GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
+    vector<int> getSimilarTvShows(int tv_id);
+    void setSimilar(int tv_id1, int tv_id2);
 };
 
 #endif //__TVSCRAPER_TVSCRAPPERDB_H

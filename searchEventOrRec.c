@@ -40,7 +40,13 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
       if (recording->Info()->ShortText() ) return; // strange, but go ahead with title
       const char * title_pos = strstr(recording->Name(), recording->Info()->Title() );
       if (!title_pos || (size_t(title_pos - recording->Name() ) >= strlen(recording->Name()) - baseNameLen)  ) return; // title not part of the name, or title only part of the base name-> does not match the pattern -> return
-      if (recording->Info()->Description() ) m_episodeName = m_baseNameOrTitle;
+      if (recording->Info()->Description() ) {
+/*
+        if (strlen(recording->Info()->Description() ) <= 100) m_episodeName = recording->Info()->Description();
+        else m_episodeName = string(recording->Info()->Description(), 100);
+*/
+        m_episodeName = m_sEventOrRecording->EpisodeSearchString();
+      }
       m_baseNameEquShortText = true;
       return;
     }
@@ -169,7 +175,18 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
       movieOrTv.episodeSearchWithShorttext = episodeSearchString.empty()?1:0;
       if (movieOrTv.episodeSearchWithShorttext == 1) {
         episodeSearchString = m_baseNameEquShortText?m_episodeName:m_sEventOrRecording->EpisodeSearchString();
-        if (searchResults[0].getMatchEpisode() ) movieOrTv.episodeSearchWithShorttext = 3;
+        if (searchResults[0].getMatchEpisode() ) {
+          movieOrTv.episodeSearchWithShorttext = 3;
+          float bestMatchText = searchResults[0].getMatchText();
+          for (const searchResultTvMovie &searchResult: searchResults) {
+            if (searchResult.id() == searchResults[0].id() ) continue;
+            if ((searchResult.id()^searchResults[0].id()) < 0) continue; // we look for IDs in same database-> same sign
+            if (searchResult.movie()) continue;  // we only look for TV shows
+            if (abs(bestMatchText - searchResult.getMatchText()) > 0.001) continue;   // we only look for matches similar near
+            m_db->setSimilar(searchResults[0].id(), searchResult.id() );
+            if (config.enableDebug) esyslog("tvscraper: setSimilar %i and %i", searchResults[0].id(), searchResult.id());
+          }
+        }
       }
       UpdateEpisodeListIfRequired(movieOrTv.id);
       cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString, m_baseNameOrTitle);
@@ -204,7 +221,6 @@ void cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
 
 scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResults, string &movieName, string &episodeSearchString) {
 //  bool debug = m_searchString == "james cameron's dark angel";
-//  bool debug = m_searchString == "mercenario - der gefürchtete";
   bool debug = false;
   movieName = m_searchString;
   episodeSearchString = "";
@@ -310,10 +326,18 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
     if (movieOrTv.season != -100 && movieOrTv.episodeSearchWithShorttext) {
       UpdateEpisodeListIfRequired(movieOrTv.id);
       episodeSearchString = m_baseNameEquShortText?m_episodeName:m_sEventOrRecording->EpisodeSearchString();
-      cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString, m_baseNameOrTitle);
-      if (movieOrTv.episodeSearchWithShorttext == 3 &&
-        movieOrTv.season == 0 && movieOrTv.episode == 0) return false;
-// episode match required for cache, but not found
+      int min_distance = 2000;
+      for (const int &id: m_db->getSimilarTvShows(movieOrTv.id) ) {
+        sMovieOrTv movieOrTv2 = movieOrTv;
+        movieOrTv2.id = id;
+        int distance = cMovieOrTv::searchEpisode(m_db, movieOrTv2, episodeSearchString, m_baseNameOrTitle);
+        if (distance < min_distance) {
+          min_distance = distance;
+          movieOrTv = movieOrTv2;
+        }
+      }
+      if (movieOrTv.episodeSearchWithShorttext == 3 && min_distance > 600) return false;
+// episode match required for cache, but not found (ignore coincidence matches with distance > 600)
     }
   }
 

@@ -5,6 +5,7 @@
 
 // implemntation of cMovieOrTv  *********************
 
+
 void cMovieOrTv::clearScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   cTvMedia tvMedia;
   tvMedia.path = "";
@@ -230,21 +231,25 @@ void cMovieMoviedb::DeleteMediaAndDb() {
 } 
 
 void cMovieMoviedb::getScraperOverview(cGetScraperOverview *scraperOverview) {
-  scraperOverview->m_movie = true;
+  scraperOverview->m_videoType = eVideoType::movie;
   scraperOverview->m_dbid = dbID();
   const char *title = NULL;
   const char *collectionName = NULL;
   const char *IMDB_ID = NULL;
+  const char *releaseDate = NULL;
   const char sql[] = "select movie_title, movie_collection_id, movie_collection_name, " \
-    "movie_runtime, movie_IMDB_ID from movies3 where movie_id = ?";
+    "movie_release_date, movie_runtime, movie_IMDB_ID from movies3 where movie_id = ?";
   sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
-  scraperOverview->m_found = m_db->QueryStep(statement, "sisis",
+  if (!m_db->QueryStep(statement, "sissis",
       &title, &scraperOverview->m_collectionId, &collectionName,
-      &scraperOverview->m_runtime, &IMDB_ID);
-  if (!scraperOverview->m_found) return;
+      &releaseDate, &scraperOverview->m_runtime, &IMDB_ID)) {
+    scraperOverview->m_videoType = eVideoType::none;
+    return;
+  }
   if (scraperOverview->m_title && title)   *scraperOverview->m_title = title;
   if (scraperOverview->m_IMDB_ID && IMDB_ID) *scraperOverview->m_IMDB_ID = IMDB_ID;
   if (scraperOverview->m_collectionName && collectionName) *scraperOverview->m_collectionName = collectionName;
+  if (scraperOverview->m_releaseDate && releaseDate) *scraperOverview->m_releaseDate = releaseDate;
 
   sqlite3_finalize(statement);
   if (scraperOverview->m_image) {
@@ -351,39 +356,39 @@ bool cMovieMoviedb::getSingleImageCollection(eOrientation orientation, string *r
 }
 
 // implemntation of cTv  *********************
+bool cTv::IsUsed() {
+  for (const int &id:m_db->getSimilarTvShows(dbID()) ) {
+    if (m_db->CheckMovieOutdatedEvents(id, m_seasonNumber, m_episodeNumber) ) return true;
+    if (m_db->CheckMovieOutdatedRecordings(id, m_seasonNumber, m_episodeNumber)) return true;
+  }
+  return false;
+}
+
 int cTv::searchEpisode(const string &tvSearchEpisodeString, const string &baseNameOrTitle) {
 // return 1000, if no match was found
 // otherwise, distance
   int distance = searchEpisode(tvSearchEpisodeString);
   if (distance != 1000) return distance;
 // no match with episode name found, try episode number as part of title
+// note: this is a very week indicator that the right TV show was choosen. So, even if there is a match, return a high distance (950)
   int episodeNumber = NumberInLastPartWithP(baseNameOrTitle);
   if (episodeNumber != 0) {
     char sql[] = "select season_number, episode_number from tv_s_e where tv_id = ? and episode_absolute_number = ?";
-    if (m_db->QueryLine(sql, "ii", "ii", dbID(), episodeNumber, &m_seasonNumber, &m_episodeNumber)) return 200;
+    if (m_db->QueryLine(sql, "ii", "ii", dbID(), episodeNumber, &m_seasonNumber, &m_episodeNumber)) return 950;
   }
   episodeNumber = NumberInLastPartWithPS(baseNameOrTitle);
   if (episodeNumber != 0) {
     char sql[] = "select season_number, episode_number from tv_s_e where tv_id = ? and episode_number = ? and season_number = ?";
-    if (m_db->QueryLine(sql, "iii", "ii", dbID(), episodeNumber, 1, &m_seasonNumber, &m_episodeNumber)) return 200;
+    if (m_db->QueryLine(sql, "iii", "ii", dbID(), episodeNumber, 1, &m_seasonNumber, &m_episodeNumber)) return 950;
   }
   return 1000;
 }
 
-int cTv::searchEpisode(const string &tvSearchEpisodeString) {
+int cTv::searchEpisode(const string &tvSearchEpisodeString_i) {
 // return 1000, if no match was found
 // otherwise, distance
-   int distance = searchEpisode_int(tvSearchEpisodeString);
-   if (distance != 1000) return distance;
-   if (!isdigit(tvSearchEpisodeString[0]) ) return distance;
-   std::size_t found_blank = tvSearchEpisodeString.find(' ');
-   if (found_blank == std::string::npos || found_blank > 7 || found_blank + 1 >= tvSearchEpisodeString.length() ) return distance;
-   return searchEpisode_int(tvSearchEpisodeString.substr(found_blank + 1) );
-}
-
-int cTv::searchEpisode_int(string tvSearchEpisodeString) {
-// return 1000, if no match was found
-// otherwise, distance
+  bool debug = false;
+  string tvSearchEpisodeString = tvSearchEpisodeString_i;
   transform(tvSearchEpisodeString.begin(), tvSearchEpisodeString.end(), tvSearchEpisodeString.begin(), ::tolower);
   int best_distance = 1000;
   int best_season = 0;
@@ -397,6 +402,7 @@ int cTv::searchEpisode_int(string tvSearchEpisodeString) {
        m_db->QueryStep(stmt, "Sii", &episodeName, &season, &episode); ) {
     transform(episodeName.begin(), episodeName.end(), episodeName.begin(), ::tolower);
     distance = sentence_distance(tvSearchEpisodeString, episodeName);
+    if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.c_str(), episodeName.c_str(), season, episode, dbID(), distance);
     if (season == 0) distance += 10; // avoid season == 0, could be making of, ...
     if (distance < best_distance) {
       best_distance = distance;
@@ -404,6 +410,7 @@ int cTv::searchEpisode_int(string tvSearchEpisodeString) {
       best_episode = episode;
     }
   }
+  if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%s\" best_season %i best_episode %i dbid %i, best_distance %i", tvSearchEpisodeString.c_str(), best_season, best_episode, dbID(), best_distance);
   if (best_distance > 600) {
     m_seasonNumber = 0;
     m_episodeNumber = 0;
@@ -415,38 +422,48 @@ int cTv::searchEpisode_int(string tvSearchEpisodeString) {
 }
 
 void cTv::getScraperOverview(cGetScraperOverview *scraperOverview) {
-  scraperOverview->m_movie = false;
+  scraperOverview->m_videoType = eVideoType::tvShow;
   scraperOverview->m_dbid = dbID();
   scraperOverview->m_seasonNumber = m_seasonNumber;
   scraperOverview->m_episodeNumber = m_episodeNumber;
+  if (scraperOverview->m_IMDB_ID) *scraperOverview->m_IMDB_ID = "";
+  if (scraperOverview->m_releaseDate) *scraperOverview->m_releaseDate = "";
+// we start to collect episode information. Data available from episode will not be requested from TV show
+  if (m_seasonNumber != 0 || m_episodeNumber != 0)
+// episode name, IMDB_ID, episodeAirDate
+    if (scraperOverview->m_episodeName != NULL || scraperOverview->m_IMDB_ID != NULL || scraperOverview->m_releaseDate != NULL) {
+
+    const char *episodeName = NULL;
+    const char *episodeIMDB_ID = NULL;
+    const char *episodeAirDate = NULL;
+    char sql_e[] = "select episode_name, episode_air_date, episode_IMDB_ID " \
+      "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
+    sqlite3_stmt *statement = m_db->QueryPrepare(sql_e, "iii", dbID(), m_seasonNumber, m_episodeNumber);
+    if (m_db->QueryStep(statement, "sss", &episodeName, &episodeAirDate, &episodeIMDB_ID)) {
+      if (scraperOverview->m_episodeName && episodeName) *scraperOverview->m_episodeName = episodeName;
+      if (scraperOverview->m_IMDB_ID && episodeIMDB_ID) *scraperOverview->m_IMDB_ID = episodeIMDB_ID;
+      if (scraperOverview->m_releaseDate && episodeAirDate) *scraperOverview->m_releaseDate = episodeAirDate;
+      sqlite3_finalize(statement);
+    }
+  }
+
   const char *title = NULL;
   const char *IMDB_ID = NULL;
-  const char sql[] = "select tv_name, tv_IMDB_ID from tv2 where tv_id = ?";
+  const char *firstAirDate = NULL;
+  const char sql[] = "select tv_name, tv_first_air_date, tv_IMDB_ID from tv2 where tv_id = ?";
   sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
-  scraperOverview->m_found = m_db->QueryStep(statement, "ss", &title, &IMDB_ID);
-  if (!scraperOverview->m_found) return;
-  if (scraperOverview->m_title && title)   *scraperOverview->m_title = title;
-  if (scraperOverview->m_IMDB_ID && IMDB_ID) *scraperOverview->m_IMDB_ID = IMDB_ID;
+  if (!m_db->QueryStep(statement, "sss", &title, &firstAirDate, &IMDB_ID)) {
+    scraperOverview->m_videoType = eVideoType::none;
+    return;
+  }
+  if (scraperOverview->m_title && title) *scraperOverview->m_title = title;
+  if (scraperOverview->m_IMDB_ID && scraperOverview->m_IMDB_ID->empty() && IMDB_ID) *scraperOverview->m_IMDB_ID = IMDB_ID;
+  if (scraperOverview->m_releaseDate && scraperOverview->m_releaseDate->empty() && firstAirDate) *scraperOverview->m_releaseDate = firstAirDate;
   sqlite3_finalize(statement);
 
 // image
   if (scraperOverview->m_image)
     getSingleImageBestLO(scraperOverview->m_imageLevels, scraperOverview->m_imageOrientations, &(scraperOverview->m_image->path), NULL, &(scraperOverview->m_image->width), &(scraperOverview->m_image->height) );
-
-// episode name, IMDB_ID
-  if (m_seasonNumber == 0 && m_episodeNumber == 0) return;  // data not available
-  if (scraperOverview->m_episodeName == NULL && scraperOverview->m_IMDB_ID == NULL) return; // data not requested
-
-  const char *episodeName = NULL;
-  const char *episodeIMDB_ID = NULL;
-  char sql_e[] = "select episode_name, episode_IMDB_ID " \
-    "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-  statement = m_db->QueryPrepare(sql_e, "iii", dbID(), m_seasonNumber, m_episodeNumber);
-  if (m_db->QueryStep(statement, "ss", &episodeName, &episodeIMDB_ID)) {
-    if (scraperOverview->m_episodeName && episodeName)   *scraperOverview->m_episodeName = episodeName;
-    if (scraperOverview->m_IMDB_ID && episodeIMDB_ID && *episodeIMDB_ID) *scraperOverview->m_IMDB_ID = episodeIMDB_ID;
-    sqlite3_finalize(statement);
-  }
 
 }
 
@@ -802,11 +819,14 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(cTVScraperDB *db, csEventOrRecording *sEven
 
 // search episode
 int cMovieOrTv::searchEpisode(cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle) {
+  bool debug = false;
   movieOrTv.season  = 0;
   movieOrTv.episode = 0;
   cMovieOrTv *mv =  cMovieOrTv::getMovieOrTv(db, movieOrTv);
   if (!mv) return 1000;
   int distance = mv->searchEpisode(tvSearchEpisodeString, baseNameOrTitle);
+  
+  if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::earchEpisode search string \"%s\" season %i episode %i", tvSearchEpisodeString.c_str(), mv->m_seasonNumber, mv->m_episodeNumber);
   if (distance != 1000) {
     movieOrTv.season  = mv->m_seasonNumber;
     movieOrTv.episode = mv->m_episodeNumber;
