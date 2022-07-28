@@ -153,9 +153,10 @@ int sentence_distance(const std::string& sentence1a, const std::string& sentence
   int dist_lcsubstr_norm = 1000 * dist_lcsubstr / max_dist_lcsubstr;
 
   int max_s1s2 = (int)std::max(s1l, s2l);
-  if (max_s1s2 > 20 and max_s1s2 > 2*min_s1s2) {
-    if (s1l > s2l) sentence1.resize(2*min_s1s2);
-    else           sentence2.resize(2*min_s1s2);
+  int max_20_2times_min_s1s2 = std::max(20, 2*min_s1s2);
+  if (max_s1s2 > max_20_2times_min_s1s2) {
+    if (s1l > s2l) sentence1.resize(max_20_2times_min_s1s2);
+    else           sentence2.resize(max_20_2times_min_s1s2);
   }
   int l1, l2;
   int dist = sentence_distance_int(sentence1, sentence2, l1, l2);

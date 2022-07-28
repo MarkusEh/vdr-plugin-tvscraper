@@ -327,7 +327,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
 // a TV show was found, and we have to use the subtitle to find the episode
       episodeSearchString = m_baseNameEquShortText?m_episodeName:m_sEventOrRecording->EpisodeSearchString();
       int min_distance = 2000;
-      sMovieOrTv movieOrTv_best = movieOrTv;
+      sMovieOrTv movieOrTv_best;
       for (const int &id: m_db->getSimilarTvShows(movieOrTv.id) ) {
         sMovieOrTv movieOrTv2 = movieOrTv;
         movieOrTv2.id = id;
@@ -341,7 +341,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
       }
       if (movieOrTv.episodeSearchWithShorttext == 3 && min_distance > 600) return false;
 // episode match required for cache, but not found (ignore coincidence matches with distance > 600)
-      if (min_distance < 900) movieOrTv = movieOrTv_best; // otherwise, the was no significant episode match
+      if (min_distance < 900) movieOrTv = movieOrTv_best; // otherwise, there was no significant episode match
     }
   }
 
