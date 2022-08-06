@@ -110,6 +110,8 @@ bool cTVScraperWorker::ConnectScrapers(void) {
 
 bool cTVScraperWorker::ScrapEPG(void) {
 // true if one or more new events were scraped
+//if (config.enableAutoTimers) timersForRecordings(*db);
+  if (config.enableAutoTimers) timersForEvents(*db);
   bool newEvent = false;
   if (config.GetReadOnlyClient() ) return newEvent;
 // check far changes in schedule (works only if APIVERSNUM >= 20301

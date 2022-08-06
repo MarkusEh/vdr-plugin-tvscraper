@@ -21,6 +21,10 @@ enum eMediaType {
 #include "searchResultTvMovie.c"
 #include "tools/splitstring.c"
 #include "tools/stringhelpers.c"
+#include "config.h"
+#include "eventOrRec.h"
+#include "tvscraperdb.h"
+#include "autoTimers.h"
 #include "config.c"
 cTVScraperConfig config;
 #include "eventOrRec.c"
@@ -45,8 +49,9 @@ cTVScraperConfig config;
 #include "services.h"
 #include "setup.c"
 #include "images.c"
+#include "autoTimers.c"
 
-static const char *VERSION        = "1.1.0";
+static const char *VERSION        = "1.1.1";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
@@ -126,6 +131,7 @@ bool cPluginTvscraper::Initialize(void) {
     if (!cacheDirSet) {
         config.SetBaseDir(cPlugin::CacheDirectory(PLUGIN_NAME_I18N));
         cacheDirSet = true;
+        config.Initialize();
     }
     return true;
 }
@@ -173,7 +179,7 @@ cOsdObject *cPluginTvscraper::MainMenuAction(void) {
 }
 
 cMenuSetupPage *cPluginTvscraper::SetupMenu(void) {
-    return new cTVScraperSetup(workerThread);
+    return new cTVScraperSetup(workerThread, *db);
 }
 
 bool cPluginTvscraper::SetupParse(const char *Name, const char *Value) {
@@ -229,9 +235,9 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     }
 
     if (strcmp(Id, "GetEventType") == 0) {
-// Wrong behavior corrected, and return true if no event was found.
-// Required: Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity fixes a bug in SkinNopacity. Part of SkinNopacity 1.1.12
-// Required: TVGuide 1.3.6
+// Keep old (and wrong) behavior, and return false if no event was found.
+// Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity fixes a bug in SkinNopacity. Part of SkinNopacity 1.1.12
+// Once all fixes is applied, we can also change this method and always return true 
         if (Data == NULL) return true;
         ScraperGetEventType* call = (ScraperGetEventType*) Data;
         if (lastMovieOrTv) delete lastMovieOrTv;

@@ -2,6 +2,7 @@
 #define __TVSCRAPER_CONFIG_H
 #include <string>
 #include <vector>
+#include <set>
 
 using namespace std;
 
@@ -23,7 +24,10 @@ class cTVScraperConfig {
     private:
         string themoviedbSearchOption = "";
         bool readOnlyClient = false;
-        vector<string> channels; 
+        set<string> channels; 
+        set<string> hd_channels; 
+        set<string> m_excludedRecordingFolders;
+        set<int> m_TV_Shows;
         string baseDir;
         int baseDirLen;
         string baseDirSeries = "";
@@ -35,6 +39,8 @@ class cTVScraperConfig {
         cTVScraperConfig();
         ~cTVScraperConfig();
         int enableDebug;
+        int enableAutoTimers;
+        void Initialize();
         void SetThemoviedbSearchOption(const string &option) { themoviedbSearchOption = option; };
         void SetReadOnlyClient() { readOnlyClient = true; };
         void SetBaseDir(const string &dir);
@@ -47,11 +53,21 @@ class cTVScraperConfig {
         const string &GetBaseDirMovieTv(void) const { return baseDirMovieTv; };
         const string &GetThemoviedbSearchOption(void) const { return themoviedbSearchOption; };
         bool GetReadOnlyClient() const { return readOnlyClient; }
-        void ClearChannels(void);
-        void AddChannel(string channelID);
-        bool ChannelActive(int channelNum);
+        void ClearChannels(bool hd);
+        void ClearExcludedRecordingFolders() { m_excludedRecordingFolders.clear(); }
+        void ClearTV_Shows() { m_TV_Shows.clear(); }
+        void AddChannel(const string &channelID, bool hd);
+        void AddExcludedRecordingFolder(const string &recordingFolder) { m_excludedRecordingFolders.insert(recordingFolder); }
+        void AddTV_Show(int TV_Show) { m_TV_Shows.insert(TV_Show); }
+        bool ChannelActive(const cChannel *channel) const { return channels.find(*(channel->GetChannelID().ToString())) != channels.end(); }
+        bool ChannelHD(const cChannel *channel) const { return hd_channels.find(*(channel->GetChannelID().ToString())) != hd_channels.end(); }
+        bool recordingFolderSelected(const std::string &recordingFolder) const { return m_excludedRecordingFolders.find(recordingFolder) == m_excludedRecordingFolders.end(); }
+        bool TV_ShowSelected(int TV_Show) const { return m_TV_Shows.find(TV_Show) != m_TV_Shows.end(); }
         bool SetupParse(const char *Name, const char *Value);
-        vector<string> GetChannels(void) { return channels; };
+        const set<string> &GetChannels(void) const { return channels; };
+        const set<string> &GetHD_Channels(void) const { return hd_channels; };
+        const set<string> &GetExcludedRecordingFolders(void) const { return m_excludedRecordingFolders; };
+        const set<int> &GetTV_Shows(void) const { return m_TV_Shows; };
         void PrintChannels(void);
 };
 

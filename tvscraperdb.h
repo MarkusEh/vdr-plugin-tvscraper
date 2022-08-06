@@ -1,5 +1,6 @@
 #ifndef __TVSCRAPER_TVSCRAPERDB_H
 #define __TVSCRAPER_TVSCRAPERDB_H
+#include <sqlite3.h>
 
 using namespace std; 
 
@@ -12,16 +13,15 @@ private:
     string dbPathMem;
     bool inMem;
 // methods to execute sql statements
-    int execSql(const string &sql);
-    string QueryString(const char *query, const char *bind, ...);
-    int QueryInt(const char *query, const char *bind, ...);
-    sqlite3_int64 QueryInt64(const char *query, const char *bind, ...);
-    bool QueryValue(const char *query, const char *bind, const char *fmt_result, va_list &vl, ...);
-    vector<vector<string> > Query(const char *query, const char *bind, ...);
+    int execSql(const string &sql) const;
+    string QueryString(const char *query, const char *bind, ...) const;
+    sqlite3_int64 QueryInt64(const char *query, const char *bind, ...) const;
+    bool QueryValue(const char *query, const char *bind, const char *fmt_result, va_list &vl, ...) const;
+    vector<vector<string> > Query(const char *query, const char *bind, ...) const;
 // low level methosd for sql
-    int prepare_bind(sqlite3_stmt **statement, const char *query, const char *bind, va_list &vl);
-    int step_read_result(sqlite3_stmt *statement, const char *fmt_result, va_list &vl);
-    int printSqlite3Errmsg(const char *query);
+    int prepare_bind(sqlite3_stmt **statement, const char *query, const char *bind, va_list &vl) const;
+    int step_read_result(sqlite3_stmt *statement, const char *fmt_result, va_list &vl) const;
+    int printSqlite3Errmsg(const char *query) const;
 // manipulate tables
     bool TableExists(const char *table);
     bool TableColumnExists(const char *table, const char *column);
@@ -36,10 +36,11 @@ public:
     bool Connect(void);
     void BackupToDisc(void);
 // allow sql statments from outside this class
-    int execSql(const char *query, const char *bind, ...);
-    bool QueryLine(const char *query, const char *bind, const char *fmt_result, ...);
-    sqlite3_stmt *QueryPrepare(const char *query, const char *bind, ...);
-    bool QueryStep(sqlite3_stmt *&statement, const char *fmt_result, ...);
+    int execSql(const char *query, const char *bind, ...) const;
+    bool QueryLine(const char *query, const char *bind, const char *fmt_result, ...) const;
+    int QueryInt(const char *query, const char *bind, ...) const;
+    sqlite3_stmt *QueryPrepare(const char *query, const char *bind, ...) const;
+    bool QueryStep(sqlite3_stmt *&statement, const char *fmt_result, ...) const;
     void ClearOutdated();
     bool CheckMovieOutdatedEvents(int movieID, int season_number, int episode_number);
     bool CheckMovieOutdatedRecordings(int movieID, int season_number, int episode_number);
@@ -70,7 +71,7 @@ public:
     void ClearRecordings2(void);
     bool CheckStartScrapping(int minimumDistance);
     bool GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = NULL);
-    int GetMovieCollectionID(int movieID);
+    int GetMovieCollectionID(int movieID) const;
     vector<vector<string> > GetActorsMovie(int movieID);
     vector<vector<string> > GetActorsSeries(int seriesID);
     std::string GetEpisodeName(int tvID, int seasonNumber, int episodeNumber);

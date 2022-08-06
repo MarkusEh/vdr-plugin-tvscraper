@@ -2,6 +2,8 @@
 #include <string.h>
 #include <vector>
 #include <algorithm>
+#include <set>
+
 using namespace std;
 std::string charPointerToString(const unsigned char *s) {
   return s?(const char *)s:"";
@@ -171,6 +173,34 @@ void stringToVector(std::vector<std::string> &vec, const char *str) {
     push_back_new(vec, string(lDelimPos + 1, rDelimPos - lDelimPos - 1));
     lDelimPos = rDelimPos;
   }
+}
+
+std::set<std::string> stringToSet(const char *str, char delim) {
+// split str at delim, and add each part to result
+// will add empty string for 2 delims, but not for delim at end
+  std::set<std::string> result;
+  if (!str || !*str) return result;
+  const char *lStartPos = str;
+  for (const char *rDelimPos = strchr(lStartPos, delim); rDelimPos != NULL; rDelimPos = strchr(lStartPos, delim) ) {
+    result.insert(string(lStartPos, rDelimPos - lStartPos));
+    lStartPos = rDelimPos + 1;
+  }
+  const char *rDelimPos = strchr(lStartPos, 0);
+  if (rDelimPos != lStartPos) result.insert(string(lStartPos, rDelimPos - lStartPos));
+  return result;
+}
+std::set<int> stringToIntSet(const char *str, char delim) {
+// split str at delim, and add each part to result
+  std::set<int> result;
+  if (!str || !*str) return result;
+  const char *lStartPos = str;
+  for (const char *rDelimPos = strchr(lStartPos, delim); rDelimPos != NULL; rDelimPos = strchr(lStartPos, delim) ) {
+    if (rDelimPos != lStartPos) result.insert(atoi(lStartPos));
+    lStartPos = rDelimPos + 1;
+  }
+  const char *rDelimPos = strchr(lStartPos, 0);
+  if (rDelimPos != lStartPos) result.insert(atoi(lStartPos));
+  return result;
 }
 
 std::string vectorToString(const std::vector<std::string> &vec) {

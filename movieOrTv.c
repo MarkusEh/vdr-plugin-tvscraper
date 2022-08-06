@@ -618,7 +618,7 @@ bool cTvMoviedb::getSingleImageAnySeason(eOrientation orientation, string *relPa
         if (checkFullPath(dir_entry.path()/"poster.jpg", relPath, fullPath, width, height, 780, 1108)) return true;
       }
     }
-  } else esyslog("tvscraper:cTvMoviedb::getSingleImageAnySeason ERROR dir %s does not exist", path.str().c_str() );
+  } // else esyslog("tvscraper:cTvMoviedb::getSingleImageAnySeason ERROR dir %s does not exist", path.str().c_str() );
 
   return false;
 }

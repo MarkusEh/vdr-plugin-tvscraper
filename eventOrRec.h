@@ -1,3 +1,5 @@
+#ifndef __TVSCRAPER_EVENTORREC_H
+#define __TVSCRAPER_EVENTORREC_H
 #include <string>
 
 class csEventOrRecording {
@@ -54,3 +56,4 @@ private:
 };
 
 csEventOrRecording *GetsEventOrRecording(const cEvent *event, const cRecording *recording);
+#endif //__TVSCRAPER_EVENTORREC_H

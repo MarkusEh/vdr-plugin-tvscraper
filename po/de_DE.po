@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vdr-tvscrapper 0.0.1\n"
 "Report-Msgid-Bugs-To: <see README>\n"
-"POT-Creation-Date: 2013-08-24 09:03+0200\n"
+"POT-Creation-Date: 2022-08-06 22:03+0200\n"
 "PO-Revision-Date: 2013-08-20 08:27+0200\n"
 "Last-Translator: Stefan Braun <louis.braun@gmx.de>\n"
 "Language-Team:\n"
@@ -14,6 +14,18 @@ msgstr ""
 msgid "Configure channels to be scraped"
 msgstr "Kanäle zum scrapen festlegen"
 
+msgid "Create timers to improve and complement recordings"
+msgstr "Timer anlegen um Aufzeichnungen zu verbessern und zu ergänzen"
+
+msgid "HD channels"
+msgstr "HD Kanäle"
+
+msgid "Recording folders to improve"
+msgstr "Verzeichnisse der Aufzeichnungen, die verbessert werden sollen"
+
+msgid "TV shows to record"
+msgstr "Serien, die aufgezeichnet werden sollen"
+
 msgid "Trigger scraping Video Directory"
 msgstr "Scrapen des Video Verzeichnisses starten"
 
@@ -23,8 +35,23 @@ msgstr "EPG Scraping starten"
 msgid "Enable Debug Logging"
 msgstr "Debug Logging aktivieren"
 
+msgid "SD"
+msgstr "SD"
+
 msgid "don't scrap"
 msgstr "nicht scrapen"
 
+msgid "HD"
+msgstr "HD"
+
 msgid "scrap"
 msgstr "scrapen"
+
+msgid "No"
+msgstr "Nein"
+
+msgid "Yes"
+msgstr "Ja"
+
+msgid "Create timers for missing episodes of this TV show?"
+msgstr "Timer für fehlende Folgen der Serie anlegen?"

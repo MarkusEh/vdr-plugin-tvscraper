@@ -482,9 +482,9 @@ void cSearchEventOrRec::getActorMatches(searchResultTvMovie &sR, const std::vect
   int numMatchesSureName = 0;
   vector<string> alreadyFound;
   bool debug = false;
-  debug = (sR.id() == 557) || (sR.id() == 558) || (sR.id() == 559);
-  debug = debug || (sR.id() == 5548) || (sR.id() == 5549) || (sR.id() == 5550); // RoboCop / Officer Alex J. Murphy ot just RoboCop ...)
-  debug = debug || (sR.id() == -77973) || (sR.id() == 60293);
+//  debug = (sR.id() == 557) || (sR.id() == 558) || (sR.id() == 559);
+//  debug = debug || (sR.id() == 5548) || (sR.id() == 5549) || (sR.id() == 5550); // RoboCop / Officer Alex J. Murphy or just RoboCop ...)
+//  debug = debug || (sR.id() == -77973) || (sR.id() == 60293);
 //  debug = false;
   if (debug) esyslog("tvscraper: getActorMatches, id: %i", sR.id() );
   for(const std::vector<std::string> &actor : actors) if (actor.size() == 3) {
@@ -497,7 +497,7 @@ void cSearchEventOrRec::getActorMatches(searchResultTvMovie &sR, const std::vect
   }
   int sum = numMatchesFirst + numMatchesSureRole + 4*numMatchesSureName + 16*numMatchesAll;
   sR.setActors(sum);
-  if (debug) esyslog("tvscraper: getActorMatches, sum %i, weight %f", sum, searchResultTvMovie::normMatch(sum/16.));
+  if (debug) esyslog("tvscraper: getActorMatches, sum %i, normMatch %f", sum, searchResultTvMovie::normMatch(sum/16.));
 }
 
 void cSearchEventOrRec::getDirectorWriterMatches(searchResultTvMovie &sR, const std::vector<std::string> &directorWriters) {

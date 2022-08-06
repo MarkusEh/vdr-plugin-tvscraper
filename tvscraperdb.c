@@ -27,7 +27,7 @@ cTVScraperDB::~cTVScraperDB() {
     sqlite3_close(db);
 }
 
-int cTVScraperDB::printSqlite3Errmsg(const char *query) {
+int cTVScraperDB::printSqlite3Errmsg(const char *query) const{
 // return 0 if there was no error
 // otherwise, return error code
   int errCode = sqlite3_errcode(db);
@@ -43,7 +43,7 @@ int cTVScraperDB::printSqlite3Errmsg(const char *query) {
     esyslog("tvscraper: ERROR query failed: %s , no error text, error code %i extendedErrCode %i", query, errCode, extendedErrCode);
   return errCode;
 }
-int cTVScraperDB::execSql(const string &sql) {
+int cTVScraperDB::execSql(const string &sql) const {
 // return 0 if there was no error
 // otherwise, return error code
   sqlite3_stmt *stmt;
@@ -57,7 +57,7 @@ int cTVScraperDB::execSql(const string &sql) {
   return errCode;
 }
 
-int cTVScraperDB::execSql(const char *query, const char *bind, ...) {
+int cTVScraperDB::execSql(const char *query, const char *bind, ...) const {
 // return 0 if there was no error
 // otherwise, return error code
 
@@ -76,7 +76,7 @@ int cTVScraperDB::execSql(const char *query, const char *bind, ...) {
   return errCode;
 }
 
-vector<vector<string> > cTVScraperDB::Query(const char *query, const char *bind, ...) {
+vector<vector<string> > cTVScraperDB::Query(const char *query, const char *bind, ...) const {
 // bind: see prepare_bind comments for complete list of supported values
   vector<vector<string> > results;
   va_list vl;
@@ -98,7 +98,7 @@ vector<vector<string> > cTVScraperDB::Query(const char *query, const char *bind,
   return results;
 }
 
-string cTVScraperDB::QueryString(const char *query, const char *bind, ...) {
+string cTVScraperDB::QueryString(const char *query, const char *bind, ...) const {
 // bind: see prepare_bind comments for complete list of supported values
   va_list vl;
   va_start(vl, bind);
@@ -107,7 +107,7 @@ string cTVScraperDB::QueryString(const char *query, const char *bind, ...) {
   return "";
 }
 
-int cTVScraperDB::QueryInt(const char *query, const char *bind, ...) {
+int cTVScraperDB::QueryInt(const char *query, const char *bind, ...) const {
 // bind: see prepare_bind comments for complete list of supported values
   va_list vl;
   va_start(vl, bind);
@@ -116,7 +116,7 @@ int cTVScraperDB::QueryInt(const char *query, const char *bind, ...) {
   return 0;
 }
 
-sqlite3_int64 cTVScraperDB::QueryInt64(const char *query, const char *bind, ...) {
+sqlite3_int64 cTVScraperDB::QueryInt64(const char *query, const char *bind, ...) const {
 // bind: see prepare_bind comments for complete list of supported values
   va_list vl;
   va_start(vl, bind);
@@ -125,7 +125,7 @@ sqlite3_int64 cTVScraperDB::QueryInt64(const char *query, const char *bind, ...)
   return 0;
 }
 
-bool cTVScraperDB::QueryValue(const char *query, const char *bind, const char *fmt_result, va_list &vl, ...) {
+bool cTVScraperDB::QueryValue(const char *query, const char *bind, const char *fmt_result, va_list &vl, ...) const {
 // read one value to ... (there must be one more parameter)
 // return true if a line was found
 // va_list &vl: bind parameters
@@ -149,7 +149,7 @@ bool cTVScraperDB::QueryValue(const char *query, const char *bind, const char *f
   return lineFound;
 }
 
-bool cTVScraperDB::QueryLine(const char *query, const char *bind, const char *fmt_result, ...) {
+bool cTVScraperDB::QueryLine(const char *query, const char *bind, const char *fmt_result, ...) const {
 // read one line to parameter list
 // return true if a line was found
 // va_list &vl: first bind parameters, then pointers to result parameters
@@ -172,7 +172,7 @@ bool cTVScraperDB::QueryLine(const char *query, const char *bind, const char *fm
   return lineFound;
 }
 
-bool cTVScraperDB::QueryStep(sqlite3_stmt *&statement, const char *fmt_result, ...) {
+bool cTVScraperDB::QueryStep(sqlite3_stmt *&statement, const char *fmt_result, ...) const {
 // return true if a row was found. Otherwise false
 // before returning false, sqlite3_finalize(statement) is called
 // fmt_result: see step_read_result comments for complete list of supported values
@@ -188,7 +188,7 @@ bool cTVScraperDB::QueryStep(sqlite3_stmt *&statement, const char *fmt_result, .
   return false;
 }
 
-int cTVScraperDB::step_read_result(sqlite3_stmt *statement, const char *fmt_result, va_list &vl) {
+int cTVScraperDB::step_read_result(sqlite3_stmt *statement, const char *fmt_result, va_list &vl) const {
 // read one line to parameter list
 // return SQLITE_ROW if a line was found (return the result of sqlite3_step, or -1 in case of an error)
 // va_list &vl: pointers to result parameters
@@ -246,7 +246,7 @@ int cTVScraperDB::step_read_result(sqlite3_stmt *statement, const char *fmt_resu
   return result;
 }
 
-sqlite3_stmt *cTVScraperDB::QueryPrepare(const char *query, const char *bind, ...) {
+sqlite3_stmt *cTVScraperDB::QueryPrepare(const char *query, const char *bind, ...) const {
 // starting point to read multipe lines from db
 // bind: see prepare_bind comments for complete list of supported values
 // example code:
@@ -266,7 +266,7 @@ sqlite3_stmt *cTVScraperDB::QueryPrepare(const char *query, const char *bind, ..
   return statement;
 }
 
-int cTVScraperDB::prepare_bind(sqlite3_stmt **statement, const char *query, const char *bind, va_list &vl) {
+int cTVScraperDB::prepare_bind(sqlite3_stmt **statement, const char *query, const char *bind, va_list &vl) const {
 // va_list &vl: bind parameters
 // bind:
 //    s: char *
@@ -1040,7 +1040,7 @@ string cTVScraperDB::GetDescriptionTv(int tvID, int seasonNumber, int episodeNum
   return QueryString("select episode_overview from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", tvID, seasonNumber, episodeNumber);
 }
 
-int cTVScraperDB::GetMovieCollectionID(int movieID) {
+int cTVScraperDB::GetMovieCollectionID(int movieID) const {
   return QueryInt("select movie_collection_id from movies3 where movie_id = ?", "i", movieID);
 }
 
