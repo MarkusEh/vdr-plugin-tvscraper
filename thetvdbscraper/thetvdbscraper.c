@@ -85,26 +85,26 @@ bool cTVDBScraper::ReadAll(int seriesID, cTVDBSeries *&series, cTVDBActors *&act
         for (xmlNode *cur_node = node; cur_node; cur_node = cur_node->next) {
           if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Actors")) {
             if(!actors) {
-              if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, before actors");
+//            if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, before actors");
               actors = new cTVDBActors(language);
               actors->ReadActors(doc, cur_node);
-              if (seriesID == 353808 && config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, after actors");
+//            if (seriesID == 353808 && config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, after actors");
             }
           } else if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Banners")) {
             if(!media) {
-                if (seriesID == 353808 && config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, before media");
+//              if (seriesID == 353808 && config.enableDebug) esyslog("tvscraper: cTVDBScraper::ReadAll, before media");
               media = new cTVDBSeriesMedia(language);
               media->ReadMedia(doc, cur_node);
-        if (seriesID == 353808 && config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists NOT!");
-        if (seriesID == 353808 && config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists");
+//      if (seriesID == 353808 && config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists NOT!");
+//      if (seriesID == 353808 && config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::ReadAll, after media, series exists");
             }
           }
         }
       } else esyslog("tvscraper: ERROR xml root node != \"Data\", document returned from %s", url.str().c_str());
     }
     xmlFreeDoc(doc);
-    if (seriesID == 353808 && config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::ReadAll, (End), series exists NOT!");
-    if (seriesID == 353808 && config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::ReadAll, (End), series exists");
+//  if (seriesID == 353808 && config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::ReadAll, (End), series exists NOT!");
+//  if (seriesID == 353808 && config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::ReadAll, (End), series exists");
     return true;
 }
 
@@ -112,7 +112,7 @@ void cTVDBScraper::StoreMedia(cTVDBSeries *series, cTVDBSeriesMedia *media, cTVD
     stringstream baseUrl;
     baseUrl << mirrors->GetMirrorBanner() << "/banners/";
     stringstream destDir;
-    if (config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::StoreMedia, before series->ID(), series %i exists", series->ID());
+//  if (config.enableDebug &&  series) esyslog("tvscraper: cTVDBScraper::StoreMedia, before series->ID(), series %i exists", series->ID());
 //    if (config.enableDebug && !series) esyslog("tvscraper: cTVDBScraper::StoreMedia, before series->ID(), series exists NOT");
     destDir << baseDir << "/" << series->ID() << "/";
     bool ok = CreateDirectory(destDir.str().c_str());

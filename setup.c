@@ -86,6 +86,7 @@ eOSState cTVScraperSetup::ProcessKey(eKeys Key) {
     if (hadSubMenu && Key == kOk)
         Store();
     eOSState state = cMenuSetupPage::ProcessKey(Key);
+    if (!hadSubMenu && Current() == 1 && (Key == kLeft || Key == kRight)) Setup();
     if (!hadSubMenu && (Key == kOk)) {
         const char* ItemText = Get(Current())->Text();
         if (strcmp(ItemText, tr("Configure channels to be scraped")) == 0)
@@ -214,7 +215,7 @@ cTVScraperListSetup::cTVScraperListSetup(vector<int> &listSelections, const std:
   Clear();
   int i = 0;
   for (const std::string &listEntry: listEntries)
-    Add(new cMenuEditBoolItem(listEntry.c_str(), &(listSelections[i++]), tr("No"), tr("Yes")));
+    Add(new cMenuEditBoolItem(listEntry.c_str(), &(listSelections[i++])));
   SetCurrent(Get(currentItem));
   Display();
 }
@@ -237,7 +238,7 @@ cTVScraperTV_ShowsSetup::cTVScraperTV_ShowsSetup(vector<int> &listSelections, co
     sqlite3_stmt *statement = db.QueryPrepare(sql, "i", TV_show);
     const char *name;
     if (db.QueryStep(statement, "s", &name))
-      Add(new cMenuEditBoolItem(name, &(listSelections[i]), tr("No"), tr("Yes")));
+      Add(new cMenuEditBoolItem(name, &(listSelections[i]) ));
     sqlite3_finalize(statement);
     i++;
   }

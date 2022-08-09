@@ -14,8 +14,6 @@ private:
     bool inMem;
 // methods to execute sql statements
     int execSql(const string &sql) const;
-    string QueryString(const char *query, const char *bind, ...) const;
-    sqlite3_int64 QueryInt64(const char *query, const char *bind, ...) const;
     bool QueryValue(const char *query, const char *bind, const char *fmt_result, va_list &vl, ...) const;
     vector<vector<string> > Query(const char *query, const char *bind, ...) const;
 // low level methosd for sql
@@ -39,6 +37,8 @@ public:
     int execSql(const char *query, const char *bind, ...) const;
     bool QueryLine(const char *query, const char *bind, const char *fmt_result, ...) const;
     int QueryInt(const char *query, const char *bind, ...) const;
+    sqlite3_int64 QueryInt64(const char *query, const char *bind, ...) const;
+    string QueryString(const char *query, const char *bind, ...) const;
     sqlite3_stmt *QueryPrepare(const char *query, const char *bind, ...) const;
     bool QueryStep(sqlite3_stmt *&statement, const char *fmt_result, ...) const;
     void ClearOutdated();

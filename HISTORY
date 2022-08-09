@@ -72,3 +72,10 @@ Version 1.0.3
 - Fix a bug in the VDR service interface: Return "true" for all implemented services
 - Exception: GetEventType still returns false if no event was found, as workaround for a bug in SkinNopacity
 -            This bug is fixed with Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity
+Version 1.1.0
+- Remove tue exception mentioned in Version 1.0.3
+- Add service interface used by vdr-plugin-live 3.1.7+
+Version 1.1.1
+- Add auto timer feature
+Version 1.1.2
+- Bug fixes for auto timer feature

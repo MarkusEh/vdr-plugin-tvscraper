@@ -2,6 +2,48 @@
 
 using namespace std;
 
+// getDefaultHD_Channels  ********************************
+std::set<std::string> getDefaultHD_Channels() {
+  std::set<std::string> channelsHD;
+#if VDRVERSNUM >= 20301
+  LOCK_CHANNELS_READ;
+  for ( cChannel *listChannel = (cChannel *)Channels->First(); listChannel; listChannel = (cChannel *)Channels->Next( listChannel ) )
+#else
+  ReadLock channelsLock( Channels );
+  if ( !channelsLock ) return channelsHD;
+  for ( cChannel *listChannel = Channels.First(); listChannel; listChannel = Channels.Next( listChannel ) )
+#endif
+  {
+    if ( listChannel->GroupSep() || listChannel->Name() == NULL ) continue;
+    int len = strlen(listChannel->Name());
+    if (len < 2) continue;
+    if (strcmp (listChannel->Name() + (len - 2), "HD") != 0) continue;
+    channelsHD.insert(*listChannel->GetChannelID().ToString());
+  }
+  return channelsHD;
+}
+
+// getDefaultChannels  ********************************
+std::set<std::string> getDefaultChannels() {
+  std::set<std::string> channels;
+  int i = 0;
+#if VDRVERSNUM >= 20301
+  LOCK_CHANNELS_READ;
+  for ( cChannel *listChannel = (cChannel *)Channels->First(); listChannel; listChannel = (cChannel *)Channels->Next( listChannel ) )
+#else
+  ReadLock channelsLock( Channels );
+  if ( !channelsLock ) return channelsHD;
+  for ( cChannel *listChannel = Channels.First(); listChannel; listChannel = Channels.Next( listChannel ) )
+#endif
+  {
+    if ( listChannel->GroupSep() || listChannel->Name() == NULL ) continue;
+    if (strlen(listChannel->Name())  < 2) continue;
+    channels.insert(*listChannel->GetChannelID().ToString());
+    if (i++ > 30) break;
+  }
+  return channels;
+}
+
 cTVScraperConfig::cTVScraperConfig() {
     enableDebug = 0;
     enableAutoTimers = 0;
@@ -35,6 +77,7 @@ void cTVScraperConfig::AddChannel(const string &channelID, bool hd) {
 
 void cTVScraperConfig::Initialize() {
   if (hd_channels.empty() ) hd_channels = getDefaultHD_Channels();
+  if (   channels.empty() )    channels = getDefaultChannels();
 }
 
 bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
