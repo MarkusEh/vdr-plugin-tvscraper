@@ -235,9 +235,8 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     }
 
     if (strcmp(Id, "GetEventType") == 0) {
-// Keep old (and wrong) behavior, and return false if no event was found.
 // Commit 096894d4 in https://gitlab.com/kamel5/SkinNopacity fixes a bug in SkinNopacity. Part of SkinNopacity 1.1.12
-// Once all fixes is applied, we can also change this method and always return true 
+// TVGuide: Version 1.3.6+ is required
         if (Data == NULL) return true;
         ScraperGetEventType* call = (ScraperGetEventType*) Data;
         if (lastMovieOrTv) delete lastMovieOrTv;
