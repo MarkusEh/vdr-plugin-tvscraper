@@ -7,7 +7,7 @@
 #include <math.h>
 #include <set>
  
-std::set<std::string> ignoreWords = {"der", "die", "das", "the", "I"};
+std::set<std::string> ignoreWords = {"der", "die", "das", "the", "I", "-"};
 // see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
 template<typename T, typename C>
 size_t
@@ -55,6 +55,7 @@ word_distance(const std::string& word1, const std::string& word2) {
  
 std::vector<std::string> word_list(const std::string &sentence, int &len) {
 // return list of words
+//std::cout << "sentence = \"" << sentence << "\" ";
   len = 0;
   std::vector<std::string> words;
   std::istringstream iss(sentence);
@@ -63,11 +64,11 @@ std::vector<std::string> word_list(const std::string &sentence, int &len) {
     {
       words.push_back(*it);
       len += it->length();
-//      std::cout << "word = \"" << *it << "\" ";
+//    std::cout << "word = \"" << *it << "\" ";
     }
     if(++it == end) break;
   }
-//  std::cout << std::endl;
+//std::cout << std::endl;
 /*
   std::copy(std::istream_iterator<std::string>(iss),
             std::istream_iterator<std::string>(),
@@ -134,36 +135,49 @@ int normMatch(int i, int n) {
   return normMatch((float)i / (float)n) * 1000;
 }
 
+void resizeStringWordEnd(std::string &str, int len) {
+  if ((int)str.length() <= len) return;
+  const size_t found = str.find_first_of(" .,;:!?", len);
+  if (found == std::string::npos) return;
+  str.resize(found);
+}
+
+int dist_norm_fuzzy(std::string &str_longer, const std::string &str_shorter, int max_length) {
+// return 0 - 1000
+// 0:    identical
+// 1000: no match
+// truncate str_longer to max_length (+ characters to ensure complete word end)
+  if ((int)str_longer.length() > max_length) resizeStringWordEnd(str_longer, max_length);
+  int l1, l2;
+  int dist = sentence_distance_int(str_longer, str_shorter, l1, l2);
+//  std::cout << "l1 = " << l1 << " l2 = " << l2 << " dist = " << dist << std::endl;
+  int max_dist = std::max(std::max(l1, l2), dist);
+  return 1000 * dist / max_dist;
+}
+
 int sentence_distance(const std::string& sentence1a, const std::string& sentence2a) {
 // return 0-1000
 // 0: Strings are equal
   std::string sentence1 = stripExtra(sentence1a);
   std::string sentence2 = stripExtra(sentence2a);
+  if (sentence1.length() < sentence2.length() ) sentence1.swap(sentence2); // now sentence1 is longer than (or equal to ) sentence2
 //  std::cout << "sentence1 = " << sentence1 << " sentence2 = " << sentence2 << std::endl;
-  size_t s1l = sentence1.length();
-  size_t s2l = sentence2.length();
-  if (s1l == 0 || s2l == 0) return 1000;
-  int min_s1s2 = (int)std::min(s1l, s2l);
-  int max_s1s2 = (int)std::max(s1l, s2l);
+  int s1l = sentence1.length();
+  int s2l = sentence2.length();
+  if (s2l == 0) return 1000;
 
   int slengt = lcsubstr(sentence1, sentence2);
   int upper = 10; // match of more than upper characters: good
-  if (slengt == min_s1s2) upper = std::min(std::max(min_s1s2/3, 2), 9);  // if the shorter string is part of the longer string: reduce upper
-  if (slengt == max_s1s2) slengt *= 2; // the strings are identical, add some points for this
+  if (slengt == s2l) upper = std::min(std::max(s2l/3, 2), 9);  // if the shorter string is part of the longer string: reduce upper
+  if (slengt == s1l) slengt *= 2; // the strings are identical, add some points for this
   int max_dist_lcsubstr = 1000;
   int dist_lcsubstr = 1000 - normMatch(slengt, upper);
   int dist_lcsubstr_norm = 1000 * dist_lcsubstr / max_dist_lcsubstr;
 
-  int max_20_2times_min_s1s2 = std::max(20, 2*min_s1s2);
-  if (max_s1s2 > max_20_2times_min_s1s2) {
-    if (s1l > s2l) sentence1.resize(max_20_2times_min_s1s2);
-    else           sentence2.resize(max_20_2times_min_s1s2);
-  }
-  int l1, l2; // nambe of characters != ' ', i.e. characters actually compared
-  int dist = sentence_distance_int(sentence1, sentence2, l1, l2);
-//  std::cout << "l1 = " << l1 << " l2 = " << l2 << " dist = " << dist << std::endl;
-  int max_dist = std::max(std::max(l1, l2), dist);
-  int dist_norm = 1000 * dist / max_dist;
-//  std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
+  int max1 = std::max(20, 2*s2l);
+  int max2 = std::max(15, s2l + s2l/2);
+  int dist_norm = dist_norm_fuzzy(sentence1, sentence2, max1);
+  if (s1l > max2 && max1 != max2) dist_norm = std::min(dist_norm, dist_norm_fuzzy(sentence1, sentence2, max2));
+//std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
   return dist_norm / 2 + dist_lcsubstr_norm / 2;
 }
