@@ -27,7 +27,7 @@ cImageLevelsInt::cImageLevelsInt(eImageLevel first, eImageLevel second, eImageLe
 void cImageLevelsInt::findTopElement() {
   int t = m_imageLevels;
   for (m_push = 0; m_push < s_max_levels; m_push++) {
-    if (t & 7 == 0) return;
+    if ((t & 7) == 0) return;
     t = t >> 3;
   }
 }

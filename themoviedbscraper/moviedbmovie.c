@@ -177,7 +177,7 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
 
         searchResultTvMovie sRes(id, true, json_string_value_validated(result, "release_date") );
         sRes.setPositionInExternalResult(resultSet.size() );
-        sRes.setMatchText(min(sentence_distance(resultTitle, SearchString), sentence_distance(resultOriginalTitle, SearchString) ) );
+        sRes.setMatchText(std::min(sentence_distance(resultTitle, SearchString), sentence_distance(resultOriginalTitle, SearchString) ) );
         sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
         resultSet.push_back(sRes);
     }

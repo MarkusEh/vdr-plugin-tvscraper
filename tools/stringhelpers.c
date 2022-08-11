@@ -52,7 +52,7 @@ const char *strnstr(const char *haystack, const char *needle, size_t len) {
 // if len == 0: use strlen(needle) characters of needle
 
   if (len == 0) return strstr(haystack, needle);
-  for (;haystack = strchr(haystack, needle[0]); haystack++)
+  for (;(haystack = strchr(haystack, needle[0])); haystack++)
     if (!strncmp(haystack, needle, len)) return haystack;
   return 0;
 }

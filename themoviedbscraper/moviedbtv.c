@@ -131,7 +131,7 @@ bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultS
 
             searchResultTvMovie sRes(id, false, json_string_value_validated(result, "release_date") );
             sRes.setPositionInExternalResult(resultSet.size() );
-            sRes.setMatchText(min(sentence_distance(resultName, tvSearchString), sentence_distance(resultOriginalName, tvSearchString) )  + 1); // avaid this, prefer TVDB
+            sRes.setMatchText(std::min(sentence_distance(resultName, tvSearchString), sentence_distance(resultOriginalName, tvSearchString) )  + 1); // avaid this, prefer TVDB
             sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
             resultSet.push_back(sRes);
         }

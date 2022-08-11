@@ -234,7 +234,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
 // something was found. Add all information which is available for free
   if (m_baseNameEquShortText) for (searchResultTvMovie &searchResult: searchResults) if (!searchResult.movie() && searchResult.delim() == 0) searchResult.setBaseNameEquShortText();
   for (searchResultTvMovie &searchResult: searchResults) searchResult.setMatchYear(m_years, m_sEventOrRecording->DurationInSec() );
-  sort(searchResults.begin(), searchResults.end() );
+  std::sort(searchResults.begin(), searchResults.end() );
   if (debug) for (searchResultTvMovie &searchResult: searchResults) searchResult.log(m_searchString.c_str() );
   m_episodeFound = false;
   std::vector<searchResultTvMovie>::iterator new_end;
@@ -436,7 +436,7 @@ void cSearchEventOrRec::getActorMatches(const std::string &actor, int &numMatche
 
 // look for matches of part of the actor
   const char *lPos = actor.c_str();
-  for (const char *rDelimPos; rDelimPos = strchr(lPos, ' '); lPos = rDelimPos + 1)
+  for (const char *rDelimPos; (rDelimPos = strchr(lPos, ' ')); lPos = rDelimPos + 1)
     addActor(description, lPos, rDelimPos - lPos, numMatchesFirst, alreadyFound);
   addActor(description, lPos, 0, numMatchesSure, alreadyFound);
 }
@@ -516,7 +516,7 @@ bool cSearchEventOrRec::selectBestAndEnhanvceIfRequired(std::vector<searchResult
 // minDiff must be > 0, otherwise an empty list my be returned
 //  bool debug = m_searchString == "james cameron's dark angel";
   bool debug = false;
-  float minDiffSame = max (minDiff - 0.05, 0.01);
+  float minDiffSame = std::max(minDiff - 0.05, 0.01);
   float minDiffOther = minDiff;
   new_end = end;
   if (begin == end) return false; // empty list

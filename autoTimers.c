@@ -111,7 +111,11 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
     if (season_number == 0 && episode_number == 0) continue; // we look only for recordings we can assign to a specific episode/movie
     if (season_number == -100) episode_number = 0;
     bool hd = channelsHD.find((const char *)channelIDs) != channelsHD.end();
+#if VDRVERSNUM >= 20505
     int numberOfErrors = rec->Info()->Errors();
+#else
+    int numberOfErrors = 0;
+#endif
     cScraperRec scraperRec(eventID, eventStartTime, (const char *)channelIDs, rec->Name(), movie_tv_id, season_number, episode_number, hd, numberOfErrors);
     auto found = recordings.find(scraperRec);
     if (found == recordings.end() ) recordings.insert(std::move(scraperRec)); // not in list -> insert
