@@ -102,7 +102,7 @@ cOrientationsInt::cOrientationsInt(eOrientation first, eOrientation second, eOri
 void cOrientationsInt::findTopElement() {
   int t = m_orientations;
   for (m_push = 0; m_push < s_max_orientations; m_push++) {
-    if (t & 7 == 0) return;
+    if ((t & 7) == 0) return;
     t = t >> 3;
   }
 }
