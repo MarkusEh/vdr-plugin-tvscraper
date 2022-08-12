@@ -79,3 +79,7 @@ Version 1.1.1
 - Add auto timer feature
 Version 1.1.2
 - Bug fixes for auto timer feature
+Version 1.1.3
+- Also compile with vdr 2.4.*
+- Get timestamps of last update
+- Fix (rare) bug with thetvdb actors

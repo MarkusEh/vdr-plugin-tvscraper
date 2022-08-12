@@ -62,6 +62,8 @@ void cTVScraperConfig::SetBaseDir(const string &dir) {
     baseDirMovieActors = baseDirMovies + "actors/";
     baseDirMovieCollections = baseDirMovies + "collections/";
     baseDirMovieTv = baseDirMovies + "tv/";
+    EPG_UpdateFileName = baseDir + ".EPG_Update";
+    recordingsUpdateFileName = baseDir + ".recordingsUpdate";
   }
 }
 

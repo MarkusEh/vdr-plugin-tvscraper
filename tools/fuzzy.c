@@ -176,8 +176,10 @@ int sentence_distance(const std::string& sentence1a, const std::string& sentence
 
   int max1 = std::max(20, 2*s2l);
   int max2 = std::max(15, s2l + s2l/2);
+  int max3 = std::max( 6, s2l + s2l/2);
   int dist_norm = dist_norm_fuzzy(sentence1, sentence2, max1);
   if (s1l > max2 && max1 != max2) dist_norm = std::min(dist_norm, dist_norm_fuzzy(sentence1, sentence2, max2));
+  if (s1l > max3 && max2 != max3) dist_norm = std::min(dist_norm, dist_norm_fuzzy(sentence1, sentence2, max3));
 //std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
   return dist_norm / 2 + dist_lcsubstr_norm / 2;
 }

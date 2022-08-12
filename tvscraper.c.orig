@@ -51,7 +51,7 @@ cTVScraperConfig config;
 #include "images.c"
 #include "autoTimers.c"
 
-static const char *VERSION        = "1.1.3";
+static const char *VERSION        = "1.1.2";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 // static const char *MAINMENUENTRY  = "TV Scraper";
 
@@ -385,14 +385,6 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
           delete movieOrTv;
         }
         return true;
-    }
-
-    if (strcmp(Id, "GetScraperUpdateTimes") == 0) {
-      if (Data == NULL) return true;
-      cGetScraperUpdateTimes* call = (cGetScraperUpdateTimes*) Data;
-      call->m_EPG_UpdateTime = LastModifiedTime(config.GetEPG_UpdateFileName().c_str() );
-      call->m_recordingsUpdateTime = LastModifiedTime(config.GetRecordingsUpdateFileName().c_str() );
-      return true;
     }
   return false;
 }

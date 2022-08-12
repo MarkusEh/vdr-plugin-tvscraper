@@ -107,6 +107,14 @@ string cTVScraperDB::QueryString(const char *query, const char *bind, ...) const
   return "";
 }
 
+bool cTVScraperDB::QueryInt(int &result, const char *query, const char *bind, ...) const {
+// return true if the requested entry exists in database
+// bind: see prepare_bind comments for complete list of supported values
+  va_list vl;
+  va_start(vl, bind);
+  return QueryValue(query, bind, "i", vl, &result);
+}
+
 int cTVScraperDB::QueryInt(const char *query, const char *bind, ...) const {
 // bind: see prepare_bind comments for complete list of supported values
   va_list vl;
@@ -520,7 +528,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "movie_id integer, ";
     sql << "is_movie integer, ";
     sql << "actor_id integer, ";
-    sql << "actor_path integer";
+    sql << "actor_path nvarchar";
     sql << ");";
 
     sql << "CREATE TABLE IF NOT EXISTS actor_movie (";
@@ -832,9 +840,29 @@ void cTVScraperDB::InsertTvEpisodeActor(int episodeID, int actorID, const string
     "iis", episodeID, actorID, role.c_str() );
 }
 
-void cTVScraperDB::InsertActor(int seriesID, const string &name, const string &role, int number) {
-  execSql("INSERT OR REPLACE INTO series_actors (actor_series_id, actor_name, actor_role, actor_number) VALUES (?, ?, ?, ?);",
-    "issi", seriesID, name.c_str(), role.c_str(), number);
+void cTVScraperDB::InsertActor(int seriesID, const string &name, const string &role, const string &path) {
+  bool debug = seriesID == 78804;
+  debug = false;
+  const char sql_an[] = "select actor_number from series_actors where actor_series_id = ? and actor_name = ? and actor_role = ?";
+  int actorNumber;
+  if (QueryInt(actorNumber, sql_an, "iss", seriesID, name.c_str(), role.c_str())) {
+// entry already in db
+    if (actorNumber == -1 && !path.empty() ) {
+      actorNumber = findUnusedActorNumber(seriesID);
+      if (debug) esyslog("tvscraper: InsertActor, update, actorNumber = %i, actor_name = %s, actor_role = %s", actorNumber, name.c_str(), role.c_str() );
+      const char sql_un[] = "update series_actors set actor_number = ? where actor_series_id = ? and actor_name = ? and actor_role = ?";
+      execSql(sql_un, "iiss", actorNumber, seriesID, name.c_str(), role.c_str());
+      AddActorDownload(seriesID * -1, false, actorNumber, path);
+    }
+  } else {
+// no entry in db
+  if (path.empty() ) actorNumber = -1;
+  else actorNumber = findUnusedActorNumber(seriesID);
+  if (debug) esyslog("tvscraper: InsertActor, new, actorNumber = %i, actor_name = %s, actor_role = %s", actorNumber, name.c_str(), role.c_str() );
+  execSql("INSERT INTO series_actors (actor_series_id, actor_name, actor_role, actor_number) VALUES (?, ?, ?, ?);",
+    "issi", seriesID, name.c_str(), role.c_str(), actorNumber);
+  if (actorNumber != -1) AddActorDownload(seriesID * -1, false, actorNumber, path);
+  }
 }
 
 bool cTVScraperDB::MovieExists(int movieID) {
@@ -1200,6 +1228,19 @@ void cTVScraperDB::deleteTvMedia (int tvID, bool movie, bool keepSeasonPoster) {
       if(keepSeasonPoster) sql << " and media_type != "  << mediaSeason;
     }
   execSql(sql.str() );
+}
+
+int cTVScraperDB::findUnusedActorNumber (int seriesID) {
+// 1. create set of existing numbers (numbers)
+  const char sql[] = "select actor_number from series_actors where actor_series_id = ?";
+  int actorNumber;
+  std::set<int> numbers;
+  for (sqlite3_stmt *stmt = QueryPrepare(sql, "i", seriesID); QueryStep(stmt, "i", &actorNumber);) numbers.insert(actorNumber);
+// 2. first number not in set of existing numbers (numbers)
+  if (numbers.empty() ) return 0;
+  return *(numbers.rbegin()) + 1;
+//  for (actorNumber = 0; numbers.find(actorNumber) !=  numbers.end(); actorNumber++);
+//  return actorNumber;
 }
 
 void cTVScraperDB::AddActorDownload (int tvID, bool movie, int actorId, const string &actorPath) {

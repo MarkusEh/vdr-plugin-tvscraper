@@ -44,14 +44,8 @@ void cTVDBActors::ReadEntry(xmlDoc *doc, xmlNode *node) {
 }
 
 void cTVDBActors::StoreDB(cTVScraperDB *db, int series_id) {
-    for (size_t i=0; i<actors.size(); i++) {
-      if (actors[i]->path.empty() ) {
-        db->InsertActor(series_id, actors[i]->name, actors[i]->role, -1);
-      } else {
-        db->InsertActor(series_id, actors[i]->name, actors[i]->role, i);
-        db->AddActorDownload(series_id * -1, false, i, actors[i]->path);
-      }
-    }
+  for (const auto &actor: actors)
+    db->InsertActor(series_id, actor->name, actor->role, actor->path);
 }
 
 void cTVDBActors::Dump(bool verbose) {

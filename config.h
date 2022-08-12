@@ -35,6 +35,8 @@ class cTVScraperConfig {
         string baseDirMovieActors = "";
         string baseDirMovieCollections = "";
         string baseDirMovieTv = "";
+        string EPG_UpdateFileName;
+        string recordingsUpdateFileName;
     public:
         cTVScraperConfig();
         ~cTVScraperConfig();
@@ -52,6 +54,8 @@ class cTVScraperConfig {
         const string &GetBaseDirMovieCollections(void) const { return baseDirMovieCollections; };
         const string &GetBaseDirMovieTv(void) const { return baseDirMovieTv; };
         const string &GetThemoviedbSearchOption(void) const { return themoviedbSearchOption; };
+        const string &GetEPG_UpdateFileName(void) const { return EPG_UpdateFileName; };
+        const string &GetRecordingsUpdateFileName(void) const { return recordingsUpdateFileName; };
         bool GetReadOnlyClient() const { return readOnlyClient; }
         void ClearChannels(bool hd);
         void ClearExcludedRecordingFolders() { m_excludedRecordingFolders.clear(); }

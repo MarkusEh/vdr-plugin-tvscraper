@@ -110,7 +110,6 @@ bool cTVScraperWorker::ConnectScrapers(void) {
 
 bool cTVScraperWorker::ScrapEPG(void) {
 // true if one or more new events were scraped
-  if (config.enableAutoTimers) timersForEvents(*db);
   bool newEvent = false;
   if (config.GetReadOnlyClient() ) return newEvent;
 // check far changes in schedule (works only if APIVERSNUM >= 20301
@@ -281,6 +280,7 @@ void cTVScraperWorker::CheckRunningTimers(void) {
         SearchEventOrRec.Scrape();
       }
     }
+    TouchFile(config.GetRecordingsUpdateFileName().c_str());
   }
 }
 
@@ -318,9 +318,9 @@ void cTVScraperWorker::Action(void) {
       scanVideoDir = false;
       dsyslog("tvscraper: scanning video dir");
       if (ConnectScrapers()) {
-          ScrapRecordings();
+        ScrapRecordings();
+        TouchFile(config.GetRecordingsUpdateFileName().c_str());
       }
-//    DisconnectScrapers();
       db->BackupToDisc();
       dsyslog("tvscraper: scanning video dir done");
       continue;
@@ -331,10 +331,12 @@ void cTVScraperWorker::Action(void) {
       dsyslog("tvscraper: start scraping epg");
       if (ConnectScrapers()) {
         bool newEvents = ScrapEPG();
+        if (newEvents) TouchFile(config.GetEPG_UpdateFileName().c_str());
         if (newEvents && Running() ) cMovieOrTv::DeleteAllIfUnused(db);
         if (newEvents) db->BackupToDisc();
       }
       dsyslog("tvscraper: epg scraping done");
+      if (config.enableAutoTimers) timersForEvents(*db);
     }
     waitCondition.TimedWait(mutex, loopSleep);
   }

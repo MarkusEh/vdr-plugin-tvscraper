@@ -37,6 +37,7 @@ public:
     int execSql(const char *query, const char *bind, ...) const;
     bool QueryLine(const char *query, const char *bind, const char *fmt_result, ...) const;
     int QueryInt(const char *query, const char *bind, ...) const;
+    bool QueryInt(int &result, const char *query, const char *bind, ...) const;
     sqlite3_int64 QueryInt64(const char *query, const char *bind, ...) const;
     string QueryString(const char *query, const char *bind, ...) const;
     sqlite3_stmt *QueryPrepare(const char *query, const char *bind, ...) const;
@@ -55,7 +56,7 @@ public:
     void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);
     bool TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes);
     void InsertEvent(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
-    void InsertActor(int seriesID, const string &name, const string &role, int number);
+    void InsertActor(int seriesID, const string &name, const string &role, const string &path);
     void InsertMovie(int movieID, const string &title, const string &original_title, const string &tagline, const string &overview, bool adult, int collection_id, const string &collection_name, int budget, int revenue, const string &genres, const string &homepage, const string &release_date, int runtime, float popularity, float vote_average, int vote_count, const string &productionCountries, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID);
     void InsertMovieDirectorWriter(int movieID, const string &director, const string &writer);
 
@@ -98,6 +99,7 @@ public:
     bool existsTvMedia (int tvID, const string &path);
     void deleteTvMedia (int tvID, bool movie = false, bool keepSeasonPoster = true);
     void AddActorDownload (int tvID, bool movie, int actorId, const string &actorPath);
+    int findUnusedActorNumber (int seriesID);
     vector<vector<string> > GetActorDownload(int tvID, bool movie);
     void DeleteActorDownload (int tvID, bool movie);
     sqlite3_stmt *GetAllMovies();
