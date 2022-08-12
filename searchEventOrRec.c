@@ -218,6 +218,7 @@ void cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
     case scrapNone: ; // do nothing, nothing to store
   }
 }
+inline void swap(searchResultTvMovie &a, searchResultTvMovie &b) { std::swap(a, b); }
 
 scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResults, string &movieName, string &episodeSearchString) {
 //  bool debug = m_searchString == "james cameron's dark angel";
