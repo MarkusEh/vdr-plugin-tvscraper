@@ -460,6 +460,18 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e on tv_s_e (tv_id, season_number, episode_number); ";
     sql << "DROP INDEX IF EXISTS idx_tv_s_e_episode;";
 
+/*
+// episode names, language dependent
+    sql << "CREATE TABLE IF NOT EXISTS tv_s_e_name (";
+    sql << "tv_id integer, ";
+    sql << "language nvarchar, ";
+    sql << "season_number integer, ";
+    sql << "episode_number integer, ";
+    sql << "episode_name nvarchar";
+    sql << ");";
+    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e_name on tv_s_e_name (tv_id, language, season_number, episode_number); ";
+*/
+
     sql << "CREATE TABLE IF NOT EXISTS actor_tv (";
     sql << "tv_id integer, ";
     sql << "actor_id integer, ";
@@ -632,11 +644,11 @@ bool cTVScraperDB::CreateTables(void) {
     return true;
 }
 
-sqlite3_stmt *cTVScraperDB::GetAllMovies() {
+sqlite3_stmt *cTVScraperDB::GetAllMovies() const {
   return QueryPrepare("select movie_id from movies3;", "");
 }
 
-void cTVScraperDB::ClearOutdated() {
+void cTVScraperDB::ClearOutdated() const {
 // delete all invalid events pointing to movies
 // and delete all invalid events pointing to series
   time_t now = time(0);
@@ -645,7 +657,7 @@ void cTVScraperDB::ClearOutdated() {
   esyslog("tvscraper: Cleanup Done");
 }
 
-void cTVScraperDB::DeleteMovie(int movieID, string movieDir) {
+void cTVScraperDB::DeleteMovie(int movieID, string movieDir) const {
     //delete images
     stringstream backdrop;
     backdrop << movieDir << "/" << movieID << "_backdrop.jpg";
@@ -656,7 +668,7 @@ void cTVScraperDB::DeleteMovie(int movieID, string movieDir) {
 //delete this movie from db
     DeleteMovie(movieID);
 }
-int cTVScraperDB::DeleteMovie(int movieID) {
+int cTVScraperDB::DeleteMovie(int movieID) const {
 //delete this movie from db
   deleteTvMedia (movieID, true, false);  // deletes entries in table tv_media
   DeleteActorDownload (movieID, true);  // deletes entries in actor_download
@@ -664,7 +676,7 @@ int cTVScraperDB::DeleteMovie(int movieID) {
   return sqlite3_changes(db);
 }
 
-bool cTVScraperDB::CheckMovieOutdatedEvents(int movieID, int season_number, int episode_number) {
+bool cTVScraperDB::CheckMovieOutdatedEvents(int movieID, int season_number, int episode_number) const {
 // check if there is still an event for which movieID is required
   const char sql_m[] = "select count(event_id) from event where season_number  = ? and movie_tv_id = ? and valid_till > ?";
   const char sql_t[] = "select count(event_id) from event where season_number != ? and movie_tv_id = ? and valid_till > ?";
@@ -672,7 +684,7 @@ bool cTVScraperDB::CheckMovieOutdatedEvents(int movieID, int season_number, int 
                 else         return QueryInt(sql_t, "iit", -100, movieID, time(0) ) > 0;
 }
 
-bool cTVScraperDB::CheckMovieOutdatedRecordings(int movieID, int season_number, int episode_number) {
+bool cTVScraperDB::CheckMovieOutdatedRecordings(int movieID, int season_number, int episode_number) const {
 // check if there is still a recording for which movieID is required
   const char sql_m[] = "select count(event_id) from recordings2 where season_number  = ? and movie_tv_id = ?";
   const char sql_t[] = "select count(event_id) from recordings2 where season_number != ? and movie_tv_id = ?";
@@ -680,7 +692,7 @@ bool cTVScraperDB::CheckMovieOutdatedRecordings(int movieID, int season_number, 
                         else return QueryInt(sql_t, "ii", -100, movieID) > 0;
 }
 
-int cTVScraperDB::DeleteSeries(int seriesID) {
+int cTVScraperDB::DeleteSeries(int seriesID) const {
 // seriesID > 0 => moviedb
 // seriesID < 0 => tvdb
 // this one only deletes the entry in tv database. No images, ... are deleted
@@ -700,7 +712,7 @@ int cTVScraperDB::DeleteSeries(int seriesID) {
   return num_del;
 }
 
-void cTVScraperDB::DeleteSeries(int seriesID, const string &movieDir, const string &seriesDir) {
+void cTVScraperDB::DeleteSeries(int seriesID, const string &movieDir, const string &seriesDir) const {
 // seriesID > 0 => moviedb
 // seriesID < 0 => tvdb
 // delete images
@@ -847,6 +859,11 @@ void cTVScraperDB::InsertActor(int seriesID, const string &name, const string &r
   int actorNumber;
   if (QueryInt(actorNumber, sql_an, "iss", seriesID, name.c_str(), role.c_str())) {
 // entry already in db
+    if (actorNumber >= 0 && !path.empty() ) {
+      stringstream actorPath;
+      actorPath << config.GetBaseDirSeries() << seriesID << "/actor_" << actorNumber << ".jpg";
+      if (!FileExists(actorPath.str() )) AddActorDownload(seriesID * -1, false, actorNumber, path);
+    }
     if (actorNumber == -1 && !path.empty() ) {
       actorNumber = findUnusedActorNumber(seriesID);
       if (debug) esyslog("tvscraper: InsertActor, update, actorNumber = %i, actor_name = %s, actor_role = %s", actorNumber, name.c_str(), role.c_str() );
@@ -1010,7 +1027,7 @@ bool cTVScraperDB::CheckStartScrapping(int minimumDistance) {
     return startScrapping;
 }
 
-bool cTVScraperDB::GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime) {
+bool cTVScraperDB::GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime) const {
   tEventID eventID = sEventOrRecording->EventID();
   time_t eventStartTime = sEventOrRecording->StartTime();
   cString channelIDs = sEventOrRecording->ChannelIDs();
@@ -1044,7 +1061,7 @@ vector<vector<string> > cTVScraperDB::GetActorsSeries(int seriesID) {
     "i", seriesID);
 }
 
-std::string cTVScraperDB::GetEpisodeName(int tvID, int seasonNumber, int episodeNumber) {
+std::string cTVScraperDB::GetEpisodeName(int tvID, int seasonNumber, int episodeNumber) const {
   if (seasonNumber == 0 && episodeNumber == 0) return "";
   return QueryString("select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", tvID, seasonNumber, episodeNumber);
 }
@@ -1165,7 +1182,7 @@ void cTVScraperDB::InsertCache(const string &movieNameCache, csEventOrRecording 
       (movieOrTv.id?movieOrTv.year:0), movieOrTv.episodeSearchWithShorttext, movieOrTv.id,
       movieOrTv.season, movieOrTv.episode, now);
 }
-void cTVScraperDB::DeleteOutdatedCache() {
+void cTVScraperDB::DeleteOutdatedCache() const {
     time_t outdated = time(0) - 2*7*24*60*60;  // entries older than two weeks
     execSql("delete from cache where cache_entry_created_at < ?", "l", (sqlite3_int64)outdated);
 }
@@ -1220,7 +1237,7 @@ bool cTVScraperDB::existsTvMedia (int tvID, const string &path) {
     "is", tvID, path.c_str() ) > 0;
 }
 
-void cTVScraperDB::deleteTvMedia (int tvID, bool movie, bool keepSeasonPoster) {
+void cTVScraperDB::deleteTvMedia (int tvID, bool movie, bool keepSeasonPoster) const {
   stringstream sql;
   sql << "delete from tv_media where tv_id = " << tvID;
   if (movie) sql << " and media_number <  0";
@@ -1255,13 +1272,13 @@ vector<vector<string> > cTVScraperDB::GetActorDownload(int tvID, bool movie) {
     "ii", tvID, (int)movie );
 }
 
-void cTVScraperDB::DeleteActorDownload (int tvID, bool movie) {
+void cTVScraperDB::DeleteActorDownload (int tvID, bool movie) const {
   stringstream sql;
   sql << "delete from actor_download where movie_id = " << tvID << " and is_movie = " << int(movie);
   execSql(sql.str() );
 }
 
-vector<int> cTVScraperDB::getSimilarTvShows(int tv_id) {
+vector<int> cTVScraperDB::getSimilarTvShows(int tv_id) const {
   char sql[] = "select equal_id from tv_similar where tv_id = ?";
   int equalId = QueryInt(sql, "i", tv_id);
   if (equalId == 0) return {tv_id};

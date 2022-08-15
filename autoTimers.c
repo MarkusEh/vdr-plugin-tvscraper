@@ -7,21 +7,7 @@ bool operator< (const cScraperRec &first, int sec) {
 bool operator< (int first, const cScraperRec &sec) {
   return first < sec.m_movie_tv_id;
 }
-/*
-template <class T>
-bool operator< (const cEventMovieOrTv &first, const T &sec) {
-  if (first.m_movie_tv_id != sec.m_movie_tv_id) return first.m_movie_tv_id < sec.m_movie_tv_id;
-  if (first.m_season_number != sec.m_season_number) return first.m_season_number < sec.m_season_number;
-  return first.m_episode_number < sec.m_episode_number;
-}
 
-template <class T>
-bool operator< (const cScraperRec &first, const T &sec) {
-  if (first.m_movie_tv_id != sec.m_movie_tv_id) return first.m_movie_tv_id < sec.m_movie_tv_id;
-  if (first.m_season_number != sec.m_season_number) return first.m_season_number < sec.m_season_number;
-  return first.m_episode_number < sec.m_episode_number;
-}
-*/
 bool operator< (const cScraperRec &rec1, const cScraperRec &rec2) {
   if (rec1.m_movie_tv_id != rec2.m_movie_tv_id) return rec1.m_movie_tv_id < rec2.m_movie_tv_id;
   if (rec1.m_season_number != rec2.m_season_number) return rec1.m_season_number < rec2.m_season_number;
@@ -43,6 +29,24 @@ bool operator< (const cEventMovieOrTv &first, const cScraperRec &sec) {
   if (first.m_movie_tv_id != sec.m_movie_tv_id) return first.m_movie_tv_id < sec.m_movie_tv_id;
   if (first.m_season_number != sec.m_season_number) return first.m_season_number < sec.m_season_number;
   return first.m_episode_number < sec.m_episode_number;
+}
+
+bool operator< (const cTimerMovieOrTv &timer1, const cTimerMovieOrTv &timer2) {
+  if (timer1.m_movie_tv_id != timer2.m_movie_tv_id) return timer1.m_movie_tv_id < timer2.m_movie_tv_id;
+  if (timer1.m_season_number != timer2.m_season_number) return timer1.m_season_number < timer2.m_season_number;
+  return timer1.m_episode_number < timer2.m_episode_number;
+}
+
+bool operator< (const cTimerMovieOrTv &timer1, const cEventMovieOrTv &sec) {
+  if (timer1.m_movie_tv_id != sec.m_movie_tv_id) return timer1.m_movie_tv_id < sec.m_movie_tv_id;
+  if (timer1.m_season_number != sec.m_season_number) return timer1.m_season_number < sec.m_season_number;
+  return timer1.m_episode_number < sec.m_episode_number;
+}
+
+bool operator< (const cEventMovieOrTv &first, const cTimerMovieOrTv &timer2) {
+  if (first.m_movie_tv_id != timer2.m_movie_tv_id) return first.m_movie_tv_id < timer2.m_movie_tv_id;
+  if (first.m_season_number != timer2.m_season_number) return first.m_season_number < timer2.m_season_number;
+  return first.m_episode_number < timer2.m_episode_number;
 }
 
 
@@ -68,6 +72,7 @@ const cTimer* createTimer(const cEvent *event, const char *fileName = NULL) {
   cTimer *timer = new cTimer(event, fileName);
   timer->ClrFlags(tfRecording);
   timer->SetPriority(10);
+  timer->SetAux("<tvscraper></tvscraper>");
   LOCK_TIMERS_WRITE;
   Timers->Add(timer);
   return timer;
@@ -126,6 +131,89 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
   }
 // don't remove entries without action item, return all (unique) recordings
   return true;
+}
+
+bool InsertIfBetter (std::set<cTimerMovieOrTv, std::less<>> &timers, const cTimerMovieOrTv &timer, cTimerMovieOrTv *obsoletTimer = NULL) {
+// in case timer is already in list, insert "better" timer in list, and return "worse" timer in obsoletTimer if requested
+// return true if timer is already in list
+  auto found = timers.find(timer);
+  if (found == timers.end() ) {
+    timers.insert(timer);
+    return false;
+  }
+  if (timer.isBetter(*found) ) {
+    if (obsoletTimer) *obsoletTimer = *found;
+    timers.erase(found);
+    timers.insert(timer);
+    return true;
+  }
+  if (obsoletTimer) *obsoletTimer = timer;
+  return true;
+}
+// getAllTimers  ********************************
+void getAllTimers (const cTVScraperDB &db, std::set<cTimerMovieOrTv, std::less<>> &otherTimers, std::set<cTimerMovieOrTv, std::less<>> &myTimers) {
+// only timers where a movie or TV episode was found (i.a. only events in db, and only if episode was found)
+// for each movie or tv, only one (the best) timer. HD better than SD. Otherwise, the earlier the better
+  std::vector<int> timersToDelete;
+  cTimerMovieOrTv timer;
+  cTimerMovieOrTv obsoletTimer;
+  { // start LOCK_TIMERS_READ block
+#if VDRVERSNUM >= 20301
+  LOCK_TIMERS_READ;
+  for (const cTimer *ti = Timers->First(); ti; ti = Timers->Next(ti)) if (ti->Local())
+#else
+  for (const cTimer *ti = Timers.First(); ti; ti = Timers.Next(ti))
+#endif
+  {
+    if (!ti->Event() ) continue; // own timers without event are deleted in AdjustSpawnedScraperTimers
+// get movie/tv for event
+    cMovieOrTv *movieOrTv = NULL;
+    csEventOrRecording *sEventOrRecording = GetsEventOrRecording(ti->Event(), NULL);
+    if (sEventOrRecording) {
+      movieOrTv = cMovieOrTv::getMovieOrTv(&db, sEventOrRecording);
+      delete sEventOrRecording;
+    }
+    bool mIdentified = movieOrTv && (movieOrTv->getType() == tMovie || (movieOrTv->getSeason() != 0 || movieOrTv->getEpisode() != 0));
+    bool ownTimer = ti->Aux() && strncmp(ti->Aux(), "<tvscraper>", 11) == 0;
+    if (!mIdentified) {
+      if (ownTimer) timersToDelete.push_back(ti->Id());
+      if (movieOrTv) delete movieOrTv;
+      continue;
+    }
+    timer.m_timerId = ti->Id();
+    timer.m_tstart = ti->StartTime();
+    timer.m_needed = false;
+    timer.m_movie_tv_id = movieOrTv->dbID();
+    if (movieOrTv->getType() == tMovie) {
+      timer.m_season_number = -100;
+      timer.m_episode_number = 0;
+    } else {
+      timer.m_season_number = movieOrTv->getSeason();
+      timer.m_episode_number = movieOrTv->getEpisode();
+    }
+    delete movieOrTv;
+    timer.m_hd = config.GetHD_Channels().find(*(ti->Channel()->GetChannelID().ToString())) == config.GetHD_Channels().end()?0:1;
+    if (ownTimer) {
+// my timer
+      if (InsertIfBetter(myTimers, timer, &obsoletTimer)) timersToDelete.push_back(obsoletTimer.m_timerId);
+    } else {
+// not my timer
+      InsertIfBetter(otherTimers, timer);
+    }
+  }
+  } // end LOCK_TIMERS_READ block
+// delete obsolete timers
+  for (const int &timerToDelete: timersToDelete) {
+#if VDRVERSNUM >= 20301
+    LOCK_TIMERS_WRITE;
+    cTimer *ti = Timers->GetById(timerToDelete);
+    if (ti) Timers->Del(ti);
+#else
+    cTimer *ti = Timers.GetById(timerToDelete);
+    if (ti) Timers.Del(ti);
+#endif
+  }
+  return;
 }
 
 // getAllEvents ********************************
@@ -193,8 +281,72 @@ void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, co
   return;
 }
 
+bool AdjustSpawnedTimer(cTimer *ti)
+{
+  if (ti->Event()) {
+    if (ti->Event()->Schedule()) { // events may be deleted from their schedule in cSchedule::DropOutdated()!
+      // Adjust the timer to shifted start/stop times of the event if necessary:
+      time_t tstart = ti->Event()->StartTime();
+      time_t tstop = ti->Event()->EndTime();
+      int MarginStart = 0;
+      int MarginStop  = 0;
+      ti->CalcMargins(MarginStart, MarginStop, ti->Event());
+      tstart -= MarginStart;
+      tstop  += MarginStop;
+      // Event start/end times are given in "seconds since the epoch". Some broadcasters use values
+      // that result in full minutes (with zero seconds), while others use any values. VDR's timers
+      // use times given in full minutes, truncating any seconds. Thus we only react if the start/stop
+      // times of the timer are off by at least one minute:
+      if (abs(ti->StartTime() - tstart) >= 60 || abs(ti->StopTime() - tstop) >= 60) {
+        cString OldDescr = ti->ToDescr();
+        struct tm tm_r;
+        struct tm *time = localtime_r(&tstart, &tm_r);
+        ti->SetDay(cTimer::SetTime(tstart, 0));
+        ti->SetStart(time->tm_hour * 100 + time->tm_min);
+        time = localtime_r(&tstop, &tm_r);
+        ti->SetStop(time->tm_hour * 100 + time->tm_min);
+        ti->Matches();
+        isyslog("tvscraper: timer %s times changed to %s-%s", *OldDescr, *TimeString(tstart), *TimeString(tstop));
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool AdjustSpawnedScraperTimers() {
+  bool TimersModified = false;
+  cTimer *ti_del = NULL;
+#if VDRVERSNUM >= 20301
+  LOCK_TIMERS_WRITE;
+  for (cTimer *ti = Timers->First(); ti; ti = Timers->Next(ti)) if (ti->Local())
+#else
+  for (cTimer *ti = Timers.First(); ti; ti = Timers.Next(ti))
+#endif
+  {
+    if (ti_del) { Timers->Del(ti_del); ti_del = NULL; }
+    if (ti->Aux() && strncmp(ti->Aux(), "<tvscraper>", 11) == 0) {
+      if (!ti->Event() || ! ti->Event()->Schedule() ) ti_del = ti;
+      else if (!ti->HasFlags(tfVps))
+        TimersModified |= AdjustSpawnedTimer(ti);
+    }
+  }
+  if (ti_del) { Timers->Del(ti_del); ti_del = NULL; }
+  return TimersModified;
+}
+
+bool checkTimer(const cEventMovieOrTv &scraperEvent, std::set<cTimerMovieOrTv, std::less<>> &myTimers) {
+// return true if it is required to create a new timer
+  std::set<cTimerMovieOrTv, std::less<>>::iterator found = myTimers.find(scraperEvent);
+  if (found != myTimers.end() && scraperEvent.m_hd <= found->m_hd ) {
+    (*found).m_needed = true;
+    return false;
+  }
+  return true;
+}
+
 // timerForEvent ********************************
-bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, const std::set<cScraperRec, std::less<>> &recordings, const std::set<int> &collections) {
+bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, std::set<cTimerMovieOrTv, std::less<>> &myTimers, const std::set<cScraperRec, std::less<>> &recordings, const std::set<int> &collections) {
 // check:
 //   is there a recording, which can be improved -> timer
 //   else:
@@ -202,14 +354,13 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
 //      is event part of a TV show, that shall be recorded -> timer
 // return false if no timer is available or created. true, otherwise
 
-  if (scraperEvent.m_event->HasTimer()) return true; // there is already a timer for this event
 // is there a recording?
   auto found = recordings.find(scraperEvent);
   if (found != recordings.end()) {
     if (scraperEvent.m_hd <  found->hd() ) return false;
     if (scraperEvent.m_hd == found->hd() && found->numberOfErrors() == 0) return false;
 // we need a timer ...
-    createTimer(db, scraperEvent, *found);
+    if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, *found);
     return true;
   }
 // there is no recording with this movie / TV show
@@ -227,11 +378,11 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
           db.QueryStep(statement, "i", &eventMovieOrTv.m_movie_tv_id);) {
       auto found_c = recordings.find(eventMovieOrTv);
       if (found_c == recordings.end() ) continue;
-      createTimer(db, scraperEvent, *found_c);
+      if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, *found_c);
       return true;
     }
 // no recording with this collection found (?)
-    createTimer(scraperEvent.m_event);
+    if (checkTimer(scraperEvent, myTimers)) createTimer(scraperEvent.m_event);
     return true;
   }
 // TV show. Check: record because of all episodes shall be recorded?
@@ -239,10 +390,10 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
 // find recording with this TV show, so same folder can be used
   auto found_s = recordings.find(scraperEvent.m_movie_tv_id);
   if (found_s == recordings.end() ) {
-    createTimer(scraperEvent.m_event);
+    if (checkTimer(scraperEvent, myTimers)) createTimer(scraperEvent.m_event);
     return true;
   }
-  createTimer(db, scraperEvent, *found_s);
+  if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, *found_s);
   return true;
 }
 
@@ -253,7 +404,26 @@ bool timersForEvents(const cTVScraperDB &db) {
   std::set<int> collections;
   if (!getCollections(db, recordings, collections) ) return false;
 
-  for (const cEventMovieOrTv &scraperEvent: getAllEvents(db) )
-    timerForEvent(db, scraperEvent, recordings, collections);
+  AdjustSpawnedScraperTimers();
+  std::set<cTimerMovieOrTv, std::less<>> otherTimers;
+  std::set<cTimerMovieOrTv, std::less<>> myTimers;
+  getAllTimers(db, otherTimers, myTimers);
+
+  for (const cEventMovieOrTv &scraperEvent: getAllEvents(db) ) {
+    auto found = otherTimers.find(scraperEvent);
+    if (found != otherTimers.end() && scraperEvent.m_hd <= found->m_hd ) continue;
+    timerForEvent(db, scraperEvent, myTimers, recordings, collections);
+  }
+// delete obsolete timers
+  for (const cTimerMovieOrTv &timerToDelete: myTimers) if (!timerToDelete.m_needed) {
+#if VDRVERSNUM >= 20301
+    LOCK_TIMERS_WRITE;
+    cTimer *ti = Timers->GetById(timerToDelete.m_timerId);
+    if (ti) Timers->Del(ti);
+#else
+    cTimer *ti = Timers.GetById(timerToDelete.m_timerId);
+    if (ti) Timers.Del(ti);
+#endif
+  }
   return true;
 }

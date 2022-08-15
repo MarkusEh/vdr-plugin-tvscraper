@@ -112,7 +112,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
 // true if one or more new events were scraped
   bool newEvent = false;
   if (config.GetReadOnlyClient() ) return newEvent;
-// check far changes in schedule (works only if APIVERSNUM >= 20301
+// check for changes in schedule (works only if APIVERSNUM >= 20301
 #if APIVERSNUM >= 20301
   if (!cSchedules::GetSchedulesRead(schedulesStateKey)) {
     if (config.enableDebug) dsyslog("tvscraper: Schedule was not changed, skipping scan");
@@ -319,6 +319,7 @@ void cTVScraperWorker::Action(void) {
       dsyslog("tvscraper: scanning video dir");
       if (ConnectScrapers()) {
         ScrapRecordings();
+        dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
         TouchFile(config.GetRecordingsUpdateFileName().c_str());
       }
       db->BackupToDisc();

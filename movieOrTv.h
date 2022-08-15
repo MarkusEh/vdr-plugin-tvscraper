@@ -38,19 +38,19 @@ public:
   eImageLevel getSingleImageBestL(cImageLevelsInt level, eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImage(eImageLevel level, eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL) = 0;
 // static methods
-  static cMovieOrTv *getMovieOrTv(cTVScraperDB *db, int id, ecMovieOrTvType type);
-  static cMovieOrTv *getMovieOrTv(cTVScraperDB *db, const sMovieOrTv &movieOrTv);
-  static cMovieOrTv *getMovieOrTv(cTVScraperDB *db, csEventOrRecording *sEventOrRecording, int *runtime=NULL);
-  static int searchEpisode(cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle);
-  static void DeleteAllIfUnused(cTVScraperDB *db);
-  static void DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, cTVScraperDB *db);
+  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, int id, ecMovieOrTvType type);
+  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const sMovieOrTv &movieOrTv);
+  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, csEventOrRecording *sEventOrRecording, int *runtime=NULL);
+  static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle);
+  static void DeleteAllIfUnused(const cTVScraperDB *db);
+  static void DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, const cTVScraperDB *db);
 protected:
-  cTVScraperDB *m_db;
+  const cTVScraperDB *m_db;
   int m_id;
   int m_seasonNumber;
   int m_episodeNumber;
   
-  cMovieOrTv(cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): m_db(db), m_id(id), m_seasonNumber(seasonNumber), m_episodeNumber(episodeNumber) {}
+  cMovieOrTv(const cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): m_db(db), m_id(id), m_seasonNumber(seasonNumber), m_episodeNumber(episodeNumber) {}
   virtual string bannerBaseUrl() = 0;
 // Media
   bool checkFullPath(const string        &sFullPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height);
@@ -62,10 +62,10 @@ private:
 class cMovieMoviedb : public cMovieOrTv {
 
 public:
-  cMovieMoviedb(cTVScraperDB *db, int id): cMovieOrTv(db, id, -100, 0) {}
+  cMovieMoviedb(const cTVScraperDB *db, int id): cMovieOrTv(db, id, -100, 0) {}
   virtual int dbID() { return m_id; }
   virtual void DeleteMediaAndDb();
-  static void DeleteAllIfUnused(cTVScraperDB *db);
+  static void DeleteAllIfUnused(const cTVScraperDB *db);
 // fill vdr service interface
   virtual tvType getType() const { return tMovie; }
   virtual void getScraperOverview(cGetScraperOverview *scraperOverview);
@@ -103,7 +103,7 @@ public:
   virtual bool getSingleImageTvShow(   eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL) = 0;
   virtual bool getSingleImageAnySeason(eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL) = 0;
 protected:
-  cTv(cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): cMovieOrTv(db, id, seasonNumber,  episodeNumber) {}
+  cTv(const cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): cMovieOrTv(db, id, seasonNumber,  episodeNumber) {}
   virtual string bannerBaseUrl() = 0;
 private:
   std::vector<cActor> getGuestStars(const char *str);
@@ -114,7 +114,7 @@ private:
 class cTvMoviedb : public cTv {
 
 public:
-  cTvMoviedb(cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
+  cTvMoviedb(const cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
   virtual int dbID() { return m_id; }
   virtual void DeleteMediaAndDb();
   virtual vector<cActor> GetActors();
@@ -131,7 +131,7 @@ private:
 class cTvTvdb : public cTv {
 
 public:
-  cTvTvdb(cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
+  cTvTvdb(const cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
   virtual int dbID() { return m_id * -1; }
   virtual void DeleteMediaAndDb();
   virtual vector<cActor> GetActors();

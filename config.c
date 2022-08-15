@@ -1,4 +1,7 @@
+#include <filesystem>
+#include <fstream>
 #include "config.h"
+
 
 using namespace std;
 
@@ -64,6 +67,8 @@ void cTVScraperConfig::SetBaseDir(const string &dir) {
     baseDirMovieTv = baseDirMovies + "tv/";
     EPG_UpdateFileName = baseDir + ".EPG_Update";
     recordingsUpdateFileName = baseDir + ".recordingsUpdate";
+    if (!std::filesystem::exists(EPG_UpdateFileName) ) std::ofstream output(EPG_UpdateFileName);
+    if (!std::filesystem::exists(recordingsUpdateFileName) ) std::ofstream output(recordingsUpdateFileName);
   }
 }
 

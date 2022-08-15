@@ -4,10 +4,24 @@
 #include<set>
 #include<vector>
 
+class cMovieOrTvAT {
+  public:
+    int m_hd;
+    int m_movie_tv_id; // movie if season_number == -100. Otherwisse, tv
+    int m_season_number;
+    int m_episode_number;
+};
+
+class cTimerMovieOrTv: public cMovieOrTvAT {
+  public:
+    int m_timerId;
+    time_t m_tstart;
+    mutable bool m_needed = false;
+    bool isBetter(const cTimerMovieOrTv &sec) const { return m_hd != sec.m_hd?(m_hd > sec.m_hd): (m_tstart < sec.m_tstart); }
+};
+
 class cEventMovieOrTv {
   public:
-//    cEventMovieOrTv(const cEvent *event, bool hd, int movie_tv_id, int season_number, int episode_number):
-//      m_event(event), m_hd(hd), m_movie_tv_id(movie_tv_id), m_season_number(season_number), m_episode_number(episode_number) {}
     bool isBetter(const cEventMovieOrTv &sec) const { return m_hd != sec.m_hd?(m_hd > sec.m_hd): (m_event->StartTime() < sec.m_event->StartTime()); }
     const cEvent *m_event;
     int m_hd;

@@ -785,7 +785,7 @@ bool cTvTvdb::getSingleImageEpisode(eOrientation orientation, string *relPath, s
 
 // static methods  *********************
 // create object ***
-cMovieOrTv *cMovieOrTv::getMovieOrTv(cTVScraperDB *db, int id, ecMovieOrTvType type) {
+cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, int id, ecMovieOrTvType type) {
   switch (type) {
     case ecMovieOrTvType::theMoviedbMovie:  return new cMovieMoviedb(db, id);
     case ecMovieOrTvType::theMoviedbSeries: return new cTvMoviedb(db, id);
@@ -794,7 +794,7 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(cTVScraperDB *db, int id, ecMovieOrTvType t
   return NULL;
 }
 
-cMovieOrTv *cMovieOrTv::getMovieOrTv(cTVScraperDB *db, const sMovieOrTv &movieOrTv) {
+cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const sMovieOrTv &movieOrTv) {
   if (movieOrTv.id == 0) return NULL;
   switch (movieOrTv.type) {
     case scrapMovie: return new cMovieMoviedb(db, movieOrTv.id);
@@ -806,7 +806,7 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(cTVScraperDB *db, const sMovieOrTv &movieOr
   return NULL;
 }
 
-cMovieOrTv *cMovieOrTv::getMovieOrTv(cTVScraperDB *db, csEventOrRecording *sEventOrRecording, int *runtime) {
+cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, csEventOrRecording *sEventOrRecording, int *runtime) {
   if (sEventOrRecording == NULL) return NULL;
   int movie_tv_id, season_number, episode_number;
   if(!db->GetMovieTvID(sEventOrRecording, movie_tv_id, season_number, episode_number, runtime)) return NULL;
@@ -818,7 +818,7 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(cTVScraperDB *db, csEventOrRecording *sEven
 }
 
 // search episode
-int cMovieOrTv::searchEpisode(cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle) {
+int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle) {
   bool debug = false;
   movieOrTv.season  = 0;
   movieOrTv.episode = 0;
@@ -836,7 +836,7 @@ int cMovieOrTv::searchEpisode(cTVScraperDB *db, sMovieOrTv &movieOrTv, const str
 }
 
 // delete unused *****
-void cMovieOrTv::DeleteAllIfUnused(cTVScraperDB *db) {
+void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check all movies in db
   int movie_id;
   for (sqlite3_stmt *statement = db->GetAllMovies();
@@ -860,7 +860,7 @@ void cMovieOrTv::DeleteAllIfUnused(cTVScraperDB *db) {
   db->ClearOutdated();
 }
 
-void cMovieOrTv::DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, cTVScraperDB *db) {
+void cMovieOrTv::DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, const cTVScraperDB *db) {
 // check for all subfolders in folder. If a subfolder has only digits, delete the movie/tv with this number
 for (const std::filesystem::directory_entry& dir_entry : 
         std::filesystem::directory_iterator{folder}) 
@@ -873,7 +873,7 @@ for (const std::filesystem::directory_entry& dir_entry :
   }
 }
 
-void cMovieMoviedb::DeleteAllIfUnused(cTVScraperDB *db) {
+void cMovieMoviedb::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check for all files in folder. If a file has the pattern for movie backdrop or poster, check the movie with this number
 for (const std::filesystem::directory_entry& dir_entry : 
         std::filesystem::directory_iterator{config.GetBaseDirMovies() }) 
