@@ -49,7 +49,6 @@ bool operator< (const cEventMovieOrTv &first, const cTimerMovieOrTv &timer2) {
   return first.m_episode_number < timer2.m_episode_number;
 }
 
-
 // getEvent ********************************  
 const cEvent* getEvent(tEventID eventid, const tChannelID &channelid) {
 // note: NULL is returned, if this event is not available
@@ -61,8 +60,10 @@ const cEvent* getEvent(tEventID eventid, const tChannelID &channelid) {
   #else
   cSchedulesLock schedLock;
   cSchedules const* schedules = cSchedules::Schedules( schedLock );
+  if (!schedules) return NULL;
   schedule = schedules->GetSchedule( channelid );
   #endif
+  if (!schedule) return NULL;
   return schedule->GetEvent( eventid );
 }
 
