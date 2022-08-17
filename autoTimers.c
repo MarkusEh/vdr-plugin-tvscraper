@@ -68,12 +68,13 @@ const cEvent* getEvent(tEventID eventid, const tChannelID &channelid) {
 }
 
 // createTimer ********************************  
-const cTimer* createTimer(const cEvent *event, const char *fileName = NULL) {
+const cTimer* createTimer(const cEvent *event, const std::string &aux = "", const char *fileName = NULL) {
   if (!event) return NULL;
   cTimer *timer = new cTimer(event, fileName);
   timer->ClrFlags(tfRecording);
   timer->SetPriority(10);
-  timer->SetAux("<tvscraper></tvscraper>");
+  if (aux.empty() ) timer->SetAux("<tvscraper></tvscraper>");
+  else timer->SetAux(aux.c_str() );
   LOCK_TIMERS_WRITE;
   Timers->Add(timer);
   return timer;
@@ -250,15 +251,51 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
   return result;
 }
 
-void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, const cScraperRec &recording) {
+std::string getAux(const cScraperRec *recording, const char *reason) {
+  std::string result("<tvscraper>");
+  if (recording) {
+    result.append("<causedBy>");
+    result.append(recording->name() );
+    result.append("</causedBy>");
+  }
+  if (reason) {
+    result.append("<reason>");
+    result.append(reason);
+    result.append("</reason>");
+  }
+/*
+irrelevant information, available on the event / recording itself
+  if (recording) {
+    result.append("<type>");
+    if (recording->seasonNumber() == -100) result.append("movie");
+    else result.append("TV show");
+    result.append("</type>");
+    result.append("<id>");
+    result.append(to_string(recording->movieTvId() ));
+    result.append("</id>");
+    if (recording->seasonNumber() != -100) {
+      result.append("<season>");
+      result.append(to_string(recording->seasonNumber() ));
+      result.append("</season>");
+      result.append("<episode>");
+      result.append(to_string(recording->episodeNumber() ));
+      result.append("</episode>");
+    }
+  }
+*/
+  result.append("</tvscraper>");
+  return result;
+}
+
+void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, const char *reason, const cScraperRec &recording) {
 // create timer for event, in same folder as existing recording
   size_t pos = recording.name().find_last_of('~');
   if (pos == std::string::npos || pos == 0) {
-    createTimer(scraperEvent.m_event);
+    createTimer(scraperEvent.m_event, getAux(&recording, reason) );
     return;
   }
   if (recording.seasonNumber() == -100) {
-    createTimer(scraperEvent.m_event, (recording.name().substr(0, pos + 1) + scraperEvent.m_event->Title()).c_str() );
+    createTimer(scraperEvent.m_event, getAux(&recording, reason), (recording.name().substr(0, pos + 1) + scraperEvent.m_event->Title()).c_str() );
     return;
   }
 // TV show. Test: Title~ShortText ?
@@ -268,17 +305,17 @@ void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, co
   if (recording.name().substr(pos2, pos-pos2).compare(scraperEvent.m_event->Title() ) == 0) {
 // structure of old recording: title/episode_name
     if (scraperEvent.m_event->ShortText() && *scraperEvent.m_event->ShortText() )
-      createTimer(scraperEvent.m_event, (recording.name().substr(0, pos + 1) + scraperEvent.m_event->ShortText()).c_str() );
+      createTimer(scraperEvent.m_event, getAux(&recording, reason), (recording.name().substr(0, pos + 1) + scraperEvent.m_event->ShortText()).c_str() );
     else {
       const char sql[] = "select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
       std::string episode_name = db.QueryString(sql, "iii", scraperEvent.m_movie_tv_id, scraperEvent.m_season_number, scraperEvent.m_episode_number);
       if (episode_name.empty() && scraperEvent.m_event->Description() && *scraperEvent.m_event->Description() )
         episode_name = strlen(scraperEvent.m_event->Description()) < 50?scraperEvent.m_event->Description():std::string(scraperEvent.m_event->Description(), 50);
       if (episode_name.empty() ) episode_name = "no episode name found";
-      createTimer(scraperEvent.m_event, (recording.name().substr(0, pos + 1) + episode_name).c_str() );
+      createTimer(scraperEvent.m_event, getAux(&recording, reason), (recording.name().substr(0, pos + 1) + episode_name).c_str() );
     }
   } else // structure of old recording: title
-    createTimer(scraperEvent.m_event, (recording.name().substr(0, pos + 1) + scraperEvent.m_event->Title()).c_str() );
+    createTimer(scraperEvent.m_event, getAux(&recording, reason), (recording.name().substr(0, pos + 1) + scraperEvent.m_event->Title()).c_str() );
   return;
 }
 
@@ -291,7 +328,12 @@ bool AdjustSpawnedTimer(cTimer *ti)
       time_t tstop = ti->Event()->EndTime();
       int MarginStart = 0;
       int MarginStop  = 0;
+#if APIVERSNUM < 20502
+      MarginStart = Setup.MarginStart * 60;
+      MarginStop  = Setup.MarginStop * 60;
+#else
       ti->CalcMargins(MarginStart, MarginStop, ti->Event());
+#endif
       tstart -= MarginStart;
       tstop  += MarginStop;
       // Event start/end times are given in "seconds since the epoch". Some broadcasters use values
@@ -361,7 +403,7 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
     if (scraperEvent.m_hd <  found->hd() ) return false;
     if (scraperEvent.m_hd == found->hd() && found->numberOfErrors() == 0) return false;
 // we need a timer ...
-    if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, *found);
+    if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, "improve", *found);
     return true;
   }
 // there is no recording with this movie / TV show
@@ -379,11 +421,11 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
           db.QueryStep(statement, "i", &eventMovieOrTv.m_movie_tv_id);) {
       auto found_c = recordings.find(eventMovieOrTv);
       if (found_c == recordings.end() ) continue;
-      if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, *found_c);
+      if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, "collection", *found_c);
       return true;
     }
 // no recording with this collection found (?)
-    if (checkTimer(scraperEvent, myTimers)) createTimer(scraperEvent.m_event);
+    if (checkTimer(scraperEvent, myTimers)) createTimer(scraperEvent.m_event, getAux(NULL, "collection") );
     return true;
   }
 // TV show. Check: record because of all episodes shall be recorded?
@@ -391,10 +433,10 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
 // find recording with this TV show, so same folder can be used
   auto found_s = recordings.find(scraperEvent.m_movie_tv_id);
   if (found_s == recordings.end() ) {
-    if (checkTimer(scraperEvent, myTimers)) createTimer(scraperEvent.m_event);
+    if (checkTimer(scraperEvent, myTimers)) createTimer(scraperEvent.m_event, getAux(NULL, "TV show, missing episode"));
     return true;
   }
-  if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, *found_s);
+  if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, "TV show, missing episode", *found_s);
   return true;
 }
 
