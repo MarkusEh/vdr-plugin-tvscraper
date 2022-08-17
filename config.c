@@ -86,6 +86,14 @@ void cTVScraperConfig::Initialize() {
   if (hd_channels.empty() ) hd_channels = getDefaultHD_Channels();
   if (   channels.empty() )    channels = getDefaultChannels();
 }
+void cTVScraperConfig::SetAutoTimersPath(const string &option) {
+  m_autoTimersPathSet = true;
+// make sure that m_autoTimersPath is empty or ends with ~
+  m_autoTimersPath = option;
+  if (option.empty() ) return;
+  if (*option.rbegin() == '~') return;
+  m_autoTimersPath.append(1, '~');
+}
 
 bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
     if (strcmp(Name, "ScrapChannels") == 0) {

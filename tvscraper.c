@@ -103,12 +103,13 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
         { "dir", required_argument, NULL, 'd' },
         { "readOnlyClient", no_argument, NULL, 'c' },
         { "themoviedbSearchOption", required_argument, NULL, 's' },
+        { "autoTimersPath", required_argument, NULL, 'p' },
         { 0, 0, 0, 0 }
     };
 
     int c;
     cacheDirSet = false;
-    while ((c = getopt_long(argc, argv, "d:s:c", long_options, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "d:s:c:p", long_options, NULL)) != -1) {
         switch (c) {
             case 'd':
                 cacheDirSet = true;
@@ -116,6 +117,9 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
                 break;
             case 's':
                 config.SetThemoviedbSearchOption(optarg);
+                break;
+            case 'p':
+                config.SetAutoTimersPath(optarg);
                 break;
             case 'c':
                 config.SetReadOnlyClient();

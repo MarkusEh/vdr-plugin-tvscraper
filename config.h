@@ -24,6 +24,8 @@ class cTVScraperConfig {
     private:
         string themoviedbSearchOption = "";
         bool readOnlyClient = false;
+        bool m_autoTimersPathSet = false;
+        std::string m_autoTimersPath;
         set<string> channels; 
         set<string> hd_channels; 
         set<string> m_excludedRecordingFolders;
@@ -44,6 +46,7 @@ class cTVScraperConfig {
         int enableAutoTimers;
         void Initialize();
         void SetThemoviedbSearchOption(const string &option) { themoviedbSearchOption = option; };
+        void SetAutoTimersPath(const string &option);
         void SetReadOnlyClient() { readOnlyClient = true; };
         void SetBaseDir(const string &dir);
         const string &GetBaseDir(void) const { return baseDir; };
@@ -54,6 +57,8 @@ class cTVScraperConfig {
         const string &GetBaseDirMovieCollections(void) const { return baseDirMovieCollections; };
         const string &GetBaseDirMovieTv(void) const { return baseDirMovieTv; };
         const string &GetThemoviedbSearchOption(void) const { return themoviedbSearchOption; };
+        const string &GetAutoTimersPath() const { return m_autoTimersPath; };
+        const bool GetAutoTimersPathSet() const { return m_autoTimersPathSet; };
         const string &GetEPG_UpdateFileName(void) const { return EPG_UpdateFileName; };
         const string &GetRecordingsUpdateFileName(void) const { return recordingsUpdateFileName; };
         bool GetReadOnlyClient() const { return readOnlyClient; }

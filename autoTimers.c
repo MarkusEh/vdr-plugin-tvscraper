@@ -287,8 +287,31 @@ irrelevant information, available on the event / recording itself
   return result;
 }
 
+std::string getEpisodeName(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent) {
+// default: episode name = short text
+  if (scraperEvent.m_event->ShortText() && *scraperEvent.m_event->ShortText() )
+    return scraperEvent.m_event->ShortText();
+// no short text. Check episode name from data base
+  const char sql[] = "select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
+  std::string episode_name = db.QueryString(sql, "iii", scraperEvent.m_movie_tv_id, scraperEvent.m_season_number, scraperEvent.m_episode_number);
+  if (!episode_name.empty() ) return episode_name;
+// no short text. No episode name in data base. Check description
+  if (scraperEvent.m_event->Description() && *scraperEvent.m_event->Description() )
+    return strlen(scraperEvent.m_event->Description()) < 50?scraperEvent.m_event->Description():std::string(scraperEvent.m_event->Description(), 50);
+  return "no episode name found";
+}
+
 void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, const char *reason, const cScraperRec &recording) {
 // create timer for event, in same folder as existing recording
+  if (config.GetAutoTimersPathSet() ) {
+    if (recording.seasonNumber() == -100) {
+      createTimer(scraperEvent.m_event, getAux(&recording, reason), (config.GetAutoTimersPath() + scraperEvent.m_event->Title()).c_str() );
+    } else {
+// structure of recording: title/episode_name
+      createTimer(scraperEvent.m_event, getAux(&recording, reason), (config.GetAutoTimersPath() + scraperEvent.m_event->Title() + '~' + getEpisodeName(db, scraperEvent) ).c_str() );
+    }
+    return;
+  }
   size_t pos = recording.name().find_last_of('~');
   if (pos == std::string::npos || pos == 0) {
     createTimer(scraperEvent.m_event, getAux(&recording, reason) );
@@ -304,16 +327,7 @@ void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, co
   else pos2++;
   if (recording.name().substr(pos2, pos-pos2).compare(scraperEvent.m_event->Title() ) == 0) {
 // structure of old recording: title/episode_name
-    if (scraperEvent.m_event->ShortText() && *scraperEvent.m_event->ShortText() )
-      createTimer(scraperEvent.m_event, getAux(&recording, reason), (recording.name().substr(0, pos + 1) + scraperEvent.m_event->ShortText()).c_str() );
-    else {
-      const char sql[] = "select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-      std::string episode_name = db.QueryString(sql, "iii", scraperEvent.m_movie_tv_id, scraperEvent.m_season_number, scraperEvent.m_episode_number);
-      if (episode_name.empty() && scraperEvent.m_event->Description() && *scraperEvent.m_event->Description() )
-        episode_name = strlen(scraperEvent.m_event->Description()) < 50?scraperEvent.m_event->Description():std::string(scraperEvent.m_event->Description(), 50);
-      if (episode_name.empty() ) episode_name = "no episode name found";
-      createTimer(scraperEvent.m_event, getAux(&recording, reason), (recording.name().substr(0, pos + 1) + episode_name).c_str() );
-    }
+    createTimer(scraperEvent.m_event, getAux(&recording, reason), (recording.name().substr(0, pos + 1) + getEpisodeName(db, scraperEvent) ).c_str() );
   } else // structure of old recording: title
     createTimer(scraperEvent.m_event, getAux(&recording, reason), (recording.name().substr(0, pos + 1) + scraperEvent.m_event->Title()).c_str() );
   return;
