@@ -178,7 +178,7 @@ void getAllTimers (const cTVScraperDB &db, std::set<cTimerMovieOrTv, std::less<>
     bool mIdentified = movieOrTv && (movieOrTv->getType() == tMovie || (movieOrTv->getSeason() != 0 || movieOrTv->getEpisode() != 0));
     bool ownTimer = ti->Aux() && strncmp(ti->Aux(), "<tvscraper>", 11) == 0;
     if (!mIdentified) {
-      if (ownTimer) timersToDelete.push_back(ti->Id());
+      if (ownTimer && !ti->Recording() ) timersToDelete.push_back(ti->Id());
       if (movieOrTv) delete movieOrTv;
       continue;
     }
@@ -197,7 +197,7 @@ void getAllTimers (const cTVScraperDB &db, std::set<cTimerMovieOrTv, std::less<>
     timer.m_hd = config.GetHD_Channels().find(*(ti->Channel()->GetChannelID().ToString())) == config.GetHD_Channels().end()?0:1;
     if (ownTimer) {
 // my timer
-      if (InsertIfBetter(myTimers, timer, &obsoletTimer)) timersToDelete.push_back(obsoletTimer.m_timerId);
+      if (InsertIfBetter(myTimers, timer, &obsoletTimer) ) timersToDelete.push_back(obsoletTimer.m_timerId);
     } else {
 // not my timer
       InsertIfBetter(otherTimers, timer);
@@ -209,10 +209,10 @@ void getAllTimers (const cTVScraperDB &db, std::set<cTimerMovieOrTv, std::less<>
 #if VDRVERSNUM >= 20301
     LOCK_TIMERS_WRITE;
     cTimer *ti = Timers->GetById(timerToDelete);
-    if (ti) Timers->Del(ti);
+    if (ti && !ti->Recording() ) Timers->Del(ti);
 #else
     cTimer *ti = Timers.GetById(timerToDelete);
-    if (ti) Timers.Del(ti);
+    if (ti && !ti->Recording() ) Timers.Del(ti);
 #endif
   }
   return;
@@ -383,9 +383,14 @@ bool AdjustSpawnedScraperTimers() {
   {
     if (ti_del) { Timers->Del(ti_del); ti_del = NULL; }
     if (ti->Aux() && strncmp(ti->Aux(), "<tvscraper>", 11) == 0) {
-      if (!ti->Event() || ! ti->Event()->Schedule() ) ti_del = ti;
-      else if (!ti->HasFlags(tfVps))
-        TimersModified |= AdjustSpawnedTimer(ti);
+// this is "our" timer
+      if (!ti->Event() || !ti->Event()->Schedule() ) {
+// Timer has no event, or event is not in schedule any more. Delete this timer
+        if (!ti->Recording() ) ti_del = ti;
+      } else {
+// Timer has event, and event is in schedule. Adjust times to event, if required (not for VPS timers)
+        if (!ti->HasFlags(tfVps)) TimersModified |= AdjustSpawnedTimer(ti);
+      }
     }
   }
   if (ti_del) { Timers->Del(ti_del); ti_del = NULL; }
@@ -476,10 +481,10 @@ bool timersForEvents(const cTVScraperDB &db) {
 #if VDRVERSNUM >= 20301
     LOCK_TIMERS_WRITE;
     cTimer *ti = Timers->GetById(timerToDelete.m_timerId);
-    if (ti) Timers->Del(ti);
+    if (ti && !ti->Recording() ) Timers->Del(ti);
 #else
     cTimer *ti = Timers.GetById(timerToDelete.m_timerId);
-    if (ti) Timers.Del(ti);
+    if (ti && !ti->Recording() ) Timers.Del(ti);
 #endif
   }
   return true;
