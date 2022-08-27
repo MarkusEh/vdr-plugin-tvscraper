@@ -335,22 +335,51 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     }
     
     if (strcmp(Id, "GetPosterBanner") == 0) {
-// for TV shows: return banner
-// for movies: get poster
+// if banner available: for TV shows: return banner, and report as TV show (tSeries)
+// otherwise: return posterand report as movie (tMovie)
         if (Data == NULL) return true;
         ScraperGetPosterBanner* call = (ScraperGetPosterBanner*) Data;
         cMovieOrTv *movieOrTv = GetMovieOrTv(call->event, NULL);
         if (!movieOrTv) { call->type = tNone; return true;}
-        call->type = movieOrTv->getType();
-        if (call->type == tSeries)
+        if (movieOrTv->getSingleImageBestL(
+            cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
+            eOrientation::banner,
+            NULL, &call->banner.path, &call->banner.width, &call->banner.height) != eImageLevel::none) {
+// Banner available -> return banner
+          call->type = tSeries;
+        } else {
+// No banner available -> return poster
+          call->type = tMovie;
           movieOrTv->getSingleImageBestLO(
             cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
-            cOrientationsInt(eOrientation::banner, eOrientation::portrait),
-            NULL, &call->banner.path, &call->banner.width, &call->banner.height);
-        else
-          movieOrTv->getSingleImageBestL(
-            cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection),
-            eOrientation::portrait, NULL, &call->poster.path, &call->poster.width, &call->poster.height); 
+            cOrientationsInt(eOrientation::portrait, eOrientation::landscape),
+            NULL, &call->poster.path, &call->poster.width, &call->poster.height);
+        }
+        delete movieOrTv;
+        return true;
+    }
+
+    if (strcmp(Id, "GetPosterBannerV2") == 0) {
+// for TV shows: return banner
+// for movies: get poster
+        if (Data == NULL) return true;
+        ScraperGetPosterBannerV2* call = (ScraperGetPosterBannerV2*) Data;
+        cMovieOrTv *movieOrTv = GetMovieOrTv(call->event, call->recording);
+        if (!movieOrTv) { call->type = tNone; return true;}
+        if (movieOrTv->getSingleImageBestL(
+            cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
+            eOrientation::banner,
+            NULL, &call->banner.path, &call->banner.width, &call->banner.height) != eImageLevel::none) {
+// Banner available -> return banner
+          call->type = tSeries;
+        } else {
+// No banner available -> return poster
+          call->type = tMovie;
+          movieOrTv->getSingleImageBestLO(
+            cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
+            cOrientationsInt(eOrientation::portrait, eOrientation::landscape),
+            NULL, &call->poster.path, &call->poster.width, &call->poster.height);
+        }
         delete movieOrTv;
         return true;
     }

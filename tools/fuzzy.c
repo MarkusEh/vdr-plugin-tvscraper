@@ -152,6 +152,7 @@ int dist_norm_fuzzy(std::string &str_longer, const std::string &str_shorter, int
   int dist = sentence_distance_int(str_longer, str_shorter, l1, l2);
 //  std::cout << "l1 = " << l1 << " l2 = " << l2 << " dist = " << dist << std::endl;
   int max_dist = std::max(std::max(l1, l2), dist);
+  if (max_dist == 0) return 1000; // no word found -> no match
   return 1000 * dist / max_dist;
 }
 
