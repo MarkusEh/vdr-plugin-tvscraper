@@ -51,7 +51,7 @@ public:
     int DeleteSeries(int seriesID) const;
     void InsertTv(int tvID, const string &name, const string &originalName, const string &overview, const string &firstAired, const string &networks, const string &genres, float popularity, float vote_average, int vote_count, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID, const string &status, const vector<int> &EpisodeRunTimes, const string &createdBy);
     void InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_absolute_number, int episode_id, const string &episode_name, const string &airDate, float vote_average, int vote_count, const string &episode_overview, const string &episode_guest_stars, const string &episode_director, const string &episode_writer, const string &episode_IMDB_ID, const string &episode_still_path);
-    string GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber);
+    string GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber) const;
     void TvSetEpisodesUpdated(int tvID);
     void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);
     bool TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes);

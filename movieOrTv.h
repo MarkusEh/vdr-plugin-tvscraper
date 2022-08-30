@@ -33,7 +33,8 @@ public:
 // Media
   std::vector<cTvMedia> getBanners();
   virtual vector<cTvMedia> getImages(eOrientation orientation);
-  void copyImagesToRecordingFolder(const cRecording *recording);
+  void copyImagesToRecordingFolder(const std::string &recordingFileName);
+  virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) = 0;
   eImageLevel getSingleImageBestLO(cImageLevelsInt level, cOrientationsInt orientations, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   eImageLevel getSingleImageBestL(cImageLevelsInt level, eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImage(eImageLevel level, eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL) = 0;
@@ -71,6 +72,7 @@ public:
   virtual void getScraperOverview(cGetScraperOverview *scraperOverview);
   virtual void getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv);
   virtual vector<cActor> GetActors();
+  virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
 // media
   virtual string bannerBaseUrl() { return "http://image.tmdb.org/t/p/w780/"; }
@@ -118,6 +120,7 @@ public:
   virtual int dbID() { return m_id; }
   virtual void DeleteMediaAndDb();
   virtual vector<cActor> GetActors();
+  virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
   virtual string bannerBaseUrl() { return "http://image.tmdb.org/t/p/w780/"; }
   virtual bool getSingleImageEpisode(  eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
@@ -137,6 +140,7 @@ public:
   virtual vector<cActor> GetActors();
 // Media
   virtual vector<cTvMedia> getImages(eOrientation orientation);
+  virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
   virtual string bannerBaseUrl() { return "https://thetvdb.com/banners/"; }
   virtual bool getSingleImageEpisode(  eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);

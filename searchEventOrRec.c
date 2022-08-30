@@ -125,15 +125,15 @@ void cSearchEventOrRec::initSearchString(void) {
   transform(m_searchString.begin(), m_searchString.end(), m_searchString.begin(), ::tolower);
 }
 
-bool cSearchEventOrRec::Scrape(void) {
-// return true, if request to rate limited internet db was required. Otherwise, false
+cMovieOrTv *cSearchEventOrRec::Scrape(void) {
+// extDbConnected: true, if request to rate limited internet db was required. Otherwise, false
   if (config.enableDebug) {
     char buff[20];
     time_t event_time = m_sEventOrRecording->StartTime();
     strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&event_time));
     esyslog("tvscraper: Scrap event: search string \"%s\", title \"%s\", start time: %s", m_searchString.c_str(), m_sEventOrRecording->Title(), buff);
   }
-  if (m_overrides->Ignore(m_baseNameOrTitle)) return extDbConnected;
+  if (m_overrides->Ignore(m_baseNameOrTitle)) return NULL;
   sMovieOrTv movieOrTv;
   ScrapFindAndStore(movieOrTv);
   if(movieOrTv.type != scrapMovie && movieOrTv.type != scrapSeries) {
@@ -145,7 +145,7 @@ bool cSearchEventOrRec::Scrape(void) {
     ScrapFindAndStore(movieOrTv);
   }
   ScrapAssign(movieOrTv);
-  return extDbConnected;
+  return cMovieOrTv::getMovieOrTv(m_db, movieOrTv);
 }
 
 void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
@@ -364,6 +364,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
       return true;
   }
 }
+
 void cSearchEventOrRec::ScrapAssign(const sMovieOrTv &movieOrTv) {
 // assign found movieOrTv to event/recording in db
 // and download images
@@ -371,32 +372,6 @@ void cSearchEventOrRec::ScrapAssign(const sMovieOrTv &movieOrTv) {
   if (!m_sEventOrRecording->Recording() )
           m_db->InsertEvent     (m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
      else m_db->InsertRecording2(m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
-  if(movieOrTv.type == scrapMovie) {
-    m_moviedbScraper->DownloadMedia(movieOrTv.id);
-    m_moviedbScraper->DownloadActors(movieOrTv.id, true);
-  }
-  if(movieOrTv.type == scrapSeries) {
-    if (movieOrTv.id > 0) {
-      m_moviedbScraper->DownloadMediaTv(movieOrTv.id);
-      m_moviedbScraper->DownloadActors(movieOrTv.id, false);
-    } else {
-      m_tvdbScraper->StoreActors(movieOrTv.id * -1);
-      m_tvdbScraper->DownloadMedia(movieOrTv.id * -1);
-    }
-    string episodeStillPath = m_db->GetEpisodeStillPath(movieOrTv.id, movieOrTv.season, movieOrTv.episode);
-    if (!episodeStillPath.empty() ) {
-      if (movieOrTv.id > 0)
-        m_moviedbScraper->StoreStill (movieOrTv.id     , movieOrTv.season, movieOrTv.episode, episodeStillPath);
-      else m_tvdbScraper->StoreStill (movieOrTv.id * -1, movieOrTv.season, movieOrTv.episode, episodeStillPath);
-    }
-  }
-  if (m_sEventOrRecording->Recording() ) {
-    cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(m_db, m_sEventOrRecording);
-    if (movieOrTv) {
-      movieOrTv->copyImagesToRecordingFolder(m_sEventOrRecording->Recording() );
-      delete movieOrTv;
-    }
-  }
 }
 
 void cSearchEventOrRec::UpdateEpisodeListIfRequired(int tvID) {

@@ -109,14 +109,14 @@ std::vector<cTvMedia> cMovieOrTv::getBanners() {
   return banners;
 }
 
-void cMovieOrTv::copyImagesToRecordingFolder(const cRecording *recording) {
-  if (!recording) return;
+void cMovieOrTv::copyImagesToRecordingFolder(const std::string &recordingFileName) {
+  if (recordingFileName.empty() ) return;
   string path;
   cImageLevelsInt level(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection);
   if (getSingleImageBestL(level, eOrientation::portrait, NULL, &path) != eImageLevel::none)
-    CopyFile(path, string(recording->FileName() ) + "/poster.jpg" );
+    CopyFile(path, recordingFileName + "/poster.jpg" );
   if (getSingleImageBestL(level, eOrientation::landscape, NULL, &path) != eImageLevel::none)
-    CopyFile(path, string(recording->FileName() ) + "/fanart.jpg" );
+    CopyFile(path, recordingFileName + "/fanart.jpg" );
 }
 
 eImageLevel cMovieOrTv::getSingleImageBestLO(cImageLevelsInt level, cOrientationsInt orientations, string *relPath, string *fullPath, int *width, int *height) {
@@ -156,6 +156,30 @@ bool cMovieMoviedb::getSingleImage(eImageLevel level, eOrientation orientation, 
     case eImageLevel::anySeasonCollection: return getSingleImageCollection(orientation, relPath, fullPath, width, height);
     default: return false;
   }
+}
+
+void cMovieMoviedb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) {
+  moviedbScraper->DownloadMedia(m_id);
+  moviedbScraper->DownloadActors(m_id, true);
+  copyImagesToRecordingFolder(recordingFileName);
+}
+
+void cTvMoviedb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) {
+  moviedbScraper->DownloadMediaTv(m_id);
+  moviedbScraper->DownloadActors(m_id, false);
+  string episodeStillPath = m_db->GetEpisodeStillPath(m_id, m_seasonNumber, m_episodeNumber);
+  if (!episodeStillPath.empty() )
+    moviedbScraper->StoreStill(m_id, m_seasonNumber, m_episodeNumber, episodeStillPath);
+  copyImagesToRecordingFolder(recordingFileName);
+}
+
+void cTvTvdb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) {
+  tvdbScraper->StoreActors(m_id);
+  tvdbScraper->DownloadMedia(m_id);
+  string episodeStillPath = m_db->GetEpisodeStillPath(dbID(), m_seasonNumber, m_episodeNumber);
+  if (!episodeStillPath.empty() )
+    tvdbScraper->StoreStill(m_id, m_seasonNumber, m_episodeNumber, episodeStillPath);
+  copyImagesToRecordingFolder(recordingFileName);
 }
 
 bool cTv::getSingleImage(eImageLevel level, eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {

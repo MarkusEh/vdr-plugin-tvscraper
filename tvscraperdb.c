@@ -768,7 +768,7 @@ void cTVScraperDB::InsertTv_s_e(int tvID, int season_number, int episode_number,
      episode_IMDB_ID.c_str(), episode_still_path.c_str() );
 }
 
-string cTVScraperDB::GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber) {
+string cTVScraperDB::GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber) const {
   return QueryString("select episode_still_path from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", tvID, seasonNumber, episodeNumber);
 }
 
