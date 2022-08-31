@@ -25,8 +25,11 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
 // initialize m_baseNameOrTitle
   const cRecording *recording = m_sEventOrRecording->Recording();
   if (recording) {
+// Note: recording->Name():     This is the complete file path, /video prefix removed, and characters exchanged (like #3A -> :)
+//                              In other words: You can display it on the UI
+// Note: recording->BaseName(): Last part of recording->Name()  (after last '~')
     bool debug = false;
-//  debug = recording->Info() && recording->Info()->Title() && strcmp(recording->Info()->Title(), "Raumschiff Enterprise") == 0;
+    debug = recording->Info() && recording->Info()->Title() && strcmp(recording->Info()->Title(), "Star Trek: Picard") == 0;
     cString baseName = recording->BaseName();
     if ((const char *)baseName == NULL) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitile: baseName == NULL");
     size_t baseNameLen = strlen(baseName);
@@ -41,10 +44,6 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
       const char * title_pos = strstr(recording->Name(), recording->Info()->Title() );
       if (!title_pos || (size_t(title_pos - recording->Name() ) >= strlen(recording->Name()) - baseNameLen)  ) return; // title not part of the name, or title only part of the base name-> does not match the pattern -> return
       if (recording->Info()->Description() ) {
-/*
-        if (strlen(recording->Info()->Description() ) <= 100) m_episodeName = recording->Info()->Description();
-        else m_episodeName = string(recording->Info()->Description(), 100);
-*/
         m_episodeName = m_sEventOrRecording->EpisodeSearchString();
       }
       m_baseNameEquShortText = true;
@@ -53,24 +52,14 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
 // if the title is somewhere in the recording name (except the basename part), 
 // and the basename is part of the ShortText() (or Description()), we assume that this is a series
 // like Merlin~1/13. The Dragon's Call
-    if (debug) esyslog("tvscraper: TEST recording->Info()->Title() ) \"%s\", recording->Name() \"%s\", recording->Info()->ShortText() \"%s\"", recording->Info()->Title(), recording->Name(), recording->Info()->ShortText() );
-
-// check: title part of the first part of the name, excluding the basename
-    if (strstr(recording->Info()->Title(), m_baseNameOrTitle.c_str() ) != NULL) return; // basename is part of title, seems not to be the subtitle
-    const char *title_pos = strstr(recording->Name(), recording->Info()->Title() );
-    if (debug) esyslog("tvscraper: TEST (1.1a) recording->Name() %s, recording->Info()->Title() %s", recording->Name(), recording->Info()->Title());
-    if (debug) esyslog("tvscraper: TEST (1.1) (title_pos - recording->Name() ) %lu, strlen(recording->Name() ) - baseNameLen %lu", size_t(title_pos - recording->Name() ), strlen(recording->Name() ) - baseNameLen);
-    if (!title_pos || (size_t(title_pos - recording->Name() ) >= strlen(recording->Name()) - baseNameLen)  ) return; // title not part of the name, or title only part of the base name-> does not match the pattern -> return
-    if (debug) esyslog("tvscraper: TEST (2) recording->Info()->Title() ) \"%s\", recording->Name() \"%s\", recording->Info()->ShortText() \"%s\"", recording->Info()->Title(), recording->Name(), recording->Info()->ShortText() );
-// check: basename is part of the ShortText() (or Description())
-    if (( recording->Info()->ShortText() && strstr(recording->Info()->ShortText(), m_baseNameOrTitle.c_str() ) ) ||
-        (!recording->Info()->ShortText()  ) ) {
-// this is a series, BaseName == ShortText() == episode name
-    if (debug) esyslog("tvscraper: TEST (3) recording->Info()->Title() ) \"%s\", recording->Name() \"%s\", recording->Info()->ShortText() \"%s\"", recording->Info()->Title(), recording->Name(), recording->Info()->ShortText() );
-      m_baseNameEquShortText = true;
-      m_episodeName = m_baseNameOrTitle;
-      m_baseNameOrTitle = recording->Info()->Title();
-    }
+    const char *shortText = recording->Info()->ShortText();
+    if (!shortText || ! *shortText) shortText = recording->Info()->Description();
+    if (!shortText || ! *shortText) return; // no short text, no description -> go ahead with base name
+    if ( sentence_distance(recording->Info()->Title(), m_baseNameOrTitle) <= sentence_distance(shortText, m_baseNameOrTitle) ) return; // in this case, m_baseNameOrTitle is the title, so go ahead with m_baseNameOrTitle
+// name of recording is short text -> use name of recording as episode name, and title as name of TV show
+    m_episodeName = m_baseNameOrTitle;
+    m_baseNameOrTitle = recording->Info()->Title();
+    m_baseNameEquShortText = true;
   } else m_baseNameOrTitle = m_sEventOrRecording->Title();
 }
 

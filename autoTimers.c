@@ -64,7 +64,8 @@ const cEvent* getEvent(tEventID eventid, const tChannelID &channelid) {
   schedule = schedules->GetSchedule( channelid );
 #endif
   if (!schedule) return NULL;
-  return schedule->GetEventById(eventid);
+  return schedule->GetEvent(eventid);
+// note: GetEvent is deprecated, but GetEventById not available in VDR 2.4.8. return schedule->GetEventById(eventid);
 }
 
 // createTimer ********************************  
