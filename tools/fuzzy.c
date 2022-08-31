@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <vector>
 #include <string>
+#include <cstring>
 #include <sstream>
 #include <iostream>
 #include <math.h>
@@ -81,13 +82,70 @@ size_t
 sentence_distance_int(const std::string& sentence1, const std::string& sentence2, int &len1, int &len2) {
   return seq_distance(word_list(sentence1, len1), word_list(sentence2, len2), &word_distance);
 }
-std::string stripExtra(const std::string &in) {
+
+// UTF8 string utilities ****************
+void AppendUtfCodepoint(std::string &target, wint_t codepoint){
+  if (codepoint <= 0x7F){
+     target.push_back( (char) (codepoint) );
+     return;
+  }
+  if (codepoint <= 0x07FF) {
+     target.push_back( (char) (0xC0 | (codepoint >> 6 ) ) );
+     target.push_back( (char) (0x80 | (codepoint & 0x3F)) );
+     return;
+  }
+  if (codepoint <= 0xFFFF) {
+     target.push_back( (char) (0xE0 | ( codepoint >> 12)) );
+     target.push_back( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+     target.push_back( (char) (0x80 | ( codepoint & 0x3F)) );
+     return;
+  }
+     target.push_back( (char) (0xF0 | ((codepoint >> 18) & 0x07)) );
+     target.push_back( (char) (0x80 | ((codepoint >> 12) & 0x3F)) );
+     target.push_back( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+     target.push_back( (char) (0x80 | ( codepoint & 0x3F)) );
+     return;
+}
+
+int utf8CodepointIsValid(const char *p){
+// In case of invalid UTF8, return 0
+// otherwise, return number of characters for this UTF codepoint
+  static const uint8_t LEN[] = {2,2,2,2,3,3,4,0};
+
+  int len = ((*p & 0xC0) == 0xC0) * LEN[(*p >> 3) & 7] + ((*p | 0x7F) == 0x7F);
+  for (int k=1; k < len; k++) if ((p[k] & 0xC0) != 0x80) len = 0;
+  return len;
+}
+
+wint_t Utf8ToUtf32(const char *&p, int len){
+// assumes, that uft8 validity checks have already been done. len must be provided. call utf8CodepointIsValid first
+// change p to position of next codepoint (p = p + len)
+  static const uint8_t FF_MSK[] = {0xFF >>0, 0xFF >>0, 0xFF >>3, 0xFF >>4, 0xFF >>5, 0xFF >>0, 0xFF >>0, 0xFF >>0};
+  wint_t val = *p & FF_MSK[len];
+  const char *q = p + len;
+  for (p++; p < q; p++) val = (val << 6) | (*p & 0x3F);
+  return val;
+}
+
+wint_t getNextUtfCodepoint(const char *&p){
+// get next codepoint, and increment p
+// 0 is returned at end of string, and p will point to the end of the string (0)
+  if(!p || !*p) return 0;
+  int l = utf8CodepointIsValid(p);
+  if( l == 0 ) { p++; return '?'; }
+  return Utf8ToUtf32(p, l);
+}
+
+std::string stripExtraUTF8(const char* s) {
+// replace invalid UTF8 characters with ' '
+// replace all non-alphanumeric characters with ' '
+// return the result
   std::string out;
-  out.reserve(in.length() );
-  for (const char &c: in) {
-    if ( (c > 0 && c < 46) || c == 46 || c == 47 || ( c > 57 && c < 65 ) || ( c > 90 && c < 97 ) || ( c > 122  && c < 128) ) {
-      out.append(1, ' ');
-    } else out.append(1, c);
+  if(!s || !*s) return out;
+  out.reserve(strlen(s) );
+  for( wint_t cChar = getNextUtfCodepoint(s); cChar; cChar = getNextUtfCodepoint(s) ) {
+    if (std::iswalnum(cChar) ) AppendUtfCodepoint(out, cChar);
+    else out.append(" ");
   }
   return out;
 }
@@ -159,8 +217,8 @@ int dist_norm_fuzzy(std::string &str_longer, const std::string &str_shorter, int
 int sentence_distance(const std::string& sentence1a, const std::string& sentence2a) {
 // return 0-1000
 // 0: Strings are equal
-  std::string sentence1 = stripExtra(sentence1a);
-  std::string sentence2 = stripExtra(sentence2a);
+  std::string sentence1 = stripExtraUTF8(sentence1a.c_str() );
+  std::string sentence2 = stripExtraUTF8(sentence2a.c_str() );
   if (sentence1.length() < sentence2.length() ) sentence1.swap(sentence2); // now sentence1 is longer than (or equal to ) sentence2
 //  std::cout << "sentence1 = " << sentence1 << " sentence2 = " << sentence2 << std::endl;
   int s1l = sentence1.length();

@@ -28,8 +28,8 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
 // Note: recording->Name():     This is the complete file path, /video prefix removed, and characters exchanged (like #3A -> :)
 //                              In other words: You can display it on the UI
 // Note: recording->BaseName(): Last part of recording->Name()  (after last '~')
-    bool debug = false;
-    debug = recording->Info() && recording->Info()->Title() && strcmp(recording->Info()->Title(), "Star Trek: Picard") == 0;
+//  bool debug = false;
+//  debug = recording->Info() && recording->Info()->Title() && strcmp(recording->Info()->Title(), "Star Trek: Picard") == 0;
     cString baseName = recording->BaseName();
     if ((const char *)baseName == NULL) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitile: baseName == NULL");
     size_t baseNameLen = strlen(baseName);
@@ -45,8 +45,8 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
       if (!title_pos || (size_t(title_pos - recording->Name() ) >= strlen(recording->Name()) - baseNameLen)  ) return; // title not part of the name, or title only part of the base name-> does not match the pattern -> return
       if (recording->Info()->Description() ) {
         m_episodeName = m_sEventOrRecording->EpisodeSearchString();
+        m_baseNameEquShortText = true;
       }
-      m_baseNameEquShortText = true;
       return;
     }
 // if the title is somewhere in the recording name (except the basename part), 
