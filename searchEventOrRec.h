@@ -11,6 +11,7 @@ private:
   void SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet, char delimiter); // Title: name of TV series, and episode name (with : or - between them)
   void SearchMovie(vector<searchResultTvMovie> &searchResults); // 0: no match; return movie ID, search result in m_searchResult_Movie
   void SearchTvAll(vector<searchResultTvMovie> &searchResults);
+  bool isTitlePartOfPathName(size_t baseNameLen);
   void initBaseNameOrTitile(void);
   bool isVdrDate(const std::string &baseName);
   bool isVdrDate2(const std::string &baseName);

@@ -21,46 +21,68 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
     ::AddYears(m_years, m_baseNameOrTitle.c_str() );
     ::AddYears(m_years, m_searchString.c_str() );
   }
+bool cSearchEventOrRec::isTitlePartOfPathName(size_t baseNameLen) {
+  const char * title_pos = strstr(m_sEventOrRecording->Recording()->Name(), m_sEventOrRecording->Recording()->Info()->Title() );
+  if (!title_pos) return false; // not part of the name
+// part of the name. Check: title only part of the base name?
+  return size_t(title_pos - m_sEventOrRecording->Recording()->Name() ) < strlen(m_sEventOrRecording->Recording()->Name()) - baseNameLen;
+}
+
 void cSearchEventOrRec::initBaseNameOrTitile(void) {
 // initialize m_baseNameOrTitle
   const cRecording *recording = m_sEventOrRecording->Recording();
-  if (recording) {
+  if (!recording) {
+// EPG event, we only have the title
+    m_baseNameOrTitle = m_sEventOrRecording->Title();
+    return;
+  }
+// recording: we have the file name of the recording, the event title, ...
+
 // Note: recording->Name():     This is the complete file path, /video prefix removed, and characters exchanged (like #3A -> :)
 //                              In other words: You can display it on the UI
 // Note: recording->BaseName(): Last part of recording->Name()  (after last '~')
 //  bool debug = false;
 //  debug = recording->Info() && recording->Info()->Title() && strcmp(recording->Info()->Title(), "Star Trek: Picard") == 0;
-    cString baseName = recording->BaseName();
-    if ((const char *)baseName == NULL) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitile: baseName == NULL");
-    size_t baseNameLen = strlen(baseName);
-    if (baseNameLen == 0) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitile: baseNameLen == 0");
-    if (baseName[0] == '%') m_baseNameOrTitle = ( (const char *)baseName ) + 1;
-                       else m_baseNameOrTitle = ( (const char *)baseName );
-    if (!recording->Info()->Title() ) return; // no title, go ahead with basename, best what we have (very old recording?)
-    if (isVdrDate(m_baseNameOrTitle) || isVdrDate2(m_baseNameOrTitle) ) {
-// this normally happens if VDR records a series, and the subtitle is empty)
-      m_baseNameOrTitle = recording->Info()->Title();
-      if (recording->Info()->ShortText() ) return; // strange, but go ahead with title
-      const char * title_pos = strstr(recording->Name(), recording->Info()->Title() );
-      if (!title_pos || (size_t(title_pos - recording->Name() ) >= strlen(recording->Name()) - baseNameLen)  ) return; // title not part of the name, or title only part of the base name-> does not match the pattern -> return
-      if (recording->Info()->Description() ) {
-        m_episodeName = m_sEventOrRecording->EpisodeSearchString();
-        m_baseNameEquShortText = true;
-      }
-      return;
+
+// set m_baseNameOrTitle (the db search string) to the recording file name, as default
+  cString baseName = recording->BaseName();
+  if ((const char *)baseName == NULL) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitile: baseName == NULL");
+  size_t baseNameLen = strlen(baseName);
+  if (baseNameLen == 0) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitile: baseNameLen == 0");
+  if (baseName[0] == '%') m_baseNameOrTitle = ( (const char *)baseName ) + 1;
+                     else m_baseNameOrTitle = ( (const char *)baseName );
+// check: do we have something better? Note: for TV shows, the recording file name is often the name of the episode, and the title must be used as db search string
+  if (!recording->Info()->Title() ) return; // no title, go ahead with basename, best what we have (very old recording?)
+  if (isVdrDate(m_baseNameOrTitle) || isVdrDate2(m_baseNameOrTitle) ) {
+// this normally happens if VDR records a series, and the subtitle is empty
+    m_baseNameOrTitle = recording->Info()->Title();
+    if (recording->Info()->ShortText() ) return; // strange, but go ahead with title
+    if (!isTitlePartOfPathName(baseNameLen) ) return;
+    if (recording->Info()->Description() ) {
+      m_episodeName = m_sEventOrRecording->EpisodeSearchString();
+      m_baseNameEquShortText = true;
     }
-// if the title is somewhere in the recording name (except the basename part), 
-// and the basename is part of the ShortText() (or Description()), we assume that this is a series
-// like Merlin~1/13. The Dragon's Call
-    const char *shortText = recording->Info()->ShortText();
-    if (!shortText || ! *shortText) shortText = recording->Info()->Description();
-    if (!shortText || ! *shortText) return; // no short text, no description -> go ahead with base name
-    if ( sentence_distance(recording->Info()->Title(), m_baseNameOrTitle) <= sentence_distance(shortText, m_baseNameOrTitle) ) return; // in this case, m_baseNameOrTitle is the title, so go ahead with m_baseNameOrTitle
-// name of recording is short text -> use name of recording as episode name, and title as name of TV show
+    return;
+  }
+// get the short text. If not available: Use the description instead
+  const char *shortText = recording->Info()->ShortText();
+  if (!shortText || ! *shortText) shortText = recording->Info()->Description();
+  if (!shortText || ! *shortText) return; // no short text, no description -> go ahead with base name
+  int distTitle     = sentence_distance(recording->Info()->Title(), m_baseNameOrTitle);
+  int distShortText = sentence_distance(shortText, m_baseNameOrTitle);
+  if (distTitle > 600 && distShortText > 600 && isTitlePartOfPathName(baseNameLen) ) {
+// neither title nor shortText macht the filename, but title is part of patch name
+// this indicates that we have a TV show with title=title, and episode name=filename
     m_episodeName = m_baseNameOrTitle;
     m_baseNameOrTitle = recording->Info()->Title();
     m_baseNameEquShortText = true;
-  } else m_baseNameOrTitle = m_sEventOrRecording->Title();
+    return;
+  }
+  if (distTitle <= distShortText) return; // in this case, m_baseNameOrTitle is the title, so go ahead with m_baseNameOrTitle
+// name of recording is short text -> use name of recording as episode name, and title as name of TV show
+  m_episodeName = m_baseNameOrTitle;
+  m_baseNameOrTitle = recording->Info()->Title();
+  m_baseNameEquShortText = true;
 }
 
 bool cSearchEventOrRec::isVdrDate(const std::string &baseName) {

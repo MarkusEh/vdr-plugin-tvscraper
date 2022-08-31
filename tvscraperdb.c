@@ -355,6 +355,7 @@ bool cTVScraperDB::Connect(void) {
         }
         esyslog("tvscraper: connecting to db %s", dbPathPhys.c_str());
     }
+    if (config.GetReadOnlyClient() ) return true;
     return CreateTables();
 }
 

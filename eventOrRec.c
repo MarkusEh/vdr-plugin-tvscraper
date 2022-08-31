@@ -132,6 +132,6 @@ int csRecording::DurationInSecMarks_int(void) {
 
 csEventOrRecording *GetsEventOrRecording(const cEvent *event, const cRecording *recording) {
   if (event) return new csEventOrRecording(event);
-  if (recording) return new csRecording(recording);
+  if (recording && recording->Info() && recording->Info()->GetEvent() ) return new csRecording(recording);
   return NULL;
 }
