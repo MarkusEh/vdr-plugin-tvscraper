@@ -372,6 +372,9 @@ int cTVScraperDB::LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int is
     sqlite3 *pTo;             /* Database to copy to (pFile or pInMemory) */
     sqlite3 *pFrom;           /* Database to copy from (pFile or pInMemory) */
 
+
+    if (isSave) esyslog("tvscraper: access %s for write", zFilename);
+    else esyslog("tvscraper: access %s for read", zFilename);
     rc = sqlite3_open(zFilename, &pFile);
     if( rc==SQLITE_OK ){
         pFrom = (isSave ? pInMemory : pFile);
@@ -385,6 +388,7 @@ int cTVScraperDB::LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int is
     }
 
     (void)sqlite3_close(pFile);
+    esyslog("tvscraper: access to %s finished", zFilename);
     return rc;
 }
 
