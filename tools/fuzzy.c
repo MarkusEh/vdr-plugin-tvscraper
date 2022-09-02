@@ -54,8 +54,10 @@ word_distance(const std::string& word1, const std::string& word2) {
   return seq_distance(word1, word2, &letter_distance);
 }
  
-std::vector<std::string> word_list(const std::string &sentence, int &len) {
+std::vector<std::string> word_list(const std::string &sentence, int &len, int max_len = 0) {
 // return list of words
+// in len, return sum of chars in all words (this is usually shorter then sentence.length()
+// if max_len is provided, stop adding words once len >= max_len (which means, len can be larger than max_len)
 //std::cout << "sentence = \"" << sentence << "\" ";
   len = 0;
   std::vector<std::string> words;
@@ -67,20 +69,16 @@ std::vector<std::string> word_list(const std::string &sentence, int &len) {
       len += it->length();
 //    std::cout << "word = \"" << *it << "\" ";
     }
-    if(++it == end) break;
+    if (++it == end) break;
+    if (max_len && len >= max_len) break;
   }
 //std::cout << std::endl;
-/*
-  std::copy(std::istream_iterator<std::string>(iss),
-            std::istream_iterator<std::string>(),
-            std::back_inserter(words));
-*/
   return words;
 }
 
 size_t
-sentence_distance_int(const std::string& sentence1, const std::string& sentence2, int &len1, int &len2) {
-  return seq_distance(word_list(sentence1, len1), word_list(sentence2, len2), &word_distance);
+sentence_distance_int(const std::string& sentence1, const std::string& sentence2, int &len1, int &len2, int max_len = 0) {
+  return seq_distance(word_list(sentence1, len1, max_len), word_list(sentence2, len2, max_len), &word_distance);
 }
 
 // UTF8 string utilities ****************
@@ -136,7 +134,7 @@ wint_t getNextUtfCodepoint(const char *&p){
   return Utf8ToUtf32(p, l);
 }
 
-std::string stripExtraUTF8(const char* s) {
+std::string stripExtraUTF8(const char *s) {
 // replace invalid UTF8 characters with ' '
 // replace all non-alphanumeric characters with ' '
 // return the result
@@ -144,7 +142,7 @@ std::string stripExtraUTF8(const char* s) {
   if(!s || !*s) return out;
   out.reserve(strlen(s) );
   for( wint_t cChar = getNextUtfCodepoint(s); cChar; cChar = getNextUtfCodepoint(s) ) {
-    if (std::iswalnum(cChar) ) AppendUtfCodepoint(out, cChar);
+    if (std::iswalnum(cChar) ) AppendUtfCodepoint(out, towlower(cChar));
     else out.append(" ");
   }
   return out;
@@ -193,52 +191,58 @@ int normMatch(int i, int n) {
   return normMatch((float)i / (float)n) * 1000;
 }
 
+/*
 void resizeStringWordEnd(std::string &str, int len) {
   if ((int)str.length() <= len) return;
   const size_t found = str.find_first_of(" .,;:!?", len);
   if (found == std::string::npos) return;
   str.resize(found);
 }
+*/
 
-int dist_norm_fuzzy(std::string &str_longer, const std::string &str_shorter, int max_length) {
+int dist_norm_fuzzy(const std::string &str_longer, const std::string &str_shorter, int max_length) {
 // return 0 - 1000
 // 0:    identical
 // 1000: no match
-// truncate str_longer to max_length (+ characters to ensure complete word end)
-  if ((int)str_longer.length() > max_length) resizeStringWordEnd(str_longer, max_length);
   int l1, l2;
-  int dist = sentence_distance_int(str_longer, str_shorter, l1, l2);
-//  std::cout << "l1 = " << l1 << " l2 = " << l2 << " dist = " << dist << std::endl;
+  int dist = sentence_distance_int(str_longer, str_shorter, l1, l2, max_length);
+//std::cout << "l1 = " << l1 << " l2 = " << l2 << " dist = " << dist << std::endl;
   int max_dist = std::max(std::max(l1, l2), dist);
   if (max_dist == 0) return 1000; // no word found -> no match
   return 1000 * dist / max_dist;
 }
 
-int sentence_distance(const std::string& sentence1a, const std::string& sentence2a) {
+int sentence_distance_normed_strings(const std::string& str1, const std::string& str2) {
 // return 0-1000
 // 0: Strings are equal
-  std::string sentence1 = stripExtraUTF8(sentence1a.c_str() );
-  std::string sentence2 = stripExtraUTF8(sentence2a.c_str() );
-  if (sentence1.length() < sentence2.length() ) sentence1.swap(sentence2); // now sentence1 is longer than (or equal to ) sentence2
-//  std::cout << "sentence1 = " << sentence1 << " sentence2 = " << sentence2 << std::endl;
-  int s1l = sentence1.length();
-  int s2l = sentence2.length();
-  if (s2l == 0) return 1000;
+// before calling: strings must be prepared with stripExtraUTF8
+//  std::cout << "str1 = " << str1 << " str2 = " << str2 << std::endl;
+  int s1l = str1.length();
+  int s2l = str2.length();
+  int minLen = std::min(s1l, s2l);
+  int maxLen = std::max(s1l, s2l);
+  if (minLen == 0) return 1000;
 
-  int slengt = lcsubstr(sentence1, sentence2);
+  int slengt = lcsubstr(str1, str2);
   int upper = 10; // match of more than upper characters: good
-  if (slengt == s2l) upper = std::min(std::max(s2l/3, 2), 9);  // if the shorter string is part of the longer string: reduce upper
-  if (slengt == s1l) slengt *= 2; // the strings are identical, add some points for this
+  if (slengt == minLen) upper = std::min(std::max(minLen/3, 2), 9);  // if the shorter string is part of the longer string: reduce upper
+  if (slengt == maxLen) slengt *= 2; // the strings are identical, add some points for this
   int max_dist_lcsubstr = 1000;
   int dist_lcsubstr = 1000 - normMatch(slengt, upper);
   int dist_lcsubstr_norm = 1000 * dist_lcsubstr / max_dist_lcsubstr;
 
-  int max1 = std::max(20, 2*s2l);
-  int max2 = std::max(15, s2l + s2l/2);
-  int max3 = std::max( 6, s2l + s2l/2);
-  int dist_norm = dist_norm_fuzzy(sentence1, sentence2, max1);
-  if (s1l > max2 && max1 != max2) dist_norm = std::min(dist_norm, dist_norm_fuzzy(sentence1, sentence2, max2));
-  if (s1l > max3 && max2 != max3) dist_norm = std::min(dist_norm, dist_norm_fuzzy(sentence1, sentence2, max3));
-//std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
+  int max1 = std::max(15, 2*minLen);
+  int max2 = std::max( 9, minLen + minLen/2);
+  int dist_norm = dist_norm_fuzzy(str1, str2, max1);
+  if (maxLen > max2 && max1 != max2) dist_norm = std::min(dist_norm, dist_norm_fuzzy(str1, str2, max2));
+//  std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
   return dist_norm / 2 + dist_lcsubstr_norm / 2;
+}
+
+int sentence_distance(const char *sentence1a, const char *sentence2a) {
+  return sentence_distance_normed_strings(stripExtraUTF8(sentence1a), stripExtraUTF8(sentence2a));
+}
+
+int sentence_distance(const std::string &sentence1a, const std::string &sentence2a) {
+  return sentence_distance_normed_strings(stripExtraUTF8(sentence1a.c_str() ), stripExtraUTF8(sentence2a.c_str() ));
 }

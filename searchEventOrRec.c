@@ -68,8 +68,8 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
   const char *shortText = recording->Info()->ShortText();
   if (!shortText || ! *shortText) shortText = recording->Info()->Description();
   if (!shortText || ! *shortText) return; // no short text, no description -> go ahead with base name
-  int distTitle     = sentence_distance(recording->Info()->Title(), m_baseNameOrTitle);
-  int distShortText = sentence_distance(shortText, m_baseNameOrTitle);
+  int distTitle     = sentence_distance(recording->Info()->Title(), m_baseNameOrTitle.c_str() );
+  int distShortText = sentence_distance(shortText, m_baseNameOrTitle.c_str() );
   if (distTitle > 600 && distShortText > 600 && isTitlePartOfPathName(baseNameLen) ) {
 // neither title nor shortText macht the filename, but title is part of patch name
 // this indicates that we have a TV show with title=title, and episode name=filename

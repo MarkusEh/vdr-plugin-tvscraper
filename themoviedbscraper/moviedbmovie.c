@@ -158,6 +158,7 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
     json_t *results = json_object_get(root, "results");
     if(!json_is_array(results)) return false;
     size_t numResults = json_array_size(results);
+    std::string SearchStringStripExtraUTF8 = stripExtraUTF8(SearchString.c_str() );
     for (size_t res = 0; res < numResults; res++) {
         json_t *result = json_array_get(results, res);
         if (!json_is_object(result)) continue;
@@ -168,16 +169,13 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
         for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) { alreadyInList = true; break; }
         if (alreadyInList) continue;
 // Title & OriginalTitle
-        string resultTitle = json_string_value_validated(result, "title");
-        string resultOriginalTitle = json_string_value_validated(result, "original_title");
+        std::string resultTitle = stripExtraUTF8(json_string_value_validated(result, "title").c_str() );
         if (resultTitle.empty() ) continue;
-//convert result title to lower case
-        transform(resultTitle.begin(), resultTitle.end(), resultTitle.begin(), ::tolower);
-        transform(resultOriginalTitle.begin(), resultOriginalTitle.end(), resultOriginalTitle.begin(), ::tolower);
+        std::string resultOriginalTitle = stripExtraUTF8(json_string_value_validated(result, "original_title").c_str() );
 
         searchResultTvMovie sRes(id, true, json_string_value_validated(result, "release_date") );
         sRes.setPositionInExternalResult(resultSet.size() );
-        sRes.setMatchText(std::min(sentence_distance(resultTitle, SearchString), sentence_distance(resultOriginalTitle, SearchString) ) );
+        sRes.setMatchText(std::min(sentence_distance_normed_strings(resultTitle, SearchStringStripExtraUTF8), sentence_distance(resultOriginalTitle, SearchStringStripExtraUTF8) ) );
         sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
         resultSet.push_back(sRes);
     }

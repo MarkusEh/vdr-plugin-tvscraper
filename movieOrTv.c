@@ -412,21 +412,20 @@ int cTv::searchEpisode(const string &tvSearchEpisodeString_i) {
 // return 1000, if no match was found
 // otherwise, distance
   bool debug = false;
-  string tvSearchEpisodeString = tvSearchEpisodeString_i;
-  transform(tvSearchEpisodeString.begin(), tvSearchEpisodeString.end(), tvSearchEpisodeString.begin(), ::tolower);
+  std::string tvSearchEpisodeString = stripExtraUTF8(tvSearchEpisodeString_i.c_str() );
   int best_distance = 1000;
   int best_season = 0;
   int best_episode = 0;
-  std::string episodeName;
+  char *episodeName = NULL;
   int distance;
   int episode;
   int season;
   const char sql[] = "select episode_name, season_number, episode_number from tv_s_e  where tv_id =?";
   for( sqlite3_stmt *stmt = m_db->QueryPrepare(sql, "i", dbID() );
-       m_db->QueryStep(stmt, "Sii", &episodeName, &season, &episode); ) {
-    transform(episodeName.begin(), episodeName.end(), episodeName.begin(), ::tolower);
-    distance = sentence_distance(tvSearchEpisodeString, episodeName);
-    if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.c_str(), episodeName.c_str(), season, episode, dbID(), distance);
+       m_db->QueryStep(stmt, "sii", &episodeName, &season, &episode); ) {
+    if (!episodeName) continue;
+    distance = sentence_distance_normed_strings(tvSearchEpisodeString, stripExtraUTF8(episodeName));
+    if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.c_str(), episodeName, season, episode, dbID(), distance);
     if (season == 0) distance += 10; // avoid season == 0, could be making of, ...
     if (distance < best_distance) {
       best_distance = distance;
