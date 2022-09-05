@@ -47,6 +47,14 @@ void StringRemoveTrailingWhitespace(string &str) {
     str.clear();            // str is all whitespace
 }
 
+int StringRemoveTrailingWhitespace(const char *str, int len) {
+// return "new" len of string, without whitespaces at the end
+  if (!str || !*str) return 0;
+  const char*  whitespaces = " \t\f\v\n\r";
+  for (; len; len--) if (strchr(whitespaces, str[len - 1]) == NULL) return len;
+  return 0;
+}
+
 const char *strnstr(const char *haystack, const char *needle, size_t len) {
 // if len >  0: use only len characters of needle
 // if len == 0: use strlen(needle) characters of needle
@@ -99,6 +107,25 @@ bool StringRemoveLastPartWithP(string &str) {
   StringRemoveLastPartWithP(str);
   return true;
 }
+
+int StringRemoveLastPartWithP(const char *str, int len) {
+// remove part with (...)
+// return -1 if nothing can be removed
+// otherwise length of string without ()
+  len = StringRemoveTrailingWhitespace(str, len);
+  if (len < 3) return -1;
+  if (str[len -1] != ')') return -1;
+  for (int i = len -2; i; i--) {
+    if (!isdigit(str[i])) {
+      if (str[i] != '(') return -1;
+      int len2 = StringRemoveLastPartWithP(str, i);
+      if (len2 == -1 ) return i;
+      return len2;
+    }
+  }
+  return -1;
+}
+
 int NumberInLastPartWithPS(const string &str) {
 // return number in last part with (./.), 0 if not found / invalid
   if (str.length() < 3 ) return 0;

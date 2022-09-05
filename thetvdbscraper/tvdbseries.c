@@ -29,13 +29,14 @@ void cTVDBSeries::ParseXML_search(xmlDoc *doc, vector<searchResultTvMovie> &resu
     //Searching for  <Series>
     node = node->children;
     xmlNode *cur_node = NULL;
+    std::string SearchStringStripExtraUTF8 = stripExtraUTF8(SearchString.c_str() );
     for (cur_node = node; cur_node; cur_node = cur_node->next) {
         if ((cur_node->type == XML_ELEMENT_NODE) && !xmlStrcmp(cur_node->name, (const xmlChar *)"Series")) {
-            ParseXML_searchSeries(doc, cur_node, resultSet, SearchString);
+            ParseXML_searchSeries(doc, cur_node, resultSet, SearchStringStripExtraUTF8);
         }
     }
 }
-void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searchResultTvMovie> &resultSet, const string &SearchString) {
+void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searchResultTvMovie> &resultSet, const string &SearchStringStripExtraUTF8) {
     if (!node) return;
 // read the series
     node = node->children;
@@ -70,15 +71,15 @@ void cTVDBSeries::ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searc
 
     searchResultTvMovie sRes(seriesID * (-1), false, firstAired);
     sRes.setPositionInExternalResult(resultSet.size() );
-    int dist_a = sentence_distance(name, SearchString);
-    if (debug) esyslog("tvscraper: series SearchString %s, name %s, distance %i", SearchString.c_str(), name.c_str(), dist_a);
+    int dist_a = sentence_distance_normed_strings(stripExtraUTF8(name.c_str() ), SearchStringStripExtraUTF8);
+    if (debug) esyslog("tvscraper: series SearchString %s, name %s, distance %i", SearchStringStripExtraUTF8.c_str(), name.c_str(), dist_a);
 // (2013) or similar at the end of a name in thetvdb indicates a year. This year is not given in the EPG. 
-    if (StringRemoveLastPartWithP(name) ) dist_a = std::min(dist_a, sentence_distance(name, SearchString) );
+    if (StringRemoveLastPartWithP(name) ) dist_a = std::min(dist_a, sentence_distance_normed_strings(stripExtraUTF8(name.c_str() ), SearchStringStripExtraUTF8) );
     std::size_t lDelim = aliasNames.find('|');
     if (lDelim !=std::string::npos) {
       for (std::size_t rDelim = aliasNames.find('|', lDelim +1); rDelim != std::string::npos; rDelim = aliasNames.find('|', lDelim +1) ) {
-        int dist = sentence_distance(aliasNames.substr(lDelim +1, rDelim - lDelim - 1), SearchString);
-        if (debug) esyslog("tvscraper: series SearchString \"%s\", alias name \"%s\", distance %i", SearchString.c_str(), aliasNames.substr(lDelim +1, rDelim - lDelim - 1).c_str(), dist);
+        int dist = sentence_distance_normed_strings(stripExtraUTF8(aliasNames.substr(lDelim +1, rDelim - lDelim - 1).c_str() ), SearchStringStripExtraUTF8);
+        if (debug) esyslog("tvscraper: series SearchString \"%s\", alias name \"%s\", distance %i", SearchStringStripExtraUTF8.c_str(), aliasNames.substr(lDelim +1, rDelim - lDelim - 1).c_str(), dist);
         if (dist < dist_a) dist_a = dist;
         lDelim = rDelim;
       }
@@ -236,7 +237,7 @@ bool cTVDBSeries::AddResults(vector<searchResultTvMovie> &resultSet, const strin
    url << m_TVDBScraper->GetMirrors()->GetMirrorXML() << "/api/GetSeries.php?seriesname=" << CurlEscape(SearchString_ext.c_str()) << "&language=" << m_TVDBScraper->GetLanguage().c_str();
     string seriesXML;
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
-    if (!CurlGetUrl(url.str().c_str(), &seriesXML)) return false;
+    if (!CurlGetUrl(url.str().c_str(), seriesXML)) return false;
     seriesID = 0;
     xmlInitParser();
     xmlDoc *doc = xmlReadMemory(seriesXML.c_str(), strlen(seriesXML.c_str()), "noname.xml", NULL, 0);
@@ -244,5 +245,120 @@ bool cTVDBSeries::AddResults(vector<searchResultTvMovie> &resultSet, const strin
     if(doc) xmlFreeDoc(doc);
     if(seriesID == 0) return false;
     return true;
+}
+
+bool cTVDBSeries::AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext) {
+// search for tv series, add search results to resultSet
+// return true if results were added
+  if (!m_TVDBScraper->GetToken() ) return false;
+  string out;
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "accept: application/json");
+  headers = curl_slist_append(headers, m_TVDBScraper->tokenHeader.c_str() );
+  headers = curl_slist_append(headers, "charset: utf-8");
+  string url = m_TVDBScraper->baseURL4Search + CurlEscape(SearchString_ext.c_str());
+  if (config.enableDebug) esyslog("tvscraper: calling %s", url.c_str());
+  bool result =  CurlGetUrl(url.c_str(), out, headers);
+  curl_slist_free_all(headers);
+  if (!result) {
+    esyslog("tvscraper: ERROR calling %s", url.c_str());
+    return false;
+  }
+  json_t *root = json_loads(out.c_str(), 0, NULL);
+  if (!root) {
+    esyslog("tvscraper: ERROR cTVDBSeries::AddResults4, parsing %s", out.substr(0, 50).c_str());
+    return false;
+  }
+
+  seriesID = 0;
+  result = ParseJson_search(root, resultSet, SearchString);
+  json_decref(root);
+  if (!result) {
+    esyslog("tvscraper: ERROR cTVDBSeries::AddResults4, json parsing %s", out.substr(0, 100).c_str());
+    return false;
+  }
+  if(seriesID == 0) return false;
+  return true;
+}
+
+bool cTVDBSeries::ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString) {
+  if (root == NULL) return false;
+  if (json_string_value_validated(root, "status").compare("success") != 0) {
+    esyslog("tvscraper: ERROR getting thetvdb search result, status = %s", json_string_value_validated(root, "status").c_str() );
+    return false;
+  }
+  json_t *jData = json_object_get(root, "data");
+  if(!json_is_array(jData))  {
+    esyslog("tvscraper: ERROR parsing thetvdb search result, jData is not an array");
+    return false;
+  }
+  std::string SearchStringStripExtraUTF8 = stripExtraUTF8(SearchString.c_str() );
+  size_t index;
+  json_t *jElement;
+  json_array_foreach(jData, index, jElement) {
+    ParseJson_searchSeries(jElement, resultSet, SearchStringStripExtraUTF8);
+  }
+  return true;
+}
+
+int minDist(int dist, const json_t *jString, const string &SearchStringStripExtraUTF8) {
+// compare string in jString with SearchStringStripExtraUTF8
+// make sanity chaecks first
+  if (!jString || !json_is_string(jString)) return dist;
+  const char *name = json_string_value(jString);
+  if (!name || !*name) return dist;
+
+  dist = std::min(dist, sentence_distance_normed_strings(stripExtraUTF8(name), SearchStringStripExtraUTF8) );
+  int len = StringRemoveLastPartWithP(name, (int)strlen(name) );
+  if (len != -1) dist = std::min(dist, sentence_distance_normed_strings(stripExtraUTF8(name, len), SearchStringStripExtraUTF8) );
+  return dist;
+}
+
+
+void cTVDBSeries::ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const string &SearchStringStripExtraUTF8) {
+// add search results to resultSet
+  if (!data) return;
+  std::string objectID = json_string_value_validated(data, "objectID");
+  if (objectID.length() < 8) {
+    esyslog("tvscraper: ERROR cTVDBSeries::ParseJson_searchSeries, objectID.length() < 8, %s", objectID.c_str() );
+    return;
+  }
+  if (objectID.compare(0, 7, "series-") != 0) {
+    esyslog("tvscraper: ERROR cTVDBSeries::ParseJson_searchSeries, objectID does not start with series-, %s", objectID.c_str() );
+    return;
+  }
+  seriesID = atoi(objectID.c_str() + 7);
+  if (seriesID == 0) {
+    esyslog("tvscraper: ERROR cTVDBSeries::ParseJson_searchSeries, seriesID = 0, %s", objectID.c_str() );
+    return;
+  }
+// is this series already in the list?
+  for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == seriesID * (-1) ) return;
+  bool debug = false;
+//    debug = SearchString == "cars toons";
+//    debug = seriesID == 250498;
+
+  searchResultTvMovie sRes(seriesID * (-1), false, json_string_value_validated(data, "year"));
+  sRes.setPositionInExternalResult(resultSet.size() );
+  int dist_a = minDist(1000, json_object_get(data, "name"), SearchStringStripExtraUTF8);
+  if (debug) esyslog("tvscraper: ParseJson_searchSeries SearchString %s, name %s, distance %i", SearchStringStripExtraUTF8.c_str(), json_string_value_validated(data, "name").c_str() , dist_a);
+  json_t *jAliases = json_object_get(data, "aliases");
+  if (json_is_array(jAliases) ) {
+    size_t index;
+    json_t *jElement;
+    json_array_foreach(jAliases, index, jElement) {
+      dist_a = minDist(dist_a, jElement, SearchStringStripExtraUTF8);
+    }
+  }
+  json_t *jTranslations = json_object_get(data, "translations");
+  if (json_is_object(jTranslations) ) {
+    const char *key;
+    json_t *value;
+    json_object_foreach(jTranslations, key, value) {
+      dist_a = minDist(dist_a, value, SearchStringStripExtraUTF8);
+    }
+  }
+  sRes.setMatchText(dist_a);
+  resultSet.push_back(sRes);
 }
 

@@ -41,7 +41,7 @@ bool cMovieDbMovie::ReadMovie(void) {
     string json;
     stringstream url;
     url << m_baseURL << "/movie/" << id << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str();
-    if (!CurlGetUrl(url.str().c_str(), &json)) return false;
+    if (!CurlGetUrl(url.str().c_str(), json)) return false;
 
     json_t *movie;
     movie = json_loads(json.c_str(), 0, NULL);
@@ -144,7 +144,7 @@ int cMovieDbMovie::AddMovieResultsForUrl(const string &url, vector<searchResultT
   string json;
   json_error_t error;
   if (config.enableDebug) esyslog("tvscraper: calling %s", url.c_str());
-  if (!CurlGetUrl(url.c_str(), &json)) return 0;
+  if (!CurlGetUrl(url.c_str(), json)) return 0;
   json_t *root = json_loads(json.c_str(), 0, &error);
   if (!root) return 0;
   if (json_integer_value_validated(root, "total_results") == 0) return 0;

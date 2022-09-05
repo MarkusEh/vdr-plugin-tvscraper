@@ -67,7 +67,7 @@ bool cMovieDBScraper::Connect(void) {
     stringstream url;
     url << baseURL << "/configuration?api_key=" << apiKey;
     string configJSON;
-    if (CurlGetUrl(url.str().c_str(), &configJSON)) {
+    if (CurlGetUrl(url.str().c_str(), configJSON)) {
        json_t *root;
        root = json_loads(configJSON.c_str(), 0, NULL);
        if (!root) return false;
@@ -103,7 +103,7 @@ cMovieDbActors *cMovieDBScraper::ReadActors(int movieID) {
     url << baseURL << "/movie/" << movieID << "/casts?api_key=" << apiKey;
     string actorsJSON;
     cMovieDbActors *actors = NULL;
-    if (CurlGetUrl(url.str().c_str(), &actorsJSON)) {
+    if (CurlGetUrl(url.str().c_str(), actorsJSON)) {
         actors = new cMovieDbActors(actorsJSON);
         actors->ParseJSON();
     }

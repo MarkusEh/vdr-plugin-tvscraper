@@ -286,9 +286,9 @@ void cSearchEventOrRec::SearchTv(vector<searchResultTvMovie> &resultSet, const s
   string searchString1 = SecondPart(searchString, ":");
   string searchString2 = SecondPart(searchString, "'s");
   size_t oldSize = resultSet.size();
-  m_TVtv.AddResults(resultSet, searchString, searchString);
-  if (searchString1.length() > 4 ) m_TVtv.AddResults(resultSet, searchString, searchString1);
-  if (searchString2.length() > 4 ) m_TVtv.AddResults(resultSet, searchString, searchString2);
+  m_TVtv.AddResults4(resultSet, searchString, searchString);
+  if (searchString1.length() > 4 ) m_TVtv.AddResults4(resultSet, searchString, searchString1);
+  if (searchString2.length() > 4 ) m_TVtv.AddResults4(resultSet, searchString, searchString2);
   if (resultSet.size() == oldSize) {
     m_tv.AddTvResults(resultSet, searchString, searchString);
     if (searchString1.length() > 4 ) m_tv.AddTvResults(resultSet, searchString, searchString1);

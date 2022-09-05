@@ -40,7 +40,7 @@ bool cMovieDbTv::ReadTv(bool exits_in_db) {
     stringstream url;
     url << m_baseURL << "/tv/" << m_tvID << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << "&include_image_language=en,null";
     if(!exits_in_db) url << "&append_to_response=credits";
-    if (!CurlGetUrl(url.str().c_str(), &json)) return false;
+    if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json response
     json_t *tv;
     tv = json_loads(json.c_str(), 0, NULL);
@@ -97,7 +97,7 @@ bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, const stri
     stringstream url;
     url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << "&query=" << CurlEscape(tvSearchString_ext.c_str());
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
-    if (!CurlGetUrl(url.str().c_str(), &json)) return false;
+    if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json
     json_t *root;
     root = json_loads(json.c_str(), 0, NULL);
@@ -162,7 +162,7 @@ bool cMovieDbTv::AddOneSeason() {
     string json;
     stringstream url;
     url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str();
-    if (!CurlGetUrl(url.str().c_str(), &json)) return false;
+    if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json
     json_t *root;
     root = json_loads(json.c_str(), 0, NULL);
@@ -260,7 +260,7 @@ bool cMovieDbTv::AddActors() {
     string json;
     stringstream url;
     url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "/episode/" << m_episodeNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str();
-    if (!CurlGetUrl(url.str().c_str(), &json)) return false;
+    if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json
     json_t *root;
     root = json_loads(json.c_str(), 0, NULL);

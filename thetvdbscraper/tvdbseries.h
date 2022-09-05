@@ -31,7 +31,9 @@ private:
     void ParseXML_Series(xmlDoc *doc, xmlNode *node);
     void ParseXML_Episode(xmlDoc *doc, xmlNode *node);
     void ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searchResultTvMovie> &resultSet, const string &SearchString);
+    void ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const string &SearchStringStripExtraUTF8);
     void ParseXML_search(xmlDoc *doc, vector<searchResultTvMovie> &resultSet, const string &SearchString);
+    bool ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString);
 public:
     cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper);
     virtual ~cTVDBSeries(void);
@@ -43,7 +45,7 @@ public:
     void StoreMedia(int tvID);
     void Dump();
     bool AddResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext);
+    bool AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext);
 };
-
 
 #endif //__TVSCRAPER_TVDBSERIES_H

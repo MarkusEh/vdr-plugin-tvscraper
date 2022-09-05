@@ -148,6 +148,22 @@ std::string stripExtraUTF8(const char *s) {
   return out;
 }
 
+std::string stripExtraUTF8(const char *s, int len) {
+// replace invalid UTF8 characters with ' '
+// replace all non-alphanumeric characters with ' '
+// consider max. len char characters in s
+// return the result
+  std::string out;
+  if(!s || !*s || len == 0) return out;
+  out.reserve(std::min((int)strlen(s), len));
+  const char *s0 = s;
+  for( wint_t cChar = getNextUtfCodepoint(s); cChar && (int)(s - s0) <= len; cChar = getNextUtfCodepoint(s) ) {
+    if (std::iswalnum(cChar) ) AppendUtfCodepoint(out, towlower(cChar));
+    else out.append(" ");
+  }
+  return out;
+}
+
 // find longest common substring
 // https://iq.opengenus.org/longest-common-substring/
 int lcsubstr( const std::string &s1, const std::string &s2)

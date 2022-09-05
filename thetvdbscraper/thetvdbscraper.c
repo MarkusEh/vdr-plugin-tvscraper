@@ -10,7 +10,10 @@ using namespace std;
 
 cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db, string language) {
     apiKey = "E9DBB94CA50832ED";
+    apiKey4 = "5476e702-85aa-45fd-a8da-e74df3840baf";
     baseURL = "thetvdb.com";
+    baseURL4 = "https://api4.thetvdb.com/v4/";
+    baseURL4Search = "https://api4.thetvdb.com/v4/search?type=series&query=";
     this->baseDir = baseDir;
     this->language = language;
     this->db = db;
@@ -18,8 +21,60 @@ cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db, string language) {
 }
 
 cTVDBScraper::~cTVDBScraper() {
-    if (mirrors)
-        delete mirrors;
+    if (mirrors) delete mirrors;
+}
+
+bool cTVDBScraper::Connect(void) {
+    stringstream url;
+    url << baseURL << "/api/" << apiKey << "/mirrors.xml";
+    string mirrorsXML;
+    if (CurlGetUrl(url.str().c_str(), mirrorsXML)) {
+        mirrors = new cTVDBMirrors(mirrorsXML);
+        return mirrors->ParseXML();
+    }
+    return false;
+}
+
+bool cTVDBScraper::GetToken(void) {
+// return true on success
+  if (time(0) - tokenHeaderCreated < 24*60*60) return true; // call only once a day
+  const char *url = "https://api4.thetvdb.com/v4/login";
+  std::string out;
+
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "accept: application/json");
+  headers = curl_slist_append(headers, "Content-Type: application/json");
+  headers = curl_slist_append(headers, "charset: utf-8");
+  bool result =  CurlPostUrl(url, "{\"apikey\": \"5476e702-85aa-45fd-a8da-e74df3840baf\"}", out, headers);
+  curl_slist_free_all(headers);
+  if (!result) {
+    esyslog("tvscraper: error calling %s", url);
+    return false;
+  }
+// now read the tocken
+  if (!GetToken(out)) {
+    esyslog("tvscraper: error parsing json result %s", out.substr(0, 40).c_str() );
+    return false;
+  }
+  return true;
+}
+
+bool cTVDBScraper::GetToken(const std::string &jsonResponse) {
+  json_t *root = json_loads(jsonResponse.c_str(), 0, NULL);
+  if (!root) return false;
+  if (!json_is_object(root)) { json_decref(root); return false; }
+  if (json_string_value_validated(root, "status").compare("success") != 0) {
+    esyslog("tvscraper: error getting thetvdb token, status = %s", json_string_value_validated(root, "status").c_str() );
+    json_decref(root);
+    return false;
+  }
+  json_t *jData = json_object_get(root, "data");
+  if(!json_is_object(jData)) { json_decref(root); return false; }
+  tokenHeader = "Authorization: Bearer ";
+  tokenHeader.append(json_string_value_validated(jData, "token") );
+  tokenHeaderCreated = time(0);
+  json_decref(root);
+  return true;
 }
 
 int cTVDBScraper::StoreSeries(int seriesID, bool onlyEpisodes) {
@@ -45,18 +100,6 @@ int cTVDBScraper::StoreSeries(int seriesID, bool onlyEpisodes) {
     return seriesID;
 }
 
-
-bool cTVDBScraper::Connect(void) {
-    stringstream url;
-    url << baseURL << "/api/" << apiKey << "/mirrors.xml";
-    string mirrorsXML;
-    if (CurlGetUrl(url.str().c_str(), &mirrorsXML)) {
-        mirrors = new cTVDBMirrors(mirrorsXML);
-        return mirrors->ParseXML();
-    }
-    return false;
-}
-
 bool cTVDBScraper::ReadAll(int seriesID, cTVDBSeries *&series, cTVDBActors *&actors, cTVDBSeriesMedia *&media, bool onlyEpisodes) {
     stringstream url;
     url << mirrors->GetMirrorXML() << "/api/" << apiKey << "/series/" << seriesID << "/all/" << language << ".xml";
@@ -65,7 +108,7 @@ bool cTVDBScraper::ReadAll(int seriesID, cTVDBSeries *&series, cTVDBActors *&act
 // for all information, including episodes:  https://thetvdb.com/api/E9DBB94CA50832ED/series/413627/all/de.zip
     string xmlAll;
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
-    if (!CurlGetUrl(url.str().c_str(), &xmlAll)) return false;
+    if (!CurlGetUrl(url.str().c_str(), xmlAll)) return false;
 // xmlAll available
     xmlInitParser();
     xmlDoc *doc = xmlReadMemory(xmlAll.c_str(), strlen(xmlAll.c_str()), "noname.xml", NULL, 0);
