@@ -49,8 +49,9 @@ public:
     int DeleteMovie(int movieID) const;
     void DeleteSeries(int seriesID, const string &movieDir, const string &seriesDir) const;
     int DeleteSeries(int seriesID) const;
-    void InsertTv(int tvID, const string &name, const string &originalName, const string &overview, const string &firstAired, const string &networks, const string &genres, float popularity, float vote_average, int vote_count, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID, const string &status, const vector<int> &EpisodeRunTimes, const string &createdBy);
-    void InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_absolute_number, int episode_id, const string &episode_name, const string &airDate, float vote_average, int vote_count, const string &episode_overview, const string &episode_guest_stars, const string &episode_director, const string &episode_writer, const string &episode_IMDB_ID, const string &episode_still_path);
+    void InsertTv(int tvID, const string &name, const string &originalName, const string &overview, const string &firstAired, const string &networks, const string &genres, float popularity, float vote_average, int vote_count, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID, const string &status, const set<int> &EpisodeRunTimes, const string &createdBy);
+    void InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes);
+    void InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_absolute_number, int episode_id, const string &episode_name, const string &airDate, float vote_average, int vote_count, const string &episode_overview, const string &episode_guest_stars, const string &episode_director, const string &episode_writer, const string &episode_IMDB_ID, const string &episode_still_path, int episode_run_time);
     string GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber) const;
     void TvSetEpisodesUpdated(int tvID);
     void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);
@@ -87,7 +88,7 @@ public:
     vector<vector<string> > GetTvRuntimes(int tvID);
     bool GetTv(int tvID, string &name, string &overview, string &firstAired, string &networks, string &genres, float &popularity, float &vote_average, string &status);
     bool GetTv(int tvID, time_t &lastUpdated, string &status);
-    bool GetTvVote(int tvID, float &vote_average, int &vote_count);
+//    bool GetTvVote(int tvID, float &vote_average, int &vote_count);
     bool GetTvEpisode(int tvID, int seasonNumber, int episodeNumber, int &episodeID, string &name, string &airDate, float &vote_average, string &overview, string &episodeGuestStars);
     bool GetFromCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
     void InsertCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);

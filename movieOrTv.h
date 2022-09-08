@@ -52,7 +52,7 @@ protected:
   int m_episodeNumber;
   
   cMovieOrTv(const cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): m_db(db), m_id(id), m_seasonNumber(seasonNumber), m_episodeNumber(episodeNumber) {}
-  virtual string bannerBaseUrl() = 0;
+  virtual std::string imageUrl(const char *imageUrl) = 0;
 // Media
   bool checkFullPath(const string        &sFullPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height);
   bool checkFullPath(const stringstream &ssFullPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height);
@@ -75,7 +75,7 @@ public:
   virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
 // media
-  virtual string bannerBaseUrl() { return "http://image.tmdb.org/t/p/w780/"; }
+  virtual std::string imageUrl(const char *imageUrl) { return std::string("http://image.tmdb.org/t/p/w780/") + imageUrl; };
   virtual bool getSingleImage(eImageLevel level, eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   bool getSingleImageMovie(     eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   bool getSingleImageCollection(eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
@@ -106,7 +106,7 @@ public:
   virtual bool getSingleImageAnySeason(eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL) = 0;
 protected:
   cTv(const cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): cMovieOrTv(db, id, seasonNumber,  episodeNumber) {}
-  virtual string bannerBaseUrl() = 0;
+  virtual std::string imageUrl(const char *imageUrl) = 0;
 private:
   std::vector<cActor> getGuestStars(const char *str);
 };
@@ -122,7 +122,7 @@ public:
   virtual vector<cActor> GetActors();
   virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
-  virtual string bannerBaseUrl() { return "http://image.tmdb.org/t/p/w780/"; }
+  virtual std::string imageUrl(const char *imageUrl) { return std::string("http://image.tmdb.org/t/p/w780/") + imageUrl; };
   virtual bool getSingleImageEpisode(  eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImageSeason(   eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImageTvShow(   eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
@@ -142,7 +142,7 @@ public:
   virtual vector<cTvMedia> getImages(eOrientation orientation);
   virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
-  virtual string bannerBaseUrl() { return "https://thetvdb.com/banners/"; }
+  virtual std::string imageUrl(const char *imageUrl);
   virtual bool getSingleImageEpisode(  eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImageSeason(   eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImageTvShow(   eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);

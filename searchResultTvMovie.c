@@ -80,6 +80,28 @@ void searchResultTvMovie::setPopularity(float popularity, float vote_average, in
   m_matches[2].match = 0.4*voteCountFactor + 0.3*vote_average/10. + 0.3*popularityFactor;
 }
 
+void searchResultTvMovie::setScore(int score) {
+// this is for thetvdb. Int score (range unclear)
+/* Examples:
+Tatort:  2044
+Enterprise: 50616
+"name": "Merlin (2008)", "objectID": "series-83123", "score": 429780,
+"tvdb_id": "83269","Merlin (1998)" "score": 2922,
+"objectID": "series-263785", "name": "Merlin (2012)", "score": 1130,
+"objectID": "series-166831","name": "Merlin: Secrets & Magic", "score": 302,
+"objectID": "series-77272", "name": "Mr. Merlin", "Max Merlin is an auto mechanic who keeps his magic powers a secret from everybody except his teenage apprentice." "score": 212,
+"objectID": "series-362037","name": "Merlin of the Crystal Cave", "score": 151,
+"objectID": "series-252374","name": "The Boy Merlin", "score": 131,
+"objectID": "series-82915","name": "Merlina", "score": 94,
+
+"objectID": "series-93221","name": "Um Himmels Willen" "score": 446,
+*/
+  m_matches[2].match = normMatch(score / 400.);
+}
+
+void setScore(int score);
+
+
 void searchResultTvMovie::setMatchYear(const std::vector<int> &years, int durationInSec) {
 // input: list of years in texts
   if (m_year <= 0) { m_matches[1].match = 0.; return; }

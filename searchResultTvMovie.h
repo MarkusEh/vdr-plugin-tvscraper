@@ -18,6 +18,7 @@ public:
   void updateMatchText(int distance);
   void setPopularity(float popularity, float vote_average, int vote_count);
   void setPopularity(float vote_average, int vote_count);
+  void setScore(int score);
   void setDuration(int durationDeviation) { m_matches[3].match = 1 - normMatch(durationDeviation / 15.); }
   void setActors(int numMatches)  { m_matches[4].match = normMatch(numMatches/16.); }
   void setDirectorWriter(int numMatches)  { m_matches[5].match = normMatch(numMatches/2.); }

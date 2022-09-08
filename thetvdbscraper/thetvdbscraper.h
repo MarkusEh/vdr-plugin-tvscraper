@@ -9,8 +9,6 @@ class cTVDBScraper {
     friend class cTVDBSeries;
 private:
     string apiKey;
-    string apiKey4;
-    string baseURL;
     string baseURL4;
     string baseURL4Search;
     string tokenHeader;
@@ -18,26 +16,25 @@ private:
     string baseDir;
     string language;
     cTVScraperDB *db;
-    cTVDBMirrors *mirrors;
-    bool ReadAll(int seriesID, cTVDBSeries *&series, cTVDBActors *&actors, cTVDBSeriesMedia *&media, bool onlyEpisodes);
-    void StoreMedia(cTVDBSeries *series, cTVDBSeriesMedia *media, cTVDBActors *actors);
+    json_t *CallRestJson(const std::string &url);
     bool GetToken(const std::string &jsonResponse);
+    void ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const string &SearchStringStripExtraUTF8);
+    bool ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString);
 public:
     cTVDBScraper(string baseDir, cTVScraperDB *db, string language);
     virtual ~cTVDBScraper(void);
     bool Connect(void);
     bool GetToken();
-    cTVDBMirrors *GetMirrors(void) { return mirrors; }
     const string GetLanguage(void) { return language; }
-    int StoreSeries(int seriesID, bool onlyEpisodes);
+    int StoreSeriesJson(int seriesID, bool onlyEpisodes);
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename);
     void StoreActors(int seriesID);
     vector<vector<string>> GetTvRuntimes(int seriesID);
-    void GetTvVote(int seriesID, float &vote_average, int &vote_count);
+//    void GetTvVote(int seriesID, float &vote_average, int &vote_count);
+    int GetTvScore(int seriesID);
     void DownloadMedia (int tvID);
-    void DownloadMedia (int tvID, eMediaType mediaType, const string &destDir, const string &baseUrl);
-    void DownloadMediaBanner (int tvID, const string &destPath, const string &baseUrl);
+    void DownloadMedia (int tvID, eMediaType mediaType, const string &destDir);
+    void DownloadMediaBanner (int tvID, const string &destPath);
+    bool AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext);
 };
-
-
 #endif //__TVSCRAPER_TVDBSCRAPER_H

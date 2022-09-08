@@ -80,7 +80,7 @@ bool cMovieDbTv::ReadTv(json_t *tv) {
       size_t numElements = json_array_size(jArray);
       for (size_t i = 0; i < numElements; i++) {
         json_t *jElement = json_array_get(jArray, i);
-        if(json_is_integer(jElement)) m_episodeRunTimes.push_back(json_integer_value(jElement) );
+        if(json_is_integer(jElement)) m_episodeRunTimes.insert(json_integer_value(jElement) );
       }
     }
 
@@ -207,7 +207,7 @@ bool cMovieDbTv::AddOneSeason(json_t *root) {
         string episodeStillPath = json_string_value_validated(episode, "still_path");
         json_t *jCrew = json_object_get(episode, "crew");
 // save in db
-        m_db->InsertTv_s_e(m_tvID, m_seasonNumber, m_episodeNumber, 0, id, episodeName, airDate, vote_average, vote_count, overview, "", GetCrewMember(jCrew, "job", "Director"), GetCrewMember(jCrew, "department", "Writing"), "", episodeStillPath);
+        m_db->InsertTv_s_e(m_tvID, m_seasonNumber, m_episodeNumber, 0, id, episodeName, airDate, vote_average, vote_count, overview, "", GetCrewMember(jCrew, "job", "Director"), GetCrewMember(jCrew, "department", "Writing"), "", episodeStillPath, 0);
 //  add actors
         AddActors(episode, id);
     }

@@ -44,7 +44,6 @@ private:
   bool m_searchStringSubstituted;
   vector<int> m_years;
   bool m_baseNameEquShortText = false;
-  cTVDBSeries m_TVtv;
   cMovieDbTv m_tv;
   cMovieDbMovie m_movie;
   searchResultTvMovie m_searchResult_Movie;

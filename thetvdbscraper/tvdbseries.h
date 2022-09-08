@@ -12,40 +12,31 @@ class cTVDBSeries {
 private:
     cTVScraperDB *m_db;
     cTVDBScraper *m_TVDBScraper;
-    int seriesID = 0;
+    int m_seriesID;
     string name = "";
+    string originalName = "";
     string overview = "";
     string firstAired = "";
-//    string actors = "";
     string genres = "";
     string networks = "";
+    float popularity = 0.0; // this is the score;
     float rating = 0.0;
     int ratingCount = 0;
     string IMDB_ID = "";
-    int runtime = 0;
     string status = "";
+    set<int> episodeRunTimes;
     string banner = "";
-    vector<int> episodeRunTimes;
     string fanart = "";
     string poster = "";
-    void ParseXML_Series(xmlDoc *doc, xmlNode *node);
-    void ParseXML_Episode(xmlDoc *doc, xmlNode *node);
-    void ParseXML_searchSeries(xmlDoc *doc, xmlNode *node, vector<searchResultTvMovie> &resultSet, const string &SearchString);
-    void ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const string &SearchStringStripExtraUTF8);
-    void ParseXML_search(xmlDoc *doc, vector<searchResultTvMovie> &resultSet, const string &SearchString);
-    bool ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString);
 public:
-    cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper);
+    cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper, int seriesID);
     virtual ~cTVDBSeries(void);
-    void ParseXML_all(xmlDoc *doc);
-    int ID(void) { return seriesID; };
-    void SetSeriesID(int id) { seriesID = id; }
-    const char *Name(void) { return name.c_str(); };
-    void StoreDB(cTVScraperDB *db);
-    void StoreMedia(int tvID);
-    void Dump();
-    bool AddResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext);
-    bool AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext);
+    bool ParseJson_all(json_t *data);
+    bool ParseJson_Series(json_t *jSeries);
+    bool ParseJson_Episode(json_t *jEpisode);
+    void StoreDB();
+    bool ParseJson_Character(json_t *jCharacter);
+    bool ParseJson_Artwork(json_t *jArtwork, const std::map<int,int> &seasonIdNumber);
 };
 
 #endif //__TVSCRAPER_TVDBSERIES_H

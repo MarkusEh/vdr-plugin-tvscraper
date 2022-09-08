@@ -30,7 +30,7 @@ private:
    int m_tvNumberOfEpisodes = 0;
    int m_seasonNumber = 0;
    int m_episodeNumber = 0;
-   vector<int> m_episodeRunTimes;
+   set<int> m_episodeRunTimes;
    bool ReadTv(bool exits_in_db);
    bool ReadTv(json_t *tv);
    bool AddTvResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &tvSearchString);

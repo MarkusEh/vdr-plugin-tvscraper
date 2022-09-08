@@ -6,7 +6,6 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
   m_moviedbScraper(moviedbScraper),
   m_tvdbScraper(tvdbScraper),
   m_db(db),
-  m_TVtv(db, tvdbScraper),
   m_tv(db, moviedbScraper),
   m_movie(db, moviedbScraper),
   m_searchResult_Movie(0, true, "")
@@ -213,6 +212,7 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
 }
 
 void cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
+// check if already in internal DB. If not: Download from external db
   switch (movieOrTv.type) {
     case scrapMovie:
       m_movie.SetID(movieOrTv.id);
@@ -223,7 +223,8 @@ void cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
         m_tv.SetTvID(movieOrTv.id);
         m_tv.UpdateDb();
       } else {
-        m_tvdbScraper->StoreSeries(movieOrTv.id * (-1), false);
+        if (config.enableDebug) esyslog("tvscraper: cSearchEventOrRec::Store StoreSeriesJson, movieOrTv.id %i", movieOrTv.id);
+        m_tvdbScraper->StoreSeriesJson(movieOrTv.id * (-1), false);
       }
       return;
     case scrapNone: ; // do nothing, nothing to store
@@ -286,9 +287,9 @@ void cSearchEventOrRec::SearchTv(vector<searchResultTvMovie> &resultSet, const s
   string searchString1 = SecondPart(searchString, ":");
   string searchString2 = SecondPart(searchString, "'s");
   size_t oldSize = resultSet.size();
-  m_TVtv.AddResults4(resultSet, searchString, searchString);
-  if (searchString1.length() > 4 ) m_TVtv.AddResults4(resultSet, searchString, searchString1);
-  if (searchString2.length() > 4 ) m_TVtv.AddResults4(resultSet, searchString, searchString2);
+  m_tvdbScraper->AddResults4(resultSet, searchString, searchString);
+  if (searchString1.length() > 4 ) m_tvdbScraper->AddResults4(resultSet, searchString, searchString1);
+  if (searchString2.length() > 4 ) m_tvdbScraper->AddResults4(resultSet, searchString, searchString2);
   if (resultSet.size() == oldSize) {
     m_tv.AddTvResults(resultSet, searchString, searchString);
     if (searchString1.length() > 4 ) m_tv.AddTvResults(resultSet, searchString, searchString1);
@@ -406,7 +407,8 @@ void cSearchEventOrRec::UpdateEpisodeListIfRequired(int tvID) {
     tv.SetTvID(tvID);
     tv.UpdateDb();
   } else {
-    m_tvdbScraper->StoreSeries(tvID * (-1), true);
+    if (config.enableDebug) esyslog("tvscraper: cSearchEventOrRec::UpdateEpisodeListIfRequired StoreSeriesJson, tvID %i", tvID);
+    m_tvdbScraper->StoreSeriesJson(tvID * (-1), true);
   }
 
 }
@@ -577,11 +579,13 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
     sR.setDirectorWriter(0);
     if (sR.id() < 0) {
 // tv show from thetvdb
+/*
       float voteAverage;
       int voteCount;
       searchEventOrRec.m_tvdbScraper->GetTvVote(sR.id() * -1, voteAverage, voteCount);
-    if (debug) esyslog("tvscraper: enhance1 (3), voteAverage = %f, voteCount = %i", voteAverage, voteCount);
-      sR.setPopularity(voteAverage, voteCount);
+*/
+    int score = searchEventOrRec.m_tvdbScraper->GetTvScore(sR.id() * -1);
+    sR.setScore(score);
     if (debug) esyslog("tvscraper: enhance1 (4)" );
   if (debug) sR.log(searchEventOrRec.m_searchString.c_str() );
       actors = searchEventOrRec.m_db->GetActorsSeries(sR.id() * (-1));

@@ -62,6 +62,13 @@ void cMovieOrTv::clearScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   scraperMovieOrTv->episode.IMDB_ID = "";
 }
 
+std::string cTvTvdb::imageUrl(const char *imageUrl) {
+// return std::string("https://thetvdb.com/banners/") + imageUrl;
+  if (strncmp(imageUrl, "https://artworks.thetvdb.com", 20) != 0)
+    return string("https://artworks.thetvdb.com") + imageUrl;
+  else return imageUrl;
+}
+
 void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id, const char *pathPart, int width, int height) {
 // adds the acors found with sql&id to the list of actors
 // works for all actors found in themoviedb (movie & tv actors). Not for actors in thetvdb
@@ -309,8 +316,8 @@ void cMovieMoviedb::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   stringToVector(scraperMovieOrTv->productionCountries, productionCountries);
 
   if (scraperMovieOrTv->httpImagePaths) {
-    if (posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = bannerBaseUrl() + posterUrl;
-    if (fanartUrl && *fanartUrl) scraperMovieOrTv->fanartUrl = bannerBaseUrl() + fanartUrl;
+    if (posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = imageUrl(posterUrl);
+    if (fanartUrl && *fanartUrl) scraperMovieOrTv->fanartUrl = imageUrl(fanartUrl);
   }
   sqlite3_finalize(statement);
 
@@ -498,7 +505,7 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
     const char sql_sp[] = "select media_path from tv_media where tv_id = ? and media_number = ? and media_type = ?";
     sqlite3_stmt *statement = m_db->QueryPrepare(sql_sp, "iii", dbID(), m_seasonNumber, mediaSeason);
     if (m_db->QueryStep(statement, "s", &posterUrl)) {
-      if (posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = bannerBaseUrl() + posterUrl;
+      if (posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = imageUrl(posterUrl);
       sqlite3_finalize(statement);
     }
   }
@@ -523,8 +530,8 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
 
   if (scraperMovieOrTv->httpImagePaths) {
     if (scraperMovieOrTv->posterUrl.empty() && 
-        posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = bannerBaseUrl() + posterUrl;
-    if (fanartUrl && *fanartUrl) scraperMovieOrTv->fanartUrl = bannerBaseUrl() + fanartUrl;
+        posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = imageUrl(posterUrl);
+    if (fanartUrl && *fanartUrl) scraperMovieOrTv->fanartUrl = imageUrl(fanartUrl);
   }
   sqlite3_finalize(statement);
 // if no poster was found, use first season poster
@@ -534,7 +541,7 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
     for (sqlite3_stmt *statement = m_db->QueryPrepare(sql_spa, "ii", dbID(), mediaSeason);
          m_db->QueryStep(statement, "s", &posterUrl);) 
       if (posterUrl && *posterUrl) {
-        scraperMovieOrTv->posterUrl = bannerBaseUrl() + posterUrl;
+        scraperMovieOrTv->posterUrl = imageUrl(posterUrl);
         sqlite3_finalize(statement);
         break;
       }
@@ -580,7 +587,9 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
     stringToVector(scraperMovieOrTv->episode.director, director);
     stringToVector(scraperMovieOrTv->episode.writer, writer);
     scraperMovieOrTv->episode.guestStars = getGuestStars(guestStars);
-    if (episodeImageUrl && *episodeImageUrl && scraperMovieOrTv->httpImagePaths) scraperMovieOrTv->episode.episodeImageUrl = bannerBaseUrl() + episodeImageUrl;
+    if (episodeImageUrl && *episodeImageUrl && scraperMovieOrTv->httpImagePaths) {
+      scraperMovieOrTv->episode.episodeImageUrl = imageUrl(episodeImageUrl);
+    }
     sqlite3_finalize(statement);
   }
   if (scraperMovieOrTv->media)

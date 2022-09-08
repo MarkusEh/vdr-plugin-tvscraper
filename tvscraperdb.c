@@ -429,6 +429,10 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "tv_vote_average real, ";
     sql << "tv_vote_count integer);";
 
+    sql << "CREATE TABLE IF NOT EXISTS tv_score (";
+    sql << "tv_id integer primary key, ";
+    sql << "tv_score real);";
+
     sql << "CREATE TABLE IF NOT EXISTS tv_media (";
     sql << "tv_id integer, ";
     sql << "media_path nvarchar, ";
@@ -453,6 +457,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "episode_id integer, ";
     sql << "episode_name nvarchar(255), ";
     sql << "episode_air_date nvarchar(255), ";
+    sql << "episode_run_time integer, ";
     sql << "episode_vote_average real, ";
     sql << "episode_vote_count integer, ";
     sql << "episode_overview nvarchar, ";
@@ -617,6 +622,8 @@ bool cTVScraperDB::CreateTables(void) {
     AddCulumnIfNotExists("actors", "actor_has_image", "integer");
     AddCulumnIfNotExists("event", "runtime", "integer");
     AddCulumnIfNotExists("recordings2", "runtime", "integer");
+
+    AddCulumnIfNotExists("tv_s_e", "episode_run_time", "integer");
 // move from actor_thumbnail to actor_number, and delete culumn actor_path (if exists)
     if (TableColumnExists("series_actors", "actor_thumbnail") ) {
       stringstream sql;
@@ -729,7 +736,7 @@ void cTVScraperDB::DeleteSeries(int seriesID, const string &movieDir, const stri
   DeleteSeries(seriesID);
 }
 
-void cTVScraperDB::InsertTv(int tvID, const string &name, const string &originalName, const string &overview, const string &firstAired, const string &networks, const string &genres, float popularity, float vote_average, int vote_count, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID, const string &status, const vector<int> &EpisodeRunTimes, const string &createdBy) {
+void cTVScraperDB::InsertTv(int tvID, const string &name, const string &originalName, const string &overview, const string &firstAired, const string &networks, const string &genres, float popularity, float vote_average, int vote_count, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID, const string &status, const set<int> &EpisodeRunTimes, const string &createdBy) {
   execSql("INSERT OR REPLACE INTO tv2 (tv_id, tv_name, tv_original_name, tv_overview, tv_first_air_date, tv_networks, tv_genres, tv_popularity, tv_vote_average, tv_vote_count, tv_posterUrl, tv_fanartUrl, tv_IMDB_ID, tv_status, tv_created_by, tv_last_season, tv_number_of_episodes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0);",
     "issssssddisssss", tvID,
     name.c_str(),  originalName.c_str(), overview.c_str(), firstAired.c_str(), networks.c_str(), genres.c_str(),
@@ -742,6 +749,15 @@ void cTVScraperDB::InsertTv(int tvID, const string &name, const string &original
     }
     execSql("INSERT OR REPLACE INTO tv_vote (tv_id, tv_vote_average, tv_vote_count) VALUES (?, ?, ?)",
       "idi", tvID, (double)vote_average, vote_count);
+    execSql("INSERT OR REPLACE INTO tv_score (tv_id, tv_score) VALUES (?, ?)",
+      "id", tvID, (double)popularity);
+}
+
+void cTVScraperDB::InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes) {
+  for (const int &episodeRunTime : EpisodeRunTimes) {
+     execSql("INSERT OR REPLACE INTO tv_episode_run_time (tv_id, episode_run_time) VALUES (?, ?);",
+       "ii", tvID, episodeRunTime);
+  }
 }
 
 void cTVScraperDB::TvSetEpisodesUpdated(int tvID) {
@@ -764,13 +780,13 @@ bool cTVScraperDB::SearchTvEpisode(int tvID, const string &episode_search_name, 
     "is", "ii", tvID, episode_search_name.c_str(), &season_number, &episode_number);
 }
 
-void cTVScraperDB::InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_absolute_number, int episode_id, const string &episode_name, const string &airDate, float vote_average, int vote_count, const string &episode_overview, const string &episode_guest_stars, const string &episode_director, const string &episode_writer, const string &episode_IMDB_ID, const string &episode_still_path) {
+void cTVScraperDB::InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_absolute_number, int episode_id, const string &episode_name, const string &airDate, float vote_average, int vote_count, const string &episode_overview, const string &episode_guest_stars, const string &episode_director, const string &episode_writer, const string &episode_IMDB_ID, const string &episode_still_path, int episode_run_time) {
 
-  execSql("INSERT OR REPLACE INTO tv_s_e (tv_id, season_number, episode_number, episode_absolute_number, episode_id, episode_name, episode_air_date, episode_vote_average, episode_vote_count, episode_overview, episode_guest_stars, episode_director, episode_writer, episode_IMDB_ID, episode_still_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
-    "iiiiissdissssss", tvID, season_number, episode_number, episode_absolute_number, episode_id,
+  execSql("INSERT OR REPLACE INTO tv_s_e (tv_id, season_number, episode_number, episode_absolute_number, episode_id, episode_name, episode_air_date, episode_vote_average, episode_vote_count, episode_overview, episode_guest_stars, episode_director, episode_writer, episode_IMDB_ID, episode_still_path, episode_run_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+    "iiiiissdissssssi", tvID, season_number, episode_number, episode_absolute_number, episode_id,
      episode_name.c_str(), airDate.c_str(), (double)vote_average, vote_count,
      episode_overview.c_str(), episode_guest_stars.c_str(), episode_director.c_str(), episode_writer.c_str(),
-     episode_IMDB_ID.c_str(), episode_still_path.c_str() );
+     episode_IMDB_ID.c_str(), episode_still_path.c_str(), episode_run_time);
 }
 
 string cTVScraperDB::GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber) const {
@@ -1107,10 +1123,12 @@ bool cTVScraperDB::GetTv(int tvID, string &name, string &overview, string &first
      &name, &overview, &firstAired, &networks, &genres, &popularity, &vote_average, &status);
 }
 
+/*
 bool cTVScraperDB::GetTvVote(int tvID, float &vote_average, int &vote_count) {
   return QueryLine("select tv_vote_average, tv_vote_count from tv_vote where tv_id = ?",
      "i", "fi", tvID, &vote_average, &vote_count);
 }
+*/
 
 bool cTVScraperDB::GetTv(int tvID, time_t &lastUpdated, string &status) {
   return QueryLine("select tv_last_updated, tv_status from tv2 where tv_id = ?",
