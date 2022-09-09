@@ -2,14 +2,11 @@
 #include <sstream>
 #include <vector>
 #include <map>
-#include <libxml/parser.h>
-#include <libxml/tree.h>
 #include "thetvdbscraper.h"
 
 using namespace std;
 
 cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db, string language) {
-    apiKey = "E9DBB94CA50832ED";
     baseURL4 = "https://api4.thetvdb.com/v4/";
     baseURL4Search = "https://api4.thetvdb.com/v4/search?type=series&query=";
     this->baseDir = baseDir;
@@ -71,6 +68,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
 // otherwise, return seriesID
 // only update if not yet in db
 // we ignore onlyEpisodes, there is no real performance improvement, as episode related information like gouest stars is in "main" series
+// except for the check if we need to update: if onlyEpisodes == true, we update, even if we have aready data
   if (seriesID == 0) return 0;
   int ns, ne;
   if (!onlyEpisodes && db->TvGetNumberOfEpisodes(seriesID * (-1), ns, ne)) return seriesID; // already in db
@@ -117,15 +115,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
     }
   }
 // we also add season images. Therefore, we do this after parsing the episodes
-  map<int,int> seasonIdNumber = ParseJson_Seasons(json_object_get(jSeries, "seasons") );
-  json_t *jArtworks = json_object_get(jSeries, "artworks");
-  if (json_is_array(jArtworks)) {
-    size_t index;
-    json_t *jArtwork;
-    json_array_foreach(jArtworks, index, jArtwork) {
-      series.ParseJson_Artwork(jArtwork, seasonIdNumber);
-    }
-  }
+  series.ParseJson_Artwork(jSeries);
 // store series here, as here information (incl. episode runtimes, poster URL, ...) is complete
   series.StoreDB();
   db->TvSetEpisodesUpdated(seriesID * (-1) );

@@ -36,7 +36,7 @@ public:
     bool ParseJson_Episode(json_t *jEpisode);
     void StoreDB();
     bool ParseJson_Character(json_t *jCharacter);
-    bool ParseJson_Artwork(json_t *jArtwork, const std::map<int,int> &seasonIdNumber);
+    bool ParseJson_Artwork(json_t *jSeries);
 };
 
 #endif //__TVSCRAPER_TVDBSERIES_H

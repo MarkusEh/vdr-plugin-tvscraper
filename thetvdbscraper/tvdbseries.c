@@ -1,11 +1,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
-#include <libxml/parser.h>
-#include <libxml/tree.h>
 #include "tvdbseries.h"
-#include "tvdbmedia.h"
-#include "tvdbactors.h"
 #include "thetvdbscraper.h"
 
 using namespace std;
@@ -178,95 +174,147 @@ void cTVDBSeries::StoreDB() {
   m_db->InsertTv(m_seriesID * (-1), name, originalName, overview, firstAired, networks, genres, popularity, rating, ratingCount, poster, fanart, IMDB_ID, status, episodeRunTimes, "");
 }
 
-bool cTVDBSeries::ParseJson_Artwork(json_t *jArtwork, const std::map<int,int> &seasonIdNumber) {
+struct sImageScore {
+  sImageScore():
+    score(-1),
+    image("") {}
+  sImageScore(int score_i, const std::string &image_i):
+    score(score_i),
+    image(image_i) {}
+  int score = -1;
+  std::string image;
+};
+bool operator< (const sImageScore &first, const sImageScore &second) {
+  return first.score > second.score;
+}
+
+bool cTVDBSeries::ParseJson_Artwork(json_t *jSeries) {
 // return true if db was updated
-  if (!jArtwork) return false;
-  int type = json_integer_value_validated(jArtwork, "type");
-  if (type == 0) return false;
-//  int score = json_integer_value_validated(jArtwork, "score");
-  string image = json_string_value_validated(jArtwork, "image");
-  if (image.empty() ) return false;
+  if (!jSeries) return false;
+  map<int,int> seasonIdNumber = ParseJson_Seasons(json_object_get(jSeries, "seasons") );
+  json_t *jArtworks = json_object_get(jSeries, "artworks");
+  sImageScore bestBanner;
+  sImageScore bestPoster;
+// first int in the map is the season number. Only one poster per season
+  map<int,sImageScore> bestSeasonPoster;
+// 3 best "Background" / "Fanart"
+  multiset<sImageScore> bestBackgrounds;
+  if (json_is_array(jArtworks)) {
+    size_t index;
+    json_t *jArtwork;
+    json_array_foreach(jArtworks, index, jArtwork) {
+      if (!jArtwork) continue;
+      int type = json_integer_value_validated(jArtwork, "type");
+      if (type == 0) continue;
+      int score = json_integer_value_validated(jArtwork, "score");
+      string image = json_string_value_validated(jArtwork, "image");
+      if (image.empty() ) continue;
 
-  if (type == 1) {
-// "Banner" / "series"
-//    "width": 758,
-//    "height": 140,
-    m_db->insertTvMedia (m_seriesID *-1, image, mediaBanner);
-    if (banner.empty() ) banner = image;
-    return true;
-  }
-  if (type == 2) {
-// "Poster" / "series" (not season specific)
-//    "width": 680,
-//    "height": 1000,
-    m_db->insertTvMedia (m_seriesID *-1, image, mediaPoster);
-    if (poster.empty() ) poster = image;
-    return true;
-  }
-  if (type == 3) {
-// "Background" / "series"  ("Fanart", not season specific)
-//    "width": 1920,
-//    "height": 1080,
-    m_db->insertTvMedia (m_seriesID *-1, image, mediaFanart);
-    if (fanart.empty() ) fanart = image;
-    return true;
-  }
-  if (type == 5) {
-// "Icon" / "series" (not season specific), Name of series, some symbols, poster format, mostly text
-//    "width": 1024,
-//    "height": 1024,
-    return false; // ignore
-  }
-  if (type == 6) {
-// "Banner" / "season"(season specific, Clearart)
-//    "width": 758,
-//    "height": 140,
-//    int seasonId = json_integer_value_validated(jArtwork, "seasonId");
-    return false; // ignore
-  }
-  if (type == 7) {
-// "Poster" / "season"/ can be DVD Cover (season specific), name of series, name of season
-// might also be clearart
-// bei tatort: auch speziefisch für kommisare / länder
-//    "width": 680,
-//    "height": 1000,
-    int seasonId = json_integer_value_validated(jArtwork, "seasonId");
-    if (seasonId == 0) return false;
-    auto found = seasonIdNumber.find(seasonId);
-    if (found == seasonIdNumber.end() ) return false;
-    m_db->insertTvMediaSeasonPoster (m_seriesID *-1, image, mediaSeason, found->second);
-    return true;
-  }
-// "type": 8
-// "Background" / "season"
-//    "width": 1920,
-//    "height": 1080,
-// "type": 10
-// "Icon" / "season"
-//    "width": 1024,
-//    "height": 1024,
-// "type": 11
-// "16:9 Screencap" / "episode"
-//    "width": 640,
-//    "height": 360,
-// "type": 12
-// " 4:3 Screencap" / "episode"
-//    "width": 640,
-//    "height": 480,
-// "type": 13
-// "Photo" / "actor"
-//    "width": 300,
-//    "height": 450,
-// "type": 22, -> clear art  (landscape format, picture + some text), with language
-// "ClearArt" / "series"
-//    "width": 1000,
-//    "height": 562,
-// "type": 23, -> clear logo (landscape format, only text), with language ->
-// "ClearLogo" / "series"
-//    "width": 800,
-//    "height": 310,
+      if (type == 1) {
+    // "Banner" / "series"
+    //    "width": 758,
+    //    "height": 140,
+        if (score <= bestBanner.score) continue;
+        bestBanner.score = score;
+        bestBanner.image = image;
+        continue;
+      }
+      if (type == 2) {
+    // "Poster" / "series" (not season specific)
+    //    "width": 680,
+    //    "height": 1000,
+        if (score <= bestPoster.score) continue;
+        bestPoster.score = score;
+        bestPoster.image = image;
+        continue;
+      }
+      if (type == 3) {
+    // "Background" / "series"  ("Fanart", not season specific)
+    //    "width": 1920,
+    //    "height": 1080,
+        bestBackgrounds.insert(sImageScore(score, image));
+        continue;
+      }
+      if (type == 5) {
+    // "Icon" / "series" (not season specific), Name of series, some symbols, poster format, mostly text
+    //    "width": 1024,
+    //    "height": 1024,
+        continue; // ignore
+      }
+      if (type == 6) {
+    // "Banner" / "season"(season specific, Clearart)
+    //    "width": 758,
+    //    "height": 140,
+    //    int seasonId = json_integer_value_validated(jArtwork, "seasonId");
+        continue; // ignore
+      }
+      if (type == 7) {
+    // "Poster" / "season"/ can be DVD Cover (season specific), name of series, name of season
+    // might also be clearart
+    // bei tatort: auch speziefisch für kommisare / länder
+    //    "width": 680,
+    //    "height": 1000,
+        int seasonId = json_integer_value_validated(jArtwork, "seasonId");
+        if (seasonId == 0) continue;
+        auto found = seasonIdNumber.find(seasonId);
+        if (found == seasonIdNumber.end() ) continue;
+        auto f = bestSeasonPoster.find(found->second); // found->second is the season number
+        if (f == bestSeasonPoster.end() ) bestSeasonPoster.insert({found->second, sImageScore(score, image)});
+        else {
+          if (score <= f->second.score) continue;
+          f->second.score = score;
+          f->second.image = image;
+        }
+        continue;
+      }
+    // "type": 8
+    // "Background" / "season"
+    //    "width": 1920,
+    //    "height": 1080,
+    // "type": 10
+    // "Icon" / "season"
+    //    "width": 1024,
+    //    "height": 1024,
+    // "type": 11
+    // "16:9 Screencap" / "episode"
+    //    "width": 640,
+    //    "height": 360,
+    // "type": 12
+    // " 4:3 Screencap" / "episode"
+    //    "width": 640,
+    //    "height": 480,
+    // "type": 13
+    // "Photo" / "actor"
+    //    "width": 300,
+    //    "height": 450,
+    // "type": 22, -> clear art  (landscape format, picture + some text), with language
+    // "ClearArt" / "series"
+    //    "width": 1000,
+    //    "height": 562,
+    // "type": 23, -> clear logo (landscape format, only text), with language ->
+    // "ClearLogo" / "series"
+    //    "width": 800,
+    //    "height": 310,
 
-  return false;
+    }
+  }
+  if (bestBanner.score >= 0) banner = bestBanner.image;
+  if ( !banner.empty() ) m_db->insertTvMedia (m_seriesID *-1, banner, mediaBanner);
+  if (bestPoster.score >= 0) poster = bestPoster.image;
+  if ( !poster.empty() ) m_db->insertTvMedia (m_seriesID *-1, poster, mediaPoster);
+// Backgrounds / Fanart
+  if (!bestBackgrounds.empty() ) fanart = bestBackgrounds.begin()->image;
+  else if (!fanart.empty() ) bestBackgrounds.insert(sImageScore(10, fanart));
+  int num = 1;
+  for (const sImageScore &imageScore: bestBackgrounds) {
+    if (config.enableDebug) esyslog("tvscraper: fanart number %i score %i image %s", num, imageScore.score, imageScore.image.c_str());
+    m_db->insertTvMedia (m_seriesID *-1, imageScore.image, mediaFanart);
+    if (++num > 3) break; // download up to 3 backgrounds
+  }
+// season poster
+  for (const auto &sPoster: bestSeasonPoster)
+    m_db->insertTvMediaSeasonPoster (m_seriesID *-1, sPoster.second.image, mediaSeason, sPoster.first);
+  return true;
 }
 
 bool cTVDBSeries::ParseJson_Character(json_t *jCharacter) {

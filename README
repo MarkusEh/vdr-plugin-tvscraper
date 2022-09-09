@@ -1,3 +1,5 @@
+# vdr-plugin-tvscraper
+
 This is a "plugin" for the Video Disk Recorder (VDR).
 
 Written by:                   Stefan Braun <louis.braun@gmx.de>
@@ -45,9 +47,9 @@ Requirements
 To run the plugin the following libaries have to be installed:
 - libsqlite3
 - libcurl
-- libXML2
 - libjansson
 - gcc must support -std=c++17  (for GCC v5, v6, v7: -std=c++1z instead of -std=c++17 might help. Also, a patch mmight help, see https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517)
+- vdr 1.3.1 or later
 
 If you use TVGuide: Version 1.3.6+ is required
 If you use SkinNopacity: Version 1.1.12+ is required
@@ -72,7 +74,8 @@ parameter
 
 is provided, the client needs only read access, and will not scrap.
 This feature is experimental, and might not work in all situations,
-e.g. for very old recordings with missing data in the info/info.vdr file
+e.g. for very old recordings with missing data in the info/info.vdr file.
+Make sure that the same version of tvscraper is running on client and server.
 
 As already mentioned, after first installations no channels are activated
 to be scrapped. Please configure these channels in the plugin setup menu. 

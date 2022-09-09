@@ -8,7 +8,6 @@ using namespace std;
 class cTVDBScraper {
     friend class cTVDBSeries;
 private:
-    string apiKey;
     string baseURL4;
     string baseURL4Search;
     string tokenHeader;
