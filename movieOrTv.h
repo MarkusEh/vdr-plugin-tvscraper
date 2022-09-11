@@ -10,9 +10,11 @@ enum class ecMovieOrTvType {
 };
 
 class cMovieOrTv {
-
+  friend class cMovieMoviedb;
+  friend class cTv;
 public:
   virtual ~cMovieOrTv() {};
+  virtual bool operator==(const cMovieOrTv &sec) const = 0;
   virtual int dbID() = 0;
   int getSeason() { return m_seasonNumber; }
   int getEpisode() { return m_episodeNumber; }
@@ -42,7 +44,10 @@ public:
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, int id, ecMovieOrTvType type);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const sMovieOrTv &movieOrTv);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, csEventOrRecording *sEventOrRecording, int *runtime=NULL);
+  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event);
+  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cRecording *recording);
   static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle);
+  static void CleanupTv_media(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, const cTVScraperDB *db);
 protected:
@@ -65,6 +70,7 @@ class cMovieMoviedb : public cMovieOrTv {
 public:
   cMovieMoviedb(const cTVScraperDB *db, int id): cMovieOrTv(db, id, -100, 0) {}
   virtual int dbID() { return m_id; }
+  virtual bool operator==(const cMovieOrTv &sec) const { return getType() == sec.getType() && m_id == sec.m_id; }
   virtual void DeleteMediaAndDb();
   static void DeleteAllIfUnused(const cTVScraperDB *db);
 // fill vdr service interface
@@ -88,6 +94,7 @@ class cTv : public cMovieOrTv {
 
 public:
   virtual int dbID() = 0;
+  virtual bool operator==(const cMovieOrTv &sec) const { return getType() == sec.getType() && m_id == sec.m_id && m_seasonNumber == sec.m_seasonNumber && m_episodeNumber == sec.m_episodeNumber; }
   virtual bool IsUsed();
   virtual void DeleteMediaAndDb() = 0;
   virtual string getEpisodeName() { return m_db->GetEpisodeName(dbID(), m_seasonNumber, m_episodeNumber);}

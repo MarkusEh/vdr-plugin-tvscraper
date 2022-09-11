@@ -193,6 +193,7 @@ bool cTVDBSeries::ParseJson_Artwork(json_t *jSeries) {
   if (!jSeries) return false;
   map<int,int> seasonIdNumber = ParseJson_Seasons(json_object_get(jSeries, "seasons") );
   json_t *jArtworks = json_object_get(jSeries, "artworks");
+  if (!json_is_array(jArtworks)) esyslog("tvscraper: no artworks found for series %i", m_seriesID);
   sImageScore bestBanner;
   sImageScore bestPoster;
 // first int in the map is the season number. Only one poster per season

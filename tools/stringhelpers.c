@@ -246,3 +246,67 @@ int stringToYear(const string &str) {
   if (str.length() > 4 && isdigit(str[4]) ) return 0;
   return atoi(str.c_str() );
 }
+
+#include <iostream>
+bool stringEqual(const char *s1, const char *s2) {
+// return true if texts are identical (or both texts are NULL)
+  if (s1 && s2) {
+    if (strcmp(s1, s2) == 0) return true;
+    else return false;
+  }
+  if (!s1 && !s2 ) return true;
+  if (!s1 && !*s2 ) return true;
+  if (!*s1 && !s2 ) return true;
+  return false;
+}
+
+class cXmlString {
+  public:
+    cXmlString(const cXmlString &xmlString, const char *tag) {
+      initialize(xmlString.m_start, xmlString.m_end, tag);
+    }
+    cXmlString(const char *start, const char *tag) {
+      if(!start) return;
+      const char *end;
+      for (end = start; *end; end++);
+      initialize(start, end, tag);
+    }
+    std::string getString() const {
+      if (!m_start || !m_end) return "";
+      return std::string(m_start, m_end - m_start);
+    }
+    int getInt() const {
+      if (!m_start) return 0;
+      return atoi(m_start);
+    }
+    bool isValid() const { return m_start != NULL;}
+    bool operator== (const cXmlString &sec) const {
+      if (!m_start || !sec.m_start) return false;
+      const char *s=sec.m_start;
+      for (const char *f=m_start; s<m_end; f++, s++) if (*f != *s) return false;
+      return true;
+    }
+  private:
+    void initialize(const char *start, const char *end, const char *tag) {
+      if(!start || !end || !tag) return;
+      size_t tag_len = strlen(tag);
+      m_start = startTag(start, end, tag, tag_len);
+  //    cout << "m_start: " << m_start << endl;
+      if (!m_start) return;
+      m_end = endTag(m_start, end, tag, tag_len);
+  //    cout << "m_end: " << m_end << endl;
+      if (!m_end) m_start = NULL;
+    }
+    const char *startTag(const char *start, const char *end, const char *tag, size_t tag_len) const {
+      for (; start < end - tag_len - 1; start++)
+        if (*start == '<' && strncmp(start + 1, tag, tag_len) == 0 && start[1 + tag_len] == '>') return start + 2 + tag_len;
+      return NULL;
+    }
+    const char *endTag(const char *start, const char *end, const char *tag, size_t tag_len) const {
+      for (; start < end - tag_len - 1; start++)
+        if (*start == '<' && start[1] == '/' && strncmp(start + 2, tag, tag_len) == 0 && start[2 + tag_len] == '>') return start;
+      return NULL;
+    }
+    const char *m_start = NULL;
+    const char *m_end = NULL;
+};

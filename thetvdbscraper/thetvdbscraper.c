@@ -79,7 +79,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   json_t *jSeries = CallRestJson(url);
   if (!jSeries) return 0;
   json_t *jSeriesData = json_object_get(jSeries, "data");
-  if (!jSeriesData) return 0;
+  if (!jSeriesData) { json_decref(jSeries); return 0;}
   series.ParseJson_Series(jSeriesData);
   string lang3 = GetLang3(jSeriesData, language);
 // episodes
@@ -106,7 +106,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   }
 // characters / actors
 // we also add characters to episodes. Therefore, we do this after parsing the episodes
-  json_t *jCharacters = json_object_get(jSeries, "characters");
+  json_t *jCharacters = json_object_get(jSeriesData, "characters");
   if (json_is_array(jCharacters)) {
     size_t index;
     json_t *jCharacter;
@@ -115,7 +115,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
     }
   }
 // we also add season images. Therefore, we do this after parsing the episodes
-  series.ParseJson_Artwork(jSeries);
+  series.ParseJson_Artwork(jSeriesData);
 // store series here, as here information (incl. episode runtimes, poster URL, ...) is complete
   series.StoreDB();
   db->TvSetEpisodesUpdated(seriesID * (-1) );

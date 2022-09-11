@@ -5,7 +5,7 @@ This is a "plugin" for the Video Disk Recorder (VDR).
 Written by:                   Stefan Braun <louis.braun@gmx.de>
 Re-written and maintained by: Markus Ehrnsperger (MarkusE @ vdr-portal.de)
 
-Latest version available at: 
+Latest version available at:
 https://github.com/MarkusEh/vdr-plugin-tvscraper
 
 Movie information provided by [TMDB](https://www.themoviedb.org/).
@@ -17,22 +17,22 @@ the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 See the file COPYING for more information.
 
-Description 
+Description
 -----------
 
-TVScraper runs in the background and collects metadata (posters, 
-banners, fanart, actor thumbs and roles, descriptions) for all 
-available EPG events on selectable channels and for recordings. 
-Additionally the plugin provides the collected metadata via the VDR 
+TVScraper runs in the background and collects metadata (posters,
+banners, fanart, actor thumbs and roles, descriptions) for all
+available EPG events on selectable channels and for recordings.
+Additionally the plugin provides the collected metadata via the VDR
 service interface to other plugins which deal with EPG information.
 
 TVScraper uses the thetvdb.com API for collecting series metadata and
 themoviedb.org API for movies. Check the websites of both services for
 the terms of use.
 
-Important: To avoid unnecessary traffic, only activate these channels 
-to be scrapped which are reasonable. After plugin installation all 
-channels are deactivated by default, so please consider this point when 
+Important: To avoid unnecessary traffic, only activate these channels
+to be scrapped which are reasonable. After plugin installation all
+channels are deactivated by default, so please consider this point when
 you activate the channels you are interested in ;)
 
 Additionally you are invited to contribute to the used web services with
@@ -49,7 +49,7 @@ To run the plugin the following libaries have to be installed:
 - libcurl
 - libjansson
 - gcc must support -std=c++17  (for GCC v5, v6, v7: -std=c++1z instead of -std=c++17 might help. Also, a patch mmight help, see https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517)
-- vdr 1.3.1 or later
+- vdr 2.4.0 or later
 
 If you use TVGuide: Version 1.3.6+ is required
 If you use SkinNopacity: Version 1.1.12+ is required
@@ -60,11 +60,11 @@ Installation and configuration
 Just install the plugin depending on your used distribution. During VDR
 startup the plugin base directory can be set with the following option:
 
--d <CACHEDIR>, --dir=<CACHEDIR> Set directory where database and images 
+-d <CACHEDIR>, --dir=<CACHEDIR> Set directory where database and images
                                 are stored
 
-If no directory is provided, the plugin uses VDRCACHEDIR as default. 
-Please care about that the user who runs VDR has full read/write access 
+If no directory is provided, the plugin uses VDRCACHEDIR as default.
+Please care about that the user who runs VDR has full read/write access
 to this directory, otherwise the plugin will not start.
 
 If a client can access this directory (because it is mounted), and the
@@ -78,9 +78,9 @@ e.g. for very old recordings with missing data in the info/info.vdr file.
 Make sure that the same version of tvscraper is running on client and server.
 
 As already mentioned, after first installations no channels are activated
-to be scrapped. Please configure these channels in the plugin setup menu. 
+to be scrapped. Please configure these channels in the plugin setup menu.
 (not required in --readOnlyClient mode).
-Additionally you can trigger that your already existing recordings are 
+Additionally you can trigger that your already existing recordings are
 scrapped, so that also for this recordings metadata is available.
 
 With a "make install" the file "override.conf" which provides the
@@ -88,10 +88,10 @@ possibility to define scraping behaviour manually (see description
 below) is created in <PLGCFGDIR>. An existing override.conf will
 not be overwritten.
 
-The plugins uses a sqlite3 database to store the necessary information. 
-If /dev/shm/ is available, the database is kept in memory during runtime 
-which improves performance. In the configured plugin basedir only a 
-persistant backup of the database is stored then. If /dev/shm/ is not 
+The plugins uses a sqlite3 database to store the necessary information.
+If /dev/shm/ is available, the database is kept in memory during runtime
+which improves performance. In the configured plugin basedir only a
+persistant backup of the database is stored then. If /dev/shm/ is not
 available, only the database file in the plugin base directory is used.
 
 Usage
@@ -100,44 +100,44 @@ Usage
 After the initial configuration the plugin runs completely independent in
 the background, you don't have to care about anything. The plugins checks
 at least every 24 hours for new EPG events and collects the metadata for
-these events automatically. 
+these events automatically.
 
 After each run the plugin performs a cleanup, all images for movies which
-are not available in the current EPG are deleted. Actors thumbs 
-are kept to avoid unnecessary traffic for the web services, because the 
-propability that this data is needed in the future again is rather high. 
+are not available in the current EPG are deleted. Actors thumbs
+are kept to avoid unnecessary traffic for the web services, because the
+propability that this data is needed in the future again is rather high.
 
-If a running recording is detected, the plugin marks the corresponding movie 
+If a running recording is detected, the plugin marks the corresponding movie
 meta data so that the information for this movie will be kept permanentely.
 
 Usage of override.conf: even if tvscraper tries to do everything correct on
 it's own, in some cases scraping delivers wrong results. Some EPG Events are
-not reasonable to scrap, because they reoccur constantly but deliver wrong 
-results everytime, or tvscraper searchs for a movie instead of a series 
-(for instance german "Heute"). In such cases it is possible to use 
+not reasonable to scrap, because they reoccur constantly but deliver wrong
+results everytime, or tvscraper searchs for a movie instead of a series
+(for instance german "Heute"). In such cases it is possible to use
 <PLGCFGDIR>/override.conf to adjust the scraping behaviour. Each line in
 this file has to start either with "ignore", "settype", "substitute" or
 "ignorePath":
 
 - Ignore specific EPG Events or recordings: just create a line in the format
   ignore;string
-  to ignore "string". 
-- Set scrap type for specific EPG Event or recording: 
+  to ignore "string".
+- Set scrap type for specific EPG Event or recording:
   settype;string;type
-  "string" defines the name of the event or recording to set the type manually, 
+  "string" defines the name of the event or recording to set the type manually,
   "type" can be either "series" or "movie"
 - Substitute Search String:
   substitute;string;substitution
   "string" is replaced by "substitution" in every search.
 - Ignore all recordings in a deditcatd directory:
   ignorePath;string
-  "string" can be any substring of a recording path, e.g. "music/" 
+  "string" can be any substring of a recording path, e.g. "music/"
 
 Service Interface
 -----------------
 
 Other Plugins can request information about meta data from tvscraper via
-a call to the provided service interface. 
+a call to the provided service interface.
 
 In general each call expects a pointer to a cEvent or cRecording
 object as input variable inside the struct passed to the call.
@@ -163,10 +163,10 @@ class cActor {
 The service interface offers the following calls:
 
 - GetPosterBanner
-  
+
   With this call, a poster for a movie or a banner for a series which belongs
-  to a specific event can be retreived. 
-  
+  to a specific event can be retreived.
+
 // Data structure for service "GetPosterBanner"
 class ScraperGetPosterBanner {
 public:

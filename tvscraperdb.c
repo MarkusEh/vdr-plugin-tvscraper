@@ -825,13 +825,13 @@ string cTVScraperDB::GetMovieTagline(int movieID) {
   return QueryString("select movie_tagline from movie_runtime2 where movie_id = ?", "i", movieID);
 }
 
-int cTVScraperDB::GetMovieRuntime(int movieID) {
+int cTVScraperDB::GetMovieRuntime(int movieID) const {
 // -1 : no runtime available in themoviedb
 //  0 : themoviedb never checked for runtime
     return QueryInt("select movie_runtime from movie_runtime2 where movie_id = ?", "i", movieID);
 }
 
-vector<vector<string> > cTVScraperDB::GetTvRuntimes(int tvID) {
+vector<vector<string> > cTVScraperDB::GetTvRuntimes(int tvID) const {
   return Query("select episode_run_time from tv_episode_run_time where tv_id = ?", "i", tvID);
 }
 
@@ -1070,6 +1070,26 @@ bool cTVScraperDB::GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movi
   else
     return QueryLine(sql.str().c_str(), "s", "iii",
       (const char *)channelIDs,          &movie_tv_id, &season_number, &episode_number);
+}
+
+bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number) const {
+  if (!recording || !recording->Info() || !recording->Info()->GetEvent()) return false;
+  csRecording sRecording(recording);
+  int eventID = sRecording.EventID();
+  time_t eventStartTime = sRecording.StartTime();
+  cString channelIDs = sRecording.ChannelIDs();
+  if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID (recording), !channelIDs");
+  const char *sql = "select movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?";
+  return QueryLine(sql, "its", "iii", eventID, eventStartTime, (const char *)channelIDs, &movie_tv_id, &season_number, &episode_number);
+}
+
+bool cTVScraperDB::GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number) const {
+  if (!event) return false;
+  int eventID = event->EventID();
+  cString channelIDs = event->ChannelID().ToString();
+  if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID (event), !channelIDs");
+  const char *sql = "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?";
+  return QueryLine(sql, "is", "iii", eventID, (const char *)channelIDs, &movie_tv_id, &season_number, &episode_number);
 }
 
 vector<vector<string> > cTVScraperDB::GetActorsMovie(int movieID) {

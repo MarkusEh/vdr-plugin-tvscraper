@@ -844,7 +844,26 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, csEventOrRecording 
   if(!db->GetMovieTvID(sEventOrRecording, movie_tv_id, season_number, episode_number, runtime)) return NULL;
 
   if(season_number == -100) return new cMovieMoviedb(db, movie_tv_id);
+  if ( movie_tv_id > 0) return new cTvMoviedb(db, movie_tv_id, season_number, episode_number);
+        else            return new cTvTvdb(db, -1*movie_tv_id, season_number, episode_number);
+}
 
+cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cEvent *event) {
+  if (!event) return NULL;
+  int movie_tv_id, season_number, episode_number;
+  if(!db->GetMovieTvID(event, movie_tv_id, season_number, episode_number)) return NULL;
+
+  if(season_number == -100) return new cMovieMoviedb(db, movie_tv_id);
+  if ( movie_tv_id > 0) return new cTvMoviedb(db, movie_tv_id, season_number, episode_number);
+        else            return new cTvTvdb(db, -1*movie_tv_id, season_number, episode_number);
+}
+
+cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *recording) {
+  if (!recording) return NULL;
+  int movie_tv_id, season_number, episode_number;
+  if(!db->GetMovieTvID(recording, movie_tv_id, season_number, episode_number)) return NULL;
+
+  if(season_number == -100) return new cMovieMoviedb(db, movie_tv_id);
   if ( movie_tv_id > 0) return new cTvMoviedb(db, movie_tv_id, season_number, episode_number);
         else            return new cTvTvdb(db, -1*movie_tv_id, season_number, episode_number);
 }
@@ -868,8 +887,24 @@ int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, con
 }
 
 // delete unused *****
+void cMovieOrTv::CleanupTv_media(const cTVScraperDB *db) {
+  const char *sql = "delete from tv_media where media_type != ?";
+  db->execSql(sql, "i", mediaSeason);
+  const char *sql2 = "select tv_id from tv_media";
+  int tv_id;
+  std::set<int> tv_ids;
+  for (sqlite3_stmt *statement = db->QueryPrepare(sql2, ""); db->QueryStep(statement, "i", &tv_id);)
+    tv_ids.insert(tv_id);
+  for (const int &tv_id2: tv_ids) {
+    if (db->CheckMovieOutdatedEvents(tv_id2, 0, 0)) continue;
+    if (db->CheckMovieOutdatedRecordings(tv_id2, 0, 0)) continue;
+    db->deleteTvMedia (tv_id2, false, false);
+  }
+}
+
 void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check all movies in db
+  CleanupTv_media(db);
   int movie_id;
   for (sqlite3_stmt *statement = db->GetAllMovies();
        db->QueryStep(statement, "i", &movie_id);) {

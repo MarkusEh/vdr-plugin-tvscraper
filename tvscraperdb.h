@@ -73,6 +73,8 @@ public:
     void ClearRecordings2(void);
     bool CheckStartScrapping(int minimumDistance);
     bool GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = NULL) const;
+    bool GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number) const;
+    bool GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number) const;
     int GetMovieCollectionID(int movieID) const;
     vector<vector<string> > GetActorsMovie(int movieID);
     vector<vector<string> > GetActorsSeries(int seriesID);
@@ -84,8 +86,8 @@ public:
     string GetDescriptionMovie(int movieID);
     bool GetMovie(int movieID, string &title, string &original_title, string &tagline, string &overview, bool &adult, int &collection_id, string &collection_name, int &budget, int &revenue, string &genres, string &homepage, string &release_date, int &runtime, float &popularity, float &vote_average);
     string GetMovieTagline(int movieID);
-    int GetMovieRuntime(int movieID);
-    vector<vector<string> > GetTvRuntimes(int tvID);
+    int GetMovieRuntime(int movieID) const;
+    vector<vector<string> > GetTvRuntimes(int tvID) const;
     bool GetTv(int tvID, string &name, string &overview, string &firstAired, string &networks, string &genres, float &popularity, float &vote_average, string &status);
     bool GetTv(int tvID, time_t &lastUpdated, string &status);
 //    bool GetTvVote(int tvID, float &vote_average, int &vote_count);

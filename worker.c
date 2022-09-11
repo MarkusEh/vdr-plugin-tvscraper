@@ -260,7 +260,7 @@ bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
   for (const cTimer *timer = Timers->First(); timer; timer = Timers->Next(timer)) if (timer->Local() ) {
 #endif
     if (timer->Recording()) return true;
-    if (difftime(timer->StartTime(), time(0) )*60 < nextMinutes) return true;
+    if (timer->HasFlags(tfActive) && (difftime(timer->StartTime(), time(0) )*60 < nextMinutes)) return true;
   }
   return false;
 }
