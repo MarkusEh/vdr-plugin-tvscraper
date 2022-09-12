@@ -159,11 +159,28 @@ json_t *cTVDBScraper::CallRestJson(const std::string &url) {
 
 // methods to download / store media
 
-void Download4(const std::string &url, const std::string &localPath) {
-// sometimes the URL starts with https://artworks.thetvdb.com, sometimes not ...
-  if (url.find("https://artworks.thetvdb.com") == string::npos)
-    Download(string("https://artworks.thetvdb.com") + url, localPath);
-  else Download(url, localPath);
+const char *cTVDBScraper::prefixImageURL1 = "https://artworks.thetvdb.com/banners/";
+const char *cTVDBScraper::prefixImageURL2 = "https://artworks.thetvdb.com";
+
+const char *cTVDBScraper::getDbUrl(const char *url) {
+  if (!url || !*url) return url;
+  const char *s = removePrefix(url, cTVDBScraper::prefixImageURL1);
+  if (s) return s;
+  s = removePrefix(url, "/banners/");
+  if (s) return s;
+  return url;
+}
+
+std::string cTVDBScraper::getFullDownloadUrl(const char *url) {
+// return std::string("https://thetvdb.com/banners/") + imageUrl;
+  if (!url || !*url) return "";
+  if (strncmp(url, cTVDBScraper::prefixImageURL2, strlen(cTVDBScraper::prefixImageURL2) ) == 0) return url;
+  if (url[0] == '/') return string(cTVDBScraper::prefixImageURL2) + url;
+  return string(cTVDBScraper::prefixImageURL1) + url;  // for URLs returned by APIv3
+}
+
+void cTVDBScraper::Download4(const char *url, const std::string &localPath) {
+  Download(cTVDBScraper::getFullDownloadUrl(url), localPath);
 }
 
 void cTVDBScraper::StoreActors(int seriesID) {
@@ -175,7 +192,7 @@ void cTVDBScraper::StoreActors(int seriesID) {
   for (const vector<string> &actor: db->GetActorDownload(seriesID * -1, false) ) {
     if (config.enableDebug && seriesID == 232731) esyslog("tvscraper: cTVDBScraper::StoreActors, seriesID %i destDir %s, actor[0] %s actor[1] %s", seriesID, destDir.str().c_str(), actor[0].c_str(), actor[1].c_str() );
     if (actor.size() < 2 || actor[1].empty() ) continue;
-    Download4(actor[1], destDir.str() + actor[0] + ".jpg");
+    Download4(actor[1].c_str(), destDir.str() + actor[0] + ".jpg");
   }
   db->DeleteActorDownload (seriesID * -1, false);
 }
@@ -190,7 +207,7 @@ void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber,
     if (!ok) return;
     destDir << "still_" << episodeNumber << ".jpg";
     string pathStill = destDir.str();
-    Download4(episodeFilename, pathStill);
+    Download4(episodeFilename.c_str(), pathStill);
 }
 vector<vector<string>> cTVDBScraper::GetTvRuntimes(int seriesID) {
   vector<vector<string>> runtimes = db->GetTvRuntimes(seriesID * -1);
@@ -237,14 +254,14 @@ void cTVDBScraper::DownloadMedia (int tvID, eMediaType mediaType, const string &
   for (const vector<string> &media: db->GetTvMedia(tvID * -1, mediaType) ) if (media.size() == 2) {
 //    if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::DownloadMedia, media[0] %s media[1] %s", media[0].c_str(), media[1].c_str() );
     if (media[0].empty() ) continue;
-    Download4(media[0], destDir + media[1] + ".jpg");
+    Download4(media[0].c_str(), destDir + media[1] + ".jpg");
   }
 }
 
 void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
   for (const vector<string> &media: db->GetTvMedia(tvID * -1, mediaBanner) ) if (media.size() == 2) {
     if (media[0].empty() ) continue;
-    Download4(media[0], destPath);
+    Download4(media[0].c_str(), destPath);
     return;
   }
 }

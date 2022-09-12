@@ -92,8 +92,8 @@ vector<vector<string> > cTVScraperDB::Query(const char *query, const char *bind,
       results.push_back(values);
     }
     printSqlite3Errmsg(query);
+    sqlite3_finalize(statement);
   }
-  sqlite3_finalize(statement);
   va_end(vl);
   return results;
 }

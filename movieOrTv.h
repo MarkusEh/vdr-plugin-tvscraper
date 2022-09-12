@@ -149,7 +149,7 @@ public:
   virtual vector<cTvMedia> getImages(eOrientation orientation);
   virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
-  virtual std::string imageUrl(const char *imageUrl);
+  virtual std::string imageUrl(const char *imageUrl) { return cTVDBScraper::getFullDownloadUrl(imageUrl); }
   virtual bool getSingleImageEpisode(  eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImageSeason(   eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImageTvShow(   eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);

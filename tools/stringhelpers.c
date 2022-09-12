@@ -8,7 +8,7 @@ using namespace std;
 std::string charPointerToString(const unsigned char *s) {
   return s?(const char *)s:"";
 }
-string charPointerToString(const char *s) {
+std::string charPointerToString(const char *s) {
   return s?s:"";
 }
 
@@ -310,3 +310,12 @@ class cXmlString {
     const char *m_start = NULL;
     const char *m_end = NULL;
 };
+
+const char* removePrefix(const char *s, const char *prefix) {
+// if s starts with prefix, return s + strlen(prefix)  (string with prefix removed)
+// otherwise, rturn NULL
+  if (!s || !prefix) return NULL;
+  size_t len = strlen(prefix);
+  if (strncmp(s, prefix, len) != 0) return NULL;
+  return s+len;
+}

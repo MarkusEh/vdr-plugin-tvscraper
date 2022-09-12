@@ -158,7 +158,8 @@ bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode) {
   string episodeFirstAired = json_string_value_validated(jEpisode, "aired");
   string episodeFilename = json_string_value_validated(jEpisode, "image");
   int episodeRunTime = json_integer_value_validated(jEpisode, "runtime");
-  episodeRunTimes.insert(episodeRunTime);
+  if (episodeRunTime != 0) episodeRunTimes.insert(episodeRunTime);
+  else episodeRunTime = -1; // -1: no data available in external db; 0: data in external db not requested
 
   int episodeAbsoluteNumber = 0; // not available
   string episodeGuestStars("");  // part of series, add later
@@ -170,8 +171,10 @@ bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode) {
   m_db->InsertTv_s_e(m_seriesID * (-1), seasonNumber, episodeNumber, episodeAbsoluteNumber, episodeID, episodeName, episodeFirstAired, episodeRating, episodeVoteCount, episodeOverview, episodeGuestStars, episodeDirector, episodeWriter, episodeIMDB_ID, episodeFilename, episodeRunTime);
   return true;
 }
+
 void cTVDBSeries::StoreDB() {
-  m_db->InsertTv(m_seriesID * (-1), name, originalName, overview, firstAired, networks, genres, popularity, rating, ratingCount, poster, fanart, IMDB_ID, status, episodeRunTimes, "");
+  if (episodeRunTimes.empty() ) episodeRunTimes.insert(-1); // empty episodeRunTimes results in re-reading it from external db. And there is no data on external db ...
+  m_db->InsertTv(m_seriesID * (-1), name, originalName, overview, firstAired, networks, genres, popularity, rating, ratingCount, cTVDBScraper::getDbUrl(poster.c_str()), cTVDBScraper::getDbUrl(fanart.c_str()), IMDB_ID, status, episodeRunTimes, "");
 }
 
 struct sImageScore {
@@ -300,21 +303,21 @@ bool cTVDBSeries::ParseJson_Artwork(json_t *jSeries) {
     }
   }
   if (bestBanner.score >= 0) banner = bestBanner.image;
-  if ( !banner.empty() ) m_db->insertTvMedia (m_seriesID *-1, banner, mediaBanner);
+  if ( !banner.empty() ) m_db->insertTvMedia (m_seriesID *-1, cTVDBScraper::getDbUrl(banner.c_str() ), mediaBanner);
   if (bestPoster.score >= 0) poster = bestPoster.image;
-  if ( !poster.empty() ) m_db->insertTvMedia (m_seriesID *-1, poster, mediaPoster);
+  if ( !poster.empty() ) m_db->insertTvMedia (m_seriesID *-1, cTVDBScraper::getDbUrl(poster.c_str() ), mediaPoster);
 // Backgrounds / Fanart
   if (!bestBackgrounds.empty() ) fanart = bestBackgrounds.begin()->image;
   else if (!fanart.empty() ) bestBackgrounds.insert(sImageScore(10, fanart));
   int num = 1;
   for (const sImageScore &imageScore: bestBackgrounds) {
-    if (config.enableDebug) esyslog("tvscraper: fanart number %i score %i image %s", num, imageScore.score, imageScore.image.c_str());
-    m_db->insertTvMedia (m_seriesID *-1, imageScore.image, mediaFanart);
+//  if (config.enableDebug) esyslog("tvscraper: fanart number %i score %i image %s", num, imageScore.score, imageScore.image.c_str());
+    m_db->insertTvMedia (m_seriesID *-1, cTVDBScraper::getDbUrl(imageScore.image.c_str() ), mediaFanart);
     if (++num > 3) break; // download up to 3 backgrounds
   }
 // season poster
   for (const auto &sPoster: bestSeasonPoster)
-    m_db->insertTvMediaSeasonPoster (m_seriesID *-1, sPoster.second.image, mediaSeason, sPoster.first);
+    m_db->insertTvMediaSeasonPoster (m_seriesID *-1, cTVDBScraper::getDbUrl(sPoster.second.image.c_str() ), mediaSeason, sPoster.first);
   return true;
 }
 

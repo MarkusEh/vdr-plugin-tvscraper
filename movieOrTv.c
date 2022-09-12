@@ -62,13 +62,6 @@ void cMovieOrTv::clearScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   scraperMovieOrTv->episode.IMDB_ID = "";
 }
 
-std::string cTvTvdb::imageUrl(const char *imageUrl) {
-// return std::string("https://thetvdb.com/banners/") + imageUrl;
-  if (strncmp(imageUrl, "https://artworks.thetvdb.com", 20) != 0)
-    return string("https://artworks.thetvdb.com") + imageUrl;
-  else return imageUrl;
-}
-
 void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id, const char *pathPart, int width, int height) {
 // adds the acors found with sql&id to the list of actors
 // works for all actors found in themoviedb (movie & tv actors). Not for actors in thetvdb

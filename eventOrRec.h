@@ -19,10 +19,10 @@ public:
   int DurationDistance(int DurationInMin);
   virtual string EpisodeSearchString() const;
   virtual const char *Title() const { return m_event->Title(); }
+  virtual const char *ShortText() const { return m_event->ShortText(); }
   virtual const char *Description() const { return m_event->Description(); }
 protected:
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
-  virtual const char *ShortText() const { return m_event->ShortText(); }
   virtual int DurationWithoutMarginSec(void) const { return m_event->Duration(); }
   virtual int DurationLowSec(void) const { return m_event->Vps()?DurationWithoutMarginSec():RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: for recording only if not cut, and no valid marks
   virtual int DurationHighSec(void) const { return m_event->Duration(); } // note: for recording only if not cut, and no valid marks

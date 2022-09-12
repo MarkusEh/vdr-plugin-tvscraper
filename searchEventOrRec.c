@@ -14,7 +14,8 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
       esyslog("tvscraper: ERROR in cSearchEventOrRec: recording->Info() == NULL, Name = %s", m_sEventOrRecording->Recording()->Name() );
       return;
     }
-    initBaseNameOrTitile();
+    initBaseNameOrTitle();
+    initBaseNameOrTitle3dots();
     initSearchString();
     m_sEventOrRecording->AddYears(m_years);
     ::AddYears(m_years, m_baseNameOrTitle.c_str() );
@@ -27,7 +28,27 @@ bool cSearchEventOrRec::isTitlePartOfPathName(size_t baseNameLen) {
   return size_t(title_pos - m_sEventOrRecording->Recording()->Name() ) < strlen(m_sEventOrRecording->Recording()->Name()) - baseNameLen;
 }
 
-void cSearchEventOrRec::initBaseNameOrTitile(void) {
+void cSearchEventOrRec::initBaseNameOrTitle3dots(void) {
+  size_t len = m_baseNameOrTitle.length();
+  if (len < 3) return;
+  if (m_baseNameOrTitle.compare(len - 3, 3, "...") != 0) return;
+// "title" ends with ...
+  const char *shortText = m_sEventOrRecording->ShortText();
+  if (!shortText || ! *shortText) shortText = m_sEventOrRecording->Description();
+  if (!shortText || ! *shortText) return; // no short text, no description -> cannot continue ...
+  for (int i = 0; i < 3 ; i++) if (shortText[i] != '.') return;
+  shortText += 3;
+// pattern match found. Now check how much of the short text we add
+  const char *end = strpbrk (shortText, ".,;!?(");
+  size_t num_added = 0;
+  if (end) num_added = end - shortText;
+  else num_added = strlen(shortText);
+  m_baseNameOrTitle.resize(len - 3);
+  m_baseNameOrTitle.append(" ");
+  m_baseNameOrTitle.append(shortText, num_added);
+}
+
+void cSearchEventOrRec::initBaseNameOrTitle(void) {
 // initialize m_baseNameOrTitle
   const cRecording *recording = m_sEventOrRecording->Recording();
   if (!recording) {
@@ -45,9 +66,9 @@ void cSearchEventOrRec::initBaseNameOrTitile(void) {
 
 // set m_baseNameOrTitle (the db search string) to the recording file name, as default
   cString baseName = recording->BaseName();
-  if ((const char *)baseName == NULL) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitile: baseName == NULL");
+  if ((const char *)baseName == NULL) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitle: baseName == NULL");
   size_t baseNameLen = strlen(baseName);
-  if (baseNameLen == 0) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitile: baseNameLen == 0");
+  if (baseNameLen == 0) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitle: baseNameLen == 0");
   if (baseName[0] == '%') m_baseNameOrTitle = ( (const char *)baseName ) + 1;
                      else m_baseNameOrTitle = ( (const char *)baseName );
 // check: do we have something better? Note: for TV shows, the recording file name is often the name of the episode, and the title must be used as db search string
