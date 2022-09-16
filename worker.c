@@ -43,8 +43,8 @@ void cTVScraperWorker::SetLanguage(void) {
 
 void cTVScraperWorker::Stop(void) {
     waitCondition.Broadcast();    // wakeup the thread
-    Cancel(5);                    // wait up to 5 seconds for thread was stopping
-    db->BackupToDisc();
+    Cancel(210);                    // wait up to 210 seconds for thread was stopping
+//    db->BackupToDisc();
 }
 
 void cTVScraperWorker::InitVideoDirScan(void) {
@@ -108,7 +108,7 @@ bool cTVScraperWorker::ConnectScrapers(void) {
   return true;
 }
 
-vector<tEventID> GetEventIDs(std::string &channelName, const tChannelID &channelid, const std::string &channelID) {
+vector<tEventID> GetEventIDs(std::string &channelName, const tChannelID &channelid, int &msg_cnt) {
 // Return a list of event IDs (in vector<tEventID> eventIDs)
 vector<tEventID> eventIDs;
 #if APIVERSNUM < 20301
@@ -118,7 +118,9 @@ vector<tEventID> eventIDs;
   const cChannel *channel = Channels->GetByChannelID(channelid);
 #endif
   if (!channel) {
-    dsyslog("tvscraper: Channel %s is not availible, skipping. Most likely this channel does not exist. To get rid of this message, goto tvscraper settings and edit the channel list.", channelID.c_str());
+    msg_cnt++;
+    if (msg_cnt < 5) dsyslog("tvscraper: Channel %s is not availible, skipping. Most likely this channel does not exist. To get rid of this message, goto tvscraper settings and edit the channel list.", (const char *)channelid.ToString());
+    if (msg_cnt == 5) dsyslog("tvscraper: Skipping further messages: Channel %s is not availible, skipping. Most likely this channel does not exist. To get rid of this message, goto tvscraper settings and edit the channel list.", (const char *)channelid.ToString());
     return eventIDs;
   }
   channelName = channel->Name();
@@ -133,7 +135,7 @@ vector<tEventID> eventIDs;
   if (Schedule) {
     for (const cEvent *event = Schedule->Events()->First(); event; event = Schedule->Events()->Next(event))
       if (event->EndTime() >= time(0) ) eventIDs.push_back(event->EventID());
-  } else dsyslog("tvscraper: Schedule for channel %s %s is not availible, skipping", channel->Name(), channelID.c_str());
+  } else dsyslog("tvscraper: Schedule for channel %s %s is not availible, skipping", channel->Name(), (const char *)channelid.ToString() );
   return eventIDs;
 }
 
@@ -151,18 +153,24 @@ bool cTVScraperWorker::ScrapEPG(void) {
   schedulesStateKey.Remove();
 #endif
 // loop over all channels configured for scraping, and create map to enable check for new events
-  map<string, set<int>*> currentEvents;
-  for (const string &channelID: config.GetChannels() ) {
-    map<string, set<int>*>::iterator currentEventsCurrentChannelIT = currentEvents.find(channelID);
+  map<tChannelID, set<int>*> currentEvents;
+  set<tChannelID> channels;
+  int msg_cnt = 0;
+  int i_channel_num = 0;
+  for (const tChannelID &channelID: config.GetScrapeChannels() ) {  // GetScrapeChannels creates a copy, thread save
+    if (i_channel_num++ > 1000) {
+      esyslog("tvscraper: ERROR: don't scrape more than 1000 channels");
+      break;
+    }
+    map<tChannelID, set<int>*>::iterator currentEventsCurrentChannelIT = currentEvents.find(channelID);
     if (currentEventsCurrentChannelIT == currentEvents.end() ) {
-      currentEvents.insert(pair<string, set<int>*>(channelID, new set<int>));
+      currentEvents.insert(pair<tChannelID, set<int>*>(channelID, new set<int>));
       currentEventsCurrentChannelIT = currentEvents.find(channelID);
     }
-    map<string, set<int>*>::iterator lastEventsCurrentChannelIT = lastEvents.find(channelID);
-    const tChannelID vdr_channelID = tChannelID::FromString(channelID.c_str());
+    map<tChannelID, set<int>*>::iterator lastEventsCurrentChannelIT = lastEvents.find(channelID);
     bool newEventSchedule = false;
     std::string channelName;
-    vector<tEventID> eventIDs = GetEventIDs(channelName, vdr_channelID, channelID);
+    vector<tEventID> eventIDs = GetEventIDs(channelName, channelID, msg_cnt);
     for (const tEventID &eventID: eventIDs) {
       if (!Running()) {
         for (auto &event: currentEvents) delete event.second;
@@ -179,11 +187,11 @@ bool cTVScraperWorker::ScrapEPG(void) {
 #if VDRVERSNUM >= 20301
           LOCK_SCHEDULES_READ;
 #endif
-          const cEvent *event = getEvent(eventID, vdr_channelID);
+          const cEvent *event = getEvent(eventID, channelID);
           if (!event) continue;
           newEvent = true;
           if (!newEventSchedule) {
-            dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), channelID.c_str());
+            dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), (const char *)channelID.ToString());
             newEventSchedule = true;
           }
           csEventOrRecording sEvent(event);
@@ -364,8 +372,8 @@ void cTVScraperWorker::Action(void) {
         ScrapRecordings();
         dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
         TouchFile(config.GetRecordingsUpdateFileName().c_str());
+        db->BackupToDisc();
       }
-      db->BackupToDisc();
       dsyslog("tvscraper: scanning video dir done");
       continue;
     }
@@ -380,7 +388,7 @@ void cTVScraperWorker::Action(void) {
         if (newEvents) db->BackupToDisc();
       }
       dsyslog("tvscraper: epg scraping done");
-      if (config.enableAutoTimers) timersForEvents(*db);
+      if (config.getEnableAutoTimers() ) timersForEvents(*db);
     }
     waitCondition.TimedWait(mutex, loopSleep);
   }

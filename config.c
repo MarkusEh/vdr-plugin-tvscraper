@@ -2,12 +2,10 @@
 #include <fstream>
 #include "config.h"
 
-
 using namespace std;
-
 // getDefaultHD_Channels  ********************************
-std::set<std::string> getDefaultHD_Channels() {
-  std::set<std::string> channelsHD;
+std::set<tChannelID> getDefaultHD_Channels() {
+  std::set<tChannelID> channelsHD;
 #if VDRVERSNUM >= 20301
   LOCK_CHANNELS_READ;
   for ( cChannel *listChannel = (cChannel *)Channels->First(); listChannel; listChannel = (cChannel *)Channels->Next( listChannel ) )
@@ -21,14 +19,14 @@ std::set<std::string> getDefaultHD_Channels() {
     int len = strlen(listChannel->Name());
     if (len < 2) continue;
     if (strcmp (listChannel->Name() + (len - 2), "HD") != 0) continue;
-    channelsHD.insert(*listChannel->GetChannelID().ToString());
+    channelsHD.insert(listChannel->GetChannelID());
   }
   return channelsHD;
 }
 
 // getDefaultChannels  ********************************
-std::set<std::string> getDefaultChannels() {
-  std::set<std::string> channels;
+std::set<tChannelID> getDefaultChannels() {
+  std::set<tChannelID> channels;
   int i = 0;
 #if VDRVERSNUM >= 20301
   LOCK_CHANNELS_READ;
@@ -41,7 +39,7 @@ std::set<std::string> getDefaultChannels() {
   {
     if ( listChannel->GroupSep() || listChannel->Name() == NULL ) continue;
     if (strlen(listChannel->Name())  < 2) continue;
-    channels.insert(*listChannel->GetChannelID().ToString());
+    channels.insert(listChannel->GetChannelID());
     if (i++ > 30) break;
   }
   return channels;
@@ -49,7 +47,7 @@ std::set<std::string> getDefaultChannels() {
 
 cTVScraperConfig::cTVScraperConfig() {
     enableDebug = 0;
-    enableAutoTimers = 0;
+    m_enableAutoTimers = 0;
 }
 
 cTVScraperConfig::~cTVScraperConfig() {
@@ -72,19 +70,10 @@ void cTVScraperConfig::SetBaseDir(const string &dir) {
   }
 }
 
-void cTVScraperConfig::ClearChannels(bool hd) {
-    if (hd) hd_channels.clear();
-    else channels.clear();
-}
-
-void cTVScraperConfig::AddChannel(const string &channelID, bool hd) {
-    if (hd) hd_channels.insert(channelID);
-    else channels.insert(channelID);   
-}
-
 void cTVScraperConfig::Initialize() {
-  if (hd_channels.empty() ) hd_channels = getDefaultHD_Channels();
-  if (   channels.empty() )    channels = getDefaultChannels();
+// we don't lock here. This is called during plugin initialize, and there are no other threads at this point in time
+  if (m_hd_channels.empty() ) m_hd_channels = getDefaultHD_Channels();
+  if (   m_channels.empty() )    m_channels = getDefaultChannels();
 }
 void cTVScraperConfig::SetAutoTimersPath(const string &option) {
   m_autoTimersPathSet = true;
@@ -96,32 +85,64 @@ void cTVScraperConfig::SetAutoTimersPath(const string &option) {
 }
 
 bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
+    cTVScraperConfigLock lw(true);
     if (strcmp(Name, "ScrapChannels") == 0) {
-        channels = stringToSet(Value, ';');
+        m_channels = getSetFromString<tChannelID>(Value);
         return true;
     } else if (strcmp(Name, "HDChannels") == 0) {
-        hd_channels = stringToSet(Value, ';');
+        m_hd_channels = getSetFromString<tChannelID>(Value);
         return true;
     } else if (strcmp(Name, "ExcludedRecordingFolders") == 0) {
-        m_excludedRecordingFolders = stringToSet(Value, '/');
+        m_excludedRecordingFolders = getSetFromString<std::string>(Value, '/');
         return true;
     } else if (strcmp(Name, "TV_Shows") == 0) {
-        m_TV_Shows = stringToIntSet(Value, ';');
+        m_TV_Shows = getSetFromString<int>(Value);
         return true;
     } else if (strcmp(Name, "enableDebug") == 0) {
         enableDebug = atoi(Value);
         return true;
     } else if (strcmp(Name, "enableAutoTimers") == 0) {
-        enableAutoTimers = atoi(Value);
+        m_enableAutoTimers = atoi(Value);
+        return true;
+    } else if (strcmp(Name, "defaultLanguage") == 0) {
+        m_defaultLanguage = atoi(Value);
+        return true;
+    } else if (strcmp(Name, "additionalLanguages") == 0) {
+        m_AdditionalLanguages = getSetFromString<int>(Value);
         return true;
     }
     return false;
 }
 
-void cTVScraperConfig::PrintChannels(void) {
-    int numChannels = channels.size();
-    esyslog("tvscraper: %d channel to be scrapped", numChannels);
-    for (const std::string &chan: channels) {
-        esyslog("tvscraper: channel to be scrapped: %s", chan.c_str());
-    }
+void cTVScraperConfig::setDefaultLanguage() {
+  cTVScraperConfigLock lw(true);
+  m_defaultLanguage = 5; // en-GB, in case we find nothing ...
+  string loc = setlocale(LC_NAME, NULL);
+  size_t index = loc.find_first_of("_");
+  if (index != 2) {
+    esyslog("tvscraper: ERROR cTVScraperConfig::setDefaultLanguage, language %s, index = %li, use en-GB as default language", loc.c_str(), index);
+    return;
+  }
+  int li = 0;
+  int lc = 0;
+  for (const cLanguage &lang: m_languages) {
+    if (strncmp(lang.m_themoviedb, loc.c_str(), 2) != 0) continue;
+    li = lang.m_id;
+    if (strncmp(lang.m_themoviedb+3, loc.c_str()+3, 2) == 0) lc = lang.m_id;
+  }
+  if (li == 0) {
+    esyslog("tvscraper: ERROR cTVScraperConfig::setDefaultLanguage, language %s not found, use en-GB as default language", loc.c_str() );
+    return;
+  }
+  if (lc != 0) m_defaultLanguage = lc;
+  else m_defaultLanguage = li;
+  esyslog("tvscraper: set default language to %s", m_languages.find(m_defaultLanguage)->getNames().c_str() );
+}
+
+// implement class cTVScraperConfigLock *************************
+cTVScraperConfigLock::cTVScraperConfigLock(bool Write) {
+  config.stateLock.Lock(m_stateKey, Write);
+}
+cTVScraperConfigLock::~cTVScraperConfigLock() {
+  m_stateKey.Remove();
 }

@@ -25,7 +25,7 @@ private:
 #if APIVERSNUM >= 20301
     cStateKey schedulesStateKey;
 #endif
-    map<string, set<int>*> lastEvents;
+    map<tChannelID, set<int>*> lastEvents;
 
     bool ConnectScrapers(void);
     void DisconnectScrapers(void);

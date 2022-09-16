@@ -39,7 +39,7 @@ void cSearchEventOrRec::initBaseNameOrTitle3dots(void) {
   for (int i = 0; i < 3 ; i++) if (shortText[i] != '.') return;
   shortText += 3;
 // pattern match found. Now check how much of the short text we add
-  const char *end = strpbrk (shortText, ".,;!?(");
+  const char *end = strpbrk (shortText, ".,;!?:(");
   size_t num_added = 0;
   if (end) num_added = end - shortText;
   else num_added = strlen(shortText);

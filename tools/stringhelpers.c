@@ -3,8 +3,10 @@
 #include <vector>
 #include <algorithm>
 #include <set>
+#include <iostream>
 
 using namespace std;
+// methods for char *s, make sure that s==NULL is just an empty string ========
 std::string charPointerToString(const unsigned char *s) {
   return s?(const char *)s:"";
 }
@@ -12,30 +14,18 @@ std::string charPointerToString(const char *s) {
   return s?s:"";
 }
 
-//replace all "search" with "replace" in "subject"
-string str_replace(const string& search, const string& replace, const string& subject) {
-    string str = subject;
-    size_t pos = 0;
-    while((pos = str.find(search, pos)) != string::npos) {
-        str.replace(pos, search.length(), replace);
-        pos += replace.length();
-    }
-    return str;
+bool stringEqual(const char *s1, const char *s2) {
+// return true if texts are identical (or both texts are NULL)
+  if (s1 && s2) {
+    if (strcmp(s1, s2) == 0) return true;
+    else return false;
+  }
+  if (!s1 && !s2 ) return true;
+  if (!s1 && !*s2 ) return true;
+  if (!*s1 && !s2 ) return true;
+  return false;
 }
-//cut string after first "search"
-string str_cut(const string& search, const string& subject) {
-    string str = subject;
-    string strCutted = "";
-    size_t found = str.find_first_of(search);
-    if (found != string::npos) {
-        strCutted = str.substr(0, found);
-        size_t foundSpace = strCutted.find_last_of(" ");
-        if ((foundSpace != string::npos) && (foundSpace == (strCutted.size()-1))) {
-            strCutted = strCutted.substr(0, strCutted.size()-1);
-        }
-    }
-    return strCutted;
-}
+
 
 void StringRemoveTrailingWhitespace(string &str) {
   std::string whitespaces (" \t\f\v\n\r");
@@ -57,7 +47,7 @@ int StringRemoveTrailingWhitespace(const char *str, int len) {
 
 const char *strnstr(const char *haystack, const char *needle, size_t len) {
 // if len >  0: use only len characters of needle
-// if len == 0: use strlen(needle) characters of needle
+// if len == 0: use all (strlen(needle)) characters of needle
 
   if (len == 0) return strstr(haystack, needle);
   for (;(haystack = strchr(haystack, needle[0])); haystack++)
@@ -158,6 +148,7 @@ string SecondPart(const string &str, const std::string &delim) {
   return str.substr(ssnd);
 }
 
+// methods for years =============================================================
 const char *firstDigit(const char *found) {
   for (; ; found++) if (isdigit(*found) || ! *found) return found;
 }
@@ -183,6 +174,16 @@ void AddYears(vector<int> &years, const char *str) {
   }
 }
 
+int stringToYear(const string &str) {
+  if (str.length() < 4) return 0;
+  int i;
+  for (i = 0; i < 4 && isdigit(str[i]); i++);
+  if (i != 4) return 0;
+  if (str.length() > 4 && isdigit(str[4]) ) return 0;
+  return atoi(str.c_str() );
+}
+
+// convert containers to strings, and strings to containers ==================
 void push_back_new(std::vector<std::string> &vec, const std::string str) {
 // add str to vec, but only if str is not yet in vec and if str is not empty
   if (str.empty() ) return;
@@ -202,34 +203,6 @@ void stringToVector(std::vector<std::string> &vec, const char *str) {
   }
 }
 
-std::set<std::string> stringToSet(const char *str, char delim) {
-// split str at delim, and add each part to result
-// will add empty string for 2 delims, but not for delim at end
-  std::set<std::string> result;
-  if (!str || !*str) return result;
-  const char *lStartPos = str;
-  for (const char *rDelimPos = strchr(lStartPos, delim); rDelimPos != NULL; rDelimPos = strchr(lStartPos, delim) ) {
-    result.insert(string(lStartPos, rDelimPos - lStartPos));
-    lStartPos = rDelimPos + 1;
-  }
-  const char *rDelimPos = strchr(lStartPos, 0);
-  if (rDelimPos != lStartPos) result.insert(string(lStartPos, rDelimPos - lStartPos));
-  return result;
-}
-std::set<int> stringToIntSet(const char *str, char delim) {
-// split str at delim, and add each part to result
-  std::set<int> result;
-  if (!str || !*str) return result;
-  const char *lStartPos = str;
-  for (const char *rDelimPos = strchr(lStartPos, delim); rDelimPos != NULL; rDelimPos = strchr(lStartPos, delim) ) {
-    if (rDelimPos != lStartPos) result.insert(atoi(lStartPos));
-    lStartPos = rDelimPos + 1;
-  }
-  const char *rDelimPos = strchr(lStartPos, 0);
-  if (rDelimPos != lStartPos) result.insert(atoi(lStartPos));
-  return result;
-}
-
 std::string vectorToString(const std::vector<std::string> &vec) {
   if (vec.size() == 0) return "";
   if (vec.size() == 1) return vec[0];
@@ -238,28 +211,51 @@ std::string vectorToString(const std::vector<std::string> &vec) {
   return result;
 }
 
-int stringToYear(const string &str) {
-  if (str.length() < 4) return 0;
-  int i;
-  for (i = 0; i < 4 && isdigit(str[i]); i++);
-  if (i != 4) return 0;
-  if (str.length() > 4 && isdigit(str[4]) ) return 0;
-  return atoi(str.c_str() );
-}
+std::string objToString(const int &i) { return std::to_string(i); }
+std::string objToString(const std::string &i) { return i; }
+std::string objToString(const tChannelID &i) { return (const char *)i.ToString(); }
 
-#include <iostream>
-bool stringEqual(const char *s1, const char *s2) {
-// return true if texts are identical (or both texts are NULL)
-  if (s1 && s2) {
-    if (strcmp(s1, s2) == 0) return true;
-    else return false;
+template<class T, class C=std::set<T>>
+std::string getStringFromSet(const C &in, char delim = ';') {
+  if (in.size() == 0) return "";
+  std::string result;
+  if (delim = '|') result.append(1, delim);
+  for (const T &i: in) {
+    result.append(objToString(i));
+    result.append(";");
   }
-  if (!s1 && !s2 ) return true;
-  if (!s1 && !*s2 ) return true;
-  if (!*s1 && !s2 ) return true;
-  return false;
+  return result;
 }
 
+template<class T> T stringToObj(const char *s, size_t len) {
+  esyslog("tvscraper: ERROR: template<class T> T stringToObj called");
+  return 5; }
+template<> int stringToObj<int>(const char *s, size_t len) { return atoi(s); }
+template<> std::string stringToObj<std::string>(const char *s, size_t len) { return std::string(s, len); }
+template<> tChannelID stringToObj<tChannelID>(const char *s, size_t len) {
+  return tChannelID::FromString(string(s, len).c_str());
+}
+
+template<class T> void insertObject(vector<T> &cont, const T &obj) { cont.push_back(obj); }
+template<class T> void insertObject(set<T> &cont, const T &obj) { cont.insert(obj); }
+
+template<class T, class C=std::set<T>>
+C getSetFromString(const char *str, char delim = ';') {
+// split str at delim';', and add each part to result
+  C result;
+  if (!str || !*str) return result;
+  const char *lStartPos = str;
+  if (delim == '|' && lStartPos[0] == delim) lStartPos++;
+  for (const char *rDelimPos = strchr(lStartPos, delim); rDelimPos != NULL; rDelimPos = strchr(lStartPos, delim) ) {
+    insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
+    lStartPos = rDelimPos + 1;
+  }
+  const char *rDelimPos = strchr(lStartPos, 0);
+  if (rDelimPos != lStartPos) insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
+  return result;
+}
+
+// simple XML parser =========================================================
 class cXmlString {
   public:
     cXmlString(const cXmlString &xmlString, const char *tag) {

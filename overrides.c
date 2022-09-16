@@ -34,8 +34,7 @@ void cOverRides::ReadConfig(string confDir) {
 }
 
 void cOverRides::ReadConfigLine(string line) {
-    splitstring s(line.c_str());
-    vector<string> flds = s.split(';');
+    vector<string> flds = getSetFromString<string, vector<string>>(line.c_str());
     if (flds.size() > 0) {
         if (!flds[0].compare("ignore")) {
             if (flds.size() == 2) {

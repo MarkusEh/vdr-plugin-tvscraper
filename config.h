@@ -1,8 +1,10 @@
 #ifndef __TVSCRAPER_CONFIG_H
 #define __TVSCRAPER_CONFIG_H
 #include <string>
+#include <sstream>
 #include <vector>
 #include <set>
+#include <vdr/thread.h>
 
 using namespace std;
 
@@ -19,32 +21,101 @@ struct sMovieOrTv {
     int year;
     int episodeSearchWithShorttext;
 };
+class cLanguage {
+  public:
+    int m_id;
+    const char *m_thetvdb;
+    const char *m_themoviedb;
+    const char *m_name;
+    std::string getNames() const {
+      std::stringstream result;
+      result << m_thetvdb << " " << m_themoviedb << " " << m_name;
+      return result.str();
+    }
+};
+
+bool operator< (const tChannelID &c1, const tChannelID &c2) {
+  if (c1.Source() != c2.Source() ) return c1.Source() < c2.Source();
+  if (c1.Nid() != c2.Nid() ) return c1.Nid() < c2.Nid();
+  if (c1.Tid() != c2.Tid() ) return c1.Tid() < c2.Tid();
+  if (c1.Sid() != c2.Sid() ) return c1.Sid() < c2.Sid();
+  return c1.Rid() < c2.Rid();
+}
+bool operator< (const cLanguage &l1, const cLanguage &l2) {
+  return l1.m_id < l2.m_id;
+}
+bool operator< (int l1, const cLanguage &l2) {
+  return l1 < l2.m_id;
+}
+bool operator< (const cLanguage &l1, int l2) {
+  return l1.m_id < l2;
+}
+
+class cTVScraperConfigLock {
+  private:
+    cStateKey m_stateKey;
+  public:
+    cTVScraperConfigLock(bool Write = false);
+    ~cTVScraperConfigLock();
+};
 
 class cTVScraperConfig {
     private:
+// command line paramters
         string themoviedbSearchOption = "";
         bool readOnlyClient = false;
-        bool m_autoTimersPathSet = false;
+        bool m_autoTimersPathSet = false; // if true, all autoTimers will use m_autoTimersPath
         std::string m_autoTimersPath;
-        set<string> channels; 
-        set<string> hd_channels; 
-        set<string> m_excludedRecordingFolders;
-        set<int> m_TV_Shows;
-        string baseDir;
+        string baseDir;       // /var/cache/vdr/plugins/tvscraper/
+// "calculated" parameters, from command line paramters
         int baseDirLen;
         string baseDirSeries = "";
         string baseDirMovies = "";
         string baseDirMovieActors = "";
         string baseDirMovieCollections = "";
         string baseDirMovieTv = "";
-        string EPG_UpdateFileName;
-        string recordingsUpdateFileName;
+        string EPG_UpdateFileName;       // file to touch in case of updated information on EPG
+        string recordingsUpdateFileName; // file to touch in case of updated information on recordings
+// list of data that can be changed in the setup menu
+// we make these private, as access from several threads is possible. The methods to access the lists provide proper protection
+// our friend cTVScraperSetup can still access the private members, an needs to take care of proper locking
+        set<tChannelID> m_channels; 
+        set<tChannelID> m_hd_channels; 
+        set<string> m_excludedRecordingFolders;
+        set<int> m_TV_Shows;  // TV_Shows where missing episodes will be recorded
+        set<int> m_AdditionalLanguages;
+        int m_enableAutoTimers;
+        int m_defaultLanguage;
+// End of list of data that can be changed in the setup menu
+        friend class cTVScraperConfigLock;
+        friend class cTVScraperSetup;
+        mutable cStateLock stateLock;
+//        mutable cStateLock stateLock("tvscraper: config");
     public:
         cTVScraperConfig();
         ~cTVScraperConfig();
+// static constant
+        const std::set<cLanguage, std::less<>> m_languages =
+{
+{ 1, "dan", "da-DK", "dansk"},
+{ 2, "deu", "de-AT", "Deutsch"},
+{ 3, "deu", "de-CH", "Deutsch"},
+{ 4, "deu", "de-DE", "Deutsch"},
+{ 5, "eng", "en-GB", "English"},
+{ 6, "eng", "en-US", "English"},
+{ 7, "fra", "fr-FR", "français"},
+{ 8, "ita", "it-IT", "italiano"},
+{ 9, "nld", "nl-NL", "Nederlands"},
+{10, "spa", "es-ES", "español"}
+};
+// list of data that can be changed in the setup menu
         int enableDebug;
-        int enableAutoTimers;
-        void Initialize();
+// End of list of data that can be changed in the setup menu
+        void Initialize(); // This is called during plugin initialize
+        void setDefaultLanguage(); // set the default language from locale
+// set values from VDRs config file
+        bool SetupParse(const char *Name, const char *Value);
+// get / set command line options
         void SetThemoviedbSearchOption(const string &option) { themoviedbSearchOption = option; };
         void SetAutoTimersPath(const string &option);
         void SetReadOnlyClient() { readOnlyClient = true; };
@@ -62,22 +133,17 @@ class cTVScraperConfig {
         const string &GetEPG_UpdateFileName(void) const { return EPG_UpdateFileName; };
         const string &GetRecordingsUpdateFileName(void) const { return recordingsUpdateFileName; };
         bool GetReadOnlyClient() const { return readOnlyClient; }
-        void ClearChannels(bool hd);
-        void ClearExcludedRecordingFolders() { m_excludedRecordingFolders.clear(); }
-        void ClearTV_Shows() { m_TV_Shows.clear(); }
-        void AddChannel(const string &channelID, bool hd);
-        void AddExcludedRecordingFolder(const string &recordingFolder) { m_excludedRecordingFolders.insert(recordingFolder); }
-        void AddTV_Show(int TV_Show) { m_TV_Shows.insert(TV_Show); }
-        bool ChannelActive(const cChannel *channel) const { return channels.find(*(channel->GetChannelID().ToString())) != channels.end(); }
-        bool ChannelHD(const cChannel *channel) const { return hd_channels.find(*(channel->GetChannelID().ToString())) != hd_channels.end(); }
-        bool recordingFolderSelected(const std::string &recordingFolder) const { return m_excludedRecordingFolders.find(recordingFolder) == m_excludedRecordingFolders.end(); }
-        bool TV_ShowSelected(int TV_Show) const { return m_TV_Shows.find(TV_Show) != m_TV_Shows.end(); }
-        bool SetupParse(const char *Name, const char *Value);
-        const set<string> &GetChannels(void) const { return channels; };
-        const set<string> &GetHD_Channels(void) const { return hd_channels; };
-        const set<string> &GetExcludedRecordingFolders(void) const { return m_excludedRecordingFolders; };
-        const set<int> &GetTV_Shows(void) const { return m_TV_Shows; };
-        void PrintChannels(void);
+// Methods to access parameters (lists) that can be changed in setup menu
+// These methods are thread save
+        set<tChannelID> GetScrapeChannels() const { cTVScraperConfigLock l; set<tChannelID> result = m_channels; return result; }
+        bool ChannelActive(const tChannelID &channelID) const { cTVScraperConfigLock l; return m_channels.find(channelID) != m_channels.end(); }   // do we have to scrape this channel?
+        bool ChannelHD(const tChannelID &channelID) const { cTVScraperConfigLock l; return m_hd_channels.find(channelID) != m_hd_channels.end(); }
+        bool recordingFolderSelected(const std::string &recordingFolder) const { cTVScraperConfigLock l; return m_excludedRecordingFolders.find(recordingFolder) == m_excludedRecordingFolders.end(); }
+        bool TV_ShowSelected(int TV_Show) const { cTVScraperConfigLock l; return m_TV_Shows.find(TV_Show) != m_TV_Shows.end(); }
+        int getEnableAutoTimers() const { cTVScraperConfigLock l; int r = m_enableAutoTimers; return r; }
+// languages
+        int getDefaultLanguage() { cTVScraperConfigLock l; int r = m_defaultLanguage; return r; }
+        const cLanguage *GetLanguage(int lang) { auto r = m_languages.find(lang); if(r == m_languages.end()) return NULL; else return &(*r); }  // m_languages is constant -> no lock required
 };
 
 #endif //__TVSCRAPER_CONFIG_H

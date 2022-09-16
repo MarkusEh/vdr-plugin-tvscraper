@@ -34,8 +34,8 @@ class cEventMovieOrTv {
 
 class cScraperRec {
   public:
-    cScraperRec(tEventID event_id, time_t event_start_time, const std::string &channel_id, const std::string &name, int movie_tv_id, int season_number, int episode_number, int hd, int numberOfErrors)
-    { m_event_id = event_id; m_event_start_time = event_start_time; m_channel_id = channel_id; m_name = name; m_movie_tv_id = movie_tv_id; m_season_number = season_number; m_episode_number = episode_number; m_hd = hd; m_numberOfErrors = numberOfErrors; }
+    cScraperRec(tEventID event_id, time_t event_start_time, const tChannelID &channel_id, const std::string &name, int movie_tv_id, int season_number, int episode_number, int hd, int numberOfErrors)
+    { m_event_id = event_id; m_event_start_time = event_start_time; m_channelid = channel_id; m_name = name; m_movie_tv_id = movie_tv_id; m_season_number = season_number; m_episode_number = episode_number; m_hd = hd; m_numberOfErrors = numberOfErrors; }
     bool isBetter(const cScraperRec &sec) const { return m_hd != sec.m_hd?m_hd > sec.m_hd: m_numberOfErrors < sec.m_numberOfErrors; }
     int seasonNumber() const { return m_season_number;}
     int episodeNumber() const { return m_episode_number;}
@@ -45,9 +45,9 @@ class cScraperRec {
     int hd() const { return m_hd; }
     const std::string &name() const { return m_name;}
   private:
+    tChannelID m_channelid;
     tEventID m_event_id;
     time_t m_event_start_time;
-    std::string m_channel_id;
     std::string m_name;
     int m_movie_tv_id; // movie if season_number == -100. Otherwisse, tv
     int m_season_number;

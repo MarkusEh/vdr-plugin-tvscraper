@@ -19,14 +19,13 @@ enum eMediaType {
 #include <vdr/plugin.h>
 #include "searchResultTvMovie.h"
 #include "searchResultTvMovie.c"
-#include "tools/splitstring.c"
 #include "tools/stringhelpers.c"
 #include "config.h"
 #include "eventOrRec.h"
 #include "tvscraperdb.h"
 #include "autoTimers.h"
-#include "config.c"
 cTVScraperConfig config;
+#include "config.c"
 #include "eventOrRec.c"
 #include "tools/jsonHelpers.c"
 #include "tools/curlfuncs.cpp"
@@ -145,9 +144,11 @@ bool cPluginTvscraper::Start(void) {
     };
     overrides = new cOverRides();
     overrides->ReadConfig(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N));
+    if (config.getDefaultLanguage() == 0) config.setDefaultLanguage(); // set this from the locale, if it was not saved in setup
     workerThread = new cTVScraperWorker(db, overrides);
     workerThread->SetDirectories();
     workerThread->SetLanguage();
+    config.setDefaultLanguage();
     workerThread->Start();
     return true;
 }

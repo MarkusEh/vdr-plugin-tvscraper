@@ -129,8 +129,6 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
 // all recordings where a movie or TV episode was identified are returned.
 // In case of duplicates, the better one is returned
 
-  const std::set<std::string> channelsHD = config.GetHD_Channels();
-  const std::set<std::string> excludedRecordingFolders = config.GetExcludedRecordingFolders();
 #if APIVERSNUM < 20301
   for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec))
 #else
@@ -140,7 +138,7 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
   {
     const char *pos_delim = strrchr(rec->Name(), '~');
     if (pos_delim != 0)
-      if (excludedRecordingFolders.find(std::string(rec->Name(), pos_delim - rec->Name() )) != excludedRecordingFolders.end() ) continue;
+      if (!config.recordingFolderSelected(std::string(rec->Name(), pos_delim - rec->Name() ))) continue;
     int  movie_tv_id, season_number, episode_number;
     if (!db.GetMovieTvID(rec, movie_tv_id, season_number, episode_number)) continue;
     if (movie_tv_id == 0) continue;
@@ -149,14 +147,13 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
     csRecording sRecording(rec);
     tEventID eventID = sRecording.EventID();
     time_t eventStartTime = sRecording.StartTime();
-    cString channelIDs = sRecording.ChannelIDs();
-    bool hd = channelsHD.find((const char *)channelIDs) != channelsHD.end();
+    bool hd = config.ChannelHD(sRecording.ChannelID());
 #if VDRVERSNUM >= 20505
     int numberOfErrors = rec->Info()->Errors();
 #else
     int numberOfErrors = 0;
 #endif
-    cScraperRec scraperRec(eventID, eventStartTime, (const char *)channelIDs, rec->Name(), movie_tv_id, season_number, episode_number, hd, numberOfErrors);
+    cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, hd, numberOfErrors);
     auto found = recordings.find(scraperRec);
     if (found == recordings.end() ) recordings.insert(std::move(scraperRec)); // not in list -> insert
     else if (scraperRec.isBetter(*found)) {
@@ -222,7 +219,7 @@ void getAllTimers (const cTVScraperDB &db, std::set<cTimerMovieOrTv, std::less<>
       timer.m_episode_number = movieOrTv->getEpisode();
     }
     delete movieOrTv;
-    timer.m_hd = config.GetHD_Channels().find(*(ti->Channel()->GetChannelID().ToString())) == config.GetHD_Channels().end()?0:1;
+    timer.m_hd = config.ChannelHD(ti->Channel()->GetChannelID())?1:0;
     if (ownTimer) {
 // my timer
       if (InsertIfBetter(myTimers, timer, &obsoletTimer) ) timersToDelete.push_back(obsoletTimer.m_timerId);
@@ -275,7 +272,7 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
     }
     scraperEvent.m_event_id = l_event_id;
     if (scraperEvent.m_season_number == -100) scraperEvent.m_episode_number = 0;
-    scraperEvent.m_hd = config.GetHD_Channels().find(l_channel_id) == config.GetHD_Channels().end()?0:1;
+    scraperEvent.m_hd = config.ChannelHD(scraperEvent.m_channelid)?1:0;
     auto found = result.find(scraperEvent);
     if (found == result.end() )
       result.insert(scraperEvent);
@@ -572,7 +569,7 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
     return true;
   }
 // TV show. Check: record because of all episodes shall be recorded?
-  if (config.GetTV_Shows().find(scraperEvent.m_movie_tv_id) == config.GetTV_Shows().end() ) return false;
+  if (!config.TV_ShowSelected(scraperEvent.m_movie_tv_id)) return false;
 // find recording with this TV show, so same folder can be used
   auto found_s = recordings.find(scraperEvent.m_movie_tv_id);
   if (found_s == recordings.end() ) {

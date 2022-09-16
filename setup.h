@@ -8,19 +8,29 @@ class cTVScraperSetup: public cMenuSetupPage {
         cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScraperDB &db);
         virtual ~cTVScraperSetup();      
     private:
+// data changed in the menu. Will be initialized from config, and wirtten back to condig and setup.conf if changes are confirmed with "OK"
+        int m_enableDebug;
+        int m_enableAutoTimers;
         vector<int> channelsScrap;
         vector<int> channelsHD;
         std::vector<int> m_selectedRecordingFolders;
+        std::vector<int> m_selectedTV_Shows;
+        int m_selected_language_line;
+        int m_NumberOfAdditionalLanguages;
+        int *m_AdditionalLanguages;
+// END data changed in the menu
         int m_recordings_width;
         std::set<std::string> m_allRecordingFolders;
-        std::vector<int> m_selectedTV_Shows;
         set<int> m_allTV_Shows;
+// for languages
+        std::vector<std::pair<int, std::string>> m_all_languages;
+        const char **m_language_strings;
         cTVScraperWorker *worker;
         const cTVScraperDB &m_db;
         void Setup(void);
         std::string StoreExcludedRecordingFolders();
-        std::string StoreChannels(const vector<int> &channels, bool hd);
         std::string StoreTV_Shows();
+        std::set<int> getAllTV_Shows();
     protected:
         virtual eOSState ProcessKey(eKeys Key);
         virtual void Store(void);

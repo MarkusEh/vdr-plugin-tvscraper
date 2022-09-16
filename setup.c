@@ -20,62 +20,99 @@ std::set<std::string> getAllRecordingFolders(int &max_width) {
   }
   return result;
 }
-std::set<int> getAllTV_Shows(const cTVScraperDB &db) {
+std::set<int> cTVScraperSetup::getAllTV_Shows() {
   std::set<int> result;
 //const char sql[] = "select tv_id from tv2";
-  const char sql[] = "select movie_tv_id from recordings2 where season_number != -100";
+  const char sql[] = "select DISTINCT movie_tv_id from recordings2 where season_number != -100";
   int tvID;
-  for (sqlite3_stmt *statement = db.QueryPrepare(sql, "");                                                                        
-       db.QueryStep(statement, "i", &tvID);) {                                                                                                         
+  for (sqlite3_stmt *statement = m_db.QueryPrepare(sql, "");                                                                        
+       m_db.QueryStep(statement, "i", &tvID);) {                                                                                                         
     result.insert(tvID);
   }
-  for (const int &id: config.GetTV_Shows() ) result.insert(id);
+  cTVScraperConfigLock l;
+  for (const int &id: config.m_TV_Shows ) result.insert(id);
   return result;
 }
-/* cTVScraperSetup */
 
+/* cTVScraperSetup */
 cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScraperDB &db):
   m_db(db)
   {
+  if (config.enableDebug) esyslog("tvscraper: Start of cTVScraperSetup::cTVScraperSetup");
   worker = workerThread;
+// copy data from config to local data, which will be directly changed in OSD
+  m_enableDebug = config.enableDebug;
+  m_enableAutoTimers = config.m_enableAutoTimers;
+  {
 #if APIVERSNUM < 20301
-  for (cChannel *channel = Channels.First(); channel; channel = Channels.Next(channel))
+    for (cChannel *channel = Channels.First(); channel; channel = Channels.Next(channel))
 #else
-  LOCK_CHANNELS_READ;
-  for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel))
+    LOCK_CHANNELS_READ;
+    for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel))
 #endif
-  if (!channel->GroupSep()) {
-    channelsScrap.push_back(config.ChannelActive(channel)?1:0);
-    channelsHD.push_back(config.ChannelHD(channel)?1:0);
+    if (!channel->GroupSep()) {
+      channelsScrap.push_back(config.ChannelActive(channel->GetChannelID())?1:0);
+      channelsHD.push_back(config.ChannelHD(channel->GetChannelID())?1:0);
+    }
   }
+  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after ChannelActive / ChannelHD");
 // Recording folders
   m_allRecordingFolders = getAllRecordingFolders(m_recordings_width);
   for (const std::string &recordingFolder: m_allRecordingFolders)
     m_selectedRecordingFolders.push_back(config.recordingFolderSelected(recordingFolder)?1:0);
+  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after selectedRecordingFolders");
 // TV Shows
-  m_allTV_Shows = getAllTV_Shows(db);
+  m_allTV_Shows = getAllTV_Shows();
+  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after TV shows (get from db)");
   for (const int &TV_Show: m_allTV_Shows)
     m_selectedTV_Shows.push_back(config.TV_ShowSelected(TV_Show)?1:0);
+  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after TV shows (final)");
+// languages. Note m_languages is const, no locking required
+  for (const cLanguage &lang: config.m_languages)
+    m_all_languages.push_back({lang.m_id, lang.getNames()});
+  m_language_strings = new const char*[config.m_languages.size()];
+  int i = 0;
+  m_selected_language_line = 5;
+  for (const auto &l: m_all_languages) {
+    if (l.first == config.getDefaultLanguage() ) m_selected_language_line = i;
+    m_language_strings[i++] = l.second.c_str();
+  }
+  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup num all languages: %li", config.m_languages.size());
+  {
+    cTVScraperConfigLock l;
+    m_NumberOfAdditionalLanguages = config.m_AdditionalLanguages.size();
+    m_AdditionalLanguages = new int[config.m_languages.size()];  // this is the maximum
+    i = 0;
+    for (const int &addLang: config.m_AdditionalLanguages)
+      m_AdditionalLanguages[i++] = addLang;
+    for (; i < (int)config.m_languages.size(); i++)
+      m_AdditionalLanguages[i++] = 4;
+  }
+
   Setup();
 }
 
 cTVScraperSetup::~cTVScraperSetup() {
+  delete[] m_language_strings;
+  delete[] m_AdditionalLanguages;
 }
-
-
 void cTVScraperSetup::Setup(void) {
     int currentItem = Current();
     Clear();
     Add(new cOsdItem(tr("Configure channels to be scraped")));
-    Add(new cMenuEditBoolItem(tr("Create timers to improve and complement recordings"), &config.enableAutoTimers));
-    if (config.enableAutoTimers) {
+    Add(new cMenuEditStraItem(tr("Main language"), &m_selected_language_line, config.m_languages.size(), m_language_strings));
+    Add(new cMenuEditIntItem(tr("Number of additional languages"), &m_NumberOfAdditionalLanguages));
+    for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
+      Add(new cMenuEditStraItem(tr("Additional language"), &m_AdditionalLanguages[i], config.m_languages.size(), m_language_strings));
+    Add(new cMenuEditBoolItem(tr("Create timers to improve and complement recordings"), &m_enableAutoTimers));
+    if (m_enableAutoTimers) {
       Add(new cOsdItem(tr("HD channels")));
       Add(new cOsdItem(tr("Recording folders to improve")));
       Add(new cOsdItem(tr("TV shows to record")));
     }
     Add(new cOsdItem(tr("Trigger scraping Video Directory")));
     Add(new cOsdItem(tr("Trigger EPG scraping")));
-    Add(new cMenuEditBoolItem(tr("Enable Debug Logging"), &config.enableDebug));
+    Add(new cMenuEditBoolItem(tr("Enable Debug Logging"), &m_enableDebug));
     
     SetCurrent(Get(currentItem));
     Display();
@@ -86,7 +123,7 @@ eOSState cTVScraperSetup::ProcessKey(eKeys Key) {
     if (hadSubMenu && Key == kOk)
         Store();
     eOSState state = cMenuSetupPage::ProcessKey(Key);
-    if (!hadSubMenu && Current() == 1 && (Key == kLeft || Key == kRight)) Setup();
+    if (!hadSubMenu && Current() == 2 && (Key == kLeft || Key == kRight)) Setup();  // refresh screen if "Create timers to ..." is changed
     if (!hadSubMenu && (Key == kOk)) {
         const char* ItemText = Get(Current())->Text();
         if (strcmp(ItemText, tr("Configure channels to be scraped")) == 0)
@@ -110,9 +147,8 @@ eOSState cTVScraperSetup::ProcessKey(eKeys Key) {
     return state;
 }
 
-std::string cTVScraperSetup::StoreChannels(const vector<int> &channels, bool hd) {
-  config.ClearChannels(hd);
-  stringstream channelsStrm;
+std::set<tChannelID> GetChannelsFromSetup(const vector<int> &channels) {
+  std::set<tChannelID> result;
   int numChannels = channels.size();
   for (int i=0; i<numChannels; i++) {
     if (channels[i] == 1) {
@@ -122,49 +158,52 @@ std::string cTVScraperSetup::StoreChannels(const vector<int> &channels, bool hd)
       LOCK_CHANNELS_READ;
       const cChannel *channel = Channels->GetByNumber(i+1);
 #endif
-      if (channel) {
-        string channelID = *(channel->GetChannelID().ToString());
-        channelsStrm << channelID << ";";
-        config.AddChannel(channelID, hd);
-      }
+      if (channel) result.insert(channel->GetChannelID() );
     }
   }
-  return channelsStrm.str();
+  return result;
 }
 
-std::string cTVScraperSetup::StoreExcludedRecordingFolders() {
-  config.ClearExcludedRecordingFolders();
-  stringstream foldersStrm;
+template<class T>
+std::set<T> menuSelectionsToSet(const std::set<T> &allItems, const std::vector<int> &selectedItems) {
+  std::set<T> result;
   int i = 0;
-  for (const std::string &recordingFolder: m_allRecordingFolders)
-    if (m_selectedRecordingFolders[i++] == 0) {
-      config.AddExcludedRecordingFolder(recordingFolder);
-      foldersStrm << recordingFolder << "/";
+  for (const T &item: allItems)
+    if (selectedItems[i++] == 0) {
+      result.insert(item);
     }
-  return foldersStrm.str();
-}
-
-std::string cTVScraperSetup::StoreTV_Shows() {
-  config.ClearTV_Shows();
-  stringstream TV_ShowsStrm;
-  int i = 0;
-  for (const int &TV_Show: m_allTV_Shows)
-    if (m_selectedTV_Shows[i++] == 1) {
-      config.AddTV_Show(TV_Show);
-      TV_ShowsStrm << TV_Show << ";";
-    }
-  return TV_ShowsStrm.str();
+  return result;
 }
 
 void cTVScraperSetup::Store(void) {
-    SetupStore("ScrapChannels", StoreChannels(channelsScrap, false).c_str());
-    SetupStore("HDChannels", StoreChannels(channelsHD, true).c_str());
-    SetupStore("ExcludedRecordingFolders", StoreExcludedRecordingFolders().c_str());
-    SetupStore("TV_Shows", StoreTV_Shows().c_str());
-    SetupStore("enableDebug", config.enableDebug);
-    SetupStore("enableAutoTimers", config.enableAutoTimers);
-}
+  {
+    set<tChannelID> channels = GetChannelsFromSetup(channelsScrap);
+    set<tChannelID> hd_channels = GetChannelsFromSetup(channelsHD);
+// note: GetChannelsFromSetup will call LOCK_CHANNELS_READ; -> Locking order!!! -> we lock after these calls
+    cTVScraperConfigLock lw(true);
+    config.enableDebug = m_enableDebug;
+    config.m_enableAutoTimers = m_enableAutoTimers;
+    config.m_channels = std::move(channels);
+    config.m_hd_channels = std::move(hd_channels);
+    config.m_defaultLanguage = m_all_languages[m_selected_language_line].first;
+    config.m_AdditionalLanguages.clear();
+    for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
+      config.m_AdditionalLanguages.insert(m_all_languages[m_AdditionalLanguages[i]].first);
+    config.m_excludedRecordingFolders = menuSelectionsToSet<string>(m_allRecordingFolders, m_selectedRecordingFolders);
+    config.m_TV_Shows = menuSelectionsToSet<int>(m_allTV_Shows, m_selectedTV_Shows);
+  }
 
+  cTVScraperConfigLock lr;
+// getStringFromSet<> sets no Locks
+  SetupStore("ScrapChannels", getStringFromSet<tChannelID>(config.m_channels).c_str());
+  SetupStore("HDChannels", getStringFromSet<tChannelID>(config.m_hd_channels).c_str());
+  SetupStore("ExcludedRecordingFolders", getStringFromSet<string>(config.m_excludedRecordingFolders).c_str());
+  SetupStore("TV_Shows", getStringFromSet<int>(config.m_TV_Shows).c_str());
+  SetupStore("enableDebug", config.enableDebug);
+  SetupStore("enableAutoTimers", config.m_enableAutoTimers);
+  SetupStore("defaultLanguage", config.getDefaultLanguage() );
+  SetupStore("additionalLanguages", getStringFromSet<int>(config.m_AdditionalLanguages).c_str() );
+}
 
 /* cTVScraperChannelSetup */
 
@@ -178,7 +217,7 @@ cTVScraperChannelSetup ::~cTVScraperChannelSetup () {
 }
 
 
-void cTVScraperChannelSetup ::Setup(bool hd) {
+void cTVScraperChannelSetup::Setup(bool hd) {
     int currentItem = Current();
     Clear();
     int i=0;
