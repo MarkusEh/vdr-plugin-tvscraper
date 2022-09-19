@@ -3,30 +3,58 @@
 
 using namespace std;
 
+class mapIntBi {
+  public:
+    mapIntBi() {}
+    void clear() { m_map.clear(); }
+    bool insert(int first, int second);
+    int getFirst(int second) const;
+    int getSecond(int first) const;
+    bool isSecond(int second) const; // true, if second is in m_map (as second)
+  private:
+    vector<int> m_map;
+};
+class langOsd {
+  public:
+    langOsd(const std::vector<std::pair<int, std::string>> *lang_text):
+      m_lang_text(lang_text) { m_osdTexts = new const char*[lang_text->size()];}
+    ~langOsd() { delete [] m_osdTexts; }
+    void clear() { m_numLang = 0; m_osdMap.clear(); m_selectedLanguage.clear(); }
+    void addLanguage(int lang) { m_osdTexts[m_numLang] = getLangText(lang); m_osdMap.insert(m_numLang++, lang);}
+    void addLine(int currentLanguage) { m_selectedLanguage.push_back(m_osdMap.getFirst(currentLanguage)); }
+    int getLanguage(int line) const { return m_osdMap.getSecond(m_selectedLanguage[line]); }
+    int m_numLang = 0;
+    mapIntBi m_osdMap;
+    std::vector<int> m_selectedLanguage; // for the OSD, one entry for each line
+    const char **m_osdTexts;
+  private:
+    const char *getLangText(int lang) const { for (int i = 0; i < (int)m_lang_text->size(); i++) if ((*m_lang_text)[i].first == lang) return (*m_lang_text)[i].second.c_str(); return "no lang text";}
+    const std::vector<std::pair<int, std::string>> *m_lang_text;
+};
+
 class cTVScraperSetup: public cMenuSetupPage {
     public:
         cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScraperDB &db);
         virtual ~cTVScraperSetup();      
     private:
-// data changed in the menu. Will be initialized from config, and wirtten back to condig and setup.conf if changes are confirmed with "OK"
+        cTVScraperWorker *worker;
+        const cTVScraperDB &m_db;
+        std::vector<std::pair<int, std::string>> m_all_languages;
+// data changed in the menu. Will be initialized from config, and written back to config and setup.conf if changes are confirmed with "OK"
+        langOsd langDefault;
+        langOsd langAdditional;
+        langOsd langChannels;
         int m_enableDebug;
         int m_enableAutoTimers;
         vector<int> channelsScrap;
         vector<int> channelsHD;
         std::vector<int> m_selectedRecordingFolders;
         std::vector<int> m_selectedTV_Shows;
-        int m_selected_language_line;
         int m_NumberOfAdditionalLanguages;
-        int *m_AdditionalLanguages;
 // END data changed in the menu
         int m_recordings_width;
         std::set<std::string> m_allRecordingFolders;
         set<int> m_allTV_Shows;
-// for languages
-        std::vector<std::pair<int, std::string>> m_all_languages;
-        const char **m_language_strings;
-        cTVScraperWorker *worker;
-        const cTVScraperDB &m_db;
         void Setup(void);
         std::string StoreExcludedRecordingFolders();
         std::string StoreTV_Shows();
@@ -38,11 +66,12 @@ class cTVScraperSetup: public cMenuSetupPage {
 
 class cTVScraperChannelSetup : public cOsdMenu {
     public:
-        cTVScraperChannelSetup(vector<int> *channelsScrap, bool hd);
+        cTVScraperChannelSetup(vector<int> *channels, const char *headline, const char *null, const char *eins);
+        cTVScraperChannelSetup(vector<int> *channels, const char *headline, int numOptions, const char**selectOptions);
         virtual ~cTVScraperChannelSetup();       
     private:
-        vector<int> *channelsScrap;
-        void Setup(bool hd);
+        void Setup(vector<int> *channels, int numOptions, const char**selectOptions);
+        const char **m_selectOptions = NULL;
     protected:
         virtual eOSState ProcessKey(eKeys Key);
 };

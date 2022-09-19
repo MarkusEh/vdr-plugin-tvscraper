@@ -219,10 +219,10 @@ template<class T, class C=std::set<T>>
 std::string getStringFromSet(const C &in, char delim = ';') {
   if (in.size() == 0) return "";
   std::string result;
-  if (delim = '|') result.append(1, delim);
+  if (delim == '|') result.append(1, delim);
   for (const T &i: in) {
     result.append(objToString(i));
-    result.append(";");
+    result.append(1, delim);
   }
   return result;
 }

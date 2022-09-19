@@ -4,6 +4,7 @@
 #include <sstream>
 #include <vector>
 #include <set>
+#include <map>
 #include <vdr/thread.h>
 
 using namespace std;
@@ -86,6 +87,7 @@ class cTVScraperConfig {
         set<int> m_AdditionalLanguages;
         int m_enableAutoTimers;
         int m_defaultLanguage;
+        map<tChannelID, int> m_channel_language; // if a channel is not in this map, it has the default language
 // End of list of data that can be changed in the setup menu
         friend class cTVScraperConfigLock;
         friend class cTVScraperSetup;
@@ -142,8 +144,10 @@ class cTVScraperConfig {
         bool TV_ShowSelected(int TV_Show) const { cTVScraperConfigLock l; return m_TV_Shows.find(TV_Show) != m_TV_Shows.end(); }
         int getEnableAutoTimers() const { cTVScraperConfigLock l; int r = m_enableAutoTimers; return r; }
 // languages
-        int getDefaultLanguage() { cTVScraperConfigLock l; int r = m_defaultLanguage; return r; }
-        const cLanguage *GetLanguage(int lang) { auto r = m_languages.find(lang); if(r == m_languages.end()) return NULL; else return &(*r); }  // m_languages is constant -> no lock required
+        int getDefaultLanguage() const { cTVScraperConfigLock l; int r = m_defaultLanguage; return r; }
+        int numAdditionalLanguages() const { cTVScraperConfigLock l; int r = m_AdditionalLanguages.size(); return r; }
+        const cLanguage *GetLanguage(int lang) const { auto r = m_languages.find(lang); if(r == m_languages.end()) return NULL; else return &(*r); }  // m_languages is constant -> no lock required
+        int getLanguage(const tChannelID &channelID) const { int r; cTVScraperConfigLock lr; auto l = m_channel_language.find(channelID); if (l == m_channel_language.end()) r= m_defaultLanguage; else r = l->second; return r; }
 };
 
 #endif //__TVSCRAPER_CONFIG_H

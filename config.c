@@ -110,6 +110,11 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
     } else if (strcmp(Name, "additionalLanguages") == 0) {
         m_AdditionalLanguages = getSetFromString<int>(Value);
         return true;
+    } else if (strncmp(Name, "additionalLanguage", 18) == 0) {
+        int num_lang = atoi(Name + 18);
+        if (num_lang <= 0) return false;
+        for (const tChannelID &c: getSetFromString<tChannelID>(Value)) m_channel_language.insert({c, num_lang});
+        return true;
     }
     return false;
 }

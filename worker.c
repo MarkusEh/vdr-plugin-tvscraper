@@ -388,6 +388,7 @@ void cTVScraperWorker::Action(void) {
         if (newEvents) db->BackupToDisc();
       }
       dsyslog("tvscraper: epg scraping done");
+      if (!Running() ) break;
       if (config.getEnableAutoTimers() ) timersForEvents(*db);
     }
     waitCondition.TimedWait(mutex, loopSleep);
