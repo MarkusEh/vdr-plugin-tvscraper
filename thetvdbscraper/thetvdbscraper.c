@@ -6,11 +6,10 @@
 
 using namespace std;
 
-cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db, string language) {
+cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db) {
     baseURL4 = "https://api4.thetvdb.com/v4/";
     baseURL4Search = "https://api4.thetvdb.com/v4/search?type=series&query=";
     this->baseDir = baseDir;
-    this->language = language;
     this->db = db;
 }
 
@@ -81,7 +80,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   json_t *jSeriesData = json_object_get(jSeries, "data");
   if (!jSeriesData) { json_decref(jSeries); return 0;}
   series.ParseJson_Series(jSeriesData);
-  string lang3 = GetLang3(jSeriesData, language);
+  string lang3 = config.GetDefaultLanguage()->m_thetvdb;
 // episodes
   string urlE = baseURL4 + "series/" + std::to_string(seriesID) + "/episodes/default/" + lang3 + "?page=0";
   while (!urlE.empty() ) {
@@ -267,7 +266,7 @@ void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
 }
 
 // Search series
-bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext) {
+bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
 // return true if results were added
   string url = baseURL4Search + CurlEscape(SearchString_ext.c_str());

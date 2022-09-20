@@ -74,6 +74,7 @@ void cTVScraperConfig::Initialize() {
 // we don't lock here. This is called during plugin initialize, and there are no other threads at this point in time
   if (m_hd_channels.empty() ) m_hd_channels = getDefaultHD_Channels();
   if (   m_channels.empty() )    m_channels = getDefaultChannels();
+  if (m_defaultLanguage == 0) setDefaultLanguage();
 }
 void cTVScraperConfig::SetAutoTimersPath(const string &option) {
   m_autoTimersPathSet = true;
@@ -119,6 +120,43 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
     return false;
 }
 
+int cTVScraperConfig::GetLanguage_n(const tChannelID &channelID) const {
+  int lang;
+  {
+    cTVScraperConfigLock lr;
+    auto l = m_channel_language.find(channelID);
+    if (l == m_channel_language.end()) lang = m_defaultLanguage;
+    else lang = l->second;
+  }
+  return lang;
+}
+
+const cLanguage *cTVScraperConfig::GetLanguage(const tChannelID &channelID) const {
+  int lang;
+  {
+    cTVScraperConfigLock lr;
+    auto l = m_channel_language.find(channelID);
+    if (l == m_channel_language.end()) lang = -1;
+    else lang = l->second;
+  }
+  if (lang == -1) return GetDefaultLanguage(); // this is not an error. A channel without explicit language assignment has the default language
+  auto r = m_languages.find(lang);
+  if(r != m_languages.end()) return &(*r);
+  esyslog("tvscraper: ERROR cTVScraperConfig::GetLanguage language %i not found", lang);
+  return GetDefaultLanguage();
+}
+
+const cLanguage *cTVScraperConfig::GetDefaultLanguage() const {
+  int lang;
+  { cTVScraperConfigLock l; lang = m_defaultLanguage; }
+  auto r = m_languages.find(lang);
+  if(r != m_languages.end()) return &(*r);
+  const cLanguage *result;
+  if (m_languages.size() == 0) result = &m_emergencyLanguage;
+  else result = &(*m_languages.begin());
+  esyslog("tvscraper: ERROR cTVScraperConfig::getDefaultLanguage r == NULL, m_defaultLanguage = %i, set default language to %s", m_defaultLanguage, result->getNames().c_str() );
+  return result;
+}
 void cTVScraperConfig::setDefaultLanguage() {
   cTVScraperConfigLock lw(true);
   m_defaultLanguage = 5; // en-GB, in case we find nothing ...

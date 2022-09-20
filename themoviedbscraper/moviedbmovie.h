@@ -40,7 +40,7 @@ private:
 public:
     cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
     virtual ~cMovieDbMovie(void);
-    void AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const vector<int> &years);
+    void AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const vector<int> &years, const cLanguage *lang);
     bool ReadMovie(void);
     void SetID(int movieID) { id = movieID; };
     int ID(void) { return id; };

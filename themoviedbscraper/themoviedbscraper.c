@@ -7,9 +7,8 @@
 
 using namespace std;
 
-cMovieDBScraper::cMovieDBScraper(string baseDir, cTVScraperDB *db, string language, cOverRides *overrides) {
+cMovieDBScraper::cMovieDBScraper(string baseDir, cTVScraperDB *db, cOverRides *overrides) {
     apiKey = "abb01b5a277b9c2c60ec0302d83c5ee9";
-    this->language = language;
     baseURL = "api.themoviedb.org/3";
     this->baseDir = baseDir;
     this->db = db;

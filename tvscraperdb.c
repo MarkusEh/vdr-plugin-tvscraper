@@ -473,13 +473,19 @@ bool cTVScraperDB::CreateTables(void) {
 /*
 // episode names, language dependent
     sql << "CREATE TABLE IF NOT EXISTS tv_s_e_name (";
-    sql << "tv_id integer, ";
-    sql << "language nvarchar, ";
-    sql << "season_number integer, ";
-    sql << "episode_number integer, ";
+    sql << "episode_id integer, ";
+    sql << "language_id integer, ";
     sql << "episode_name nvarchar";
     sql << ");";
-    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e_name on tv_s_e_name (tv_id, language, season_number, episode_number); ";
+    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e_name on tv_s_e_name (episode_id, language_id); ";
+select tv_s_e_name.episode_name, tv_s_e.season_number tv_s_e.episode_number from tv_s_e, tv_s_e_name
+   where tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;
+num episodes in tv_se
+select count(episode_id) from tv_s_e where tv_id = ?;
+
+num episodes in tv_se
+select count(episode_id) from tv_s_e, tv_s_e_name
+   where tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;
 */
 
     sql << "CREATE TABLE IF NOT EXISTS actor_tv (";

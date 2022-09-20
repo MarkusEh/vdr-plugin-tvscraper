@@ -13,7 +13,6 @@ struct searchResultTvMovie;
 class cMovieDBScraper {
 private:
     string apiKey;
-    string language;
     string baseURL;
     string baseDir;
     string imageUrl;
@@ -30,10 +29,9 @@ private:
     void StoreMedia(cMovieDbMovie *movie, cMovieDbActors *actors);
 
 public:
-    cMovieDBScraper(string baseDir, cTVScraperDB *db, string language, cOverRides *overrides);
+    cMovieDBScraper(string baseDir, cTVScraperDB *db, cOverRides *overrides);
     virtual ~cMovieDBScraper(void);
     bool Connect(void);
-    const string GetLanguage(void) { return language; }
     const string GetApiKey(void) { return apiKey; }
     const string GetPosterBaseUrl(void) { return imageUrl + posterSize; }
     const string GetBackdropBaseUrl(void) { return imageUrl + backdropSize; }

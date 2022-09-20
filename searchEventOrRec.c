@@ -90,8 +90,10 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
   if (!shortText || ! *shortText) return; // no short text, no description -> go ahead with base name
   int distTitle     = sentence_distance(recording->Info()->Title(), m_baseNameOrTitle.c_str() );
   int distShortText = sentence_distance(shortText, m_baseNameOrTitle.c_str() );
-  if (distTitle > 600 && distShortText > 600 && isTitlePartOfPathName(baseNameLen) ) {
-// neither title nor shortText macht the filename, but title is part of patch name
+  if (distTitle > 600 && distShortText > 600) {
+// neither title nor shortText match the filename
+    if (!isTitlePartOfPathName(baseNameLen) ) return;
+// title is part of path name
 // this indicates that we have a TV show with title=title, and episode name=filename
     m_episodeName = m_baseNameOrTitle;
     m_baseNameOrTitle = recording->Info()->Title();
@@ -305,16 +307,17 @@ void cSearchEventOrRec::SearchTvAll(vector<searchResultTvMovie> &searchResults) 
 
 void cSearchEventOrRec::SearchTv(vector<searchResultTvMovie> &resultSet, const string &searchString) {
   extDbConnected = true;
+  const cLanguage *lang = m_sEventOrRecording->GetLanguage();
   string searchString1 = SecondPart(searchString, ":");
   string searchString2 = SecondPart(searchString, "'s");
   size_t oldSize = resultSet.size();
-  m_tvdbScraper->AddResults4(resultSet, searchString, searchString);
-  if (searchString1.length() > 4 ) m_tvdbScraper->AddResults4(resultSet, searchString, searchString1);
-  if (searchString2.length() > 4 ) m_tvdbScraper->AddResults4(resultSet, searchString, searchString2);
+  m_tvdbScraper->AddResults4(resultSet, searchString, searchString, lang);
+  if (searchString1.length() > 4 ) m_tvdbScraper->AddResults4(resultSet, searchString, searchString1, lang);
+  if (searchString2.length() > 4 ) m_tvdbScraper->AddResults4(resultSet, searchString, searchString2, lang);
   if (resultSet.size() == oldSize) {
-    m_tv.AddTvResults(resultSet, searchString, searchString);
-    if (searchString1.length() > 4 ) m_tv.AddTvResults(resultSet, searchString, searchString1);
-    if (searchString2.length() > 4 ) m_tv.AddTvResults(resultSet, searchString, searchString2);
+    m_tv.AddTvResults(resultSet, searchString, searchString, lang);
+    if (searchString1.length() > 4 ) m_tv.AddTvResults(resultSet, searchString, searchString1, lang);
+    if (searchString2.length() > 4 ) m_tv.AddTvResults(resultSet, searchString, searchString2, lang);
   }
 }
 
@@ -338,16 +341,17 @@ void cSearchEventOrRec::SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet
 
 void cSearchEventOrRec::SearchMovie(vector<searchResultTvMovie> &resultSet) {
   extDbConnected = true;
+  const cLanguage *lang = m_sEventOrRecording->GetLanguage();
 
   string searchString1 = SecondPart(m_searchString, ":");
   string searchString2 = SecondPart(m_searchString, "'s");
   string searchString3, searchString4;
-  m_movie.AddMovieResults(resultSet, m_searchString, m_searchString, m_years);
-  if (searchString1.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString1, m_years);
-  if (searchString2.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString2, m_years);
+  m_movie.AddMovieResults(resultSet, m_searchString, m_searchString, m_years, lang);
+  if (searchString1.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString1, m_years, lang);
+  if (searchString2.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString2, m_years, lang);
   if (splitString(m_searchString, '-', 4, searchString3, searchString4) ) {
-    if (searchString3.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString3, m_years);
-    if (searchString4.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString4, m_years);
+    if (searchString3.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString3, m_years, lang);
+    if (searchString4.length() > 4 ) m_movie.AddMovieResults(resultSet, m_searchString, searchString4, m_years, lang);
   }
 }
 

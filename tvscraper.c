@@ -21,10 +21,10 @@ enum eMediaType {
 #include "searchResultTvMovie.c"
 #include "tools/stringhelpers.c"
 #include "config.h"
+cTVScraperConfig config;
 #include "eventOrRec.h"
 #include "tvscraperdb.h"
 #include "autoTimers.h"
-cTVScraperConfig config;
 #include "config.c"
 #include "eventOrRec.c"
 #include "tools/jsonHelpers.c"
@@ -131,12 +131,12 @@ bool cPluginTvscraper::Initialize(void) {
     if (!cacheDirSet) {
         config.SetBaseDir(cPlugin::CacheDirectory(PLUGIN_NAME_I18N));
         cacheDirSet = true;
-        config.Initialize();
     }
     return true;
 }
 
 bool cPluginTvscraper::Start(void) {
+    config.Initialize();
     db = new cTVScraperDB();
     if (!db->Connect()) {
         esyslog("tvscraper: could not connect to Database. Aborting!");
@@ -144,11 +144,8 @@ bool cPluginTvscraper::Start(void) {
     };
     overrides = new cOverRides();
     overrides->ReadConfig(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N));
-    if (config.getDefaultLanguage() == 0) config.setDefaultLanguage(); // set this from the locale, if it was not saved in setup
     workerThread = new cTVScraperWorker(db, overrides);
     workerThread->SetDirectories();
-    workerThread->SetLanguage();
-    config.setDefaultLanguage();
     workerThread->Start();
     return true;
 }

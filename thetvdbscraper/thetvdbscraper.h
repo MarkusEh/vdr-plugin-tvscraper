@@ -13,7 +13,6 @@ private:
     string tokenHeader;
     time_t tokenHeaderCreated = 0;
     string baseDir;
-    string language;
     cTVScraperDB *db;
     json_t *CallRestJson(const std::string &url);
     bool GetToken(const std::string &jsonResponse);
@@ -22,11 +21,10 @@ private:
     static const char *prefixImageURL1;
     static const char *prefixImageURL2;
 public:
-    cTVDBScraper(string baseDir, cTVScraperDB *db, string language);
+    cTVDBScraper(string baseDir, cTVScraperDB *db);
     virtual ~cTVDBScraper(void);
     bool Connect(void);
     bool GetToken();
-    const string GetLanguage(void) { return language; }
     int StoreSeriesJson(int seriesID, bool onlyEpisodes);
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename);
     void StoreActors(int seriesID);
@@ -36,7 +34,7 @@ public:
     void DownloadMedia (int tvID);
     void DownloadMedia (int tvID, eMediaType mediaType, const string &destDir);
     void DownloadMediaBanner (int tvID, const string &destPath);
-    bool AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext);
+    bool AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const cLanguage *lang);
     static const char *getDbUrl(const char *url);
     static std::string getFullDownloadUrl(const char *url);
     void Download4(const char *url, const std::string &localPath);

@@ -9,7 +9,6 @@ private:
     bool startLoop;
     bool scanVideoDir;
     bool manualScan;
-    string language;
     string plgBaseDir;
     string plgConfDir;
     string seriesDir;
@@ -37,7 +36,6 @@ private:
 public:
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cTVScraperWorker(void);
-    void SetLanguage(void);
     void SetDirectories(void);
     void InitVideoDirScan(void);
     void InitManualScan(void);

@@ -40,7 +40,8 @@ cMovieDbMovie::~cMovieDbMovie() {
 bool cMovieDbMovie::ReadMovie(void) {
     string json;
     stringstream url;
-    url << m_baseURL << "/movie/" << id << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str();
+    const char *lang = config.GetDefaultLanguage()->m_themoviedb;
+    url << m_baseURL << "/movie/" << id << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang;
     if (!CurlGetUrl(url.str().c_str(), json)) return false;
 
     json_t *movie;
@@ -113,18 +114,18 @@ bool cMovieDbMovie::ReadMovie(json_t *movie) {
     return true;
 }
 
-void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const vector<int> &years){
+void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const vector<int> &years, const cLanguage *lang){
     stringstream url;
     string t = config.GetThemoviedbSearchOption();
 
-    url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&query=" << CurlEscape(SearchString_ext.c_str());
+    url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&query=" << CurlEscape(SearchString_ext.c_str());
     size_t num_pages = AddMovieResultsForUrl(url.str(), resultSet, SearchString);
     bool found = false;
     if (num_pages > 3 && years.size() + 1 < num_pages) {
 // several pages, restrict with years
       for (const int &year: years) {
         stringstream url;
-        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext.c_str());
+        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext.c_str());
         if (AddMovieResultsForUrl(url.str(), resultSet, SearchString) > 0) found = true;
       }
     }
@@ -133,7 +134,7 @@ void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
       if (num_pages > 10) num_pages = 10;
       for (size_t page = 2; page <= num_pages; page ++) {
         stringstream url;
-        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << t << "&page=" << page << "&query=" << CurlEscape(SearchString_ext.c_str());
+        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&page=" << page << "&query=" << CurlEscape(SearchString_ext.c_str());
         AddMovieResultsForUrl(url.str(), resultSet, SearchString);
       }
     }

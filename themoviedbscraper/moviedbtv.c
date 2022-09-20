@@ -38,7 +38,8 @@ bool cMovieDbTv::ReadTv(bool exits_in_db) {
 // call themoviedb api, get data
     string json;
     stringstream url;
-    url << m_baseURL << "/tv/" << m_tvID << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << "&include_image_language=en,null";
+    const char *lang = config.GetDefaultLanguage()->m_themoviedb;
+    url << m_baseURL << "/tv/" << m_tvID << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang << "&include_image_language=en,null";
     if(!exits_in_db) url << "&append_to_response=credits";
     if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json response
@@ -89,13 +90,13 @@ bool cMovieDbTv::ReadTv(json_t *tv) {
     return true;
 }
 
-bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext) {
+bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
 
 // call api, get json
     string json;
     stringstream url;
-    url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str() << "&query=" << CurlEscape(tvSearchString_ext.c_str());
+    url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << "&query=" << CurlEscape(tvSearchString_ext.c_str());
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
     if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json
@@ -161,7 +162,8 @@ bool cMovieDbTv::AddOneSeason() {
 // call api, get json
     string json;
     stringstream url;
-    url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str();
+    const char *lang = config.GetDefaultLanguage()->m_themoviedb;
+    url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang;
     if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json
     json_t *root;
@@ -259,7 +261,8 @@ bool cMovieDbTv::AddActors() {
 // call api, get json
     string json;
     stringstream url;
-    url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "/episode/" << m_episodeNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << m_movieDBScraper->GetLanguage().c_str();
+    const char *lang = config.GetDefaultLanguage()->m_themoviedb;
+    url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "/episode/" << m_episodeNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang;
     if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json
     json_t *root;

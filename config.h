@@ -24,6 +24,8 @@ struct sMovieOrTv {
 };
 class cLanguage {
   public:
+    cLanguage(int id, const char*thetvdb, const char *themoviedb, const char *name):
+      m_id(id), m_thetvdb(thetvdb), m_themoviedb(themoviedb), m_name(name) {}
     int m_id;
     const char *m_thetvdb;
     const char *m_themoviedb;
@@ -86,7 +88,7 @@ class cTVScraperConfig {
         set<int> m_TV_Shows;  // TV_Shows where missing episodes will be recorded
         set<int> m_AdditionalLanguages;
         int m_enableAutoTimers;
-        int m_defaultLanguage;
+        int m_defaultLanguage = 0;
         map<tChannelID, int> m_channel_language; // if a channel is not in this map, it has the default language
 // End of list of data that can be changed in the setup menu
         friend class cTVScraperConfigLock;
@@ -110,6 +112,7 @@ class cTVScraperConfig {
 { 9, "nld", "nl-NL", "Nederlands"},
 {10, "spa", "es-ES", "español"}
 };
+        const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English"};
 // list of data that can be changed in the setup menu
         int enableDebug;
 // End of list of data that can be changed in the setup menu
@@ -144,10 +147,10 @@ class cTVScraperConfig {
         bool TV_ShowSelected(int TV_Show) const { cTVScraperConfigLock l; return m_TV_Shows.find(TV_Show) != m_TV_Shows.end(); }
         int getEnableAutoTimers() const { cTVScraperConfigLock l; int r = m_enableAutoTimers; return r; }
 // languages
-        int getDefaultLanguage() const { cTVScraperConfigLock l; int r = m_defaultLanguage; return r; }
         int numAdditionalLanguages() const { cTVScraperConfigLock l; int r = m_AdditionalLanguages.size(); return r; }
-        const cLanguage *GetLanguage(int lang) const { auto r = m_languages.find(lang); if(r == m_languages.end()) return NULL; else return &(*r); }  // m_languages is constant -> no lock required
-        int getLanguage(const tChannelID &channelID) const { int r; cTVScraperConfigLock lr; auto l = m_channel_language.find(channelID); if (l == m_channel_language.end()) r= m_defaultLanguage; else r = l->second; return r; }
+        const cLanguage *GetDefaultLanguage() const; // this will ALLWAYS return a valid pointer to cLanguage
+        const cLanguage *GetLanguage(const tChannelID &channelID) const;  // this will ALLWAYS return a valid pointer to cLanguage
+        int GetLanguage_n(const tChannelID &channelID) const;
 };
 
 #endif //__TVSCRAPER_CONFIG_H

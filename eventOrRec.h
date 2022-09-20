@@ -22,6 +22,7 @@ public:
   virtual const char *Title() const { return m_event->Title(); }
   virtual const char *ShortText() const { return m_event->ShortText(); }
   virtual const char *Description() const { return m_event->Description(); }
+  const cLanguage *GetLanguage() const { return config.GetLanguage(ChannelID()); }
 protected:
   virtual int DurationWithoutMarginSec(void) const { return m_event->Duration(); }
   virtual int DurationLowSec(void) const { return m_event->Vps()?DurationWithoutMarginSec():RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: for recording only if not cut, and no valid marks

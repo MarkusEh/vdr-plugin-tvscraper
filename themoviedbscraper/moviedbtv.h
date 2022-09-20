@@ -43,7 +43,7 @@ public:
    cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
    static string GetCrewMember(json_t *jCrew, const char *field, const string &value);
    virtual ~cMovieDbTv(void);
-   bool AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext);
+   bool AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext, const cLanguage *lang);
    bool UpdateDb();
    void StoreSeasonPoster(const string &SeasonPosterPath);
    int tvID(void) { return m_tvID; };

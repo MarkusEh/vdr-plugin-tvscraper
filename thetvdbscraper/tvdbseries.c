@@ -46,17 +46,22 @@ std::string GetLang3(json_t *jSeriesData, const std::string &lang) {
   return json_string_value_validated(jSeriesData, "originalLanguage");
 }
 
-std::string translation(json_t *jTranslations, const char *arrayAttributeName, const char *textAttributeName, const std::string &lang) {
-  if (lang.length() < 2) return "";
+std::string translation(json_t *jTranslations, const char *arrayAttributeName, const char *textAttributeName) {
 //json_t *jTranslationsArray = json_array_validated(jTranslations, arrayAttributeName, "ParseJson_Series / tvdbseries.c");
   json_t *jTranslationsArray = json_array_validated(jTranslations, arrayAttributeName, ""); // no error here, can be empty
   if (!jTranslationsArray) return "";
+  const char *lang3 = config.GetDefaultLanguage()->m_thetvdb;
+  if (!lang3 || strlen(lang3) < 3) {
+    if (!lang3) esyslog("tvscrapre: ERROR translation: !lang3");
+    else esyslog("tvscrapre: ERROR translation: strlen(lang3) < 3, lang3: %s", lang3);
+    return "";
+  }
   size_t index;
   json_t *jTranslation;
   json_array_foreach(jTranslationsArray, index, jTranslation) {
     const char *language = json_string_value_validated_c(jTranslation, "language");
     if (!language || !*language) continue;
-    if (language[0] == lang[0] && language[1] == lang[1]) return json_string_value_validated(jTranslation, textAttributeName);
+    if (language[0] == lang3[0] && language[1] == lang3[1] && language[2] == lang3[2]) return json_string_value_validated(jTranslation, textAttributeName);
   }
   return "";
 }
@@ -119,9 +124,10 @@ bool cTVDBSeries::ParseJson_Series(json_t *jSeries) {
 // translations (name, overview)
   json_t *jTranslations = json_object_validated(jSeries, "translations", "cTVDBSeries::ParseJson_Series");
   if (jTranslations) {
-    name = translation(jTranslations, "nameTranslations", "name", m_TVDBScraper->language);
-    overview = translation(jTranslations, "overviewTranslations", "overview", m_TVDBScraper->language);
+    name = translation(jTranslations, "nameTranslations", "name");
+    overview = translation(jTranslations, "overviewTranslations", "overview");
   }
+  if (name.empty() ) name = originalName; // translation in desired language is not available, use name in original language
 // defaultSeasonType
 /*
   int defaultSeasonType = json_integer_value_validated(jSeries, "defaultSeasonType");

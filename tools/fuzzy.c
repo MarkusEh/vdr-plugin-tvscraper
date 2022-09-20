@@ -143,7 +143,9 @@ std::string stripExtraUTF8(const char *s) {
   out.reserve(strlen(s) );
   for( wint_t cChar = getNextUtfCodepoint(s); cChar; cChar = getNextUtfCodepoint(s) ) {
     if (std::iswalnum(cChar) ) AppendUtfCodepoint(out, towlower(cChar));
-    else out.append(" ");
+    else {
+      if (!out.empty() && out.back() != ' ') out.append(" ");
+    }
   }
   return out;
 }

@@ -15,7 +15,6 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
 //    initSleep = 2 * 60 * 1000;
     initSleep =     60 * 1000;
     loopSleep = 5 * 60 * 1000;
-    language = "";
 }
 
 cTVScraperWorker::~cTVScraperWorker() {
@@ -23,22 +22,6 @@ cTVScraperWorker::~cTVScraperWorker() {
         delete moviedbScraper;
     if (tvdbScraper)
         delete tvdbScraper;
-}
-
-void cTVScraperWorker::SetLanguage(void) {
-    string loc = setlocale(LC_NAME, NULL);
-    size_t index = loc.find_first_of("_");
-    string langISO = "";
-    if (index > 0) {
-        langISO = loc.substr(0, index);
-    }
-    if (langISO.size() == 2) {
-        language = langISO.c_str();
-        dsyslog("tvscraper: using language %s", language.c_str());
-        return;
-    }
-    language = "en";
-    dsyslog("tvscraper: using fallback language %s", language.c_str());
 }
 
 void cTVScraperWorker::Stop(void) {
@@ -88,7 +71,7 @@ void cTVScraperWorker::SetDirectories(void) {
 
 bool cTVScraperWorker::ConnectScrapers(void) {
   if (!moviedbScraper) {
-    moviedbScraper = new cMovieDBScraper(movieDir, db, language, overrides);
+    moviedbScraper = new cMovieDBScraper(movieDir, db, overrides);
     if (!moviedbScraper->Connect()) {
 	esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
 	delete moviedbScraper;
@@ -97,7 +80,7 @@ bool cTVScraperWorker::ConnectScrapers(void) {
     }
   }
   if (!tvdbScraper) {
-    tvdbScraper = new cTVDBScraper(seriesDir, db, language);
+    tvdbScraper = new cTVDBScraper(seriesDir, db);
     if (!tvdbScraper->Connect()) {
 	esyslog("tvscraper: ERROR, connection to TheTVDB failed");
 	delete tvdbScraper;
@@ -241,6 +224,8 @@ void cTVScraperWorker::ScrapRecordings(void) {
       csRecording csRecording(rec);
       const cRecordingInfo *recInfo = rec->Info();
       const cEvent *recEvent = recInfo->GetEvent();
+//      const cLanguage *lang = recInfo-> // TODO
+
       if (recEvent) {
           cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, moviedbScraper, tvdbScraper, db);  
           movieOrTv = SearchEventOrRec.Scrape();
