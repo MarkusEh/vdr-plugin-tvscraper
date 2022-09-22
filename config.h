@@ -102,17 +102,17 @@ class cTVScraperConfig {
         const std::set<cLanguage, std::less<>> m_languages =
 {
 { 1, "dan", "da-DK", "dansk"},
-{ 2, "deu", "de-AT", "Deutsch"},
-{ 3, "deu", "de-CH", "Deutsch"},
+{ 2, "deu", "de-AT", "Deutsch, Österreich"},
+{ 3, "deu", "de-CH", "Deutsch, Schweiz"},
 { 4, "deu", "de-DE", "Deutsch"},
-{ 5, "eng", "en-GB", "English"},
-{ 6, "eng", "en-US", "English"},
+{ 5, "eng", "en-GB", "English GB"},
+{ 6, "eng", "en-US", "English US"},
 { 7, "fra", "fr-FR", "français"},
 { 8, "ita", "it-IT", "italiano"},
 { 9, "nld", "nl-NL", "Nederlands"},
 {10, "spa", "es-ES", "español"}
 };
-        const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English"};
+        const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
 // list of data that can be changed in the setup menu
         int enableDebug;
 // End of list of data that can be changed in the setup menu
@@ -150,6 +150,7 @@ class cTVScraperConfig {
         int numAdditionalLanguages() const { cTVScraperConfigLock l; int r = m_AdditionalLanguages.size(); return r; }
         const cLanguage *GetDefaultLanguage() const; // this will ALLWAYS return a valid pointer to cLanguage
         const cLanguage *GetLanguage(const tChannelID &channelID) const;  // this will ALLWAYS return a valid pointer to cLanguage
+        bool isDefaultLanguage(const cLanguage *l) const { if (!l) return true; cTVScraperConfigLock ll; bool r = l->m_id == m_defaultLanguage; return r; }
         int GetLanguage_n(const tChannelID &channelID) const;
 };
 

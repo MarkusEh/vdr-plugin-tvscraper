@@ -205,6 +205,7 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
       if (config.enableDebug) esyslog("tvscraper: movie \"%s\" successfully scraped, id %i", movieName.c_str(), searchResults[0].id() );
     } else if(sType == scrapSeries) {
 // search episode
+      const cLanguage *lang = m_sEventOrRecording->GetLanguage();
       movieOrTv.episodeSearchWithShorttext = episodeSearchString.empty()?1:0;
       if (movieOrTv.episodeSearchWithShorttext == 1) {
         episodeSearchString = m_baseNameEquShortText?m_episodeName:m_sEventOrRecording->EpisodeSearchString();
@@ -221,8 +222,8 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
           }
         }
       }
-      UpdateEpisodeListIfRequired(movieOrTv.id);
-      cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString, m_baseNameOrTitle);
+      UpdateEpisodeListIfRequired(movieOrTv.id, lang);
+      cMovieOrTv::searchEpisode(m_db, movieOrTv, episodeSearchString, m_baseNameOrTitle, lang);
       if (config.enableDebug) esyslog("tvscraper: %stv \"%s\", episode \"%s\" successfully scraped, id %i season %i episode %i", searchResults[0].id() > 0?"":"TV", movieName.c_str(), episodeSearchString.c_str(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
     }
     if (config.enableDebug) {
@@ -292,7 +293,9 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
 int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
   int finalDurationDistance = -1; // default, no data available
   for (vector<string> &duration_v: tvID>0?m_moviedbScraper->GetTvRuntimes(tvID):m_tvdbScraper->GetTvRuntimes(tvID * -1) ) if ( duration_v.size() > 0) {
-    int durationDistance = m_sEventOrRecording->DurationDistance(atoi(duration_v[0].c_str() ) );
+    int rt = atoi(duration_v[0].c_str() );
+    if (rt < 1) continue; // ignore 0 and -1: -1-> no value in ext. db. 0-> value 0 in ext. db
+    int durationDistance = m_sEventOrRecording->DurationDistance(rt);
     if (finalDurationDistance == -1 || durationDistance < finalDurationDistance) finalDurationDistance = durationDistance;
   }
   return finalDurationDistance;
@@ -368,12 +371,13 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
       episodeSearchString = m_baseNameEquShortText?m_episodeName:m_sEventOrRecording->EpisodeSearchString();
       int min_distance = 2000;
       sMovieOrTv movieOrTv_best;
+      const cLanguage *lang = m_sEventOrRecording->GetLanguage();
       for (const int &id: m_db->getSimilarTvShows(movieOrTv.id) ) {
         sMovieOrTv movieOrTv2 = movieOrTv;
         movieOrTv2.id = id;
         if (id != movieOrTv.id) Store(movieOrTv2);
-        UpdateEpisodeListIfRequired(id);
-        int distance = cMovieOrTv::searchEpisode(m_db, movieOrTv2, episodeSearchString, m_baseNameOrTitle);
+        UpdateEpisodeListIfRequired(id, lang);
+        int distance = cMovieOrTv::searchEpisode(m_db, movieOrTv2, episodeSearchString, m_baseNameOrTitle, lang);
         if (distance < min_distance) {
           min_distance = distance;
           movieOrTv_best = movieOrTv2;
@@ -411,7 +415,15 @@ void cSearchEventOrRec::ScrapAssign(const sMovieOrTv &movieOrTv) {
      else m_db->InsertRecording2(m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
 }
 
-void cSearchEventOrRec::UpdateEpisodeListIfRequired(int tvID) {
+void cSearchEventOrRec::UpdateEpisodeListIfRequired(int tvID, const cLanguage *lang) {
+  UpdateEpisodeListIfRequired_i(tvID);
+  if (tvID > 0) return;
+  if (config.isDefaultLanguage(lang)) return;
+  if (config.enableDebug) esyslog("tvscraper: cSearchEventOrRec::UpdateEpisodeListIfRequired lang %s, tvID %i", lang->getNames().c_str(), tvID);
+  m_tvdbScraper->StoreSeriesJson(tvID * (-1), lang);
+}
+
+void cSearchEventOrRec::UpdateEpisodeListIfRequired_i(int tvID) {
 // check: is update required?
   string status;
   time_t lastUpdated = 0;
@@ -644,8 +656,9 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   movieOrTv.episodeSearchWithShorttext = searchResult.delim()?0:1;
   if (movieOrTv.episodeSearchWithShorttext) episodeSearchString = searchEventOrRec.m_baseNameEquShortText?searchEventOrRec.m_episodeName:searchEventOrRec.m_sEventOrRecording->EpisodeSearchString();
     else splitString(searchEventOrRec.m_searchString, searchResult.delim(), 4, movieName, episodeSearchString);
-  searchEventOrRec.UpdateEpisodeListIfRequired(movieOrTv.id);
-  int distance = cMovieOrTv::searchEpisode(searchEventOrRec.m_db, movieOrTv, episodeSearchString, "");
+  const cLanguage *lang = searchEventOrRec.m_sEventOrRecording->GetLanguage();
+  searchEventOrRec.UpdateEpisodeListIfRequired(movieOrTv.id, lang);
+  int distance = cMovieOrTv::searchEpisode(searchEventOrRec.m_db, movieOrTv, episodeSearchString, "", lang);
   searchEventOrRec.m_episodeFound = distance != 1000;
   searchResult.setMatchEpisode(distance);
 }

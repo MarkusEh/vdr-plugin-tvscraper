@@ -52,6 +52,9 @@ class cTVScraperSetup: public cMenuSetupPage {
         std::vector<int> m_selectedTV_Shows;
         int m_NumberOfAdditionalLanguages;
 // END data changed in the menu
+        map<tChannelID, int> m_allChannels;  // second is channel number - 1
+        map<tChannelID, const char*> m_recChannels;  // second is the channel name
+        std::vector<const char*> m_channelNames;
         int m_recordings_width;
         std::set<std::string> m_allRecordingFolders;
         set<int> m_allTV_Shows;
@@ -59,6 +62,9 @@ class cTVScraperSetup: public cMenuSetupPage {
         std::string StoreExcludedRecordingFolders();
         std::string StoreTV_Shows();
         std::set<int> getAllTV_Shows();
+        std::set<std::string> getAllRecordingFolders(int &max_width);
+        std::set<tChannelID> GetChannelsFromSetup(const vector<int> &channels);
+        map<tChannelID, int> GetChannelsFromSetup(const vector<int> &channels, const mapIntBi *langIds);
     protected:
         virtual eOSState ProcessKey(eKeys Key);
         virtual void Store(void);
@@ -66,11 +72,11 @@ class cTVScraperSetup: public cMenuSetupPage {
 
 class cTVScraperChannelSetup : public cOsdMenu {
     public:
-        cTVScraperChannelSetup(vector<int> *channels, const char *headline, const char *null, const char *eins);
-        cTVScraperChannelSetup(vector<int> *channels, const char *headline, int numOptions, const char**selectOptions);
+        cTVScraperChannelSetup(const vector<const char*> &channelNames, vector<int> *channels, const char *headline, const char *null, const char *eins);
+        cTVScraperChannelSetup(const vector<const char*> &channelNames, vector<int> *channels, const char *headline, int numOptions, const char**selectOptions);
         virtual ~cTVScraperChannelSetup();       
     private:
-        void Setup(vector<int> *channels, int numOptions, const char**selectOptions);
+        void Setup(const vector<const char*> &channelNames, vector<int> *channels, int numOptions, const char**selectOptions);
         const char **m_selectOptions = NULL;
     protected:
         virtual eOSState ProcessKey(eKeys Key);

@@ -122,6 +122,38 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   return seriesID;
 }
 
+int cTVDBScraper::StoreSeriesJson(int seriesID, const cLanguage *lang) {
+// return 0 in case of error
+// only update if required (there are less episodes in this language than episodes in default language
+  if (seriesID == 0) return 0;
+  if (!db->episodeNameUpdateRequired(seriesID * (-1), lang->m_id)) return seriesID;
+
+  cTVDBSeries series(db, this, seriesID);
+// episodes
+  string urlE = baseURL4 + "series/" + std::to_string(seriesID) + "/episodes/default/" + lang->m_thetvdb + "?page=0";
+  while (!urlE.empty() ) {
+    json_t *jEpisodes = CallRestJson(urlE);
+    urlE = "";
+    if (!jEpisodes) break;
+    json_t *jEpisodesData = json_object_get(jEpisodes, "data");
+    if (jEpisodesData) {
+// parse episodes
+      json_t *jEpisodesDataEpisodes = json_object_get(jEpisodesData, "episodes");
+      if (json_is_array(jEpisodesDataEpisodes)) {
+        size_t index;
+        json_t *jEpisode;
+        json_array_foreach(jEpisodesDataEpisodes, index, jEpisode) {
+          series.ParseJson_Episode(jEpisode, lang);
+        }
+      }
+    }
+    json_t *jLinks = json_object_get(jEpisodes, "links");
+    if (json_is_object(jLinks)) urlE = json_string_value_validated(jLinks, "next");
+    json_decref(jEpisodes);
+  }
+  return seriesID;
+}
+
 json_t *cTVDBScraper::CallRestJson(const std::string &url) {
 // return NULL in case of errors
 // otherwise, the caller must ensure to call json_decref(...); on the returned reference
@@ -273,7 +305,7 @@ bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, const str
   json_t *root = CallRestJson(url);
   if (!root) return false;
   int seriesID = 0;
-  bool result = ParseJson_search(root, resultSet, SearchString);
+  bool result = ParseJson_search(root, resultSet, SearchString, lang);
   json_decref(root);
   if (!result) {
     esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, !result, url %s", url.c_str());
@@ -283,7 +315,7 @@ bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, const str
   return true;
 }
 
-bool cTVDBScraper::ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString) {
+bool cTVDBScraper::ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString, const cLanguage *lang) {
   if (root == NULL) return false;
   json_t *jData = json_object_get(root, "data");
   if(!json_is_array(jData))  {
@@ -294,7 +326,7 @@ bool cTVDBScraper::ParseJson_search(json_t *root, vector<searchResultTvMovie> &r
   size_t index;
   json_t *jElement;
   json_array_foreach(jData, index, jElement) {
-    ParseJson_searchSeries(jElement, resultSet, SearchStringStripExtraUTF8);
+    ParseJson_searchSeries(jElement, resultSet, SearchStringStripExtraUTF8, lang);
   }
   return true;
 }
@@ -312,7 +344,7 @@ int minDist(int dist, const json_t *jString, const string &SearchStringStripExtr
   return dist;
 }
 
-void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const string &SearchStringStripExtraUTF8) {// add search results to resultSet
+void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const string &SearchStringStripExtraUTF8, const cLanguage *lang) {// add search results to resultSet
   if (!data) return;
   std::string objectID = json_string_value_validated(data, "objectID");
   if (objectID.length() < 8) {
@@ -348,12 +380,11 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
   }
   json_t *jTranslations = json_object_get(data, "translations");
   if (json_is_object(jTranslations) ) {
-    const char *key;
-    json_t *value;
-    json_object_foreach(jTranslations, key, value) {
-      dist_a = minDist(dist_a, value, SearchStringStripExtraUTF8);
-    }
+    json_t *langVal = json_object_get(jTranslations, lang->m_thetvdb);
+    dist_a = minDist(dist_a, langVal, SearchStringStripExtraUTF8);
   }
-  sRes.setMatchText(dist_a);
-  resultSet.push_back(sRes);
+  if (dist_a < 700) {  // for episodes, we use 600. So we might reduce this value
+    sRes.setMatchText(dist_a);
+    resultSet.push_back(sRes);
+  }
 }

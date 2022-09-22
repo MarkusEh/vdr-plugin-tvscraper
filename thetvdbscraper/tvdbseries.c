@@ -29,23 +29,6 @@ std::map<int,int> ParseJson_Seasons(json_t *jSeasons) {
   return result;
 }
 
-std::string GetLang3(json_t *jSeriesData, const std::string &lang) {
-  if (!jSeriesData) return "eng";
-  json_t *jNameTranslations = json_object_get(jSeriesData, "nameTranslations");
-  if (!json_is_array(jNameTranslations)) return json_string_value_validated(jSeriesData, "originalLanguage");
-  bool eng = false;
-  size_t index;
-  json_t *jLang3;
-  json_array_foreach(jNameTranslations, index, jLang3) {
-    const char *lang3 = json_string_value(jLang3);
-    if (!lang3 || !*lang3) continue;
-    if ( lang3[0] == lang[0] && lang3[1] == lang[1]) return lang3;
-    if ( lang3[0] == 'e' && lang3[1] == 'n') eng = true;
-  }
-  if (eng) return "eng";  // backup for desired language lang
-  return json_string_value_validated(jSeriesData, "originalLanguage");
-}
-
 std::string translation(json_t *jTranslations, const char *arrayAttributeName, const char *textAttributeName) {
 //json_t *jTranslationsArray = json_array_validated(jTranslations, arrayAttributeName, "ParseJson_Series / tvdbseries.c");
   json_t *jTranslationsArray = json_array_validated(jTranslations, arrayAttributeName, ""); // no error here, can be empty
@@ -156,7 +139,7 @@ bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode) {
   int episodeID = json_integer_value_validated(jEpisode, "id");
   if (episodeID == 0) return false;
   string episodeName = json_string_value_validated(jEpisode, "name");
-  if (episodeName.empty() ) return false;
+//  if (episodeName.empty() ) return false;
   int seasonNumber = json_integer_value_validated(jEpisode, "seasonNumber");
   int episodeNumber = json_integer_value_validated(jEpisode, "number");
 //episodeAbsoluteNumber = atoi((const char *)node_content);
@@ -175,6 +158,19 @@ bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode) {
   float episodeRating = 0.0;     // not available
   int episodeVoteCount = 0;      // not available
   m_db->InsertTv_s_e(m_seriesID * (-1), seasonNumber, episodeNumber, episodeAbsoluteNumber, episodeID, episodeName, episodeFirstAired, episodeRating, episodeVoteCount, episodeOverview, episodeGuestStars, episodeDirector, episodeWriter, episodeIMDB_ID, episodeFilename, episodeRunTime);
+  return true;
+}
+
+bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode, const cLanguage *lang) {
+// read data (episode name) from json, for one episode, and write this data to db with additional languages
+  if (!jEpisode) return false;
+//read the episode
+  int episodeID = json_integer_value_validated(jEpisode, "id");
+  if (episodeID == 0) return false;
+  const char *episodeName = json_string_value_validated_c(jEpisode, "name");
+  string episodeNameS = stripExtraUTF8(episodeName);
+  m_db->execSql("INSERT OR REPLACE INTO tv_s_e_name (episode_id, language_id, episode_name) VALUES (?, ?, ?);",
+    "iis", episodeID, lang->m_id, episodeNameS.c_str() );
   return true;
 }
 

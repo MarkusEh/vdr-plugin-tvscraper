@@ -338,15 +338,20 @@ void cTVScraperDB::AddCulumnIfNotExists(const char *table, const char *column, c
 
 bool cTVScraperDB::Connect(void) {
     if (inMem) {
+        time_t timeMem = LastModifiedTime(dbPathMem.c_str() );
+        time_t timePhys = LastModifiedTime(dbPathPhys.c_str() );
+        bool readFromPhys = timePhys > timeMem;
         if (sqlite3_open(dbPathMem.c_str(),&db)!=SQLITE_OK) {
             esyslog("tvscraper: failed to open or create %s", dbPathMem.c_str());
             return false;
         }
-        esyslog("tvscraper: connecting to db %s", dbPathMem.c_str());
-        int rc = LoadOrSaveDb(db, dbPathPhys.c_str(), false);
-        if (rc != SQLITE_OK) {
-            esyslog("tvscraper: error while loading data from %s, errorcode %d", dbPathPhys.c_str(), rc);
-            return false;
+        if (readFromPhys) {
+          esyslog("tvscraper: connecting to db %s", dbPathMem.c_str());
+          int rc = LoadOrSaveDb(db, dbPathPhys.c_str(), false);
+          if (rc != SQLITE_OK) {
+              esyslog("tvscraper: error while loading data from %s, errorcode %d", dbPathPhys.c_str(), rc);
+              return false;
+          }
         }
     } else {
         if (sqlite3_open(dbPathPhys.c_str(),&db)!=SQLITE_OK) {
@@ -470,7 +475,6 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e on tv_s_e (tv_id, season_number, episode_number); ";
     sql << "DROP INDEX IF EXISTS idx_tv_s_e_episode;";
 
-/*
 // episode names, language dependent
     sql << "CREATE TABLE IF NOT EXISTS tv_s_e_name (";
     sql << "episode_id integer, ";
@@ -478,7 +482,8 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "episode_name nvarchar";
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e_name on tv_s_e_name (episode_id, language_id); ";
-select tv_s_e_name.episode_name, tv_s_e.season_number tv_s_e.episode_number from tv_s_e, tv_s_e_name
+/*
+select tv_s_e_name.episode_name, tv_s_e.season_number, tv_s_e.episode_number from tv_s_e, tv_s_e_name
    where tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;
 num episodes in tv_se
 select count(episode_id) from tv_s_e where tv_id = ?;
@@ -797,6 +802,20 @@ void cTVScraperDB::InsertTv_s_e(int tvID, int season_number, int episode_number,
 
 string cTVScraperDB::GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber) const {
   return QueryString("select episode_still_path from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", tvID, seasonNumber, episodeNumber);
+}
+
+bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {
+  const char *sqld = "select count(episode_id) from tv_s_e where tv_id = ?;";
+  const char *sqll = "select count(tv_s_e_name.episode_id) from tv_s_e, tv_s_e_name where tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;";
+  int numEpisodesD = QueryInt(sqld, "i", tvID);
+  int numEpisodesL = QueryInt(sqll, "ii", tvID, langId);
+  if (numEpisodesD == numEpisodesL) return false;
+  if (config.enableDebug) esyslog("tvscraper: episodeNameUpdateRequired tvID %i, numEpisodesD %i numEpisodesL %i langId %i",
+      tvID, numEpisodesD, numEpisodesL, langId);
+  if (numEpisodesD > numEpisodesL) return true;
+  esyslog("tvscraper: ERROR episodeNameUpdateRequired tvID %i, numEpisodesD %i numEpisodesL %i langId %i",
+      tvID, numEpisodesD, numEpisodesL, langId);
+  return false;
 }
 
 void cTVScraperDB::InsertEvent(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number) {

@@ -388,10 +388,10 @@ bool cTv::IsUsed() {
   return false;
 }
 
-int cTv::searchEpisode(const string &tvSearchEpisodeString, const string &baseNameOrTitle) {
+int cTv::searchEpisode(const string &tvSearchEpisodeString, const string &baseNameOrTitle, const cLanguage *lang) {
 // return 1000, if no match was found
 // otherwise, distance
-  int distance = searchEpisode(tvSearchEpisodeString);
+  int distance = searchEpisode(tvSearchEpisodeString, lang);
   if (distance != 1000) return distance;
 // no match with episode name found, try episode number as part of title
 // note: this is a very week indicator that the right TV show was choosen. So, even if there is a match, return a high distance (950)
@@ -408,7 +408,7 @@ int cTv::searchEpisode(const string &tvSearchEpisodeString, const string &baseNa
   return 1000;
 }
 
-int cTv::searchEpisode(const string &tvSearchEpisodeString_i) {
+int cTv::searchEpisode(const string &tvSearchEpisodeString_i, const cLanguage *lang) {
 // return 1000, if no match was found
 // otherwise, distance
   bool debug = false;
@@ -420,11 +420,16 @@ int cTv::searchEpisode(const string &tvSearchEpisodeString_i) {
   int distance;
   int episode;
   int season;
-  const char sql[] = "select episode_name, season_number, episode_number from tv_s_e  where tv_id =?";
-  for( sqlite3_stmt *stmt = m_db->QueryPrepare(sql, "i", dbID() );
-       m_db->QueryStep(stmt, "sii", &episodeName, &season, &episode); ) {
+  bool isDefaultLang = config.isDefaultLanguage(lang);
+  const char sqld[] = "select episode_name, season_number, episode_number from tv_s_e  where tv_id =?";
+  const char sqll[] = "select tv_s_e_name.episode_name, tv_s_e.season_number, tv_s_e.episode_number from tv_s_e, tv_s_e_name where tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;";
+  sqlite3_stmt *stmt;
+  if (!isDefaultLang) stmt = m_db->QueryPrepare(sqll, "ii", dbID(), lang->m_id);
+  else stmt = m_db->QueryPrepare(sqld, "i", dbID());
+  for( ; m_db->QueryStep(stmt, "sii", &episodeName, &season, &episode); ) {
     if (!episodeName) continue;
-    distance = sentence_distance_normed_strings(tvSearchEpisodeString, stripExtraUTF8(episodeName));
+    if (!isDefaultLang) distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeName);
+    else distance = sentence_distance_normed_strings(tvSearchEpisodeString, stripExtraUTF8(episodeName));
     if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.c_str(), episodeName, season, episode, dbID(), distance);
     if (season == 0) distance += 10; // avoid season == 0, could be making of, ...
     if (distance < best_distance) {
@@ -862,13 +867,13 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *r
 }
 
 // search episode
-int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle) {
+int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle, const cLanguage *lang) {
   bool debug = false;
   movieOrTv.season  = 0;
   movieOrTv.episode = 0;
   cMovieOrTv *mv =  cMovieOrTv::getMovieOrTv(db, movieOrTv);
   if (!mv) return 1000;
-  int distance = mv->searchEpisode(tvSearchEpisodeString, baseNameOrTitle);
+  int distance = mv->searchEpisode(tvSearchEpisodeString, baseNameOrTitle, lang);
   
   if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::earchEpisode search string \"%s\" season %i episode %i", tvSearchEpisodeString.c_str(), mv->m_seasonNumber, mv->m_episodeNumber);
   if (distance != 1000) {

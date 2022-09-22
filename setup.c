@@ -2,8 +2,9 @@
 
 using namespace std;
 
-std::set<std::string> getAllRecordingFolders(int &max_width) {
+std::set<std::string> cTVScraperSetup::getAllRecordingFolders(int &max_width) {
   std::set<std::string> result;
+  m_recChannels.clear();
   max_width = 0;
 #if APIVERSNUM < 20301
   for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec))
@@ -12,6 +13,7 @@ std::set<std::string> getAllRecordingFolders(int &max_width) {
   for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec))
 #endif
   {
+    if (rec->Info() ) m_recChannels.insert({rec->Info()->ChannelID(), rec->Info()->ChannelName()});
     const char *pos_delim = strrchr(rec->Name(), '~');
     if (pos_delim != 0) {
       result.insert(std::string(rec->Name(), pos_delim - rec->Name() ));
@@ -54,6 +56,11 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
 // copy data from config to local data, which will be directly changed in OSD
   m_enableDebug = config.enableDebug;
   m_enableAutoTimers = config.m_enableAutoTimers;
+// Recording folders
+  m_allRecordingFolders = getAllRecordingFolders(m_recordings_width);
+  for (const std::string &recordingFolder: m_allRecordingFolders)
+    m_selectedRecordingFolders.push_back(config.recordingFolderSelected(recordingFolder)?1:0);
+  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after selectedRecordingFolders");
 // languages  =============================================
   if (m_all_languages.size() == 0) {
     esyslog("tvscraper: ERROR cTVScraperSetup::cTVScraperSetup m_all_languages.size() == 0");
@@ -94,6 +101,8 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
   }
   if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after langAdditional / langChannels");
   
+  m_allChannels.clear();
+  m_channelNames.clear();
   {
 #if APIVERSNUM < 20301
     for (cChannel *channel = Channels.First(); channel; channel = Channels.Next(channel))
@@ -102,19 +111,27 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
     for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel))
 #endif
     if (!channel->GroupSep()) {
-      channelsScrap.push_back(config.ChannelActive(channel->GetChannelID())?1:0);
-      channelsHD.push_back(config.ChannelHD(channel->GetChannelID())?1:0);
-      int lang = config.GetLanguage_n(channel->GetChannelID() );
+      tChannelID channelID = channel->GetChannelID();
+      m_allChannels.insert({channelID, (int)m_channelNames.size()});
+      m_channelNames.push_back(channel->Name() );
+      channelsScrap.push_back(config.ChannelActive(channelID)?1:0);
+      channelsHD.push_back(config.ChannelHD(channelID)?1:0);
+      int lang = config.GetLanguage_n(channelID);
       if (!langChannels.m_osdMap.isSecond(lang)) langChannels.addLanguage(lang);
       langChannels.addLine(lang);
     }
   }
+  for (const auto recChannel: m_recChannels) {
+    if (m_allChannels.find(recChannel.first) != m_allChannels.end() ) continue;
+    if (!recChannel.second || !*recChannel.second) continue; // no channel name
+    m_allChannels.insert({recChannel.first, (int)m_channelNames.size()});
+    m_channelNames.push_back(recChannel.second);
+    channelsHD.push_back(config.ChannelHD(recChannel.first)?1:0);
+    int lang = config.GetLanguage_n(recChannel.first);
+    if (!langChannels.m_osdMap.isSecond(lang)) langChannels.addLanguage(lang);
+    langChannels.addLine(lang);
+  }
   if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after ChannelActive / ChannelHD");
-// Recording folders
-  m_allRecordingFolders = getAllRecordingFolders(m_recordings_width);
-  for (const std::string &recordingFolder: m_allRecordingFolders)
-    m_selectedRecordingFolders.push_back(config.recordingFolderSelected(recordingFolder)?1:0);
-  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after selectedRecordingFolders");
 // TV Shows
   m_allTV_Shows = getAllTV_Shows();
   if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after TV shows (get from db)");
@@ -161,11 +178,11 @@ eOSState cTVScraperSetup::ProcessKey(eKeys Key) {
     if (!hadSubMenu && (Key == kOk)) {
         const char* ItemText = Get(Current())->Text();
         if (strcmp(ItemText, tr("Configure channels to be scraped")) == 0)
-            state = AddSubMenu(new cTVScraperChannelSetup(&channelsScrap, tr("Configure channels to be scraped"), tr("don't scrap"), tr("scrap")));
+            state = AddSubMenu(new cTVScraperChannelSetup(m_channelNames, &channelsScrap, tr("Configure channels to be scraped"), tr("don't scrap"), tr("scrap")));
         else if (strcmp(ItemText, tr("HD channels")) == 0)
-            state = AddSubMenu(new cTVScraperChannelSetup(&channelsHD, tr("HD channels"), tr("SD"), tr("HD")));
+            state = AddSubMenu(new cTVScraperChannelSetup(m_channelNames, &channelsHD, tr("HD channels"), tr("SD"), tr("HD")));
         else if (strcmp(ItemText, tr("Set language for each channel")) == 0)
-            state = AddSubMenu(new cTVScraperChannelSetup(&langChannels.m_selectedLanguage, tr("Select language for channels"), langChannels.m_numLang, langChannels.m_osdTexts));
+            state = AddSubMenu(new cTVScraperChannelSetup(m_channelNames, &langChannels.m_selectedLanguage, tr("Select language for channels"), langChannels.m_numLang, langChannels.m_osdTexts));
         else if (strcmp(ItemText, tr("Recording folders to improve")) == 0)
             state = AddSubMenu(new cTVScraperListSetup(m_selectedRecordingFolders, m_allRecordingFolders, tr("Recording folders to improve"), m_recordings_width));
         else if (strcmp(ItemText, tr("TV shows to record")) == 0)
@@ -183,25 +200,18 @@ eOSState cTVScraperSetup::ProcessKey(eKeys Key) {
     return state;
 }
 
-void insertObject(std::set<tChannelID> &cont, const tChannelID &obj, int num, const mapIntBi *langIds) { cont.insert(obj); }
-void insertObject(map<tChannelID, int> &cont, const tChannelID &obj, int num, const mapIntBi *langIds)
-   { if (langIds) cont.insert(std::make_pair(obj, langIds->getSecond(num))); }
+map<tChannelID, int> cTVScraperSetup::GetChannelsFromSetup(const vector<int> &channels, const mapIntBi *langIds) {
+  map<tChannelID, int> result;
+  for (const auto &cha : m_allChannels) if (channels[cha.second] > 0)
+    result.insert(std::make_pair(cha.first, langIds->getSecond(channels[cha.second])));
+  return result;
+}
 
-template<class T>
-T GetChannelsFromSetup(const vector<int> &channels, const mapIntBi *langIds = NULL) {
-  T result;
-  int numChannels = channels.size();
-  for (int i=0; i<numChannels; i++) {
-    if (channels[i] > 0) {
-#if APIVERSNUM < 20301
-      cChannel *channel = Channels.GetByNumber(i+1);
-#else
-      LOCK_CHANNELS_READ;
-      const cChannel *channel = Channels->GetByNumber(i+1);
-#endif
-      if (channel) insertObject(result, channel->GetChannelID(), channels[i], langIds);
-    }
-  }
+std::set<tChannelID> cTVScraperSetup::GetChannelsFromSetup(const vector<int> &channels) {
+  std::set<tChannelID> result;
+  int size = channels.size();
+  for (const auto &cha : m_allChannels) if (cha.second < size && channels[cha.second] > 0)
+    result.insert(cha.first);
   return result;
 }
 
@@ -228,9 +238,9 @@ std::set<T> menuSelectionsToSet(const std::set<T> &allItems, const std::vector<i
 
 void cTVScraperSetup::Store(void) {
   {
-    set<tChannelID> channels = GetChannelsFromSetup<std::set<tChannelID>>(channelsScrap);
-    set<tChannelID> hd_channels = GetChannelsFromSetup<std::set<tChannelID>>(channelsHD);
-    map<tChannelID, int> channel_language = GetChannelsFromSetup<map<tChannelID, int>>(langChannels.m_selectedLanguage, &langChannels.m_osdMap);
+    set<tChannelID> channels = GetChannelsFromSetup(channelsScrap);
+    set<tChannelID> hd_channels = GetChannelsFromSetup(channelsHD);
+    map<tChannelID, int> channel_language = GetChannelsFromSetup(langChannels.m_selectedLanguage, &langChannels.m_osdMap);
 // note: GetChannelsFromSetup will call LOCK_CHANNELS_READ; -> Locking order!!! -> we lock after these calls
     cTVScraperConfigLock lw(true);
     config.enableDebug = m_enableDebug;
@@ -261,32 +271,25 @@ void cTVScraperSetup::Store(void) {
 }
 
 /* cTVScraperChannelSetup */
-cTVScraperChannelSetup::cTVScraperChannelSetup(vector<int> *channels, const char *headline, const char *null, const char *eins): cOsdMenu(headline, 30) {
+cTVScraperChannelSetup::cTVScraperChannelSetup(const vector<const char*> &channelNames, vector<int> *channels, const char *headline, const char *null, const char *eins): cOsdMenu(headline, 30) {
   m_selectOptions = new const char*[2];
   m_selectOptions[0] = null;
   m_selectOptions[1] = eins;
-  Setup(channels, 2, m_selectOptions);
+  Setup(channelNames, channels, 2, m_selectOptions);
 }
 
-cTVScraperChannelSetup::cTVScraperChannelSetup(vector<int> *channels, const char *headline, int numOptions, const char**selectOptions): cOsdMenu(headline, 30) {
-  Setup(channels, numOptions, selectOptions);
+cTVScraperChannelSetup::cTVScraperChannelSetup(const vector<const char*> &channelNames, vector<int> *channels, const char *headline, int numOptions, const char**selectOptions): cOsdMenu(headline, 3, 40, 10) {
+  Setup(channelNames, channels, numOptions, selectOptions);
 }
-void cTVScraperChannelSetup::Setup(vector<int> *channels, int numOptions, const char**selectOptions) {
+void cTVScraperChannelSetup::Setup(const vector<const char*> &channelNames, vector<int> *channels, int numOptions, const char**selectOptions) {
   SetMenuCategory(mcSetupPlugins);
   int currentItem = Current();
   Clear();
-  int i=0;
-#if APIVERSNUM < 20301
-  for (cChannel *channel = Channels.First(); channel; channel = Channels.Next(channel))
-#else
-  LOCK_CHANNELS_READ;
-  for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel))
-#endif
-  {
-    if (!channel->GroupSep()) {
-      Add(new cMenuEditStraItem(channel->Name(), &channels->at(i), numOptions, selectOptions));
-      i++;
-    }
+  for (int i=0; i < (int)channels->size(); i++) {
+// note: channels is limited to the channels relevant here, and can be smaller than channelNames
+    stringstream name;
+    name << (i+1) << "\t" << channelNames[i];
+    Add(new cMenuEditStraItem(name.str().c_str(), &channels->at(i), numOptions, selectOptions));
   }
   SetCurrent(Get(currentItem));
   Display();

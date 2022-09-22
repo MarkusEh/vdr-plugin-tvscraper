@@ -224,7 +224,6 @@ void cTVScraperWorker::ScrapRecordings(void) {
       csRecording csRecording(rec);
       const cRecordingInfo *recInfo = rec->Info();
       const cEvent *recEvent = recInfo->GetEvent();
-//      const cLanguage *lang = recInfo-> // TODO
 
       if (recEvent) {
           cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, moviedbScraper, tvdbScraper, db);  
@@ -320,7 +319,8 @@ void cTVScraperWorker::CheckRunningTimers(void) {
   if (!recordingFileNames.empty() ) TouchFile(config.GetRecordingsUpdateFileName().c_str());
 }
 
-bool cTVScraperWorker::StartScrapping(void) {
+bool cTVScraperWorker::StartScrapping(bool &fullScan) {
+  fullScan = false;
   if (!manualScan && TimersRunningPlanned(15.) ) return false;
   bool resetScrapeTime = false;
   if (manualScan) {
@@ -333,11 +333,15 @@ bool cTVScraperWorker::StartScrapping(void) {
     db->execSql("delete from scrap_checker", "");
     char sql[] = "INSERT INTO scrap_checker (last_scrapped) VALUES (?)";
     db->execSql(sql, "t", time(0));
+    fullScan = true;
     return true;
   }
 // Delete the scraped event IDs once a day, to update data
   int minTime = 24 * 60 * 60;
-  if (db->CheckStartScrapping(minTime)) for (auto &event: lastEvents) event.second->clear();
+  if (db->CheckStartScrapping(minTime)) {
+    for (auto &event: lastEvents) event.second->clear();
+    fullScan = true;
+  }
   return true;
 }
 
@@ -357,20 +361,21 @@ void cTVScraperWorker::Action(void) {
         ScrapRecordings();
         dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
         TouchFile(config.GetRecordingsUpdateFileName().c_str());
-        db->BackupToDisc();
+//      db->BackupToDisc();
       }
       dsyslog("tvscraper: scanning video dir done");
       continue;
     }
     CheckRunningTimers();
     if (!Running() ) break;
-    if (StartScrapping()) {
+    bool fullScan = false;
+    if (StartScrapping(fullScan)) {
       dsyslog("tvscraper: start scraping epg");
       if (ConnectScrapers()) {
         bool newEvents = ScrapEPG();
         if (newEvents) TouchFile(config.GetEPG_UpdateFileName().c_str());
         if (newEvents && Running() ) cMovieOrTv::DeleteAllIfUnused(db);
-        if (newEvents) db->BackupToDisc();
+        if (fullScan && Running()) db->BackupToDisc();
       }
       dsyslog("tvscraper: epg scraping done");
       if (!Running() ) break;

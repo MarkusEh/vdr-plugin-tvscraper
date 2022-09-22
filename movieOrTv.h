@@ -22,8 +22,8 @@ public:
   virtual bool IsUsed() { return m_db->CheckMovieOutdatedEvents(dbID(), m_seasonNumber, m_episodeNumber) || m_db->CheckMovieOutdatedRecordings(dbID(), m_seasonNumber, m_episodeNumber); }
   void DeleteIfUnused() { if(!IsUsed()) DeleteMediaAndDb(); }
   virtual string getEpisodeName() { return "";}
-  virtual int searchEpisode(const string &tvSearchEpisodeString, const string &baseNameOrTitle) { return 1000;}
-  virtual int searchEpisode(const string &tvSearchEpisodeString) { return 1000;}
+  virtual int searchEpisode(const string &tvSearchEpisodeString, const string &baseNameOrTitle, const cLanguage *lang) { return 1000;}
+  virtual int searchEpisode(const string &tvSearchEpisodeString, const cLanguage *lang) { return 1000;}
 // fill vdr service interface
   virtual tvType getType() const = 0;
   void clearScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv);
@@ -46,7 +46,7 @@ public:
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, csEventOrRecording *sEventOrRecording, int *runtime=NULL);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cRecording *recording);
-  static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle);
+  static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, const string &tvSearchEpisodeString, const string &baseNameOrTitle, const cLanguage *lang);
   static void CleanupTv_media(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, const cTVScraperDB *db);
@@ -98,8 +98,8 @@ public:
   virtual bool IsUsed();
   virtual void DeleteMediaAndDb() = 0;
   virtual string getEpisodeName() { return m_db->GetEpisodeName(dbID(), m_seasonNumber, m_episodeNumber);}
-  virtual int searchEpisode(const string &tvSearchEpisodeString);
-  virtual int searchEpisode(const string &tvSearchEpisodeString, const string &baseNameOrTitle);
+  virtual int searchEpisode(const string &tvSearchEpisodeString, const cLanguage *lang);
+  virtual int searchEpisode(const string &tvSearchEpisodeString, const string &baseNameOrTitle, const cLanguage *lang);
 // fill vdr service interface
   virtual tvType getType() const { return tSeries; }
   virtual void getScraperOverview(cGetScraperOverview *scraperOverview);

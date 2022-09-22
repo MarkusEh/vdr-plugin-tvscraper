@@ -31,7 +31,7 @@ private:
     void CheckRunningTimers(void);
     bool ScrapEPG(void);
     void ScrapRecordings(void);
-    bool StartScrapping(void);
+    bool StartScrapping(bool &fullScan);
     bool TimersRunningPlanned(double nextMinutes);
 public:
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);
