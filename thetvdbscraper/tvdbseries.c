@@ -80,13 +80,30 @@ bool cTVDBSeries::ParseJson_Series(json_t *jSeries) {
   bool translationAvailable = false;
   json_t *jNameTranslations = json_object_get(jSeries, "nameTranslations");
   if (jNameTranslations) {
+// check: translation in default language m_language available?
     size_t index;
     json_t *jNameTranslation;
     json_array_foreach(jNameTranslations, index, jNameTranslation) {
       const char *lang = json_string_value(jNameTranslation);
       if (lang && m_language.compare(lang) == 0) { translationAvailable = true; break; }
     }
+    if (!translationAvailable) for (const int &l: config.GetAdditionalLanguages() ) {
+// translation in default language m_language is not available
+// check: translation in an additional language available?
+      auto f = config.m_languages.find(l);
+      if (f == config.m_languages.end() ) continue;
+      if (!f->m_thetvdb || !*f->m_thetvdb) continue;
+      json_array_foreach(jNameTranslations, index, jNameTranslation) {
+        const char *lang = json_string_value(jNameTranslation);
+        if (lang && strcmp(f->m_thetvdb, lang) == 0) { translationAvailable = true; break; }
+      }
+      if (translationAvailable) {
+        m_language = f->m_thetvdb;
+        break;
+      }
+    }
   }
+// if no translation is available, use originalLanguage as last resort
   if (!translationAvailable) m_language = json_string_value_validated(jSeries, "originalLanguage");
   originalName = json_string_value_validated(jSeries, "name");
   poster = json_string_value_validated(jSeries, "image"); // other images will be added in ParseJson_Artwork

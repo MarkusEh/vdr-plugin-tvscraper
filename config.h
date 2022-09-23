@@ -75,7 +75,7 @@ class cTVScraperConfig {
         string recordingsUpdateFileName; // file to touch in case of updated information on recordings
 // list of data that can be changed in the setup menu
 // we make these private, as access from several threads is possible. The methods to access the lists provide proper protection
-// our friend cTVScraperSetup can still access the private members, an needs to take care of proper locking
+// our friend cTVScraperSetup can still access the private members, and needs to take care of proper locking
         set<tChannelID> m_channels;  // channels to be scraped
         map<tChannelID,int> m_HD_Channels;  // int = 0->SD, 1->HD, 2->UHD
         set<string> m_excludedRecordingFolders;
@@ -145,6 +145,7 @@ class cTVScraperConfig {
 // languages
         map<tChannelID, int> GetChannelLanguages() const { cTVScraperConfigLock l; auto r = m_channel_language;  return r; }
         int numAdditionalLanguages() const { cTVScraperConfigLock l; int r = m_AdditionalLanguages.size(); return r; }
+        set<int> GetAdditionalLanguages() const { cTVScraperConfigLock l; auto r = m_AdditionalLanguages; return r; }
         const cLanguage *GetDefaultLanguage() const; // this will ALLWAYS return a valid pointer to cLanguage
         const cLanguage *GetLanguage(const tChannelID &channelID) const;  // this will ALLWAYS return a valid pointer to cLanguage
         bool isDefaultLanguage(const cLanguage *l) const { if (!l) return true; cTVScraperConfigLock ll; bool r = l->m_id == m_defaultLanguage; return r; }

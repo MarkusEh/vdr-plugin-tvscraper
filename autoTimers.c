@@ -494,7 +494,7 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
           else {
             cMovieOrTv *movieOrTv1 = cMovieOrTv::getMovieOrTv(&db, event1);
             if (!movieOrTv1) { ti_del = ti; continue; }
-            cMovieOrTv *movieOrTv2 = cMovieOrTv::getMovieOrTv(&db, event1);
+            cMovieOrTv *movieOrTv2 = cMovieOrTv::getMovieOrTv(&db, event2);
             if (!movieOrTv2) { delete movieOrTv1; ti_del = ti; continue; }
             if (*movieOrTv1 == *movieOrTv2) TimersModified |= AdjustSpawnedTimer(ti, event1, event2);
             else ti_del = ti;

@@ -76,6 +76,10 @@ is provided, the client needs only read access, and will not scrap.
 This feature is experimental, and might not work in all situations,
 e.g. for very old recordings with missing data in the info/info.vdr file.
 Make sure that the same version of tvscraper is running on client and server.
+In some situations,
+- sudo systemctl enable rpc-statd and
+- sudo systemctl start rpc-statd
+on the server might help
 
 As already mentioned, after first installations no channels are activated
 to be scrapped. Please configure these channels in the plugin setup menu.
