@@ -427,13 +427,13 @@ bool timerGetEvents(const cEvent *&event1, const cEvent *&event2, const cTimer *
 
   // Set up the time frame within which to check events:
   ti->Matches(0, true);
-  time_t TimeFrameBegin = ti->StartTime();
-  time_t TimeFrameEnd   = ti->StopTime();
+  time_t TimeFrameBegin = ti->StartTime() - 2*60;
+  time_t TimeFrameEnd   = ti->StopTime() + 2*60;
 // create a list of events, with 100% overlap to this timer
   std::multimap<int, const cEvent *> events;
   for (const cEvent *e = Schedule->Events()->First(); e; e = Schedule->Events()->Next(e)) {
-    if (e->EndTime() < TimeFrameBegin) continue; // skip events before the timer starts
-    if (e->StartTime() > TimeFrameEnd) break; // the rest is after the timer ends
+    if (e->StartTime() < TimeFrameBegin) continue; // skip events before the timer starts
+    if (e->EndTime() > TimeFrameEnd) break; // the rest is after the timer ends
     events.insert(std::pair{e->Duration(), e});
   }
   if (events.size() < 2) return false;
@@ -477,13 +477,16 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
   for (cTimer *ti = Timers.First(); ti; ti = Timers.Next(ti))
 #endif
   {
-    if (ti_del) { Timers->Del(ti_del); ti_del = NULL; }
+    if (ti_del) {
+      if (!ti_del->Recording() ) Timers->Del(ti_del);
+      ti_del = NULL;
+    }
     cXmlString xmlAux(ti->Aux(), "tvscraper");
     if (xmlAux.isValid() ) {
 // this is "our" timer
       if (!ti->Event() || !ti->Event()->Schedule() ) {
 // Timer has no event, or event is not in schedule any more. Delete this timer
-        if (!ti->Recording() ) ti_del = ti;
+        ti_del = ti;
       } else {
 // Timer has event, and event is in schedule. Adjust times to event, if required (not for VPS timers)
         cXmlString xmlNumEvents(xmlAux, "numEvents");
@@ -496,6 +499,7 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
             if (!movieOrTv1) { ti_del = ti; continue; }
             cMovieOrTv *movieOrTv2 = cMovieOrTv::getMovieOrTv(&db, event2);
             if (!movieOrTv2) { delete movieOrTv1; ti_del = ti; continue; }
+            if (config.enableDebug) esyslog ("tvscraper: AdjustSpawnedScraperTimers, ti %s movie1 %i movie2 %i %s", ti->File(), movieOrTv1->dbID(), movieOrTv2->dbID(), *movieOrTv1 == *movieOrTv2?"equal":"not equal" );
             if (*movieOrTv1 == *movieOrTv2) TimersModified |= AdjustSpawnedTimer(ti, event1, event2);
             else ti_del = ti;
             delete movieOrTv1;
