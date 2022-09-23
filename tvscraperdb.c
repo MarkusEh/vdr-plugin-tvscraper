@@ -1257,7 +1257,11 @@ void cTVScraperDB::DeleteOutdatedCache() const {
 int cTVScraperDB::DeleteFromCache(const char *movieNameCache) { // return number of deleted entries
   if (!movieNameCache) return 0;
   if (strcmp(movieNameCache, "ALL") == 0) execSql("delete from cache");
-  else execSql("delete from cache where movie_name_cache = ?", "s", movieNameCache);
+  else {
+    string cacheS = movieNameCache;
+    transform(cacheS.begin(), cacheS.end(), cacheS.begin(), ::tolower);
+    execSql("delete from cache where movie_name_cache = ?", "s", cacheS.c_str() );
+  }
   return sqlite3_changes(db);
 }
 

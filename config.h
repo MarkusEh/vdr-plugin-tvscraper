@@ -37,13 +37,7 @@ class cLanguage {
     }
 };
 
-bool operator< (const tChannelID &c1, const tChannelID &c2) {
-  if (c1.Source() != c2.Source() ) return c1.Source() < c2.Source();
-  if (c1.Nid() != c2.Nid() ) return c1.Nid() < c2.Nid();
-  if (c1.Tid() != c2.Tid() ) return c1.Tid() < c2.Tid();
-  if (c1.Sid() != c2.Sid() ) return c1.Sid() < c2.Sid();
-  return c1.Rid() < c2.Rid();
-}
+bool operator< (const tChannelID &c1, const tChannelID &c2);
 bool operator< (const cLanguage &l1, const cLanguage &l2) {
   return l1.m_id < l2.m_id;
 }
@@ -82,8 +76,8 @@ class cTVScraperConfig {
 // list of data that can be changed in the setup menu
 // we make these private, as access from several threads is possible. The methods to access the lists provide proper protection
 // our friend cTVScraperSetup can still access the private members, an needs to take care of proper locking
-        set<tChannelID> m_channels; 
-        set<tChannelID> m_hd_channels; 
+        set<tChannelID> m_channels;  // channels to be scraped
+        map<tChannelID,int> m_HD_Channels;  // int = 0->SD, 1->HD, 2->UHD
         set<string> m_excludedRecordingFolders;
         set<int> m_TV_Shows;  // TV_Shows where missing episodes will be recorded
         set<int> m_AdditionalLanguages;
@@ -91,6 +85,7 @@ class cTVScraperConfig {
         int m_defaultLanguage = 0;
         map<tChannelID, int> m_channel_language; // if a channel is not in this map, it has the default language
 // End of list of data that can be changed in the setup menu
+        bool m_HD_ChannelsModified = false;
         friend class cTVScraperConfigLock;
         friend class cTVScraperSetup;
         mutable cStateLock stateLock;
@@ -142,11 +137,13 @@ class cTVScraperConfig {
 // These methods are thread save
         set<tChannelID> GetScrapeChannels() const { cTVScraperConfigLock l; set<tChannelID> result = m_channels; return result; }
         bool ChannelActive(const tChannelID &channelID) const { cTVScraperConfigLock l; return m_channels.find(channelID) != m_channels.end(); }   // do we have to scrape this channel?
-        bool ChannelHD(const tChannelID &channelID) const { cTVScraperConfigLock l; return m_hd_channels.find(channelID) != m_hd_channels.end(); }
+        int ChannelHD(const tChannelID &channelID) const { cTVScraperConfigLock l; auto f = m_HD_Channels.find(channelID); if (f != m_HD_Channels.end()) return f->second; return 0; }
+        map<tChannelID, int> GetChannelHD() const { map<tChannelID, int> r; cTVScraperConfigLock l; if (m_HD_ChannelsModified) r = m_HD_Channels; return r; }
         bool recordingFolderSelected(const std::string &recordingFolder) const { cTVScraperConfigLock l; return m_excludedRecordingFolders.find(recordingFolder) == m_excludedRecordingFolders.end(); }
         bool TV_ShowSelected(int TV_Show) const { cTVScraperConfigLock l; return m_TV_Shows.find(TV_Show) != m_TV_Shows.end(); }
         int getEnableAutoTimers() const { cTVScraperConfigLock l; int r = m_enableAutoTimers; return r; }
 // languages
+        map<tChannelID, int> GetChannelLanguages() const { cTVScraperConfigLock l; auto r = m_channel_language;  return r; }
         int numAdditionalLanguages() const { cTVScraperConfigLock l; int r = m_AdditionalLanguages.size(); return r; }
         const cLanguage *GetDefaultLanguage() const; // this will ALLWAYS return a valid pointer to cLanguage
         const cLanguage *GetLanguage(const tChannelID &channelID) const;  // this will ALLWAYS return a valid pointer to cLanguage

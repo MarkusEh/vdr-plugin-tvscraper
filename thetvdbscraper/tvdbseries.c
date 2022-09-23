@@ -13,6 +13,9 @@ cTVDBSeries::cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper, int series
 {
 // this IS a series, and a series has an ID
   if (seriesID == 0) esyslog("tvscraper: ERROR cTVDBSeries::cTVDBSeries, seriesID == 0");
+  m_language = config.GetDefaultLanguage()->m_thetvdb; // note: m_language will be changed if the series is not translated to m_language
+  if (m_language.length() != 3) 
+    esyslog("tvscraper: ERROR cTVDBSeries::cTVDBSeries: strlen(m_language) != 3, m_language: %s", m_language.c_str() );
 }
 
 cTVDBSeries::~cTVDBSeries() {
@@ -29,22 +32,16 @@ std::map<int,int> ParseJson_Seasons(json_t *jSeasons) {
   return result;
 }
 
-std::string translation(json_t *jTranslations, const char *arrayAttributeName, const char *textAttributeName) {
+std::string cTVDBSeries::translation(json_t *jTranslations, const char *arrayAttributeName, const char *textAttributeName) {
 //json_t *jTranslationsArray = json_array_validated(jTranslations, arrayAttributeName, "ParseJson_Series / tvdbseries.c");
   json_t *jTranslationsArray = json_array_validated(jTranslations, arrayAttributeName, ""); // no error here, can be empty
   if (!jTranslationsArray) return "";
-  const char *lang3 = config.GetDefaultLanguage()->m_thetvdb;
-  if (!lang3 || strlen(lang3) < 3) {
-    if (!lang3) esyslog("tvscrapre: ERROR translation: !lang3");
-    else esyslog("tvscrapre: ERROR translation: strlen(lang3) < 3, lang3: %s", lang3);
-    return "";
-  }
   size_t index;
   json_t *jTranslation;
   json_array_foreach(jTranslationsArray, index, jTranslation) {
     const char *language = json_string_value_validated_c(jTranslation, "language");
     if (!language || !*language) continue;
-    if (language[0] == lang3[0] && language[1] == lang3[1] && language[2] == lang3[2]) return json_string_value_validated(jTranslation, textAttributeName);
+    if (m_language.compare(language) == 0) return json_string_value_validated(jTranslation, textAttributeName);
   }
   return "";
 }
@@ -79,6 +76,18 @@ bool cTVDBSeries::ParseJson_Series(json_t *jSeries) {
     esyslog("tvscraper: ERROR cTVDBSeries::ParseJson_Series, m_seriesID = %i != series id in json %i", m_seriesID, json_integer_value_validated(jSeries, "id") );
     return false;
   }
+// available translations
+  bool translationAvailable = false;
+  json_t *jNameTranslations = json_object_get(jSeries, "nameTranslations");
+  if (jNameTranslations) {
+    size_t index;
+    json_t *jNameTranslation;
+    json_array_foreach(jNameTranslations, index, jNameTranslation) {
+      const char *lang = json_string_value(jNameTranslation);
+      if (lang && m_language.compare(lang) == 0) { translationAvailable = true; break; }
+    }
+  }
+  if (!translationAvailable) m_language = json_string_value_validated(jSeries, "originalLanguage");
   originalName = json_string_value_validated(jSeries, "name");
   poster = json_string_value_validated(jSeries, "image"); // other images will be added in ParseJson_Artwork
   firstAired = json_string_value_validated(jSeries, "firstAired");
@@ -110,7 +119,11 @@ bool cTVDBSeries::ParseJson_Series(json_t *jSeries) {
     name = translation(jTranslations, "nameTranslations", "name");
     overview = translation(jTranslations, "overviewTranslations", "overview");
   }
-  if (name.empty() ) name = originalName; // translation in desired language is not available, use name in original language
+  if (name.empty() ) {
+    name = originalName; // translation in desired language is not available, use name in original language
+// we already checked that the name translation is available, seems to be an error
+    esyslog("tvscraper, ERROR cTVDBSeries::ParseJson_Series, m_language %s, translationAvailable %s, name %s, seriesID %i", m_language.c_str(), translationAvailable?"true":"false", name.c_str(), m_seriesID);
+  }
 // defaultSeasonType
 /*
   int defaultSeasonType = json_integer_value_validated(jSeries, "defaultSeasonType");

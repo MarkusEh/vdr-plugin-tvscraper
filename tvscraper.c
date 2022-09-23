@@ -422,6 +422,21 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
       call->m_recordingsUpdateTime = LastModifiedTime(config.GetRecordingsUpdateFileName().c_str() );
       return true;
     }
+    if (strcmp(Id, "GetChannelLanguages") == 0) {
+      if (Data == NULL) return true;
+      cGetChannelLanguages* call = (cGetChannelLanguages*) Data;
+      call->m_channelLanguages = config.GetChannelLanguages();
+      call->m_defaultLanguage = config.GetDefaultLanguage()->m_id;
+      call->m_channelNames.clear();
+      for (const auto &lang: config.m_languages) call->m_channelNames.insert({lang.m_id, string(lang.m_name)});
+      return true;
+    }
+    if (strcmp(Id, "GetChannelHD") == 0) {
+      if (Data == NULL) return true;
+      cGetChannelHD* call = (cGetChannelHD*) Data;
+      call->m_channelHD = config.GetChannelHD();
+      return true;
+    }
   return false;
 }
 

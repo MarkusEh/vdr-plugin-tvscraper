@@ -4,8 +4,8 @@
 
 using namespace std;
 // getDefaultHD_Channels  ********************************
-std::set<tChannelID> getDefaultHD_Channels() {
-  std::set<tChannelID> channelsHD;
+std::map<tChannelID, int> getDefaultHD_Channels() {
+  std::map<tChannelID, int> channelsHD;
 #if VDRVERSNUM >= 20301
   LOCK_CHANNELS_READ;
   for ( cChannel *listChannel = (cChannel *)Channels->First(); listChannel; listChannel = (cChannel *)Channels->Next( listChannel ) )
@@ -19,7 +19,7 @@ std::set<tChannelID> getDefaultHD_Channels() {
     int len = strlen(listChannel->Name());
     if (len < 2) continue;
     if (strcmp (listChannel->Name() + (len - 2), "HD") != 0) continue;
-    channelsHD.insert(listChannel->GetChannelID());
+    channelsHD.insert({listChannel->GetChannelID(),1});
   }
   return channelsHD;
 }
@@ -72,8 +72,8 @@ void cTVScraperConfig::SetBaseDir(const string &dir) {
 
 void cTVScraperConfig::Initialize() {
 // we don't lock here. This is called during plugin initialize, and there are no other threads at this point in time
-  if (m_hd_channels.empty() ) m_hd_channels = getDefaultHD_Channels();
-  if (   m_channels.empty() )    m_channels = getDefaultChannels();
+  if (m_HD_Channels.empty() ) {m_HD_Channels = getDefaultHD_Channels(); m_HD_ChannelsModified = false; }
+  if (   m_channels.empty() )     m_channels = getDefaultChannels();
   if (m_defaultLanguage == 0) setDefaultLanguage();
 }
 void cTVScraperConfig::SetAutoTimersPath(const string &option) {
@@ -91,7 +91,12 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
         m_channels = getSetFromString<tChannelID>(Value);
         return true;
     } else if (strcmp(Name, "HDChannels") == 0) {
-        m_hd_channels = getSetFromString<tChannelID>(Value);
+        config.m_HD_ChannelsModified = true;
+        for (const tChannelID &c: getSetFromString<tChannelID>(Value)) m_HD_Channels.insert({c, 1});
+        return true;
+    } else if (strcmp(Name, "UHDChannels") == 0) {
+        config.m_HD_ChannelsModified = true;
+        for (const tChannelID &c: getSetFromString<tChannelID>(Value)) m_HD_Channels.insert({c, 2});
         return true;
     } else if (strcmp(Name, "ExcludedRecordingFolders") == 0) {
         m_excludedRecordingFolders = getSetFromString<std::string>(Value, '/');

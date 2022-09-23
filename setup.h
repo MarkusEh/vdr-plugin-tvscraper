@@ -20,13 +20,14 @@ class langOsd {
       m_lang_text(lang_text) { m_osdTexts = new const char*[lang_text->size()];}
     ~langOsd() { delete [] m_osdTexts; }
     void clear() { m_numLang = 0; m_osdMap.clear(); m_selectedLanguage.clear(); }
-    void addLanguage(int lang) { m_osdTexts[m_numLang] = getLangText(lang); m_osdMap.insert(m_numLang++, lang);}
+    void addLanguage(int lang) { m_osdTexts[m_numLang] = getLangText(lang); m_maxOsdTextLength = max(m_maxOsdTextLength, (int)strlen(m_osdTexts[m_numLang])); m_osdMap.insert(m_numLang++, lang); }
     void addLine(int currentLanguage) { m_selectedLanguage.push_back(m_osdMap.getFirst(currentLanguage)); }
     int getLanguage(int line) const { return m_osdMap.getSecond(m_selectedLanguage[line]); }
     int m_numLang = 0;
     mapIntBi m_osdMap;
     std::vector<int> m_selectedLanguage; // for the OSD, one entry for each line
     const char **m_osdTexts;
+    int m_maxOsdTextLength = 0;
   private:
     const char *getLangText(int lang) const { for (int i = 0; i < (int)m_lang_text->size(); i++) if ((*m_lang_text)[i].first == lang) return (*m_lang_text)[i].second.c_str(); return "no lang text";}
     const std::vector<std::pair<int, std::string>> *m_lang_text;
@@ -47,7 +48,7 @@ class cTVScraperSetup: public cMenuSetupPage {
         int m_enableDebug;
         int m_enableAutoTimers;
         vector<int> channelsScrap;
-        vector<int> channelsHD;
+        vector<int> m_channelsHD;
         std::vector<int> m_selectedRecordingFolders;
         std::vector<int> m_selectedTV_Shows;
         int m_NumberOfAdditionalLanguages;
@@ -55,6 +56,7 @@ class cTVScraperSetup: public cMenuSetupPage {
         map<tChannelID, int> m_allChannels;  // second is channel number - 1
         map<tChannelID, const char*> m_recChannels;  // second is the channel name
         std::vector<const char*> m_channelNames;
+        int m_maxChannelNameLength;
         int m_recordings_width;
         std::set<std::string> m_allRecordingFolders;
         set<int> m_allTV_Shows;
@@ -64,7 +66,9 @@ class cTVScraperSetup: public cMenuSetupPage {
         std::set<int> getAllTV_Shows();
         std::set<std::string> getAllRecordingFolders(int &max_width);
         std::set<tChannelID> GetChannelsFromSetup(const vector<int> &channels);
-        map<tChannelID, int> GetChannelsFromSetup(const vector<int> &channels, const mapIntBi *langIds);
+        std::map<tChannelID, int> GetChannelsMapFromSetup(const vector<int> &channels);
+        std::map<tChannelID, int> GetChannelsMapFromSetup(const vector<int> &channels, const mapIntBi *langIds);
+        bool ChannelsFromSetupChanged(std::map<tChannelID, int> oldChannels, const vector<int> &channels);
     protected:
         virtual eOSState ProcessKey(eKeys Key);
         virtual void Store(void);
@@ -72,9 +76,9 @@ class cTVScraperSetup: public cMenuSetupPage {
 
 class cTVScraperChannelSetup : public cOsdMenu {
     public:
-        cTVScraperChannelSetup(const vector<const char*> &channelNames, vector<int> *channels, const char *headline, const char *null, const char *eins);
-        cTVScraperChannelSetup(const vector<const char*> &channelNames, vector<int> *channels, const char *headline, int numOptions, const char**selectOptions);
-        virtual ~cTVScraperChannelSetup();       
+        cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, const char *null, const char *eins, const char *zwei = NULL);
+        cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, int numOptions, const char**selectOptions, int maxSelectOptionsLength);
+        virtual ~cTVScraperChannelSetup();
     private:
         void Setup(const vector<const char*> &channelNames, vector<int> *channels, int numOptions, const char**selectOptions);
         const char **m_selectOptions = NULL;

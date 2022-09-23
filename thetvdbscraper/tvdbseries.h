@@ -28,8 +28,10 @@ private:
     string banner = "";
     string fanart = "";
     string poster = "";
+    std::string translation(json_t *jTranslations, const char *arrayAttributeName, const char *textAttributeName);
 public:
     cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper, int seriesID);
+    string m_language; // this is the default language, if name translations are available in the default language. Otherwise, the original language
     virtual ~cTVDBSeries(void);
     bool ParseJson_all(json_t *data);
     bool ParseJson_Series(json_t *jSeries);

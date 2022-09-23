@@ -80,9 +80,8 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   json_t *jSeriesData = json_object_get(jSeries, "data");
   if (!jSeriesData) { json_decref(jSeries); return 0;}
   series.ParseJson_Series(jSeriesData);
-  string lang3 = config.GetDefaultLanguage()->m_thetvdb;
 // episodes
-  string urlE = baseURL4 + "series/" + std::to_string(seriesID) + "/episodes/default/" + lang3 + "?page=0";
+  string urlE = baseURL4 + "series/" + std::to_string(seriesID) + "/episodes/default/" + series.m_language + "?page=0";
   while (!urlE.empty() ) {
     json_t *jEpisodes = CallRestJson(urlE);
     urlE = "";
@@ -378,12 +377,16 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
       dist_a = minDist(dist_a, jElement, SearchStringStripExtraUTF8);
     }
   }
+  int requiredDistance = 600; // "standard" require same text similarity as we required for episode matching
   json_t *jTranslations = json_object_get(data, "translations");
   if (json_is_object(jTranslations) ) {
     json_t *langVal = json_object_get(jTranslations, lang->m_thetvdb);
-    dist_a = minDist(dist_a, langVal, SearchStringStripExtraUTF8);
+    if (langVal) {
+      dist_a = minDist(dist_a, langVal, SearchStringStripExtraUTF8);
+      requiredDistance = 700;  // translation in EPG language is available. Reduce requirement somewhat
+    }
   }
-  if (dist_a < 700) {  // for episodes, we use 600. So we might reduce this value
+  if (dist_a < requiredDistance) {
     sRes.setMatchText(dist_a);
     resultSet.push_back(sRes);
   }
