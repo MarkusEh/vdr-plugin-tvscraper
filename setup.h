@@ -20,7 +20,7 @@ class langOsd {
       m_lang_text(lang_text) { m_osdTexts = new const char*[lang_text->size()];}
     ~langOsd() { delete [] m_osdTexts; }
     void clear() { m_numLang = 0; m_osdMap.clear(); m_selectedLanguage.clear(); }
-    void addLanguage(int lang) { m_osdTexts[m_numLang] = getLangText(lang); m_maxOsdTextLength = max(m_maxOsdTextLength, (int)strlen(m_osdTexts[m_numLang])); m_osdMap.insert(m_numLang++, lang); }
+    void addLanguage(int lang) { m_osdTexts[m_numLang] = getLangText(lang); m_maxOsdTextLength = std::max(m_maxOsdTextLength, (int)strlen(m_osdTexts[m_numLang])); m_osdMap.insert(m_numLang++, lang); }
     void addLine(int currentLanguage) { m_selectedLanguage.push_back(m_osdMap.getFirst(currentLanguage)); }
     int getLanguage(int line) const { return m_osdMap.getSecond(m_selectedLanguage[line]); }
     int m_numLang = 0;

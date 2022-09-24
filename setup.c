@@ -148,8 +148,8 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
 cTVScraperSetup::~cTVScraperSetup() {
 }
 void cTVScraperSetup::Setup(void) {
-    m_NumberOfAdditionalLanguages = max(m_NumberOfAdditionalLanguages, 0);
-    m_NumberOfAdditionalLanguages = min(m_NumberOfAdditionalLanguages, (int)langAdditional.m_selectedLanguage.size());
+    m_NumberOfAdditionalLanguages = std::max(m_NumberOfAdditionalLanguages, 0);
+    m_NumberOfAdditionalLanguages = std::min(m_NumberOfAdditionalLanguages, (int)langAdditional.m_selectedLanguage.size());
     int currentItem = Current();
     Clear();
     Add(new cOsdItem(tr("Configure channels to be scraped")));

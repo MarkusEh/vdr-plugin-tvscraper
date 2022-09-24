@@ -339,6 +339,27 @@ std::string getEpisodeName(const cTVScraperDB &db, const cEventMovieOrTv &scrape
   return "no episode name found";
 }
 
+bool EventsMovieOrTvEqual(const cTVScraperDB &db, const cEvent *event1, const cEvent *event2, const cEventMovieOrTv *scraperEvent1 = NULL) {
+// return true if the MovieOrTv assigned to event1 is equal to the MovieOrTv assigned to event2
+// if scraperEvent1 is provided, it must contain the movie_tv_id, season_number and episode_number of event1
+  if (stringEqual(event1->Title(), event2->Title()) && stringEqual(event1->ShortText(), event2->ShortText()) && stringEqual(event1->Description(), event2->Description()) ) return true;
+
+  int movie_tv_id1, season_number1, episode_number1;
+  int movie_tv_id2, season_number2, episode_number2;
+  if (!db.GetMovieTvID(event2, movie_tv_id2, season_number2, episode_number2)) return false;
+  if (scraperEvent1) {
+     movie_tv_id1 = scraperEvent1->m_movie_tv_id;
+     season_number1 = scraperEvent1->m_season_number;
+     episode_number1 = scraperEvent1->m_episode_number;
+  } else {
+    if (!db.GetMovieTvID(event1, movie_tv_id1, season_number1, episode_number1)) return false;
+  }
+// if (config.enableDebug) esyslog ("tvscraper: AdjustSpawnedScraperTimers, ti %s movie1 %i movie2 %i %s", ti->File(), movieOrTv1->dbID(), movieOrTv2->dbID(), *movieOrTv1 == *movieOrTv2?"equal":"not equal" );
+  if (movie_tv_id1 != movie_tv_id2 || season_number1 != season_number2) return false;
+  if (season_number1 != -100 && (episode_number1 !=  episode_number2) ) return false;
+  return true;
+}
+
 const cEvent *getEvent2(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, const cEvent *event) {
 // check if the complete movie required a second event
   bool debug = scraperEvent.m_movie_tv_id == 297762; // wonder woman
@@ -366,15 +387,8 @@ const cEvent *getEvent2(const cTVScraperDB &db, const cEventMovieOrTv &scraperEv
   if (!e2N) return NULL;
   if (debug) esyslog("tvscraper const cEvent *getEvent2 (8)");
 
-  if (stringEqual(e2N->Title(), event->Title()) && stringEqual(e2N->ShortText(), event->ShortText()) && stringEqual(e2N->Description(), event->Description()) ) return e2N;
-
-  int movie_tv_id, season_number, episode_number;
-  if (!db.GetMovieTvID(e2N, movie_tv_id, season_number, episode_number)) return NULL;
-  if (debug) esyslog("tvscraper const cEvent *getEvent2 (9)");
-  if (movie_tv_id != scraperEvent.m_movie_tv_id || season_number != scraperEvent.m_season_number) return NULL;
-  if (season_number != -100 && (episode_number !=  scraperEvent.m_episode_number) ) return NULL;
-  if (debug) esyslog("tvscraper const cEvent *getEvent2 (10)");
-  return e2N;
+  if (EventsMovieOrTvEqual(db, event, e2N, &scraperEvent) ) return e2N;
+  return NULL;
 }
 
 void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, const char *reason, const cScraperRec &recording) {
@@ -495,21 +509,17 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
           const cEvent *event2;
           if (!timerGetEvents(event1, event2, ti)) ti_del = ti;
           else {
-            cMovieOrTv *movieOrTv1 = cMovieOrTv::getMovieOrTv(&db, event1);
-            if (!movieOrTv1) { ti_del = ti; continue; }
-            cMovieOrTv *movieOrTv2 = cMovieOrTv::getMovieOrTv(&db, event2);
-            if (!movieOrTv2) { delete movieOrTv1; ti_del = ti; continue; }
-            if (config.enableDebug) esyslog ("tvscraper: AdjustSpawnedScraperTimers, ti %s movie1 %i movie2 %i %s", ti->File(), movieOrTv1->dbID(), movieOrTv2->dbID(), *movieOrTv1 == *movieOrTv2?"equal":"not equal" );
-            if (*movieOrTv1 == *movieOrTv2) TimersModified |= AdjustSpawnedTimer(ti, event1, event2);
+            if (EventsMovieOrTvEqual(db, event1, event2) ) TimersModified |= AdjustSpawnedTimer(ti, event1, event2);
             else ti_del = ti;
-            delete movieOrTv1;
-            delete movieOrTv2;
           }
         } else if (!ti->HasFlags(tfVps)) TimersModified |= AdjustSpawnedTimer(ti);
       }
     }
   }
-  if (ti_del) { Timers->Del(ti_del); ti_del = NULL; }
+  if (ti_del) {
+    if (!ti_del->Recording() ) Timers->Del(ti_del);
+    ti_del = NULL;
+  }
   return TimersModified;
 }
 
