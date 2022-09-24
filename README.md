@@ -38,8 +38,9 @@ you activate the channels you are interested in ;)
 Additionally you are invited to contribute to the used web services with
 providing missing data for your favorite movies and series.
 
-See also https://github.com/MarkusEh/vdr-plugin-tvscraper/wiki/Auto-Timers-to-Improve-and-Enhance-Existing-Recordings
-and https://github.com/MarkusEh/vdr-plugin-tvscraper/wiki/How-it-works
+Additional documentation is available in the
+[wiki](https://github.com/MarkusEh/vdr-plugin-tvscraper/wiki)
+and it's sub-pages.
 
 Requirements
 ------------
@@ -49,7 +50,7 @@ To run the plugin the following libaries have to be installed:
 - libcurl
 - libjansson
 - gcc must support -std=c++17  (for GCC v5, v6, v7: -std=c++1z instead of -std=c++17 might help. Also, a patch mmight help, see https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517)
-- vdr 2.4.0 or later
+- vdr 2.4.0 or later. Recommended: vdr 2.6.x or later
 
 If you use TVGuide: Version 1.3.6+ is required
 If you use SkinNopacity: Version 1.1.12+ is required
