@@ -156,7 +156,7 @@ void cTVScraperSetup::Setup(void) {
     Add(new cMenuEditStraItem(tr("System language"), &langDefault.m_selectedLanguage[0], langDefault.m_numLang, langDefault.m_osdTexts));
     Add(new cMenuEditIntItem(tr("Number of additional languages"), &m_NumberOfAdditionalLanguages));
     for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
-      Add(new cMenuEditStraItem((string(tr("Additional language")) + to_string(i+1)).c_str(), &langAdditional.m_selectedLanguage[i], langAdditional.m_numLang, langAdditional.m_osdTexts));
+      Add(new cMenuEditStraItem((string(tr("Additional language")) + " " + to_string(i+1)).c_str(), &langAdditional.m_selectedLanguage[i], langAdditional.m_numLang, langAdditional.m_osdTexts));
     if (config.numAdditionalLanguages() > 0) Add(new cOsdItem(tr("Set language for each channel")));
     Add(new cMenuEditBoolItem(tr("Create timers to improve and complement recordings"), &m_enableAutoTimers));
     if (m_enableAutoTimers) {
@@ -306,7 +306,17 @@ void cTVScraperSetup::Store(void) {
 }
 
 /* cTVScraperChannelSetup */
-cTVScraperChannelSetup::cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, const char *null, const char *eins, const char *zwei): cOsdMenu(headline, channels->size() > 99?4:3, maxChannelNameLength + 1, 20) {
+int cTVScraperChannelSetup::GetColumnWidth(int maxChannelNameLength, vector<int> *channels) {
+// we combine channel number and channel name in one column, as some sknis only support 2 columns :(
+// return width for channel number + 1 + width for channel name + 1
+// +1: space between texts ...
+  m_chanNumberWidth = 2;
+  if ((int) channels->size() > 99) m_chanNumberWidth++;
+  if ((int) channels->size() > 999) m_chanNumberWidth++;
+  return m_chanNumberWidth + 1 + maxChannelNameLength + 1;
+}
+
+cTVScraperChannelSetup::cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, const char *null, const char *eins, const char *zwei): cOsdMenu(headline, GetColumnWidth(maxChannelNameLength, channels), 20) {
   int numOptions = zwei?3:2;
   m_selectOptions = new const char*[numOptions];
   m_selectOptions[0] = null;
@@ -315,7 +325,7 @@ cTVScraperChannelSetup::cTVScraperChannelSetup(const vector<const char*> &channe
   Setup(channelNames, channels, numOptions, m_selectOptions);
 }
 
-cTVScraperChannelSetup::cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, int numOptions, const char**selectOptions, int maxSelectOptionsLength): cOsdMenu(headline, channels->size() > 99?4:3, maxChannelNameLength + 1, maxSelectOptionsLength) {
+cTVScraperChannelSetup::cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, int numOptions, const char**selectOptions, int maxSelectOptionsLength): cOsdMenu(headline, GetColumnWidth(maxChannelNameLength, channels), maxSelectOptionsLength) {
   Setup(channelNames, channels, numOptions, selectOptions);
 }
 void cTVScraperChannelSetup::Setup(const vector<const char*> &channelNames, vector<int> *channels, int numOptions, const char**selectOptions) {
@@ -325,7 +335,7 @@ void cTVScraperChannelSetup::Setup(const vector<const char*> &channelNames, vect
   for (int i=0; i < (int)channels->size(); i++) {
 // note: channels is limited to the channels relevant here, and can be smaller than channelNames
     stringstream name;
-    name << (i+1) << "\t" << channelNames[i];
+    name << std::setw(m_chanNumberWidth+1) << (i+1) << " " << channelNames[i];
     Add(new cMenuEditStraItem(name.str().c_str(), &channels->at(i), numOptions, selectOptions));
   }
   SetCurrent(Get(currentItem));

@@ -79,9 +79,11 @@ class cTVScraperChannelSetup : public cOsdMenu {
         cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, const char *null, const char *eins, const char *zwei = NULL);
         cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, int numOptions, const char**selectOptions, int maxSelectOptionsLength);
         virtual ~cTVScraperChannelSetup();
+        int GetColumnWidth(int maxChannelNameLength, vector<int> *channels);
     private:
         void Setup(const vector<const char*> &channelNames, vector<int> *channels, int numOptions, const char**selectOptions);
         const char **m_selectOptions = NULL;
+        int m_chanNumberWidth;
     protected:
         virtual eOSState ProcessKey(eKeys Key);
 };
