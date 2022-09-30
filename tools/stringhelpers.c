@@ -116,7 +116,7 @@ int StringRemoveLastPartWithP(const char *str, int len) {
   return -1;
 }
 
-int NumberInLastPartWithPS(const string &str) {
+int NumberInLastPartWithPS(const std::string &str) {
 // return number in last part with (./.), 0 if not found / invalid
   if (str.length() < 3 ) return 0;
   if (str[str.length() - 1] != ')') return 0;
@@ -127,18 +127,18 @@ int NumberInLastPartWithPS(const string &str) {
   }
   return atoi(str.c_str() + found + 1);
 }
-int NumberInLastPartWithP(const string &str) {
+int NumberInLastPartWithP(const std::string &str) {
 // return number in last part with (...), 0 if not found / invalid
   if (str.length() < 3 ) return 0;
   if (str[str.length() - 1] != ')') return 0;
   std::size_t found = str.find_last_of("(");
   if (found == std::string::npos) return 0;
   for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
-    if (!isdigit(str[i])) return 0; // we gnore (asw), and return only number with digits only
+    if (!isdigit(str[i])) return 0; // we ignore (asw), and return only number with digits only
   }
   return atoi(str.c_str() + found + 1);
 }
-string SecondPart(const string &str, const std::string &delim) {
+std::string SecondPart(const string &str, const std::string &delim) {
 // Return part of str after first occurence of delim
 // if delim is not in str, return ""
   size_t found = str.find(delim);

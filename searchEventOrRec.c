@@ -275,13 +275,17 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   for (searchResultTvMovie &searchResult: searchResults) searchResult.setMatchYear(m_years, m_sEventOrRecording->DurationInSec() );
   std::sort(searchResults.begin(), searchResults.end() );
   if (debug) for (searchResultTvMovie &searchResult: searchResults) searchResult.log(m_searchString.c_str() );
+  float minMatch = 0.5;
+  std::vector<searchResultTvMovie>::iterator end = searchResults.begin();
+  for (; end != searchResults.end(); end++) if (end->getMatch() < minMatch) break;
+  if (searchResults.begin() == end) return scrapNone; // nothing good enough found
   m_episodeFound = false;
   std::vector<searchResultTvMovie>::iterator new_end;
 // in case of results which are "similar" good, add more information to find the best one
-  if (selectBestAndEnhanvceIfRequired(searchResults.begin(), searchResults.end(), new_end, 0.2,  &enhance1) ) {
+  if (selectBestAndEnhanvceIfRequired(searchResults.begin(), end,     new_end, 0.2,  &enhance1) ) {
 //      esyslog("tvscraper: ScrapFind (5), about to call enhance2 search string = %s", m_searchString.c_str()  );
 // if we still have results which are "similar" good, add even more (and more expensive) information
-      selectBestAndEnhanvceIfRequired(searchResults.begin(), new_end            , new_end, 0.15, &enhance2);
+      selectBestAndEnhanvceIfRequired(searchResults.begin(), new_end, new_end, 0.15, &enhance2);
   }
 // no more inforamtion can be added. Best result is in searchResults[0]
   if (debug) esyslog("tvscraper: ScrapFind, found: %i, title: \"%s\"", searchResults[0].id(), m_searchString.c_str() );

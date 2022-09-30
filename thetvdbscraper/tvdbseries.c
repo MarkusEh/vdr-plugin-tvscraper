@@ -172,7 +172,6 @@ bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode) {
 //  if (episodeName.empty() ) return false;
   int seasonNumber = json_integer_value_validated(jEpisode, "seasonNumber");
   int episodeNumber = json_integer_value_validated(jEpisode, "number");
-//episodeAbsoluteNumber = atoi((const char *)node_content);
   string episodeOverview = json_string_value_validated(jEpisode, "overview");
   string episodeFirstAired = json_string_value_validated(jEpisode, "aired");
   string episodeFilename = json_string_value_validated(jEpisode, "image");
@@ -373,8 +372,8 @@ bool cTVDBSeries::ParseJson_Character(json_t *jCharacter) {
     return true;
   }
   string name = json_string_value_validated(jCharacter, "name");
-  if (type == 3) {
-// "Actor"
+  if (type == 3 || type == 10) {
+// "Actor" (3), Host (10)
     int series_id = json_integer_value_validated(jCharacter, "seriesId");
     string image = json_string_value_validated(jCharacter, "image");
     if (image.empty() ) image = json_string_value_validated(jCharacter, "personImgURL");
