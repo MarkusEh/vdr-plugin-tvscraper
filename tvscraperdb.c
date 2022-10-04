@@ -482,16 +482,6 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "episode_name nvarchar";
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e_name on tv_s_e_name (episode_id, language_id); ";
-/*
-select tv_s_e_name.episode_name, tv_s_e.season_number, tv_s_e.episode_number from tv_s_e, tv_s_e_name
-   where tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;
-num episodes in tv_se
-select count(episode_id) from tv_s_e where tv_id = ?;
-
-num episodes in tv_se
-select count(episode_id) from tv_s_e, tv_s_e_name
-   where tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;
-*/
 
     sql << "CREATE TABLE IF NOT EXISTS actor_tv (";
     sql << "tv_id integer, ";
@@ -826,6 +816,17 @@ void cTVScraperDB::InsertEvent(csEventOrRecording *sEventOrRecording, int movie_
     if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::InsertEvent, !channelIDs");
     execSql("INSERT OR REPLACE INTO event (event_id, channel_id, valid_till, runtime, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?, ?);",
       "isliiii", (int)eventID, (const char *)channelIDs, (sqlite3_int64)validTill, runtime, movie_tv_id, season_number, episode_number);
+}
+void cTVScraperDB::DeleteEventOrRec(csEventOrRecording *sEventOrRecording) {
+// deletes assignment of sEventOrRecording to movie/TV show
+  tEventID eventID = sEventOrRecording->EventID();
+  cString channelIDs = sEventOrRecording->ChannelIDs();
+  if (!sEventOrRecording->Recording() ){
+    execSql("DELETE FROM event where event_id = ? and channel_id = ?;", "is", (int)eventID, (const char *)channelIDs);
+  } else {
+    time_t eventStartTime = sEventOrRecording->StartTime();
+    execSql("DELETE FROM recordings2 where event_id = ? and channel_id = ? and event_start_time = ?;", "ist", (int)eventID, (const char *)channelIDs, eventStartTime);
+  }
 }
 
 void cTVScraperDB::InsertMovie(int movieID, const string &title, const string &original_title, const string &tagline, const string &overview, bool adult, int collection_id, const string &collection_name, int budget, int revenue, const string &genres, const string &homepage, const string &release_date, int runtime, float popularity, float vote_average, int vote_count, const string &productionCountries, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID){
@@ -1168,12 +1169,6 @@ bool cTVScraperDB::GetTv(int tvID, string &name, string &overview, string &first
      &name, &overview, &firstAired, &networks, &genres, &popularity, &vote_average, &status);
 }
 
-/*
-bool cTVScraperDB::GetTvVote(int tvID, float &vote_average, int &vote_count) {
-  return QueryLine("select tv_vote_average, tv_vote_count from tv_vote where tv_id = ?",
-     "i", "fi", tvID, &vote_average, &vote_count);
-}
-*/
 
 bool cTVScraperDB::GetTv(int tvID, time_t &lastUpdated, string &status) {
   return QueryLine("select tv_last_updated, tv_status from tv2 where tv_id = ?",
@@ -1200,11 +1195,12 @@ bool cTVScraperDB::GetFromCache(const string &movieNameCache, csEventOrRecording
       if (baseNameEquShortText) recording = 3;
     }
     int durationInSec = sEventOrRecording->DurationInSec();
+    int durationInSecLow = std::max(0, durationInSec - 300);
     const char sql[] = "select year, episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
                        "from cache WHERE movie_name_cache = ? AND recording = ? and duration BETWEEN ? and ? " \
                        "and year != ?";
     for (sqlite3_stmt *statement = QueryPrepare(sql,
-        "siiii", movieNameCache.c_str(), recording, durationInSec - 300, durationInSec + 300, 0);
+        "siiii", movieNameCache.c_str(), recording, durationInSecLow, durationInSec + 300, 0);
           QueryStep(statement, "iiiii", &movieOrTv.year, &movieOrTv.episodeSearchWithShorttext,
                     &movieOrTv.id, &movieOrTv.season, &movieOrTv.episode);) {
 // there was a year match. Check: do have a year match?
@@ -1224,7 +1220,7 @@ bool cTVScraperDB::GetFromCache(const string &movieNameCache, csEventOrRecording
                         "from cache WHERE movie_name_cache = ? AND recording = ? and duration BETWEEN ? and ? " \
                         "and year = ?";
     if (QueryLine(sql1, "siiii", "iiii",
-          movieNameCache.c_str(), recording, durationInSec - 300, durationInSec + 300, 0,
+          movieNameCache.c_str(), recording, durationInSecLow, durationInSec + 300, 0,
           &movieOrTv.episodeSearchWithShorttext, &movieOrTv.id, &movieOrTv.season, &movieOrTv.episode)) {
         movieOrTv.year = 0;
         if      (movieOrTv.id     == 0)    movieOrTv.type = scrapNone;

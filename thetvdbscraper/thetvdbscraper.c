@@ -64,7 +64,8 @@ bool cTVDBScraper::GetToken(const std::string &jsonResponse) {
 
 int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
 // return 0 in case of error
-// otherwise, return seriesID
+// return -1 if the object does not exist in external db
+// otherwise, return seriesID > 0
 // only update if not yet in db
 // we ignore onlyEpisodes, there is no real performance improvement, as episode related information like gouest stars is in "main" series
 // except for the check if we need to update: if onlyEpisodes == true, we update, even if we have aready data
@@ -75,8 +76,12 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   cTVDBSeries series(db, this, seriesID);
 // this call gives also episode related information like actors, images, ...
   string url = baseURL4 + "series/" + std::to_string(seriesID) + "/extended?meta=translations&short=false";
-  json_t *jSeries = CallRestJson(url);
-  if (!jSeries) return 0;
+  int error;
+  json_t *jSeries = CallRestJson(url, &error);
+  if (!jSeries) {
+    if (error == -1) return -1; // object does not exist
+    return 0;
+  }
   json_t *jSeriesData = json_object_get(jSeries, "data");
   if (!jSeriesData) { json_decref(jSeries); return 0;}
   series.ParseJson_Series(jSeriesData);
@@ -153,9 +158,11 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, const cLanguage *lang) {
   return seriesID;
 }
 
-json_t *cTVDBScraper::CallRestJson(const std::string &url) {
+json_t *cTVDBScraper::CallRestJson(const std::string &url, int *error) {
 // return NULL in case of errors
+// if error is given, it will be set to -1 if an object is requested which does not exist
 // otherwise, the caller must ensure to call json_decref(...); on the returned reference
+  if (error) *error = 0;
   if (!GetToken() ) return NULL;
   string out;
   struct curl_slist *headers = NULL;
@@ -174,8 +181,12 @@ json_t *cTVDBScraper::CallRestJson(const std::string &url) {
     esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, out %s", url.c_str(), out.substr(0, 50).c_str());
     return NULL;
   }
-  if (json_string_value_validated(jRoot, "status").compare("success") != 0) {
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, out %s, status = %s", url.c_str(), out.substr(0, 50).c_str(), json_string_value_validated(jRoot, "status").c_str() );
+  std::string status = json_string_value_validated(jRoot, "status");
+  if (status != "success") {
+    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, out %s, status = %s", url.c_str(), out.substr(0, 50).c_str(), status.c_str() );
+    if (status == "failure" && json_string_value_validated(jRoot, "message") == "Not Found") {
+      if (error) *error = -1;
+    }
     json_decref(jRoot);
     return NULL;
   }

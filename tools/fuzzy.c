@@ -264,3 +264,19 @@ int sentence_distance(const char *sentence1a, const char *sentence2a) {
 int sentence_distance(const std::string &sentence1a, const std::string &sentence2a) {
   return sentence_distance_normed_strings(stripExtraUTF8(sentence1a.c_str() ), stripExtraUTF8(sentence2a.c_str() ));
 }
+
+int minDistanceStrings(const char *str, const char *strToCompare, char delim = '~') {
+// split str at ~, and compare all parts with strToCompare
+// ignore last part after last ~ (in other words: ignore name of recording)
+  int minDist = 1000;
+  if (!str || !*str || !strToCompare || !*strToCompare) return minDist;
+  const char *rDelimPos = strchr(str, delim);
+  if (!rDelimPos) return minDist;  // there is no ~ in str
+  std::string stringToCompare = stripExtraUTF8(strToCompare);
+  for (; rDelimPos; rDelimPos = strchr(str, delim) ) {
+    minDist = std::min(minDist, sentence_distance_normed_strings(stringToCompare, stripExtraUTF8(str, rDelimPos - str)));
+    str = rDelimPos + 1;
+  }
+  return minDist;
+}
+

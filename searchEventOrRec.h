@@ -6,7 +6,7 @@ public:
   cMovieOrTv *Scrape(void); // note: if nothing is found, NULL is returned. Otherwise, the images must be downloaded, and the returned cMovieOrTv must be deleted
 private:
   scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, string &movieName, string &episodeSearchString);
-  void Store(const sMovieOrTv &movieOrTv);
+  int Store(const sMovieOrTv &movieOrTv);
   void SearchTv(vector<searchResultTvMovie> &resultSet, const string &searchString);
   void SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet, char delimiter); // Title: name of TV series, and episode name (with : or - between them)
   void SearchMovie(vector<searchResultTvMovie> &searchResults); // 0: no match; return movie ID, search result in m_searchResult_Movie
@@ -22,8 +22,8 @@ private:
   void ScrapFindAndStore(sMovieOrTv &movieOrTv);
   bool CheckCache(sMovieOrTv &movieOrTv);
   void ScrapAssign(const sMovieOrTv &movieOrTv);
-  void UpdateEpisodeListIfRequired(int tvID, const cLanguage *lang);
-  void UpdateEpisodeListIfRequired_i(int tvID);
+  int UpdateEpisodeListIfRequired(int tvID, const cLanguage *lang);
+  int UpdateEpisodeListIfRequired_i(int tvID);
   void getActorMatches(const std::string &actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, vector<string> &alreadyFound);
   void getDirectorWriterMatches(const std::string &directorWriter, int &numMatchesAll, int &numMatchesSure, vector<string> &alreadyFound);
   void getDirectorWriterMatches(searchResultTvMovie &sR, const std::vector<std::string> &directorWriters);
