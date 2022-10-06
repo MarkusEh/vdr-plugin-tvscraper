@@ -235,6 +235,10 @@ int sentence_distance_normed_strings(const std::string& str1, const std::string&
 // 0: Strings are equal
 // before calling: strings must be prepared with stripExtraUTF8
 //  std::cout << "str1 = " << str1 << " str2 = " << str2 << std::endl;
+  if (str1 == str2) {
+    if (str1.empty() ) return 1000;
+    return 0;
+  }
   int s1l = str1.length();
   int s2l = str2.length();
   int minLen = std::min(s1l, s2l);
@@ -258,10 +262,12 @@ int sentence_distance_normed_strings(const std::string& str1, const std::string&
 }
 
 int sentence_distance(const char *sentence1a, const char *sentence2a) {
+  if (strcmp(sentence1a, sentence2a) == 0) return 0;
   return sentence_distance_normed_strings(stripExtraUTF8(sentence1a), stripExtraUTF8(sentence2a));
 }
 
 int sentence_distance(const std::string &sentence1a, const std::string &sentence2a) {
+  if (sentence1a == sentence2a) return 0;
   return sentence_distance_normed_strings(stripExtraUTF8(sentence1a.c_str() ), stripExtraUTF8(sentence2a.c_str() ));
 }
 

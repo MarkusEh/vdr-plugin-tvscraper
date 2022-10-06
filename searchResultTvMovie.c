@@ -15,7 +15,7 @@ searchResultTvMovie::searchResultTvMovie(int id, bool movie, const std::string &
   m_matches[3].weight = 0.2; // match duration
   m_matches[4].weight = 0.3; // match actors
   m_matches[5].weight = 0.1; // match director writer
-  m_matches[6].weight = 0.4; // match episode (for tv shows with episode only)
+  m_matches[6].weight = 0.3; // match episode (for tv shows with episode only)
   m_matches[7].weight = 0.3; // baseNameEquShortText -> extra points for series
   m_matches[8].weight = 0.0001; // positionInExternalResult
 }
@@ -31,6 +31,7 @@ searchResultTvMovie::~searchResultTvMovie() {
 //  if (m_id == -112671) log("Doctor Who (2009), series of short fan films");
 //  if (m_id == -329847) log("Doctor Who (DDK Productions), youTube");
 //  if (m_id == -383868) log("Doctor Who: Origin kein year, ... wohl irrelevant");
+//  if (m_id == -72037) log("Mastermind BBC");
 //  if (m_id == 5548) log("RoboCop");
 }
 

@@ -58,8 +58,9 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
 // Note: recording->Name():     This is the complete file path, /video prefix removed, and characters exchanged (like #3A -> :)
 //                              In other words: You can display it on the UI
 // Note: recording->BaseName(): Last part of recording->Name()  (after last '~')
-//  bool debug = false;
-//  debug = recording->Info() && recording->Info()->Title() && strcmp(recording->Info()->Title(), "Star Trek: Picard") == 0;
+  bool debug = false;
+//  debug =  recording->Info() && recording->Info()->Title() && strcmp(recording->Info()->Title(), "Die Geburtstagssendung mit der Maus") == 0;
+//  debug |= recording->Info() && recording->Info()->Title() && strcmp(recording->Info()->Title(), "Die Sendung mit der Maus: 25 Jahre nach dem Mauerfall (2/4)") == 0;
 
 // set m_baseNameOrTitle (the db search string) to the recording file name, as default
   cString baseName = recording->BaseName();
@@ -87,9 +88,11 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
   if (!shortText || ! *shortText) return; // no short text, no description -> go ahead with base name
   int distTitle     = sentence_distance(recording->Info()->Title(), m_baseNameOrTitle.c_str() );
   int distShortText = sentence_distance(shortText, m_baseNameOrTitle.c_str() );
+  if (debug) esyslog("tvscraper: distTitle %i, distShortText %i", distTitle, distShortText);
   if (distTitle > 600 && distShortText > 600) {
 // neither title nor shortText match the filename
     if (!isTitlePartOfPathName(baseNameLen) ) return;
+    if (debug) esyslog("tvscraper: isTitlePartOfPathName(baseNameLen) == true");
 // title is part of path name
 // this indicates that we have a TV show with title=title, and episode name=filename
     m_episodeName = m_baseNameOrTitle;
@@ -190,7 +193,10 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
   if (sType == scrapNone) {
 // nothing found
     movieOrTv.id = 0;
-    if (config.enableDebug) esyslog("tvscraper: nothing found for \"%s\" ", movieName.c_str());
+    if (config.enableDebug) {
+      esyslog("tvscraper: nothing found for \"%s\" ", movieName.c_str());
+      if (searchResults.size() > 0 ) searchResults[0].log(m_searchString.c_str() );
+    }
   } else {
 // something found
     movieOrTv.id = searchResults[0].id();
@@ -274,9 +280,10 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   for (searchResultTvMovie &searchResult: searchResults) searchResult.setMatchYear(m_years, m_sEventOrRecording->DurationInSec() );
   std::sort(searchResults.begin(), searchResults.end() );
   if (debug) for (searchResultTvMovie &searchResult: searchResults) searchResult.log(m_searchString.c_str() );
-  float minMatch = 0.52;
+  const float minMatchPre = 0.5;
+  const float minMatchFinal = 0.5;
   std::vector<searchResultTvMovie>::iterator end = searchResults.begin();
-  for (; end != searchResults.end(); end++) if (end->getMatch() < minMatch) break;
+  for (; end != searchResults.end(); end++) if (end->getMatch() < minMatchPre) break;
   if (searchResults.begin() == end) return scrapNone; // nothing good enough found
   m_episodeFound = false;
   std::vector<searchResultTvMovie>::iterator new_end;
@@ -288,6 +295,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   }
 // no more inforamtion can be added. Best result is in searchResults[0]
   if (debug) esyslog("tvscraper: ScrapFind, found: %i, title: \"%s\"", searchResults[0].id(), m_searchString.c_str() );
+  if (searchResults[0].getMatch() < minMatchFinal) return scrapNone; // nothing good enough found
   if (searchResults[0].movie() ) return scrapMovie;
   if (searchResults[0].delim() ) splitString(m_searchString, searchResults[0].delim(), 4, movieName, episodeSearchString);
   return scrapSeries;
@@ -576,7 +584,7 @@ bool cSearchEventOrRec::selectBestAndEnhanvceIfRequired(std::vector<searchResult
   float minDiffOther = minDiff;
   new_end = end;
   if (begin == end) return false; // empty list
-  if (begin + 1 == end) return false; // list with one element
+  if (begin + 1 == end) { func(*begin, *this); return false;} // list with one element, always enhance first (currently best) result
   std::sort(begin, end);
   float bestMatch = begin->getMatch();
   bool bestMatchMovie = begin->movie();
@@ -586,7 +594,7 @@ bool cSearchEventOrRec::selectBestAndEnhanvceIfRequired(std::vector<searchResult
   for (i = begin + 1; i != end; i++) if (i->movie() != bestMatchMovie) { diffALt  = bestMatch - i->getMatch(); break; }
   for (i = begin + 1; i != end; i++) if (i->movie() == bestMatchMovie) { diffSame = bestMatch - i->getMatch(); break; }
   if (debug) esyslog("tvscraper: selectBestAndEnhanvceIfRequired, minDiffSame %f, minDiffOther %f, diffALt %f, diffSame %f", minDiffSame, minDiffOther, diffALt, diffSame);
-  if (diffSame > minDiffSame && diffALt > minDiffOther) return false;
+  if (diffSame > minDiffSame && diffALt > minDiffOther) { func(*begin, *this); return false;}
   bool matchAlt = !(diffALt <= diffALt); // set this to false, if still a match to an "alternative" finding is required
   for (i = begin; i != end; i++) {
 //    debug = debug || i->id() == -353808 || i->id() == -250822 || i->id() == 440757;
@@ -603,6 +611,7 @@ bool cSearchEventOrRec::selectBestAndEnhanvceIfRequired(std::vector<searchResult
   std::sort(begin, i);
   if (debug) esyslog("tvscraper: selectBestAndEnhanvceIfRequired(5)" );
   new_end = i;
+  if (i == begin) func(*begin, *this);
   return true;
 }
 
