@@ -76,7 +76,7 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
     esyslog("tvscraper: ERROR cTVScraperSetup::cTVScraperSetup default language %i not in list", defaultLanguage);
     return;
   }
-// menue for default language: just one entry, cannot be changed
+// menu for default language: just one entry, cannot be changed
   langDefault.addLanguage(defaultLanguage);
   langDefault.addLine(defaultLanguage);
   if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after langDefault / langAdditional");
@@ -117,7 +117,7 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
       m_channelNames.push_back(channel->Name() );
       m_maxChannelNameLength = std::max(m_maxChannelNameLength, (int)strlen(channel->Name() ));
       channelsScrap.push_back(config.ChannelActive(channelID)?1:0);
-      m_channelsHD.push_back(config.ChannelHD(channelID)?1:0);
+      m_channelsHD.push_back(config.ChannelHD(channelID));
       int lang = config.GetLanguage_n(channelID);
       if (!langChannels.m_osdMap.isSecond(lang)) langChannels.addLanguage(lang);
       langChannels.addLine(lang);
@@ -129,7 +129,7 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
     m_allChannels.insert({recChannel.first, (int)m_channelNames.size()});
     m_channelNames.push_back(recChannel.second);
     m_maxChannelNameLength = std::max(m_maxChannelNameLength, (int)strlen(recChannel.second));
-    m_channelsHD.push_back(config.ChannelHD(recChannel.first)?1:0);
+    m_channelsHD.push_back(config.ChannelHD(recChannel.first));
     int lang = config.GetLanguage_n(recChannel.first);
     if (!langChannels.m_osdMap.isSecond(lang)) langChannels.addLanguage(lang);
     langChannels.addLine(lang);
@@ -158,9 +158,9 @@ void cTVScraperSetup::Setup(void) {
     for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
       Add(new cMenuEditStraItem((string(tr("Additional language")) + " " + to_string(i+1)).c_str(), &langAdditional.m_selectedLanguage[i], langAdditional.m_numLang, langAdditional.m_osdTexts));
     if (config.numAdditionalLanguages() > 0) Add(new cOsdItem(tr("Set language for each channel")));
+    Add(new cOsdItem(tr("HD channels")));
     Add(new cMenuEditBoolItem(tr("Create timers to improve and complement recordings"), &m_enableAutoTimers));
     if (m_enableAutoTimers) {
-      Add(new cOsdItem(tr("HD channels")));
       Add(new cOsdItem(tr("Recording folders to improve")));
       Add(new cOsdItem(tr("TV shows to record")));
     }

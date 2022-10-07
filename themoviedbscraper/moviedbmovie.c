@@ -170,13 +170,14 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
         for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) { alreadyInList = true; break; }
         if (alreadyInList) continue;
 // Title & OriginalTitle
-        std::string resultTitle = stripExtraUTF8(json_string_value_validated(result, "title").c_str() );
+        std::string resultTitle = stripExtraUTF8(json_string_value_validated_c(result, "title") );
         if (resultTitle.empty() ) continue;
-        std::string resultOriginalTitle = stripExtraUTF8(json_string_value_validated(result, "original_title").c_str() );
+        int distOrigTitle = sentence_distance(stripExtraUTF8(json_string_value_validated_c(result, "original_title") ), SearchStringStripExtraUTF8);
+        distOrigTitle = std::min(1000, distOrigTitle + 50);  // increase distance for original title, because it's a less likely match
 
         searchResultTvMovie sRes(id, true, json_string_value_validated(result, "release_date") );
         sRes.setPositionInExternalResult(resultSet.size() );
-        sRes.setMatchText(std::min(sentence_distance_normed_strings(resultTitle, SearchStringStripExtraUTF8), sentence_distance(resultOriginalTitle, SearchStringStripExtraUTF8) ) );
+        sRes.setMatchText(std::min(sentence_distance_normed_strings(resultTitle, SearchStringStripExtraUTF8), distOrigTitle) );
         sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
         resultSet.push_back(sRes);
     }
