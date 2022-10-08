@@ -378,9 +378,11 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
 
   searchResultTvMovie sRes(seriesID * (-1), false, json_string_value_validated(data, "year"));
   sRes.setPositionInExternalResult(resultSet.size() );
+// name is the name in original / primary language
   int dist_a = minDist(1000, json_object_get(data, "name"), SearchStringStripExtraUTF8);
   if (debug) esyslog("tvscraper: ParseJson_searchSeries SearchString %s, name %s, distance %i", SearchStringStripExtraUTF8.c_str(), json_string_value_validated(data, "name").c_str() , dist_a);
   json_t *jAliases = json_object_get(data, "aliases");
+// in search results, aliases don't have language information
   if (json_is_array(jAliases) ) {
     size_t index;
     json_t *jElement;
@@ -388,6 +390,11 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
       dist_a = minDist(dist_a, jElement, SearchStringStripExtraUTF8);
     }
   }
+// no language information is available on the texts used so far
+// we give a malus for that, similar to movies
+// in series/<id>/extended, language information for aliases IS available
+// still, effort using that seems to high
+  dist_a = std::min(dist_a + 50, 1000);
   int requiredDistance = 600; // "standard" require same text similarity as we required for episode matching
   json_t *jTranslations = json_object_get(data, "translations");
   if (json_is_object(jTranslations) ) {
