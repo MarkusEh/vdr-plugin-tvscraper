@@ -38,7 +38,7 @@ cMovieDbMovie::~cMovieDbMovie() {
 }
 
 bool cMovieDbMovie::ReadMovie(void) {
-    string json;
+    cLargeString json("cMovieDbMovie::ReadMovie", 10000);
     stringstream url;
     const char *lang = config.GetDefaultLanguage()->m_themoviedb;
     url << m_baseURL << "/movie/" << id << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang;
@@ -142,7 +142,7 @@ void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
 int cMovieDbMovie::AddMovieResultsForUrl(const string &url, vector<searchResultTvMovie> &resultSet, const string &SearchString) {
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
-  string json;
+  cLargeString json("cMovieDbMovie::AddMovieResultsForUrl", 10000);
   json_error_t error;
   if (config.enableDebug) esyslog("tvscraper: calling %s", url.c_str());
   if (!CurlGetUrl(url.c_str(), json)) return 0;

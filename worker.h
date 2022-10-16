@@ -28,7 +28,7 @@ private:
 
     bool ConnectScrapers(void);
     void DisconnectScrapers(void);
-    void CheckRunningTimers(void);
+    bool CheckRunningTimers(void);
     bool ScrapEPG(void);
     void ScrapRecordings(void);
     bool StartScrapping(bool &fullScan);

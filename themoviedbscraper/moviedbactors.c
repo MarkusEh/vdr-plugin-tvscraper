@@ -7,7 +7,7 @@
 
 using namespace std;
 
-cMovieDbActors::cMovieDbActors(string json) {
+cMovieDbActors::cMovieDbActors(const char *json) {
     this->json = json;
 }
 

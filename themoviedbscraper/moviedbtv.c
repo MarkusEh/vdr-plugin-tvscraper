@@ -17,34 +17,37 @@ cMovieDbTv::cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper):
 
 cMovieDbTv::~cMovieDbTv() {
 }
-bool cMovieDbTv::UpdateDb(){
+bool cMovieDbTv::UpdateDb(bool updateEpisodes){
 // read tv data from themoviedb, update this object
-// update db, including list of episodes
-   int numberOfEpisodes = 0;
-   int lastSeason = 0;
-   bool exits_in_db = m_db->TvGetNumberOfEpisodes(m_tvID, lastSeason, numberOfEpisodes);
-   if(!ReadTv(exits_in_db)) return false;
-   if(!exits_in_db || m_tvNumberOfEpisodes > numberOfEpisodes) {
+// only update if not yet in db. In this case, also episodes will be updated
+// if updateEpisodes == true: force always update of episodes
+  int numberOfEpisodes = 0;
+  int lastSeason = 0;
+  bool exits_in_db = m_db->TvGetNumberOfEpisodes(m_tvID, lastSeason, numberOfEpisodes);
+  if (exits_in_db && !updateEpisodes) return true;
+  cLargeString buffer("cMovieDbTv::UpdateDb", 5000);
+  if(!ReadTv(exits_in_db, buffer)) return false;
+  if(!exits_in_db || m_tvNumberOfEpisodes > numberOfEpisodes) {
 //   if this is new (not yet in db), always search seasons. "number_of_episodes" is sometimes wrong :(
 //   there exist new episodes, update db with new episodes
-     for(m_seasonNumber = lastSeason; m_seasonNumber <= m_tvNumberOfSeasons; m_seasonNumber++) AddOneSeason();
-   }
-   m_db->TvSetNumberOfEpisodes(m_tvID, m_tvNumberOfSeasons, m_tvNumberOfEpisodes);
-   m_db->TvSetEpisodesUpdated(m_tvID);
-   return true;
+     for(m_seasonNumber = lastSeason; m_seasonNumber <= m_tvNumberOfSeasons; m_seasonNumber++) AddOneSeason(buffer);
+  }
+  m_db->TvSetNumberOfEpisodes(m_tvID, m_tvNumberOfSeasons, m_tvNumberOfEpisodes);
+  m_db->TvSetEpisodesUpdated(m_tvID);
+  return true;
 }
 
-bool cMovieDbTv::ReadTv(bool exits_in_db) {
+bool cMovieDbTv::ReadTv(bool exits_in_db, cLargeString &buffer) {
 // call themoviedb api, get data
-    string json;
     stringstream url;
     const char *lang = config.GetDefaultLanguage()->m_themoviedb;
     url << m_baseURL << "/tv/" << m_tvID << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang << "&include_image_language=en,null";
     if(!exits_in_db) url << "&append_to_response=credits";
-    if (!CurlGetUrl(url.str().c_str(), json)) return false;
+    if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
+    if (!CurlGetUrl(url.str().c_str(), buffer)) return false;
 // parse json response
     json_t *tv;
-    tv = json_loads(json.c_str(), 0, NULL);
+    tv = json_loads(buffer.c_str(), 0, NULL);
     if (!tv) return false;
     bool ret = ReadTv(tv);
     if(ret) {
@@ -94,7 +97,7 @@ bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, const stri
 // search for tv series, add search results to resultSet
 
 // call api, get json
-    string json;
+    cLargeString json("cMovieDbTv::AddTvResults", 10000);
     stringstream url;
     url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << "&query=" << CurlEscape(tvSearchString_ext.c_str());
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
@@ -158,16 +161,16 @@ void cMovieDbTv::Dump(void) {
     esyslog("tvscraper: backdropPath %s", m_tvBackdropPath.c_str());
     esyslog("tvscraper: posterPath %s", m_tvPosterPath.c_str());
 }
-bool cMovieDbTv::AddOneSeason() {
+bool cMovieDbTv::AddOneSeason(cLargeString &buffer) {
 // call api, get json
-    string json;
     stringstream url;
     const char *lang = config.GetDefaultLanguage()->m_themoviedb;
     url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang;
-    if (!CurlGetUrl(url.str().c_str(), json)) return false;
+    if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
+    if (!CurlGetUrl(url.str().c_str(), buffer)) return false;
 // parse json
     json_t *root;
-    root = json_loads(json.c_str(), 0, NULL);
+    root = json_loads(buffer.c_str(), 0, NULL);
     if (!root) return false;
     bool ret = AddOneSeason(root);
     json_decref(root);
@@ -259,10 +262,11 @@ bool cMovieDbTv::AddActorsTv(json_t *jCredits) {
 bool cMovieDbTv::AddActors() {
 // add actors of current episode
 // call api, get json
-    string json;
+    cLargeString json("cMovieDbTv::AddActors", 10000);
     stringstream url;
     const char *lang = config.GetDefaultLanguage()->m_themoviedb;
     url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "/episode/" << m_episodeNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang;
+    if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
     if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json
     json_t *root;

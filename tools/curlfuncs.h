@@ -3,7 +3,8 @@
 #include <string>
 using namespace std;
 
-bool CurlGetUrl(const char *url, string &sOutput, struct curl_slist *headers = NULL);
+template<class T>
+bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers = NULL);
 int CurlGetUrlFile(const char *url, const char *filename);
 bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, string &error);
 void FreeCurlLibrary(void);

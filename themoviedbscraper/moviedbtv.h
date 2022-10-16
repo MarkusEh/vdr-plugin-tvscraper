@@ -31,10 +31,10 @@ private:
    int m_seasonNumber = 0;
    int m_episodeNumber = 0;
    set<int> m_episodeRunTimes;
-   bool ReadTv(bool exits_in_db);
+   bool ReadTv(bool exits_in_db, cLargeString &buffer);
    bool ReadTv(json_t *tv);
    bool AddTvResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &tvSearchString);
-   bool AddOneSeason();
+   bool AddOneSeason(cLargeString &buffer);
    bool AddOneSeason(json_t *root);
    bool AddActors();
    bool AddActors(json_t *root, int episode_id);
@@ -44,7 +44,7 @@ public:
    static string GetCrewMember(json_t *jCrew, const char *field, const string &value);
    virtual ~cMovieDbTv(void);
    bool AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext, const cLanguage *lang);
-   bool UpdateDb();
+   bool UpdateDb(bool updateEpisodes);
    void StoreSeasonPoster(const string &SeasonPosterPath);
    int tvID(void) { return m_tvID; };
    void SetTvID(int tvID) { m_tvID = tvID; };

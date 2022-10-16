@@ -257,8 +257,11 @@ bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
   return false;
 }
 
-void cTVScraperWorker::CheckRunningTimers(void) {
-  if (config.GetReadOnlyClient() ) return;
+bool cTVScraperWorker::CheckRunningTimers(void) {
+// assign scrape result from EPG to recording
+// return true if new data are assigned to one or more recordings
+  if (config.GetReadOnlyClient() ) return false;
+  bool newRecData = false;
   vector<string> recordingFileNames; // filenames of recordings with running timers
   { // in this block, we lock the timers
 #if APIVERSNUM < 20301
@@ -292,21 +295,24 @@ void cTVScraperWorker::CheckRunningTimers(void) {
         continue;
       }
       csRecording sRecording(recording);
-
-      if (db->SetRecording(&sRecording)) {
+      int r = db->SetRecording(&sRecording);
+      if (r == 2) {
+        newRecData = true;
         movieOrTv = cMovieOrTv::getMovieOrTv(db, &sRecording);
         if (movieOrTv) {
           movieOrTv->copyImagesToRecordingFolder(recording->FileName() );
           delete movieOrTv;
           movieOrTv = NULL;
         }
-      } else {
+      }
+      if (r == 0) {
         tEventID eventID = sRecording.EventID();
         cString channelIDs = sRecording.ChannelIDs();
         esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", eventID, (const char *)channelIDs, filename.c_str() );
         if (ConnectScrapers() ) { 
           cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, moviedbScraper, tvdbScraper, db);  
           movieOrTv = SearchEventOrRec.Scrape();
+          if (movieOrTv) newRecData = true;
         }
       }
     } // the locks are released
@@ -316,7 +322,8 @@ void cTVScraperWorker::CheckRunningTimers(void) {
       movieOrTv = NULL;
     }
   }
-  if (!recordingFileNames.empty() ) TouchFile(config.GetRecordingsUpdateFileName().c_str());
+  if (newRecData && !recordingFileNames.empty() ) TouchFile(config.GetRecordingsUpdateFileName().c_str());
+  return newRecData;
 }
 
 bool cTVScraperWorker::StartScrapping(bool &fullScan) {
@@ -366,7 +373,9 @@ void cTVScraperWorker::Action(void) {
       dsyslog("tvscraper: scanning video dir done");
       continue;
     }
-    CheckRunningTimers();
+    bool newRec = CheckRunningTimers();
+    if (!Running() ) break;
+    if (newRec) db->BackupToDisc();
     if (!Running() ) break;
     bool fullScan = false;
     if (StartScrapping(fullScan)) {

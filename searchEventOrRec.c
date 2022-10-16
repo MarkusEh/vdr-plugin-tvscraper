@@ -159,6 +159,7 @@ void cSearchEventOrRec::initSearchString(void) {
 }
 
 cMovieOrTv *cSearchEventOrRec::Scrape(void) {
+// return NULL if no movie/tv was assigned to this event/recording
 // extDbConnected: true, if request to rate limited internet db was required. Otherwise, false
   if (config.enableDebug) {
     char buff[20];
@@ -179,6 +180,13 @@ cMovieOrTv *cSearchEventOrRec::Scrape(void) {
   }
   ScrapAssign(movieOrTv);
   return cMovieOrTv::getMovieOrTv(m_db, movieOrTv);
+}
+
+std::string cSearchEventOrRec::getNormedTvName(int tv_id) {
+  const char *sql = "SELECT tv_name FROM tv2 where tv_id = ?";
+  std::string tv_name = m_db->QueryString(sql, "i", tv_id);
+  StringRemoveLastPartWithP(tv_name);
+  return stripExtraUTF8(tv_name.c_str() );
 }
 
 void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
@@ -215,11 +223,15 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
         if (searchResults[0].getMatchEpisode() ) {
           movieOrTv.episodeSearchWithShorttext = 3;
           float bestMatchText = searchResults[0].getMatchText();
+          std::string tv_name;
           for (const searchResultTvMovie &searchResult: searchResults) {
             if (searchResult.id() == searchResults[0].id() ) continue;
             if ((searchResult.id()^searchResults[0].id()) < 0) continue; // we look for IDs in same database-> same sign
             if (searchResult.movie()) continue;  // we only look for TV shows
             if (abs(bestMatchText - searchResult.getMatchText()) > 0.001) continue;   // we only look for matches similar near
+            if (tv_name.empty() ) tv_name = getNormedTvName(searchResults[0].id() );
+            if (tv_name.empty() ) break;
+            if (sentence_distance_normed_strings(tv_name, getNormedTvName(searchResult.id()) ) > 200) continue;
             m_db->setSimilar(searchResults[0].id(), searchResult.id() );
             if (config.enableDebug) esyslog("tvscraper: setSimilar %i and %i", searchResults[0].id(), searchResult.id());
           }
@@ -249,9 +261,8 @@ int cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
     case scrapSeries:
       if (movieOrTv.id > 0) {
         m_tv.SetTvID(movieOrTv.id);
-        m_tv.UpdateDb();
+        m_tv.UpdateDb(false);
       } else {
-        if (config.enableDebug) esyslog("tvscraper: cSearchEventOrRec::Store StoreSeriesJson, movieOrTv.id %i", movieOrTv.id);
         if (m_tvdbScraper->StoreSeriesJson(movieOrTv.id * (-1), false) == -1) return -1;
       }
       return 0;
@@ -478,9 +489,8 @@ int cSearchEventOrRec::UpdateEpisodeListIfRequired_i(int tvID) {
   if (tvID > 0) {
     cMovieDbTv tv(m_db, m_moviedbScraper);
     tv.SetTvID(tvID);
-    tv.UpdateDb();
+    tv.UpdateDb(true);
   } else {
-    if (config.enableDebug) esyslog("tvscraper: cSearchEventOrRec::UpdateEpisodeListIfRequired StoreSeriesJson, tvID %i", tvID);
     if (m_tvdbScraper->StoreSeriesJson(tvID * (-1), true) == -1) return -1;
   }
   return 0;

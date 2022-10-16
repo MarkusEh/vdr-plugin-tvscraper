@@ -70,7 +70,8 @@ public:
     bool SearchTvEpisode(int tvID, const string &episode_search_name, int &season_number, int &episode_number);
     string GetStillPathTvEpisode(int tvID, int season_number, int episode_number);
     void InsertRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
-    bool SetRecording(csEventOrRecording *sEventOrRecording);
+    bool CheckRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
+    int SetRecording(csEventOrRecording *sEventOrRecording);
     void ClearRecordings2(void);
     bool CheckStartScrapping(int minimumDistance);
     bool GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = NULL) const;

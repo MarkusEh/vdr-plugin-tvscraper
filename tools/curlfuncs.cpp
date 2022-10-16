@@ -20,6 +20,14 @@ static size_t curl_collect_data_string(void *data, size_t size, size_t nmemb, vo
   return realsize;
 }
 
+static size_t curl_collect_data_large_string(void *data, size_t size, size_t nmemb, void *userp)
+{
+  size_t realsize = size * nmemb;
+  cLargeString *out = (cLargeString *) userp;
+  out->append((char *)data, realsize);
+  return realsize;
+}
+
 inline void InitCurlLibraryIfNeeded() 
 {
   if (!curlfuncs::bInitialized) {
@@ -34,19 +42,26 @@ inline void InitCurlLibraryIfNeeded()
   }
 }
 
-bool CurlGetUrl_int(const char *url, string &sOutput, struct curl_slist *headers)
+bool CurlGetUrl_int(const char *url, void *sOutput, struct curl_slist *headers, size_t (*func)(void *data, size_t size, size_t nmemb, void *userp) )
 {
   InitCurlLibraryIfNeeded();
 
   curl_easy_setopt(curlfuncs::curl, CURLOPT_URL, url);            // Set the URL to get
   curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPGET, 1);
-  curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEFUNCTION, curl_collect_data_string);
-  curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEDATA, &sOutput);       // Set option to write to string
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEFUNCTION, func);
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEDATA, sOutput);       // Set option to write to string
   return curl_easy_perform(curlfuncs::curl) == 0;
 }
+bool CurlGetUrl_int(const char *url, string &sOutput, struct curl_slist *headers) {
+  return CurlGetUrl_int(url, &sOutput, headers, curl_collect_data_string);
+}
+bool CurlGetUrl_int(const char *url, cLargeString &sOutput, struct curl_slist *headers) {
+  return CurlGetUrl_int(url, &sOutput, headers, curl_collect_data_large_string);
+}
 
-bool CurlGetUrl(const char *url, string &sOutput, struct curl_slist *headers) {
+template<class T>
+bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers) {
   bool ret = false;
   for(int i=0; i < 10; i++) {
     ret = CurlGetUrl_int(url, sOutput, headers);
@@ -62,6 +77,8 @@ bool CurlGetUrl(const char *url, string &sOutput, struct curl_slist *headers) {
   }
   return ret;
 }
+// template bool CurlGetUrl<std::string> (const char *url,  std::string &sOutput, struct curl_slist *headers);
+template bool CurlGetUrl<cLargeString>(const char *url, cLargeString &sOutput, struct curl_slist *headers);
 
 int CurlGetUrlFile(const char *url, const char *filename)
 {

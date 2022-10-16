@@ -24,21 +24,21 @@ bool cTVDBScraper::GetToken(void) {
 // return true on success
   if (time(0) - tokenHeaderCreated < 24*60*60) return true; // call only once a day
   const char *url = "https://api4.thetvdb.com/v4/login";
-  std::string out;
+  std::string buffer;
 
   struct curl_slist *headers = NULL;
   headers = curl_slist_append(headers, "accept: application/json");
   headers = curl_slist_append(headers, "Content-Type: application/json");
   headers = curl_slist_append(headers, "charset: utf-8");
-  bool result =  CurlPostUrl(url, "{\"apikey\": \"5476e702-85aa-45fd-a8da-e74df3840baf\"}", out, headers);
+  bool result =  CurlPostUrl(url, "{\"apikey\": \"5476e702-85aa-45fd-a8da-e74df3840baf\"}", buffer, headers);
   curl_slist_free_all(headers);
   if (!result) {
     esyslog("tvscraper: ERROR cTVDBScraper::GetToken, calling %s", url);
     return false;
   }
 // now read the tocken
-  if (!GetToken(out)) {
-    esyslog("tvscraper: ERROR cTVDBScraper::GetToken, parsing json result %s", out.substr(0, 40).c_str() );
+  if (!GetToken(buffer)) {
+    esyslog("tvscraper: ERROR cTVDBScraper::GetToken, parsing json result %s", buffer.erase(40).c_str() );
     return false;
   }
   return true;
@@ -77,7 +77,8 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
 // this call gives also episode related information like actors, images, ...
   string url = baseURL4 + "series/" + std::to_string(seriesID) + "/extended?meta=translations&short=false";
   int error;
-  json_t *jSeries = CallRestJson(url, &error);
+  cLargeString buffer("cTVDBScraper::StoreSeriesJson", 15000);
+  json_t *jSeries = CallRestJson(url, buffer, &error);
   if (!jSeries) {
     if (error == -1) return -1; // object does not exist
     return 0;
@@ -88,7 +89,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
 // episodes
   string urlE = baseURL4 + "series/" + std::to_string(seriesID) + "/episodes/default/" + series.m_language + "?page=0";
   while (!urlE.empty() ) {
-    json_t *jEpisodes = CallRestJson(urlE);
+    json_t *jEpisodes = CallRestJson(urlE, buffer);
     urlE = "";
     if (!jEpisodes) break;
     json_t *jEpisodesData = json_object_get(jEpisodes, "data");
@@ -134,9 +135,10 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, const cLanguage *lang) {
 
   cTVDBSeries series(db, this, seriesID);
 // episodes
+  cLargeString buffer("cTVDBScraper::StoreSeriesJson lang", 10000);
   string urlE = baseURL4 + "series/" + std::to_string(seriesID) + "/episodes/default/" + lang->m_thetvdb + "?page=0";
   while (!urlE.empty() ) {
-    json_t *jEpisodes = CallRestJson(urlE);
+    json_t *jEpisodes = CallRestJson(urlE, buffer);
     urlE = "";
     if (!jEpisodes) break;
     json_t *jEpisodesData = json_object_get(jEpisodes, "data");
@@ -158,41 +160,41 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, const cLanguage *lang) {
   return seriesID;
 }
 
-json_t *cTVDBScraper::CallRestJson(const std::string &url, int *error) {
+json_t *cTVDBScraper::CallRestJson(const std::string &url, cLargeString &buffer, int *error) {
 // return NULL in case of errors
 // if error is given, it will be set to -1 if an object is requested which does not exist
 // otherwise, the caller must ensure to call json_decref(...); on the returned reference
   if (error) *error = 0;
   if (!GetToken() ) return NULL;
-  string out;
+  buffer.clear();
   struct curl_slist *headers = NULL;
   headers = curl_slist_append(headers, "accept: application/json");
   headers = curl_slist_append(headers, tokenHeader.c_str() );
   headers = curl_slist_append(headers, "charset: utf-8");
   if (config.enableDebug) esyslog("tvscraper: calling %s", url.c_str());
-  bool result = CurlGetUrl(url.c_str(), out, headers);
+  bool result = CurlGetUrl(url.c_str(), buffer, headers);
   curl_slist_free_all(headers);
   if (!result) {
     esyslog("tvscraper: ERROR calling %s", url.c_str());
     return NULL;
   }
-  json_t *jRoot = json_loads(out.c_str(), 0, NULL);
+  json_t *jRoot = json_loads(buffer.c_str(), 0, NULL);
   if (!jRoot) {
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, out %s", url.c_str(), out.substr(0, 50).c_str());
+    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, buffer %s", url.c_str(), buffer.erase(50).c_str());
     return NULL;
   }
   std::string status = json_string_value_validated(jRoot, "status");
   if (status != "success") {
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, out %s, status = %s", url.c_str(), out.substr(0, 50).c_str(), status.c_str() );
     if (status == "failure" && json_string_value_validated(jRoot, "message") == "Not Found") {
       if (error) *error = -1;
     }
     json_decref(jRoot);
+    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, buffer %s, status = %s", url.c_str(), buffer.erase(50).c_str(), status.c_str() );
     return NULL;
   }
   if (!json_object_get(jRoot, "data")) {
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, data is NULL, url %s, out %s", url.c_str(), out.substr(0, 50).c_str());
     json_decref(jRoot);
+    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, data is NULL, url %s, buffer %s", url.c_str(), buffer.erase(50).c_str());
     return NULL;
   }
   return jRoot;
@@ -312,7 +314,8 @@ bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, const str
 // search for tv series, add search results to resultSet
 // return true if results were added
   string url = baseURL4Search + CurlEscape(SearchString_ext.c_str());
-  json_t *root = CallRestJson(url);
+  cLargeString buffer("cTVDBScraper::AddResults4", 500, 5000);
+  json_t *root = CallRestJson(url, buffer);
   if (!root) return false;
   int seriesID = 0;
   bool result = ParseJson_search(root, resultSet, SearchString, lang);

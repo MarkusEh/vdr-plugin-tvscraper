@@ -28,7 +28,7 @@ private:
     string writer = "";
     void ParseJSON(json_t *jActors);
 public:
-    cMovieDbActors(string json);
+    cMovieDbActors(const char *json);
     virtual ~cMovieDbActors(void);
     void ParseJSON(void);
     void StoreDB(cTVScraperDB *db, int movieID);

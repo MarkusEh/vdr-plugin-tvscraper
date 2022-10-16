@@ -17,6 +17,7 @@ enum eMediaType {
 
 #include <getopt.h>
 #include <vdr/plugin.h>
+#include "tools/largeString.h"
 #include "searchResultTvMovie.h"
 #include "searchResultTvMovie.c"
 #include "tools/stringhelpers.c"
@@ -31,6 +32,7 @@ cTVScraperConfig config;
 #include "tools/curlfuncs.cpp"
 #include "tools/filesystem.c"
 #include "tools/fuzzy.c"
+#include "tools/largeString.cpp"
 #include "overrides.c"
 #include "tvscraperdb.c"
 #include "thetvdbscraper/tvdbseries.c"

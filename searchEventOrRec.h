@@ -19,6 +19,7 @@ private:
   void initSearchString(void);
   void setFastMatch(searchResultTvMovie &searchResult);
   int GetTvDurationDistance(int tvID);
+  std::string getNormedTvName(int tv_id);
   void ScrapFindAndStore(sMovieOrTv &movieOrTv);
   bool CheckCache(sMovieOrTv &movieOrTv);
   void ScrapAssign(const sMovieOrTv &movieOrTv);

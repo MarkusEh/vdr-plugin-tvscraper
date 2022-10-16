@@ -42,7 +42,7 @@ vector<vector<string>> cMovieDBScraper::GetTvRuntimes(int tvID) {
 // themoviedb never checked for runtime, check now
   cMovieDbTv tv(db, this);
   tv.SetTvID(tvID);
-  tv.UpdateDb();
+  tv.UpdateDb(false);
   return db->GetTvRuntimes(tvID);
 }
 
@@ -65,7 +65,7 @@ void cMovieDBScraper::StoreMovie(cMovieDbMovie &movie) {
 bool cMovieDBScraper::Connect(void) {
     stringstream url;
     url << baseURL << "/configuration?api_key=" << apiKey;
-    string configJSON;
+    cLargeString configJSON("cMovieDBScraper::Connect", 1500);
     if (CurlGetUrl(url.str().c_str(), configJSON)) {
        json_t *root;
        root = json_loads(configJSON.c_str(), 0, NULL);
@@ -100,10 +100,10 @@ bool cMovieDBScraper::parseJSON(json_t *root) {
 cMovieDbActors *cMovieDBScraper::ReadActors(int movieID) {
     stringstream url;
     url << baseURL << "/movie/" << movieID << "/casts?api_key=" << apiKey;
-    string actorsJSON;
+    cLargeString actorsJSON("cMovieDBScraper::ReadActors", 10000);
     cMovieDbActors *actors = NULL;
     if (CurlGetUrl(url.str().c_str(), actorsJSON)) {
-        actors = new cMovieDbActors(actorsJSON);
+        actors = new cMovieDbActors(actorsJSON.c_str() );
         actors->ParseJSON();
     }
     return actors;

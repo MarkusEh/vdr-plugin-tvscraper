@@ -246,8 +246,8 @@ int sentence_distance_normed_strings(const std::string& str1, const std::string&
   if (minLen == 0) return 1000;
 
   int slengt = lcsubstr(str1, str2);
-  int upper = 10; // match of more than upper characters: good
-  if (slengt == minLen) upper = std::min(std::max(minLen/3, 2), 9);  // if the shorter string is part of the longer string: reduce upper
+  int upper = 9; // match of more than upper characters: good
+  if (slengt == minLen) slengt *= 2; // if the shorter string is part of the longer string
   if (slengt == maxLen) slengt *= 2; // the strings are identical, add some points for this
   int max_dist_lcsubstr = 1000;
   int dist_lcsubstr = 1000 - normMatch(slengt, upper);
