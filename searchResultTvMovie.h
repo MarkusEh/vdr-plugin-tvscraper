@@ -35,6 +35,7 @@ public:
   bool movie() const { return m_movie; }
   int year() const { return m_year; }
   int m_yearMatch = 0;
+  std::string normedName;
 private:
   int m_id;
   bool m_movie;

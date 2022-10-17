@@ -121,6 +121,8 @@ bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultS
         if (!json_is_object(result)) continue;
         string resultName = json_string_value_validated(result, "name");
         string resultOriginalName = json_string_value_validated(result, "original_name");
+        StringRemoveLastPartWithP(resultName);
+        StringRemoveLastPartWithP(resultOriginalName);
         if (resultName.empty() ) continue;
 //convert result to lower case
         transform(resultName.begin(), resultName.end(), resultName.begin(), ::tolower);
@@ -137,6 +139,7 @@ bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultS
             sRes.setPositionInExternalResult(resultSet.size() );
             sRes.setMatchText(std::min(sentence_distance(resultName, tvSearchString), sentence_distance(resultOriginalName, tvSearchString) )  + 1); // avaid this, prefer TVDB
             sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
+            sRes.normedName = stripExtraUTF8(resultName.c_str() );
             resultSet.push_back(sRes);
         }
     }

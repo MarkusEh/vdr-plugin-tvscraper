@@ -229,9 +229,7 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
             if ((searchResult.id()^searchResults[0].id()) < 0) continue; // we look for IDs in same database-> same sign
             if (searchResult.movie()) continue;  // we only look for TV shows
             if (abs(bestMatchText - searchResult.getMatchText()) > 0.001) continue;   // we only look for matches similar near
-            if (tv_name.empty() ) tv_name = getNormedTvName(searchResults[0].id() );
-            if (tv_name.empty() ) break;
-            if (sentence_distance_normed_strings(tv_name, getNormedTvName(searchResult.id()) ) > 200) continue;
+            if (sentence_distance_normed_strings(searchResults[0].normedName, searchResult.normedName) > 200) continue;
             m_db->setSimilar(searchResults[0].id(), searchResult.id() );
             if (config.enableDebug) esyslog("tvscraper: setSimilar %i and %i", searchResults[0].id(), searchResult.id());
           }

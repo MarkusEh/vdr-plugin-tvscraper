@@ -344,16 +344,23 @@ bool cTVDBScraper::ParseJson_search(json_t *root, vector<searchResultTvMovie> &r
   return true;
 }
 
-int minDist(int dist, const json_t *jString, const string &SearchStringStripExtraUTF8) {
+int minDist(int dist, const json_t *jString, const string &SearchStringStripExtraUTF8, std::string *normedName = NULL) {
 // compare string in jString with SearchStringStripExtraUTF8
 // make sanity checks first
   if (!jString || !json_is_string(jString)) return dist;
   const char *name = json_string_value(jString);
   if (!name || !*name) return dist;
 
-  dist = std::min(dist, sentence_distance_normed_strings(stripExtraUTF8(name), SearchStringStripExtraUTF8) );
+  if (normedName) {
+    *normedName = stripExtraUTF8(name);
+    dist = std::min(dist, sentence_distance_normed_strings(*normedName, SearchStringStripExtraUTF8) );
+  } else
+    dist = std::min(dist, sentence_distance_normed_strings(stripExtraUTF8(name), SearchStringStripExtraUTF8) );
   int len = StringRemoveLastPartWithP(name, (int)strlen(name) );
-  if (len != -1) dist = std::min(dist, sentence_distance_normed_strings(stripExtraUTF8(name, len), SearchStringStripExtraUTF8) );
+  if (len != -1) {
+    if (normedName) *normedName = stripExtraUTF8(name, len);
+    dist = std::min(dist, sentence_distance_normed_strings(stripExtraUTF8(name, len), SearchStringStripExtraUTF8) );
+  }
   return dist;
 }
 
@@ -403,7 +410,7 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
   if (json_is_object(jTranslations) ) {
     json_t *langVal = json_object_get(jTranslations, lang->m_thetvdb);
     if (langVal) {
-      dist_a = minDist(dist_a, langVal, SearchStringStripExtraUTF8);
+      dist_a = minDist(dist_a, langVal, SearchStringStripExtraUTF8, &sRes.normedName);
       requiredDistance = 700;  // translation in EPG language is available. Reduce requirement somewhat
     }
   }
