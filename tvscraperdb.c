@@ -939,14 +939,15 @@ bool cTVScraperDB::TvExists(int tvID) {
 
 int cTVScraperDB::GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number) {
 // return runtime from internat database, which matches best the runtime of the current event
-if (season_number == -100) return GetMovieRuntime(movie_tv_id);
+  if (season_number == -100) return GetMovieRuntime(movie_tv_id);
+  int runtime = QueryInt("select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", movie_tv_id, season_number, episode_number);
+  if (runtime > 0) return runtime;
   char sql[] = "select episode_run_time from tv_episode_run_time where tv_id = ?";
   if (QueryInt("select count(episode_run_time) from tv_episode_run_time where tv_id = ?", "i", movie_tv_id) <= 1)
     return QueryInt(sql, "i", movie_tv_id);
 // tv show, more than one runtime is available. Select the best fitting one
   int runtime_distance = 20000;
   int best_runtime = 0;
-  int runtime;
   for (sqlite3_stmt *statement = QueryPrepare(sql, "i", movie_tv_id); QueryStep(statement, "i", &runtime);) {
     int dist = sEventOrRecording->DurationDistance(runtime);
     if (dist < runtime_distance) {
@@ -957,31 +958,26 @@ if (season_number == -100) return GetMovieRuntime(movie_tv_id);
   return best_runtime;
 }
 
-bool cTVScraperDB::CheckRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number) {
-// return true if this recording is already assigned to this movie_tv_id, ...
+int cTVScraperDB::InsertRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number) {
+// return 1 if the movieTv was already assigned to the recording
+// return 2 if the movieTv was not yet assigned to the recording, but it is done now
   tEventID eventID = sEventOrRecording->EventID();
   time_t eventStartTime = sEventOrRecording->StartTime();
   cString channelIDs = sEventOrRecording->ChannelIDs();
   if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::CheckRecording2, !channelIDs");
   const char *sql= "SELECT COUNT(*) FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ? AND movie_tv_id = ? AND season_number = ? AND episode_number = ?";
-  return QueryInt(sql, "ilsiii", (int)eventID, (sqlite3_int64)eventStartTime, (const char *)channelIDs, movie_tv_id, season_number, episode_number) > 0;
-}
+  if (QueryInt(sql, "ilsiii", (int)eventID, (sqlite3_int64)eventStartTime, (const char *)channelIDs, movie_tv_id, season_number, episode_number) > 0) return 1;
 
-void cTVScraperDB::InsertRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number) {
-  tEventID eventID = sEventOrRecording->EventID();
-  time_t eventStartTime = sEventOrRecording->StartTime();
-  cString channelIDs = sEventOrRecording->ChannelIDs();
+// movieTv was not yet assigned to the recording, assign it now
   int runtime = GetRuntime(sEventOrRecording, movie_tv_id, season_number, episode_number);
-  if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::InsertRecording2, !channelIDs");
-  execSql("INSERT OR REPLACE INTO recordings2 (event_id, event_start_time, channel_id, runtime, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  execSql("INSERT INTO recordings2 (event_id, event_start_time, channel_id, runtime, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?, ?)",
     "ilsiiii", (int)eventID, (sqlite3_int64)eventStartTime, (const char *)channelIDs, runtime,
                movie_tv_id, season_number, episode_number);
 
-  const cRecording *recording = sEventOrRecording->Recording();
-  if (recording)
-    WriteRecordingInfo(sEventOrRecording->Recording(), movie_tv_id, season_number, episode_number);
+  WriteRecordingInfo(sEventOrRecording->Recording(), movie_tv_id, season_number, episode_number);
 // copy images to recording folder will be done later, with cMovieOrTv->copyImagesToRecordingFolder(
 // required as InsertRecording2 is called before the images are downloaded
+  return 2;
 }
 
 void cTVScraperDB::WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number) {
@@ -1054,9 +1050,7 @@ int cTVScraperDB::SetRecording(csEventOrRecording *sEventOrRecording) {
   const char *sql = "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?";
   int movieTvId, seasonNumber, episodeNumber;
   if (!QueryLine(sql, "is", "iii", (int)eventID, (const char *)channelIDs, &movieTvId, &seasonNumber, &episodeNumber)) return 0;
-  if (CheckRecording2(sEventOrRecording, movieTvId, seasonNumber, episodeNumber)) return 1;
-  InsertRecording2(sEventOrRecording, movieTvId, seasonNumber, episodeNumber);
-  return 2;
+  return InsertRecording2(sEventOrRecording, movieTvId, seasonNumber, episodeNumber);
 }
 
 void cTVScraperDB::ClearRecordings2(void) {

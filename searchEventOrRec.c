@@ -302,7 +302,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
 // if we still have results which are "similar" good, add even more (and more expensive) information
       selectBestAndEnhanvceIfRequired(searchResults.begin(), new_end, new_end, 0.15, &enhance2);
   }
-// no more inforamtion can be added. Best result is in searchResults[0]
+// no more information can be added. Best result is in searchResults[0]
   if (debug) esyslog("tvscraper: ScrapFind, found: %i, title: \"%s\"", searchResults[0].id(), m_searchString.c_str() );
   if (searchResults[0].getMatch() < minMatchFinal) return scrapNone; // nothing good enough found
   if (searchResults[0].movie() ) return scrapMovie;

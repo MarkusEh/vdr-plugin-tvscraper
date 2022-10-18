@@ -85,19 +85,6 @@ bool splitString(const std::string &str, char delimiter, size_t minLengh, std::s
   return true;
 }
 
-bool StringRemoveLastPartWithP(string &str) {
-// remove part with (...)
-  if (str.length() < 2 ) return false;
-  StringRemoveTrailingWhitespace(str);
-  if (str[str.length() -1] != ')') return false;
-  std::size_t found = str.find_last_of("(");
-  if (found == std::string::npos) return false;
-  if (!isdigit(str[found +1])) return false; // we don't remove (asw), but (149) or (4/13)
-  str.erase(found);
-  StringRemoveLastPartWithP(str);
-  return true;
-}
-
 int StringRemoveLastPartWithP(const char *str, int len) {
 // remove part with (...)
 // return -1 if nothing can be removed
@@ -106,14 +93,22 @@ int StringRemoveLastPartWithP(const char *str, int len) {
   if (len < 3) return -1;
   if (str[len -1] != ')') return -1;
   for (int i = len -2; i; i--) {
-    if (!isdigit(str[i])) {
+    if (!isdigit(str[i]) && str[i] != '/') {
       if (str[i] != '(') return -1;
       int len2 = StringRemoveLastPartWithP(str, i);
-      if (len2 == -1 ) return i;
+      if (len2 == -1 ) return StringRemoveTrailingWhitespace(str, i);
       return len2;
     }
   }
   return -1;
+}
+
+bool StringRemoveLastPartWithP(string &str) {
+// remove part with (...)
+  int len = StringRemoveLastPartWithP(str.c_str(), str.length() );
+  if (len < 0) return false;
+  str.erase(len);
+  return true;
 }
 
 int NumberInLastPartWithPS(const std::string &str) {
