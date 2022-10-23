@@ -114,19 +114,45 @@ bool cMovieDbMovie::ReadMovie(json_t *movie) {
     return true;
 }
 
-void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const vector<int> &years, const cLanguage *lang){
+void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const vector<int> &years, const cLanguage *lang){
+  std::vector<cNormedString> normedStrings;
+  normedStrings.push_back(cNormedString(0, normString(SearchString)));
+  string_view searchString1 = SecondPart(SearchString, ": ");
+  string_view searchString2 = SecondPart(SearchString, "'s ");
+  if (!searchString1.empty() ) normedStrings.push_back(cNormedString(50, normString(searchString1)));
+  if (!searchString2.empty() ) normedStrings.push_back(cNormedString(50, normString(searchString2)));
+  string_view searchString3, searchString4;
+  bool split = splitString(SearchString, " - ", 4, searchString3, searchString4);
+  if (split) {
+    normedStrings.push_back(cNormedString(70, normString(searchString3)));
+    normedStrings.push_back(cNormedString(70, normString(searchString4)));
+  }
+  size_t size0 = resultSet.size();
+  AddMovieResults(resultSet, SearchString, normedStrings, description, true, years, lang);
+  if (resultSet.size() > size0) return;
+  if (!searchString1.empty() ) AddMovieResults(resultSet, searchString1, normedStrings, description, false, years, lang);
+  if (resultSet.size() > size0) return;
+  if (!searchString2.empty() ) AddMovieResults(resultSet, searchString2, normedStrings, description, false, years, lang);
+  if (resultSet.size() > size0) return;
+  if (!split) return;
+  AddMovieResults(resultSet, searchString3, normedStrings, description, false, years, lang);
+  AddMovieResults(resultSet, searchString4, normedStrings, description, false, years, lang);
+}
+
+void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch, const vector<int> &years, const cLanguage *lang){
+    if (SearchString.empty() ) return;
     stringstream url;
     string t = config.GetThemoviedbSearchOption();
-
-    url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&query=" << CurlEscape(SearchString_ext.c_str());
-    size_t num_pages = AddMovieResultsForUrl(url.str(), resultSet, SearchString);
+    string SearchString_ext_rom = removeRomanNum(SearchString.data(), SearchString.length());
+    url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
+    size_t num_pages = AddMovieResultsForUrl(url.str(), resultSet, normedStrings, description, setMinTextMatch);
     bool found = false;
     if (num_pages > 3 && years.size() + 1 < num_pages) {
 // several pages, restrict with years
       for (const int &year: years) {
         stringstream url;
-        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext.c_str());
-        if (AddMovieResultsForUrl(url.str(), resultSet, SearchString) > 0) found = true;
+        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
+        if (AddMovieResultsForUrl(url.str(), resultSet, normedStrings, description, setMinTextMatch) > 0) found = true;
       }
     }
     if (! found) {
@@ -134,12 +160,12 @@ void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, cons
       if (num_pages > 10) num_pages = 10;
       for (size_t page = 2; page <= num_pages; page ++) {
         stringstream url;
-        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&page=" << page << "&query=" << CurlEscape(SearchString_ext.c_str());
-        AddMovieResultsForUrl(url.str(), resultSet, SearchString);
+        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&page=" << page << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
+        AddMovieResultsForUrl(url.str(), resultSet, normedStrings, description, setMinTextMatch);
       }
     }
 }
-int cMovieDbMovie::AddMovieResultsForUrl(const string &url, vector<searchResultTvMovie> &resultSet, const string &SearchString) {
+int cMovieDbMovie::AddMovieResultsForUrl(const string &url, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch) {
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
   cLargeString json("cMovieDbMovie::AddMovieResultsForUrl", 10000);
@@ -150,38 +176,43 @@ int cMovieDbMovie::AddMovieResultsForUrl(const string &url, vector<searchResultT
   if (!root) return 0;
   if (json_integer_value_validated(root, "total_results") == 0) return 0;
   int num_pages = json_integer_value_validated(root, "total_pages");
-  AddMovieResults(root, resultSet, SearchString);
+  AddMovieResults(root, resultSet, normedStrings, description, setMinTextMatch);
   json_decref(root);
   return num_pages;
 }
-bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString){
-    if(!json_is_object(root)) return false;
-    json_t *results = json_object_get(root, "results");
-    if(!json_is_array(results)) return false;
-    size_t numResults = json_array_size(results);
-    std::string SearchStringStripExtraUTF8 = stripExtraUTF8(SearchString.c_str() );
-    for (size_t res = 0; res < numResults; res++) {
-        json_t *result = json_array_get(results, res);
-        if (!json_is_object(result)) continue;
+bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch) {
+  if(!json_is_object(root)) return false;
+  json_t *results = json_object_get(root, "results");
+  if(!json_is_array(results)) return false;
+  size_t numResults = json_array_size(results);
+  for (size_t res = 0; res < numResults; res++) {
+    json_t *result = json_array_get(results, res);
+    if (!json_is_object(result)) continue;
 // id of result
-        int id = json_integer_value_validated(result, "id");
-        if (!id) continue;
-        bool alreadyInList = false;
-        for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) { alreadyInList = true; break; }
-        if (alreadyInList) continue;
+    int id = json_integer_value_validated(result, "id");
+    if (!id) continue;
+    bool alreadyInList = false;
+    for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) { alreadyInList = true; break; }
+    if (alreadyInList) continue;
 // Title & OriginalTitle
-        std::string resultTitle = stripExtraUTF8(json_string_value_validated_c(result, "title") );
-        if (resultTitle.empty() ) continue;
-        int distOrigTitle = sentence_distance(stripExtraUTF8(json_string_value_validated_c(result, "original_title") ), SearchStringStripExtraUTF8);
-        distOrigTitle = std::min(1000, distOrigTitle + 50);  // increase distance for original title, because it's a less likely match
+    std::string resultTitle = normString(json_string_value_validated_c(result, "title") );
+    if (resultTitle.empty() ) continue;
+    int distOrigTitle = minDistanceNormedStrings(1000, normedStrings, normString(json_string_value_validated_c(result, "original_title") ));
+    distOrigTitle = std::min(1000, distOrigTitle + 50);  // increase distance for original title, because it's a less likely match
 
-        searchResultTvMovie sRes(id, true, json_string_value_validated(result, "release_date") );
-        sRes.setPositionInExternalResult(resultSet.size() );
-        sRes.setMatchText(std::min(sentence_distance_normed_strings(resultTitle, SearchStringStripExtraUTF8), distOrigTitle) );
-        sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
-        resultSet.push_back(sRes);
+    searchResultTvMovie sRes(id, true, json_string_value_validated(result, "release_date") );
+    sRes.setPositionInExternalResult(resultSet.size() );
+    int dist = minDistanceNormedStrings(distOrigTitle, normedStrings, resultTitle);
+    if (dist > 300 && description && strlen(description) > 25) {
+      const char *overview = json_string_value_validated_c(result, "overview");
+      if (overview && *overview) dist = std::min(sentence_distance(description, overview), dist);
     }
-    return true;
+    if (setMinTextMatch && res == 0) dist = std::min(dist, 500); // api.themoviedb.org has some alias names, which are used in the search but not displayed. Set the text match to a "minimum" of 500 -> 0.5 , because it was found by api.themoviedb.org
+    sRes.setMatchText(dist);
+    sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
+    resultSet.push_back(sRes);
+  }
+  return true;
 }
 
 void cMovieDbMovie::StoreMedia() {

@@ -412,7 +412,7 @@ int cTv::searchEpisode(const string &tvSearchEpisodeString_i, const cLanguage *l
 // return 1000, if no match was found
 // otherwise, distance
   bool debug = false;
-  std::string tvSearchEpisodeString = stripExtraUTF8(tvSearchEpisodeString_i.c_str() );
+  std::string tvSearchEpisodeString = normString(tvSearchEpisodeString_i);
   int best_distance = 1000;
   int best_season = 0;
   int best_episode = 0;
@@ -429,7 +429,7 @@ int cTv::searchEpisode(const string &tvSearchEpisodeString_i, const cLanguage *l
   for( ; m_db->QueryStep(stmt, "sii", &episodeName, &season, &episode); ) {
     if (!episodeName) continue;
     if (!isDefaultLang) distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeName);
-    else distance = sentence_distance_normed_strings(tvSearchEpisodeString, stripExtraUTF8(episodeName));
+    else distance = sentence_distance_normed_strings(tvSearchEpisodeString, normString(episodeName));
     if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.c_str(), episodeName, season, episode, dbID(), distance);
     if (season == 0) distance += 10; // avoid season == 0, could be making of, ...
     if (distance < best_distance) {
@@ -439,7 +439,7 @@ int cTv::searchEpisode(const string &tvSearchEpisodeString_i, const cLanguage *l
     }
   }
   if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%s\" best_season %i best_episode %i dbid %i, best_distance %i", tvSearchEpisodeString.c_str(), best_season, best_episode, dbID(), best_distance);
-  if (best_distance > 600) {
+  if (best_distance > 700) {  // accept a rather high distance here. We return the distance, so the caller can finally decide to take this episode or not
     m_seasonNumber = 0;
     m_episodeNumber = 0;
     return 1000;

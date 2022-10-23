@@ -53,7 +53,7 @@ void DeleteAll(const string &dirname) {
   fs::path pDir(dirname);
   std::error_code ec;
   std::uintmax_t n = fs::remove_all(pDir, ec);
-  if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  deleted  \"%s\", %lu files", ec.message().c_str(), ec.value(), dirname.c_str(), n);
+  if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  deleted  \"%s\", %u files", ec.message().c_str(), ec.value(), dirname.c_str(), (unsigned int)n);
    else if (config.enableDebug) esyslog("tvscraper: deleted  \"%s\", %lu files", dirname.c_str(), n);
 }
 

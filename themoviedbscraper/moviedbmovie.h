@@ -35,12 +35,13 @@ private:
     string backdropPath;
     string posterPath;
     bool ReadMovie(json_t *movie);
-    bool AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString);
-    int AddMovieResultsForUrl(const string &url, vector<searchResultTvMovie> &resultSet, const string &SearchString);
+    bool AddMovieResults(json_t *root, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch);
+    int AddMovieResultsForUrl(const string &url, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch);
+    void AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch, const vector<int> &years, const cLanguage *lang);
 public:
     cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
     virtual ~cMovieDbMovie(void);
-    void AddMovieResults(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const vector<int> &years, const cLanguage *lang);
+    void AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const vector<int> &years, const cLanguage *lang);
     bool ReadMovie(void);
     void SetID(int movieID) { id = movieID; };
     int ID(void) { return id; };

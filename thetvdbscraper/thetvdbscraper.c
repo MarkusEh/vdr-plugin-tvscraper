@@ -255,10 +255,10 @@ void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber,
 vector<vector<string>> cTVDBScraper::GetTvRuntimes(int seriesID) {
   vector<vector<string>> runtimes = db->GetTvRuntimes(seriesID * -1);
   if (runtimes.size() > 0) return runtimes;
-  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::GetTvRuntimes, runtimes.size() %li, seriesID %i", runtimes.size(), seriesID);
+  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::GetTvRuntimes, runtimes.size() %zu, seriesID %i", runtimes.size(), seriesID);
   StoreSeriesJson(seriesID, true);
   runtimes = db->GetTvRuntimes(seriesID * -1);
-  if (config.enableDebug && runtimes.size() == 0) esyslog("tvscraper: ERROR cTVDBScraper::GetTvRuntimes, runtimes.size() %li, seriesID %i", runtimes.size(), seriesID);
+  if (config.enableDebug && runtimes.size() == 0) esyslog("tvscraper: ERROR cTVDBScraper::GetTvRuntimes, runtimes.size() %zu, seriesID %i", runtimes.size(), seriesID);
   return runtimes;
 }
 int cTVDBScraper::GetTvScore(int seriesID) {
@@ -335,7 +335,7 @@ bool cTVDBScraper::ParseJson_search(json_t *root, vector<searchResultTvMovie> &r
     esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_search, parsing thetvdb search result, jData is not an array");
     return false;
   }
-  std::string SearchStringStripExtraUTF8 = stripExtraUTF8(SearchString.c_str() );
+  std::string SearchStringStripExtraUTF8 = normString(SearchString.c_str() );
   size_t index;
   json_t *jElement;
   json_array_foreach(jData, index, jElement) {
@@ -352,14 +352,14 @@ int minDist(int dist, const json_t *jString, const string &SearchStringStripExtr
   if (!name || !*name) return dist;
 
   if (normedName) {
-    *normedName = stripExtraUTF8(name);
+    *normedName = normString(name);
     dist = std::min(dist, sentence_distance_normed_strings(*normedName, SearchStringStripExtraUTF8) );
   } else
-    dist = std::min(dist, sentence_distance_normed_strings(stripExtraUTF8(name), SearchStringStripExtraUTF8) );
+    dist = std::min(dist, sentence_distance_normed_strings(normString(name), SearchStringStripExtraUTF8) );
   int len = StringRemoveLastPartWithP(name, (int)strlen(name) );
   if (len != -1) {
-    if (normedName) *normedName = stripExtraUTF8(name, len);
-    dist = std::min(dist, sentence_distance_normed_strings(stripExtraUTF8(name, len), SearchStringStripExtraUTF8) );
+    if (normedName) *normedName = normString(name, len);
+    dist = std::min(dist, sentence_distance_normed_strings(normString(name, len), SearchStringStripExtraUTF8) );
   }
   return dist;
 }

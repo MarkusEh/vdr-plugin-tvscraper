@@ -197,7 +197,7 @@ bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode, const cLanguage *lang) {
   int episodeID = json_integer_value_validated(jEpisode, "id");
   if (episodeID == 0) return false;
   const char *episodeName = json_string_value_validated_c(jEpisode, "name");
-  string episodeNameS = stripExtraUTF8(episodeName);
+  string episodeNameS = normString(episodeName);
   m_db->execSql("INSERT OR REPLACE INTO tv_s_e_name (episode_id, language_id, episode_name) VALUES (?, ?, ?);",
     "iis", episodeID, lang->m_id, episodeNameS.c_str() );
   return true;

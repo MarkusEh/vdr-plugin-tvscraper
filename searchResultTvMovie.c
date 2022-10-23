@@ -51,7 +51,7 @@ void searchResultTvMovie::log(const char *title) const {
       case 8: d = "PositionInExternalResult"; break;
       default: d = "ERROR!!!!";
     }
-    esyslog("tvscraper: searchResultTvMovie::log, i: %lu, match: %f, weight %f, desc: %s", i, m_matches[i].match, m_matches[i].weight, d);
+    esyslog("tvscraper: searchResultTvMovie::log, i: %zu, match: %f, weight %f, desc: %s", i, m_matches[i].match, m_matches[i].weight, d);
   }
   esyslog("tvscraper: searchResultTvMovie::log, getMatch(): %f, delim: %c", getMatch(), m_delim?m_delim:' ' );
 }

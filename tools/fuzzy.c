@@ -9,6 +9,23 @@
 #include <set>
  
 std::set<std::string> ignoreWords = {"der", "die", "das", "the", "I", "-"};
+int sentence_distance_normed_strings(const std::string& str1, const std::string& str2);
+class cNormedString {
+  public:
+    cNormedString(int malus, const std::string &normedString): m_malus(malus), m_normedString(normedString) {}
+    int minDistanceNormedString(int distance, const std::string &normedString) const {
+      return std::min(distance, sentence_distance_normed_strings(m_normedString, normedString) + m_malus); }
+  private:
+    int m_malus;
+    std::string m_normedString;
+};
+
+int minDistanceNormedStrings(int distance, const std::vector<cNormedString> &normedStrings, const std::string &normedString) {
+  for (const cNormedString &i_normedString: normedStrings)
+    distance = i_normedString.minDistanceNormedString(distance, normedString);
+  return distance;
+}
+
 // see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
 template<typename T, typename C>
 size_t
@@ -115,7 +132,7 @@ int utf8CodepointIsValid(const char *p){
   return len;
 }
 
-wint_t Utf8ToUtf32(const char *&p, int len){
+wint_t Utf8ToUtf32(const char *&p, int len) {
 // assumes, that uft8 validity checks have already been done. len must be provided. call utf8CodepointIsValid first
 // change p to position of next codepoint (p = p + len)
   static const uint8_t FF_MSK[] = {0xFF >>0, 0xFF >>0, 0xFF >>3, 0xFF >>4, 0xFF >>5, 0xFF >>0, 0xFF >>0, 0xFF >>0};
@@ -123,6 +140,15 @@ wint_t Utf8ToUtf32(const char *&p, int len){
   const char *q = p + len;
   for (p++; p < q; p++) val = (val << 6) | (*p & 0x3F);
   return val;
+}
+
+wint_t getUtfCodepoint(const char *p) {
+// get next codepoint 0 is returned at end of string
+  if(!p || !*p) return 0;
+  int l = utf8CodepointIsValid(p);
+  if( l == 0 ) return '?';
+  const char *s = p;
+  return Utf8ToUtf32(s, l);
 }
 
 wint_t getNextUtfCodepoint(const char *&p){
@@ -134,14 +160,69 @@ wint_t getNextUtfCodepoint(const char *&p){
   return Utf8ToUtf32(p, l);
 }
 
-std::string stripExtraUTF8(const char *s) {
+int rom_char_val(char c) {
+  switch(tolower(c)) {
+    case 'm': return 1000;
+    case 'd': return  500;
+    case 'c': return  100;
+    case 'l': return   50;
+    case 'x': return   10;
+    case 'v': return    5;
+    case 'i': return    1;
+  }
+  return 0;
+}
+
+int romToArab(const char *&s, const char *se) {
+// if *s is a roman number, terminated by a non alphanum character:
+//     return the arab number
+//     increase s to the last char after the roman number
+// else: return 0, don't change s
+  const char *sc = s; // sc points to current char
+  int ret = 0, cur_val, next_val, prev_val = 1000;
+  for (cur_val = rom_char_val(*sc); sc < se - 1 && cur_val; sc++, cur_val = next_val) {
+    next_val = rom_char_val(sc[1]);
+    if(cur_val < next_val) {
+      cur_val = next_val - cur_val;
+      sc++;
+      next_val = sc + 1 < se?rom_char_val(sc[1]):0;
+    }
+    if (prev_val < cur_val) return 0;
+    prev_val = cur_val;
+    ret += cur_val;
+  } 
+  if (cur_val) {
+    if (prev_val < cur_val) return 0;
+    ret += cur_val;
+    sc++;
+  }
+  if (sc != se && std::iswalnum(getUtfCodepoint(sc)) ) return 0;
+  s = sc;
+  return ret;
+}
+
+std::string normString(const char *s, int len = -1) {
 // replace invalid UTF8 characters with ' '
 // replace all non-alphanumeric characters with ' '
+// replace roman numbers I - IX with 1-9
+// if len >= 0: this is the length of the string, otherwise: 0 terminated
 // return the result
   std::string out;
-  if(!s || !*s) return out;
-  out.reserve(strlen(s) );
-  for( wint_t cChar = getNextUtfCodepoint(s); cChar; cChar = getNextUtfCodepoint(s) ) {
+  if(!s || !*s || len == 0) return out;
+  if (len < 0 ) len = strlen(s);
+  out.reserve(len);
+//  const char *sc = s; // sc points to current char
+  const char *se = s + len; // se points to char after last char (*se == 0 for c strings)
+  while (s < se) {
+    if (out.empty() || out.back() == ' ') {
+// At the beginning of a word, check for roman number
+      int i = romToArab(s, se); // this also increases s, if a roman number was found.
+      if ( i > 0) {
+        out.append(std::to_string(i));
+        continue;
+      }
+    }
+    wint_t cChar = getNextUtfCodepoint(s);  // this also increases s
     if (std::iswalnum(cChar) ) AppendUtfCodepoint(out, towlower(cChar));
     else {
       if (!out.empty() && out.back() != ' ') out.append(" ");
@@ -149,19 +230,31 @@ std::string stripExtraUTF8(const char *s) {
   }
   return out;
 }
+inline std::string normString(const std::string &s) {
+  return normString(s.c_str(), s.length() );
+}
+inline std::string normString(const std::string_view &s) {
+  return normString(s.data(), s.length() );
+}
 
-std::string stripExtraUTF8(const char *s, int len) {
+std::string removeRomanNum(const char *s, int len = -1) {
 // replace invalid UTF8 characters with ' '
-// replace all non-alphanumeric characters with ' '
-// consider max. len char characters in s
+// replace roman numbers I - IX with ' '
+// len: num of character in s. If len == -1: s is 0 terminated
 // return the result
   std::string out;
   if(!s || !*s || len == 0) return out;
-  out.reserve(std::min((int)strlen(s), len));
-  const char *s0 = s;
-  for( wint_t cChar = getNextUtfCodepoint(s); cChar && (int)(s - s0) <= len; cChar = getNextUtfCodepoint(s) ) {
-    if (std::iswalnum(cChar) ) AppendUtfCodepoint(out, towlower(cChar));
-    else out.append(" ");
+  if (len < 0 ) len = strlen(s);
+  out.reserve(len);
+  const char *se = s + len; // se points to char after last char (*se == 0 for c strings)
+  while (s < se) {
+    if (out.empty() || out.back() == ' ') {
+// Beginning of a word
+      int i = romToArab(s, se); // this also increases s, if a roman number was found.
+      if ( i > 0) continue;
+    }
+    wint_t cChar = getNextUtfCodepoint(s);  // this also increases s
+    AppendUtfCodepoint(out, cChar);
   }
   return out;
 }
@@ -233,7 +326,7 @@ int dist_norm_fuzzy(const std::string &str_longer, const std::string &str_shorte
 int sentence_distance_normed_strings(const std::string& str1, const std::string& str2) {
 // return 0-1000
 // 0: Strings are equal
-// before calling: strings must be prepared with stripExtraUTF8
+// before calling: strings must be prepared with normString
 //  std::cout << "str1 = " << str1 << " str2 = " << str2 << std::endl;
   if (str1 == str2) {
     if (str1.empty() ) return 1000;
@@ -263,12 +356,12 @@ int sentence_distance_normed_strings(const std::string& str1, const std::string&
 
 int sentence_distance(const char *sentence1a, const char *sentence2a) {
   if (strcmp(sentence1a, sentence2a) == 0) return 0;
-  return sentence_distance_normed_strings(stripExtraUTF8(sentence1a), stripExtraUTF8(sentence2a));
+  return sentence_distance_normed_strings(normString(sentence1a), normString(sentence2a));
 }
 
 int sentence_distance(const std::string &sentence1a, const std::string &sentence2a) {
   if (sentence1a == sentence2a) return 0;
-  return sentence_distance_normed_strings(stripExtraUTF8(sentence1a.c_str() ), stripExtraUTF8(sentence2a.c_str() ));
+  return sentence_distance_normed_strings(normString(sentence1a.c_str() ), normString(sentence2a.c_str() ));
 }
 
 int minDistanceStrings(const char *str, const char *strToCompare, char delim = '~') {
@@ -278,9 +371,9 @@ int minDistanceStrings(const char *str, const char *strToCompare, char delim = '
   if (!str || !*str || !strToCompare || !*strToCompare) return minDist;
   const char *rDelimPos = strchr(str, delim);
   if (!rDelimPos) return minDist;  // there is no ~ in str
-  std::string stringToCompare = stripExtraUTF8(strToCompare);
+  std::string stringToCompare = normString(strToCompare);
   for (; rDelimPos; rDelimPos = strchr(str, delim) ) {
-    minDist = std::min(minDist, sentence_distance_normed_strings(stringToCompare, stripExtraUTF8(str, rDelimPos - str)));
+    minDist = std::min(minDist, sentence_distance_normed_strings(stringToCompare, normString(str, rDelimPos - str)));
     str = rDelimPos + 1;
   }
   return minDist;

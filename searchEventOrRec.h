@@ -16,10 +16,9 @@ private:
   void initBaseNameOrTitle3dots(void);
   bool isVdrDate(const std::string &baseName);
   bool isVdrDate2(const std::string &baseName);
-  void initSearchString(void);
+  void initSearchString(std::string &searchString);
   void setFastMatch(searchResultTvMovie &searchResult);
   int GetTvDurationDistance(int tvID);
-  std::string getNormedTvName(int tv_id);
   void ScrapFindAndStore(sMovieOrTv &movieOrTv);
   bool CheckCache(sMovieOrTv &movieOrTv);
   void ScrapAssign(const sMovieOrTv &movieOrTv);
@@ -43,8 +42,8 @@ private:
 // "calculated"
   std::string m_baseNameOrTitle;
   std::string m_episodeName;
-  std::string m_searchString;
-  bool m_searchStringSubstituted;
+  std::string m_movieSearchString;
+  std::string m_TVshowSearchString;
   vector<int> m_years;
   bool m_baseNameEquShortText = false;
   cMovieDbTv m_tv;

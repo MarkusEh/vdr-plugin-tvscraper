@@ -44,6 +44,9 @@ int StringRemoveTrailingWhitespace(const char *str, int len) {
   for (; len; len--) if (strchr(whitespaces, str[len - 1]) == NULL) return len;
   return 0;
 }
+void StringRemoveTrailingWhitespace(std::string_view &str) {
+  str.remove_suffix(str.length() - StringRemoveTrailingWhitespace(str.data(), str.length()));
+}
 
 const char *strnstr(const char *haystack, const char *needle, size_t len) {
 // if len >  0: use only len characters of needle
@@ -83,6 +86,36 @@ bool splitString(const std::string &str, char delimiter, size_t minLengh, std::s
   first = str.substr(0, found);
   StringRemoveTrailingWhitespace(first);
   return true;
+}
+
+bool splitString(std::string_view str, const std::string_view &delim, size_t minLengh, std::string_view &first, std::string_view &second) {
+  std::size_t found = str.find(delim);
+  size_t first_len = 0;
+  while (found != std::string::npos) {
+    first_len = StringRemoveTrailingWhitespace(str.data(), found);
+    if (first_len >= minLengh) break;
+    found = str.find(delim, found + 1);
+  }
+//  std::cout << "first_len " << first_len << " found " << found << "\n";
+  if(first_len < minLengh) return false; // nothing found
+
+  std::size_t ssnd;
+  for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
+  if(str.length() - ssnd < minLengh) return false; // nothing found, second part to short
+
+  second = std::string_view(str).substr(ssnd);
+  first = std::string_view(str).substr(0, first_len);
+  return true;
+}
+
+std::string_view SecondPart(std::string_view str, const std::string &delim) {
+// Return part of str after first occurence of delim
+// if delim is not in str, return ""
+  size_t found = str.find(delim);
+  if (found == std::string::npos) return "";
+  std::size_t ssnd;
+  for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
+  return std::string_view(str).substr(ssnd);
 }
 
 int StringRemoveLastPartWithP(const char *str, int len) {
@@ -133,16 +166,6 @@ int NumberInLastPartWithP(const std::string &str) {
   }
   return atoi(str.c_str() + found + 1);
 }
-std::string SecondPart(const string &str, const std::string &delim) {
-// Return part of str after first occurence of delim
-// if delim is not in str, return ""
-  size_t found = str.find(delim);
-  if (found == std::string::npos) return "";
-  std::size_t ssnd;
-  for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
-  return str.substr(ssnd);
-}
-
 // methods for years =============================================================
 const char *firstDigit(const char *found) {
   for (; ; found++) if (isdigit(*found) || ! *found) return found;

@@ -63,19 +63,20 @@ bool CurlGetUrl_int(const char *url, cLargeString &sOutput, struct curl_slist *h
 template<class T>
 bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers) {
   bool ret = false;
-  for(int i=0; i < 10; i++) {
+  int i;
+  for(i=0; i < 20; i++) {
+    sOutput.clear();
     ret = CurlGetUrl_int(url, sOutput, headers);
-    if(!ret) return ret;
-    if (!sOutput.empty() ) {
-      if(sOutput[0] == '{') return ret; // json file, OK
-      if(sOutput[0] == '<') return ret; // xml  file, OK
+    if (ret && !sOutput.empty() ) {
+      if(sOutput[0] == '{') return true; // json file, OK
+      if(sOutput[0] == '<') return true; // xml  file, OK
     }
-//  if(sOutput.compare("HTTP") != 0 ) return ret;
     sleep(2 + 2*i);
-//    if (config.enableDebug) esyslog("tvscraper: rate limit calling \"%s\", i = %i output \"%s\"", url, i, sOutput.substr(0, 20).c_str() );
-//    cout << "output from curl: " << sOutput.substr(0, 20) << std::endl;
+//  if (config.enableDebug) esyslog("tvscraper: rate limit calling \"%s\", i = %i output \"%s\"", url, i, sOutput.substr(0, 20).c_str() );
+//  cout << "output from curl: " << sOutput.substr(0, 20) << std::endl;
   }
-  return ret;
+  esyslog("tvscraper: CurlGetUrl ERROR calling \"%s\", tried %i times, output \"%s\"", url, i, sOutput.erase(20).c_str() );
+  return false;
 }
 // template bool CurlGetUrl<std::string> (const char *url,  std::string &sOutput, struct curl_slist *headers);
 template bool CurlGetUrl<cLargeString>(const char *url, cLargeString &sOutput, struct curl_slist *headers);

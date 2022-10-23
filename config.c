@@ -168,7 +168,7 @@ void cTVScraperConfig::setDefaultLanguage() {
   string loc = setlocale(LC_NAME, NULL);
   size_t index = loc.find_first_of("_");
   if (index != 2) {
-    esyslog("tvscraper: ERROR cTVScraperConfig::setDefaultLanguage, language %s, index = %li, use en-GB as default language", loc.c_str(), index);
+    esyslog("tvscraper: ERROR cTVScraperConfig::setDefaultLanguage, language %s, index = %zu, use en-GB as default language", loc.c_str(), index);
     return;
   }
   int li = 0;
