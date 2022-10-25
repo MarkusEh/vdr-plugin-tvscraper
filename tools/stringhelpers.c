@@ -73,22 +73,8 @@ const char *strstr_word (const char *haystack, const char *needle, size_t len = 
   return NULL;
 }
 
-bool splitString(const std::string &str, char delimiter, size_t minLengh, std::string &first, std::string &second) {
-  std::size_t found = str.find(delimiter);
-  if(found == std::string::npos) return false; // nothing found
-  while (found <= minLengh && found != std::string::npos) found = str.find(delimiter, found + 1);
-  if(found == std::string::npos || found <= minLengh) return false; // nothing found
-  std::size_t ssnd;
-  for(ssnd = found + 1; ssnd < str.length() && str[ssnd] == ' '; ssnd++);
-  if(str.length() - ssnd <= minLengh - 2) return false; // nothing found, second part to short
-
-  second = str.substr(ssnd);
-  first = str.substr(0, found);
-  StringRemoveTrailingWhitespace(first);
-  return true;
-}
-
-bool splitString(std::string_view str, const std::string_view &delim, size_t minLengh, std::string_view &first, std::string_view &second) {
+bool splitString(std::string_view str, std::string_view delim, size_t minLengh, std::string_view &first, std::string_view &second) {
+// true if delim is part of str, and length of first & second >= minLengh
   std::size_t found = str.find(delim);
   size_t first_len = 0;
   while (found != std::string::npos) {
@@ -108,14 +94,29 @@ bool splitString(std::string_view str, const std::string_view &delim, size_t min
   return true;
 }
 
-std::string_view SecondPart(std::string_view str, const std::string &delim) {
+bool splitString(std::string_view str, char delimiter, size_t minLengh, std::string_view &first, std::string_view &second) {
+  if (delimiter == '-') return splitString(str, " - "sv, minLengh, first, second);
+  if (delimiter == ':') return splitString(str, ": "sv, minLengh, first, second);
+  std::string delim(1, delimiter);
+  return splitString(str, delim, minLengh, first, second);
+}
+
+std::string_view SecondPart(std::string_view str, std::string_view delim, size_t minLengh) {
+// return second part of split string if delim is part of str, and length of first & second >= minLengh
+// otherwise, return ""
+  std::string_view first, second;
+  if (splitString(str, delim, minLengh, first, second)) return second;
+  else return "";
+}
+
+std::string_view SecondPart(std::string_view str, std::string_view delim) {
 // Return part of str after first occurence of delim
 // if delim is not in str, return ""
   size_t found = str.find(delim);
   if (found == std::string::npos) return "";
   std::size_t ssnd;
   for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
-  return std::string_view(str).substr(ssnd);
+  return str.substr(ssnd);
 }
 
 int StringRemoveLastPartWithP(const char *str, int len) {
@@ -144,7 +145,7 @@ bool StringRemoveLastPartWithP(string &str) {
   return true;
 }
 
-int NumberInLastPartWithPS(const std::string &str) {
+int NumberInLastPartWithPS(std::string_view str) {
 // return number in last part with (./.), 0 if not found / invalid
   if (str.length() < 3 ) return 0;
   if (str[str.length() - 1] != ')') return 0;
@@ -153,9 +154,9 @@ int NumberInLastPartWithPS(const std::string &str) {
   for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
     if (!isdigit(str[i]) && str[i] != '/') return 0; // we gnore (asw), and return only number with digits only
   }
-  return atoi(str.c_str() + found + 1);
+  return atoi(str.data() + found + 1);
 }
-int NumberInLastPartWithP(const std::string &str) {
+int NumberInLastPartWithP(std::string_view str) {
 // return number in last part with (...), 0 if not found / invalid
   if (str.length() < 3 ) return 0;
   if (str[str.length() - 1] != ')') return 0;
@@ -164,8 +165,9 @@ int NumberInLastPartWithP(const std::string &str) {
   for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
     if (!isdigit(str[i])) return 0; // we ignore (asw), and return only number with digits only
   }
-  return atoi(str.c_str() + found + 1);
+  return atoi(str.data() + found + 1);
 }
+
 // methods for years =============================================================
 const char *firstDigit(const char *found) {
   for (; ; found++) if (isdigit(*found) || ! *found) return found;
@@ -250,6 +252,7 @@ template<class T> T stringToObj(const char *s, size_t len) {
   return 5; }
 template<> int stringToObj<int>(const char *s, size_t len) { return atoi(s); }
 template<> std::string stringToObj<std::string>(const char *s, size_t len) { return std::string(s, len); }
+template<> std::string_view stringToObj<std::string_view>(const char *s, size_t len) { return std::string_view(s, len); }
 template<> tChannelID stringToObj<tChannelID>(const char *s, size_t len) {
   return tChannelID::FromString(string(s, len).c_str());
 }
@@ -270,6 +273,29 @@ C getSetFromString(const char *str, char delim = ';') {
   }
   const char *rDelimPos = strchr(lStartPos, 0);
   if (rDelimPos != lStartPos) insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
+  return result;
+}
+
+const char *strchr_se(const char *ss, const char *se, char ch) {
+  for (const char *sc = ss; sc < se; sc++) if (*sc == ch) return sc;
+  return NULL;
+}
+
+template<class T, class C=std::set<T>>
+C getSetFromString(std::string_view str, char delim, const std::set<std::string_view> &ignoreWords, int max_len = 0) {
+// split str at delim, and add each part to result
+  C result;
+  if (str.empty() ) return result;
+  const char *lCurrentPos = str.data();
+  const char *lEndPos = str.data() + str.length();
+  const char *lSoftEndPos = max_len == 0?lEndPos:str.data() + max_len;
+  for (const char *rDelimPos = strchr_se(lCurrentPos, lEndPos, delim); rDelimPos != NULL; rDelimPos = strchr_se(lCurrentPos, lEndPos, delim) ) {
+    if (ignoreWords.find(std::string_view(lCurrentPos, rDelimPos - lCurrentPos)) == ignoreWords.end()  )
+      insertObject<T>(result, stringToObj<T>(lCurrentPos, rDelimPos - lCurrentPos));
+    lCurrentPos = rDelimPos + 1;
+    if (lCurrentPos >= lSoftEndPos) break;
+  }
+  if (lCurrentPos < lEndPos && lCurrentPos < lSoftEndPos) insertObject<T>(result, stringToObj<T>(lCurrentPos, lEndPos - lCurrentPos));
   return result;
 }
 

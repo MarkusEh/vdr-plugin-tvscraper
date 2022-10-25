@@ -26,11 +26,11 @@ bool csEventOrRecording::DurationRange(int &durationInMinLow, int &durationInMin
   return true;
 }
 
-string csEventOrRecording::EpisodeSearchString() const {
+string_view csEventOrRecording::EpisodeSearchString() const {
   if(ShortText() && *ShortText() ) return ShortText();
   if(Description() ) {
     if (strlen(Description() ) <= 100) return Description();
-    else return string(Description(), 100);                                                                             
+    else return string_view(Description(), 100);                                                                             
 //    else return Description();
   }
   return "";

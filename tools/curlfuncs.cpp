@@ -67,11 +67,12 @@ bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers) {
   for(i=0; i < 20; i++) {
     sOutput.clear();
     ret = CurlGetUrl_int(url, sOutput, headers);
-    if (ret && !sOutput.empty() ) {
+    if (ret && sOutput.length() > 10) {
       if(sOutput[0] == '{') return true; // json file, OK
-      if(sOutput[0] == '<') return true; // xml  file, OK
+      if(strncmp(sOutput.data(), "<html>", 6) != 0 && sOutput[0] == '<') return true; // xml  file, OK
+//    if("<html>"sv.compare(0, 6, sOutput) != 0 && sOutput[0] == '<') return true; // xml  file, OK
     }
-    sleep(2 + 2*i);
+    sleep(2 + 3*i);
 //  if (config.enableDebug) esyslog("tvscraper: rate limit calling \"%s\", i = %i output \"%s\"", url, i, sOutput.substr(0, 20).c_str() );
 //  cout << "output from curl: " << sOutput.substr(0, 20) << std::endl;
   }
@@ -165,6 +166,13 @@ int CurlSetCookieFile(char *filename)
 std::string CurlEscape(const char *url) {
   InitCurlLibraryIfNeeded();
   char *output = curl_easy_escape(curlfuncs::curl, url, strlen(url));
+  std::string result(output);
+  curl_free(output);
+  return result;
+}
+std::string CurlEscape(string_view url) {
+  InitCurlLibraryIfNeeded();
+  char *output = curl_easy_escape(curlfuncs::curl, url.data(), url.length());
   std::string result(output);
   curl_free(output);
   return result;

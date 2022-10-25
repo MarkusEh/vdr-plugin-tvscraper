@@ -5,17 +5,17 @@ public:
   cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, cTVScraperDB *db);
   cMovieOrTv *Scrape(void); // note: if nothing is found, NULL is returned. Otherwise, the images must be downloaded, and the returned cMovieOrTv must be deleted
 private:
-  scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, string &movieName, string &episodeSearchString);
+  scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, string_view &movieName, string_view &episodeSearchString);
   int Store(const sMovieOrTv &movieOrTv);
-  void SearchTv(vector<searchResultTvMovie> &resultSet, const string &searchString);
+  bool SearchTv(vector<searchResultTvMovie> &resultSet, string_view searchString);
   void SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet, char delimiter); // Title: name of TV series, and episode name (with : or - between them)
   void SearchMovie(vector<searchResultTvMovie> &searchResults); // 0: no match; return movie ID, search result in m_searchResult_Movie
   void SearchTvAll(vector<searchResultTvMovie> &searchResults);
   bool isTitlePartOfPathName(size_t baseNameLen);
   void initBaseNameOrTitle(void);
-  void initBaseNameOrTitle3dots(void);
   bool isVdrDate(const std::string &baseName);
   bool isVdrDate2(const std::string &baseName);
+  void initSearchString3dots(std::string &searchString);
   void initSearchString(std::string &searchString);
   void setFastMatch(searchResultTvMovie &searchResult);
   int GetTvDurationDistance(int tvID);

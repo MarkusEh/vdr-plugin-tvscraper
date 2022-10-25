@@ -49,10 +49,8 @@ cTVScraperConfig config;
 #include "images.c"
 #include "autoTimers.c"
 
-static const char *VERSION        = "1.1.7";
+static const char *VERSION        = "1.1.8";
 static const char *DESCRIPTION    = "Scraping movie and series info";
-// static const char *MAINMENUENTRY  = "TV Scraper";
-
 
 class cPluginTvscraper : public cPlugin {
 private:

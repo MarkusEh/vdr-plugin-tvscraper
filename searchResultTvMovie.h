@@ -10,7 +10,7 @@ class searchResultTvMovie {
 public:
   searchResultTvMovie(int id, bool movie, const std::string &year);
   ~searchResultTvMovie();
-  void log(const char *title) const;
+  void log(std::string_view title) const;
   static float normMatch(float x);
   float getMatch() const;
   bool operator< (const searchResultTvMovie &srm) const;

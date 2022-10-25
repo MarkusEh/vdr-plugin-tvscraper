@@ -231,12 +231,16 @@ void getAllTimers (const cTVScraperDB &db, std::set<cTimerMovieOrTv, std::less<>
   } // end LOCK_TIMERS_READ block
 // delete obsolete timers
   for (const int &timerToDelete: timersToDelete) {
+    cTimer *ti;
 #if VDRVERSNUM >= 20301
     LOCK_TIMERS_WRITE;
-    cTimer *ti = Timers->GetById(timerToDelete);
-    if (ti && !ti->Recording() ) Timers->Del(ti);
+    ti = Timers->GetById(timerToDelete);
+    if (ti && !ti->Recording() ) {
+      if (config.enableDebug) esyslog("tvscraper: getAllTimers, timer %s deleted", *(ti->ToDescr() ));
+      Timers->Del(ti);
+    }
 #else
-    cTimer *ti = Timers.GetById(timerToDelete);
+    ti = Timers.GetById(timerToDelete);
     if (ti && !ti->Recording() ) Timers.Del(ti);
 #endif
   }
@@ -492,7 +496,10 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
 #endif
   {
     if (ti_del) {
-      if (!ti_del->Recording() ) Timers->Del(ti_del);
+      if (!ti_del->Recording() ) {
+        if (config.enableDebug) esyslog("tvscraper: AdjustSpawnedScraperTimers, timer %s deleted", *(ti_del->ToDescr() ));
+        Timers->Del(ti_del);
+      }
       ti_del = NULL;
     }
     cXmlString xmlAux(ti->Aux(), "tvscraper");
@@ -517,7 +524,10 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
     }
   }
   if (ti_del) {
-    if (!ti_del->Recording() ) Timers->Del(ti_del);
+    if (!ti_del->Recording() ) {
+      if (config.enableDebug) esyslog("tvscraper: AdjustSpawnedScraperTimers 2, timer %s deleted", *(ti_del->ToDescr() ));
+      Timers->Del(ti_del);
+    }
     ti_del = NULL;
   }
   return TimersModified;
@@ -625,7 +635,10 @@ bool timersForEvents(const cTVScraperDB &db) {
 #if VDRVERSNUM >= 20301
     LOCK_TIMERS_WRITE;
     cTimer *ti = Timers->GetById(timerToDelete.m_timerId);
-    if (ti && !ti->Recording() ) Timers->Del(ti);
+    if (ti && !ti->Recording() ) {
+      if (config.enableDebug) esyslog("tvscraper: timersForEvents, timer %s deleted", *(ti->ToDescr() ));
+      Timers->Del(ti);
+    }
 #else
     cTimer *ti = Timers.GetById(timerToDelete.m_timerId);
     if (ti && !ti->Recording() ) Timers.Del(ti);

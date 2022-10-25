@@ -115,64 +115,59 @@ bool cMovieDbMovie::ReadMovie(json_t *movie) {
 }
 
 void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const vector<int> &years, const cLanguage *lang){
-  std::vector<cNormedString> normedStrings;
-  normedStrings.push_back(cNormedString(0, normString(SearchString)));
-  string_view searchString1 = SecondPart(SearchString, ": ");
-  string_view searchString2 = SecondPart(SearchString, "'s ");
-  if (!searchString1.empty() ) normedStrings.push_back(cNormedString(50, normString(searchString1)));
-  if (!searchString2.empty() ) normedStrings.push_back(cNormedString(50, normString(searchString2)));
-  string_view searchString3, searchString4;
-  bool split = splitString(SearchString, " - ", 4, searchString3, searchString4);
-  if (split) {
-    normedStrings.push_back(cNormedString(70, normString(searchString3)));
-    normedStrings.push_back(cNormedString(70, normString(searchString4)));
-  }
+  string_view searchString1, searchString2, searchString3, searchString4;
+  std::vector<cNormedString> normedStrings = getNormedStrings(SearchString, searchString1, searchString2, searchString3, searchString4);
+
+  cLargeString buffer("cMovieDbMovie::AddMovieResults", 10000);
   size_t size0 = resultSet.size();
-  AddMovieResults(resultSet, SearchString, normedStrings, description, true, years, lang);
+  AddMovieResults(buffer, resultSet, SearchString, normedStrings, description, true, years, lang);
   if (resultSet.size() > size0) return;
-  if (!searchString1.empty() ) AddMovieResults(resultSet, searchString1, normedStrings, description, false, years, lang);
+  if (!searchString1.empty() ) AddMovieResults(buffer, resultSet, searchString1, normedStrings, description, false, years, lang);
   if (resultSet.size() > size0) return;
-  if (!searchString2.empty() ) AddMovieResults(resultSet, searchString2, normedStrings, description, false, years, lang);
+  if (!searchString2.empty() ) AddMovieResults(buffer, resultSet, searchString2, normedStrings, description, false, years, lang);
   if (resultSet.size() > size0) return;
-  if (!split) return;
-  AddMovieResults(resultSet, searchString3, normedStrings, description, false, years, lang);
-  AddMovieResults(resultSet, searchString4, normedStrings, description, false, years, lang);
+  if (searchString3.empty() ) return;
+  AddMovieResults(buffer, resultSet, searchString3, normedStrings, description, false, years, lang);
+  AddMovieResults(buffer, resultSet, searchString4, normedStrings, description, false, years, lang);
 }
 
-void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch, const vector<int> &years, const cLanguage *lang){
-    if (SearchString.empty() ) return;
-    stringstream url;
-    string t = config.GetThemoviedbSearchOption();
-    string SearchString_ext_rom = removeRomanNum(SearchString.data(), SearchString.length());
-    url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
-    size_t num_pages = AddMovieResultsForUrl(url.str(), resultSet, normedStrings, description, setMinTextMatch);
-    bool found = false;
-    if (num_pages > 3 && years.size() + 1 < num_pages) {
+void cMovieDbMovie::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch, const vector<int> &years, const cLanguage *lang){
+  if (SearchString.empty() ) {
+    esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
+    return;
+  }
+  stringstream url;
+  string t = config.GetThemoviedbSearchOption();
+  string SearchString_ext_rom = removeRomanNum(SearchString.data(), SearchString.length());
+  url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
+  size_t num_pages = AddMovieResultsForUrl(buffer, url.str(), resultSet, normedStrings, description, setMinTextMatch);
+  bool found = false;
+  if (num_pages > 3 && years.size() + 1 < num_pages) {
 // several pages, restrict with years
-      for (const int &year: years) {
-        stringstream url;
-        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
-        if (AddMovieResultsForUrl(url.str(), resultSet, normedStrings, description, setMinTextMatch) > 0) found = true;
-      }
+    for (const int &year: years) {
+      stringstream url;
+      url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
+      if (AddMovieResultsForUrl(buffer, url.str(), resultSet, normedStrings, description, setMinTextMatch) > 0) found = true;
     }
-    if (! found) {
+  }
+  if (! found) {
 // no years avilable, or not found with the available year. Check all results in all pages
-      if (num_pages > 10) num_pages = 10;
-      for (size_t page = 2; page <= num_pages; page ++) {
-        stringstream url;
-        url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&page=" << page << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
-        AddMovieResultsForUrl(url.str(), resultSet, normedStrings, description, setMinTextMatch);
-      }
+    if (num_pages > 10) num_pages = 10;
+    for (size_t page = 2; page <= num_pages; page ++) {
+      stringstream url;
+      url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&page=" << page << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
+      AddMovieResultsForUrl(buffer, url.str(), resultSet, normedStrings, description, setMinTextMatch);
     }
+  }
 }
-int cMovieDbMovie::AddMovieResultsForUrl(const string &url, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch) {
+
+int cMovieDbMovie::AddMovieResultsForUrl(cLargeString &buffer, const string &url, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch) {
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
-  cLargeString json("cMovieDbMovie::AddMovieResultsForUrl", 10000);
   json_error_t error;
   if (config.enableDebug) esyslog("tvscraper: calling %s", url.c_str());
-  if (!CurlGetUrl(url.c_str(), json)) return 0;
-  json_t *root = json_loads(json.c_str(), 0, &error);
+  if (!CurlGetUrl(url.c_str(), buffer)) return 0;
+  json_t *root = json_loads(buffer.c_str(), 0, &error);
   if (!root) return 0;
   if (json_integer_value_validated(root, "total_results") == 0) return 0;
   int num_pages = json_integer_value_validated(root, "total_pages");
@@ -195,14 +190,12 @@ bool cMovieDbMovie::AddMovieResults(json_t *root, vector<searchResultTvMovie> &r
     for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) { alreadyInList = true; break; }
     if (alreadyInList) continue;
 // Title & OriginalTitle
-    std::string resultTitle = normString(json_string_value_validated_c(result, "title") );
-    if (resultTitle.empty() ) continue;
-    int distOrigTitle = minDistanceNormedStrings(1000, normedStrings, normString(json_string_value_validated_c(result, "original_title") ));
+    int distOrigTitle = minDistanceNormedStrings(1000, normedStrings, json_string_value_validated_c(result, "original_title") );
     distOrigTitle = std::min(1000, distOrigTitle + 50);  // increase distance for original title, because it's a less likely match
 
     searchResultTvMovie sRes(id, true, json_string_value_validated(result, "release_date") );
     sRes.setPositionInExternalResult(resultSet.size() );
-    int dist = minDistanceNormedStrings(distOrigTitle, normedStrings, resultTitle);
+    int dist = minDistanceNormedStrings(distOrigTitle, normedStrings, json_string_value_validated_c(result, "title"));
     if (dist > 300 && description && strlen(description) > 25) {
       const char *overview = json_string_value_validated_c(result, "overview");
       if (overview && *overview) dist = std::min(sentence_distance(description, overview), dist);

@@ -17,7 +17,7 @@ public:
   virtual void AddYears(vector<int> &years) const;
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
   int DurationDistance(int DurationInMin);
-  virtual string EpisodeSearchString() const;
+  virtual string_view EpisodeSearchString() const;
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
   virtual const char *Title() const { return m_event->Title(); }
   virtual const char *ShortText() const { return m_event->ShortText(); }

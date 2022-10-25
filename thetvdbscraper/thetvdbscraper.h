@@ -16,8 +16,10 @@ private:
     cTVScraperDB *db;
     json_t *CallRestJson(const std::string &url, cLargeString &buffer, int *error = NULL);
     bool GetToken(const std::string &jsonResponse);
-    void ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const string &SearchStringStripExtraUTF8, const cLanguage *lang);
-    bool ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString, const cLanguage *lang);
+    bool AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);
+    bool ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);
+    void ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);
+
     static const char *prefixImageURL1;
     static const char *prefixImageURL2;
 public:
@@ -35,7 +37,7 @@ public:
     void DownloadMedia (int tvID);
     void DownloadMedia (int tvID, eMediaType mediaType, const string &destDir);
     void DownloadMediaBanner (int tvID, const string &destPath);
-    bool AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const cLanguage *lang);
+    bool AddResults4(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cLanguage *lang);
     static const char *getDbUrl(const char *url);
     static std::string getFullDownloadUrl(const char *url);
     void Download4(const char *url, const std::string &localPath);

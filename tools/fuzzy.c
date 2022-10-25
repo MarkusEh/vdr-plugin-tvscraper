@@ -8,28 +8,36 @@
 #include <math.h>
 #include <set>
  
-std::set<std::string> ignoreWords = {"der", "die", "das", "the", "I", "-"};
-int sentence_distance_normed_strings(const std::string& str1, const std::string& str2);
+std::set<std::string_view> ignoreWords = {"der", "die", "das", "the", "I", "-"};
+std::string normString(const char *s, int len = -1);
+int sentence_distance_normed_strings(std::string_view str1, std::string_view str2);
 class cNormedString {
   public:
     cNormedString(int malus, const std::string &normedString): m_malus(malus), m_normedString(normedString) {}
-    int minDistanceNormedString(int distance, const std::string &normedString) const {
+    int minDistanceNormedString(int distance, std::string_view normedString) const {
       return std::min(distance, sentence_distance_normed_strings(m_normedString, normedString) + m_malus); }
   private:
     int m_malus;
+  public:
     std::string m_normedString;
 };
 
-int minDistanceNormedStrings(int distance, const std::vector<cNormedString> &normedStrings, const std::string &normedString) {
+int minDistanceNormedStrings(int distance, const std::vector<cNormedString> &normedStrings, const char *string, std::string *r_normedString = NULL) {
+  int len = StringRemoveLastPartWithP(string, strlen(string));
+  std::string normedString;
+  if (len == -1) normedString = normString(string);
+  else normedString = normString(string, len);
+
   for (const cNormedString &i_normedString: normedStrings)
     distance = i_normedString.minDistanceNormedString(distance, normedString);
+
+  if (r_normedString) *r_normedString = std::move(normedString);
   return distance;
 }
 
 // see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
 template<typename T, typename C>
-size_t
-seq_distance(const T& seq1, const T& seq2, const C& cost,
+size_t seq_distance(const T& seq1, const T& seq2, const C& cost,
              const typename T::value_type& empty = typename T::value_type()) {
   const size_t size1 = seq1.size();
   const size_t size2 = seq2.size();
@@ -61,40 +69,25 @@ seq_distance(const T& seq1, const T& seq2, const C& cost,
   return prev_col[size2];
 }
  
-size_t
-letter_distance(char letter1, char letter2) {
+size_t letter_distance(char letter1, char letter2) {
   return letter1 != letter2 ? 1 : 0;
 }
  
-size_t
-word_distance(const std::string& word1, const std::string& word2) {
+size_t word_distance(std::string_view word1, std::string_view word2) {
   return seq_distance(word1, word2, &letter_distance);
 }
  
-std::vector<std::string> word_list(const std::string &sentence, int &len, int max_len = 0) {
+std::vector<std::string_view> word_list(std::string_view sentence, int &len, int max_len = 0) {
 // return list of words
 // in len, return sum of chars in all words (this is usually shorter then sentence.length()
-// if max_len is provided, stop adding words once len >= max_len (which means, len can be larger than max_len)
 //std::cout << "sentence = \"" << sentence << "\" ";
+  std::vector<std::string_view> result = getSetFromString<std::string_view, std::vector<std::string_view>>(sentence, ' ', ignoreWords, max_len);
   len = 0;
-  std::vector<std::string> words;
-  std::istringstream iss(sentence);
-  for(std::istream_iterator<std::string> it(iss), end; ; ) {
-  if (ignoreWords.find(*it) == ignoreWords.end()  )
-    {
-      words.push_back(*it);
-      len += it->length();
-//    std::cout << "word = \"" << *it << "\" ";
-    }
-    if (++it == end) break;
-    if (max_len && len >= max_len) break;
-  }
-//std::cout << std::endl;
-  return words;
+  for (const std::string_view &word:result) len += word.length();
+  return result;
 }
 
-size_t
-sentence_distance_int(const std::string& sentence1, const std::string& sentence2, int &len1, int &len2, int max_len = 0) {
+size_t sentence_distance_int(std::string_view sentence1, std::string_view sentence2, int &len1, int &len2, int max_len = 0) {
   return seq_distance(word_list(sentence1, len1, max_len), word_list(sentence2, len2, max_len), &word_distance);
 }
 
@@ -201,10 +194,10 @@ int romToArab(const char *&s, const char *se) {
   return ret;
 }
 
-std::string normString(const char *s, int len = -1) {
+std::string normString(const char *s, int len) {
 // replace invalid UTF8 characters with ' '
 // replace all non-alphanumeric characters with ' '
-// replace roman numbers I - IX with 1-9
+// replace roman numbers with arabic numbers
 // if len >= 0: this is the length of the string, otherwise: 0 terminated
 // return the result
   std::string out;
@@ -259,9 +252,41 @@ std::string removeRomanNum(const char *s, int len = -1) {
   return out;
 }
 
+std::string_view removeRomanNum(std::string_view str, std::string &buffer) {
+// replace roman numbers I - IX with ' '
+  if (str.empty() ) return str;
+  const char *sc = str.data();
+  const char *se = str.data() + str.length(); // se points to char after last char (*se == 0 for c strings)
+  bool found = romToArab(sc, se);
+  for (sc = str.data() + 1; !found && sc < se; sc++) found = *(sc  - 1) == ' ' && romToArab(sc, se);
+  if (!found) return str;
+  buffer = removeRomanNum(str.data(), str.length());
+  return buffer;
+}
+
+std::vector<cNormedString> getNormedStrings(std::string_view searchString, std::string_view &searchString1, std::string_view &searchString2, std::string_view &searchString3, std::string_view &searchString4) {
+// input: searchString: string to search for
+// return list of normed strings
+  std::vector<cNormedString> normedStrings;
+  normedStrings.push_back(cNormedString(0, normString(searchString)));
+  searchString1 = SecondPart(searchString, ": ", 4);
+  searchString2 = SecondPart(searchString, "'s ", 4);
+  if (!searchString1.empty() ) normedStrings.push_back(cNormedString(50, normString(searchString1)));
+  if (!searchString2.empty() ) normedStrings.push_back(cNormedString(50, normString(searchString2)));
+  bool split = splitString(searchString, " - ", 4, searchString3, searchString4);
+  if (split) {
+    normedStrings.push_back(cNormedString(70, normString(searchString3)));
+    normedStrings.push_back(cNormedString(70, normString(searchString4)));
+  } else {
+    searchString3 = "";
+    searchString4 = "";
+  }
+  return normedStrings;
+}
+
 // find longest common substring
 // https://iq.opengenus.org/longest-common-substring/
-int lcsubstr( const std::string &s1, const std::string &s2)
+int lcsubstr(std::string_view s1, std::string_view s2)
 {
   int len1=s1.length(),len2=s2.length();
   int dp[2][len2+1];
@@ -311,7 +336,7 @@ void resizeStringWordEnd(std::string &str, int len) {
 }
 */
 
-int dist_norm_fuzzy(const std::string &str_longer, const std::string &str_shorter, int max_length) {
+int dist_norm_fuzzy(std::string_view str_longer, std::string_view str_shorter, int max_length) {
 // return 0 - 1000
 // 0:    identical
 // 1000: no match
@@ -323,7 +348,7 @@ int dist_norm_fuzzy(const std::string &str_longer, const std::string &str_shorte
   return 1000 * dist / max_dist;
 }
 
-int sentence_distance_normed_strings(const std::string& str1, const std::string& str2) {
+int sentence_distance_normed_strings(std::string_view str1, std::string_view str2) {
 // return 0-1000
 // 0: Strings are equal
 // before calling: strings must be prepared with normString
@@ -359,9 +384,9 @@ int sentence_distance(const char *sentence1a, const char *sentence2a) {
   return sentence_distance_normed_strings(normString(sentence1a), normString(sentence2a));
 }
 
-int sentence_distance(const std::string &sentence1a, const std::string &sentence2a) {
+int sentence_distance(std::string_view sentence1a, std::string_view sentence2a) {
   if (sentence1a == sentence2a) return 0;
-  return sentence_distance_normed_strings(normString(sentence1a.c_str() ), normString(sentence2a.c_str() ));
+  return sentence_distance_normed_strings(normString(sentence1a), normString(sentence2a));
 }
 
 int minDistanceStrings(const char *str, const char *strToCompare, char delim = '~') {
@@ -378,4 +403,3 @@ int minDistanceStrings(const char *str, const char *strToCompare, char delim = '
   }
   return minDist;
 }
-

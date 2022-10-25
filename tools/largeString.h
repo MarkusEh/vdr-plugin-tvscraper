@@ -37,6 +37,7 @@ class cLargeString {
     bool empty() const { return m_string_end == m_s; }
     cLargeString &erase(size_t index = 0) { setMaxSize(); m_string_end = std::min(m_string_end, m_s + index); return *this;}
     char operator[](size_t i) const { return *(m_s + i); }
+    operator std::string_view() const { return m_s?std::string_view(m_s, m_string_end - m_s):std::string_view(); }
 };
 
 #endif  // __LARGE_STRING_H

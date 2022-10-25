@@ -11,4 +11,5 @@ void FreeCurlLibrary(void);
 int CurlSetCookieFile(char *filename);
 bool CurlPostUrl(const char *url, const string &sPost, string &sOutput, struct curl_slist *headers = NULL);
 std::string CurlEscape(const char *url);
+std::string CurlEscape(std::string_view url);
 #endif

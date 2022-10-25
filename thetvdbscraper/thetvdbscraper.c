@@ -310,15 +310,42 @@ void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
 }
 
 // Search series
-bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, const string &SearchString, const string &SearchString_ext, const cLanguage *lang) {
+bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
-// return true if results were added
-  string url = baseURL4Search + CurlEscape(SearchString_ext.c_str());
+// return true if a result matching searchString was found, and no splitting of searchString was required
+// otherwise, return false. Note: also in this case some results might have been added
+
+  string_view searchString1, searchString2, searchString3, searchString4;
+  std::vector<cNormedString> normedStrings = getNormedStrings(SearchString, searchString1, searchString2, searchString3, searchString4);
   cLargeString buffer("cTVDBScraper::AddResults4", 500, 5000);
+  size_t size0 = resultSet.size();
+  AddResults4(buffer, resultSet, SearchString, normedStrings, lang);
+  if (resultSet.size() > size0) {
+    for (size_t i = size0; i < resultSet.size(); i++)
+      if (sentence_distance_normed_strings(normedStrings[0].m_normedString, resultSet[i].normedName) < 600) return true;
+    return false;
+  }
+  if (!searchString1.empty() ) AddResults4(buffer, resultSet, searchString1, normedStrings, lang);
+  if (resultSet.size() > size0) return false;
+  if (!searchString2.empty() ) AddResults4(buffer, resultSet, searchString2, normedStrings, lang);
+  if (resultSet.size() > size0) return false;
+  if (searchString4.empty() ) return false;
+// searchString3 is the string before ' - '. We will search for this later, as part of the <title> - <episode> pattern
+  AddResults4(buffer, resultSet, searchString4, normedStrings, lang);
+  return false;
+}
+
+bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {
+  string SearchString_rom = removeRomanNum(SearchString.data(), SearchString.length());
+  if (SearchString_rom.empty() ) {
+    esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, SearchString_rom == empty");
+    return false;
+  }
+  string url = baseURL4Search + CurlEscape(SearchString_rom.c_str());
   json_t *root = CallRestJson(url, buffer);
   if (!root) return false;
   int seriesID = 0;
-  bool result = ParseJson_search(root, resultSet, SearchString, lang);
+  bool result = ParseJson_search(root, resultSet, normedStrings, lang);
   json_decref(root);
   if (!result) {
     esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, !result, url %s", url.c_str());
@@ -328,18 +355,17 @@ bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, const str
   return true;
 }
 
-bool cTVDBScraper::ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const string &SearchString, const cLanguage *lang) {
+bool cTVDBScraper::ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {
   if (root == NULL) return false;
   json_t *jData = json_object_get(root, "data");
   if(!json_is_array(jData))  {
     esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_search, parsing thetvdb search result, jData is not an array");
     return false;
   }
-  std::string SearchStringStripExtraUTF8 = normString(SearchString.c_str() );
   size_t index;
   json_t *jElement;
   json_array_foreach(jData, index, jElement) {
-    ParseJson_searchSeries(jElement, resultSet, SearchStringStripExtraUTF8, lang);
+    ParseJson_searchSeries(jElement, resultSet, normedStrings, lang);
   }
   return true;
 }
@@ -364,7 +390,7 @@ int minDist(int dist, const json_t *jString, const string &SearchStringStripExtr
   return dist;
 }
 
-void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const string &SearchStringStripExtraUTF8, const cLanguage *lang) {// add search results to resultSet
+void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {// add search results to resultSet
   if (!data) return;
   std::string objectID = json_string_value_validated(data, "objectID");
   if (objectID.length() < 8) {
@@ -382,22 +408,19 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
   }
 // is this series already in the list?
   for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == seriesID * (-1) ) return;
-  bool debug = false;
-//    debug = SearchString == "cars toons";
-//    debug = seriesID == 250498;
 
   searchResultTvMovie sRes(seriesID * (-1), false, json_string_value_validated(data, "year"));
   sRes.setPositionInExternalResult(resultSet.size() );
 // name is the name in original / primary language
-  int dist_a = minDist(1000, json_object_get(data, "name"), SearchStringStripExtraUTF8);
-  if (debug) esyslog("tvscraper: ParseJson_searchSeries SearchString %s, name %s, distance %i", SearchStringStripExtraUTF8.c_str(), json_string_value_validated(data, "name").c_str() , dist_a);
+  int dist_a = minDistanceNormedStrings(1000, normedStrings, json_string_value_validated_c(data, "name") );
+
   json_t *jAliases = json_object_get(data, "aliases");
 // in search results, aliases don't have language information
   if (json_is_array(jAliases) ) {
     size_t index;
     json_t *jElement;
     json_array_foreach(jAliases, index, jElement) {
-      dist_a = minDist(dist_a, jElement, SearchStringStripExtraUTF8);
+      dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value(jElement) );
     }
   }
 // no language information is available on the texts used so far
@@ -410,7 +433,7 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
   if (json_is_object(jTranslations) ) {
     json_t *langVal = json_object_get(jTranslations, lang->m_thetvdb);
     if (langVal) {
-      dist_a = minDist(dist_a, langVal, SearchStringStripExtraUTF8, &sRes.normedName);
+      dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value(langVal), &sRes.normedName);
       requiredDistance = 700;  // translation in EPG language is available. Reduce requirement somewhat
     }
   }

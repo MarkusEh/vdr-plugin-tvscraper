@@ -93,13 +93,13 @@ bool cMovieDbTv::ReadTv(json_t *tv) {
     return true;
 }
 
-bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, const string &tvSearchString, const string &tvSearchString_ext, const cLanguage *lang) {
+bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, string_view tvSearchString, string_view tvSearchString_ext, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
 
 // call api, get json
     cLargeString json("cMovieDbTv::AddTvResults", 10000);
     stringstream url;
-    url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << "&query=" << CurlEscape(tvSearchString_ext.c_str());
+    url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << "&query=" << CurlEscape(tvSearchString_ext);
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
     if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json
@@ -110,7 +110,7 @@ bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, const stri
     json_decref(root);
     return ret;
 }
-bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultSet, const string &tvSearchString) {
+bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultSet, string_view tvSearchString) {
     if(!json_is_object(root)) return false;
 // get results
     json_t *results = json_object_get(root, "results");
@@ -135,7 +135,7 @@ bool cMovieDbTv::AddTvResults(json_t *root, vector<searchResultTvMovie> &resultS
             for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == id) { alreadyInList = true; break; }
             if (alreadyInList) continue;
 
-            searchResultTvMovie sRes(id, false, json_string_value_validated(result, "release_date") );
+            searchResultTvMovie sRes(id, false, json_string_value_validated(result, "first_air_date") );
             sRes.setPositionInExternalResult(resultSet.size() );
             sRes.setMatchText(std::min(sentence_distance(resultName, tvSearchString), sentence_distance(resultOriginalName, tvSearchString) )  + 1); // avaid this, prefer TVDB
             sRes.setPopularity(json_number_value_validated(result, "popularity"), json_number_value_validated(result, "vote_average"), json_integer_value_validated(result, "vote_count") );
