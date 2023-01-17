@@ -1,5 +1,4 @@
 #include <map>
-#include <charconv>
 #include "overrides.h"
 
 using namespace std;
@@ -52,13 +51,6 @@ void cOverRides::ReadConfigLine(const char *line) {
         } else if (!flds[0].compare("substitute")) {
             if (flds.size() == 3) {
                 substitutes.insert(pair<string, string>(flds[1], flds[2]));
-            }
-        } else if (!flds[0].compare("thetvdbID")) {
-            if (flds.size() == 3) {
-                int thetvdbID;
-                std::from_chars_result r = from_chars(flds[2].data(), flds[2].data() + flds[2].length(), thetvdbID);
-                if (r.ec !=  std::errc() ) esyslog("tvscraper: ERROR in override.conf, not a number in field thetvdbID");
-                else m_thetvdbID.insert(pair<string, int>(flds[1], thetvdbID));
             }
         } else if (!flds[0].compare("ignorePath")) {
             if (flds.size() == 2) {

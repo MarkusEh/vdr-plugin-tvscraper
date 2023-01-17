@@ -49,7 +49,7 @@ To run the plugin the following libaries have to be installed:
 - libsqlite3
 - libcurl
 - libjansson
-- gcc must support -std=c++17  (for GCC v5, v6, v7: -std=c++1z instead of -std=c++17 might help. Also, a patch mmight help, see https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517)
+- gcc must support -std=c++17  (for GCC v5, v6, v7: -std=c++1z instead of -std=c++17 might help. Also, a patch might help, see https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517)
 - vdr 2.4.0 or later. Recommended: vdr 2.6.x or later
 
 If you use TVGuide: Version 1.3.6+ is required
