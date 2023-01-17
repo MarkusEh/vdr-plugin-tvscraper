@@ -12,6 +12,7 @@ enum class ecMovieOrTvType {
 class cMovieOrTv {
   friend class cMovieMoviedb;
   friend class cTv;
+  friend class cScraperVideoImp;
 public:
   virtual ~cMovieOrTv() {};
   virtual bool operator==(const cMovieOrTv &sec) const = 0;
@@ -28,14 +29,17 @@ public:
   virtual tvType getType() const = 0;
   void clearScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv);
   virtual void getScraperOverview(cGetScraperOverview *scraperOverview) = 0;
+  virtual bool getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName = NULL) = 0;
+  virtual std::string getCollectionName() { return ""; }
   virtual void getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) = 0;
 // Actors
-  void AddActors(std::vector<cActor> &actors, const char *sql, int id, const char *pathPart, int width = 421, int height = 632);
-  virtual vector<cActor> GetActors() = 0;
+  void AddActors(std::vector<cActor> &actors, const char *sql, int id, const char *pathPart, bool fullPath = true, int width = 421, int height = 632);
+  virtual vector<cActor> GetActors(bool fullPath = true) = 0;
+  virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath) = 0;
 // Media
   std::vector<cTvMedia> getBanners();
-  virtual vector<cTvMedia> getImages(eOrientation orientation);
-  void copyImagesToRecordingFolder(const std::string &recordingFileName);
+  virtual vector<cTvMedia> getImages(eOrientation orientation, int maxImages = 3, bool fullPath = true);
+  bool copyImagesToRecordingFolder(const std::string &recordingFileName);
   virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) = 0;
   eImageLevel getSingleImageBestLO(cImageLevelsInt level, cOrientationsInt orientations, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   eImageLevel getSingleImageBestL(cImageLevelsInt level, eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
@@ -63,6 +67,7 @@ protected:
   bool checkFullPath(const stringstream &ssFullPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height);
   bool checkRelPath (const stringstream &ssRelPath,  string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height);
 private:
+  int m_collectionId = -2; // -2: not checked
 };
 // movie *********************************
 class cMovieMoviedb : public cMovieOrTv {
@@ -76,17 +81,19 @@ public:
 // fill vdr service interface
   virtual tvType getType() const { return tMovie; }
   virtual void getScraperOverview(cGetScraperOverview *scraperOverview);
+  virtual bool getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName = NULL);
+  virtual std::string getCollectionName();
   virtual void getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv);
-  virtual vector<cActor> GetActors();
+  virtual vector<cActor> GetActors(bool fullPath = true);
+  virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath) {}  // add nothing, no guest stars in movies
   virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
 // media
-  virtual std::string imageUrl(const char *imageUrl) { return std::string("http://image.tmdb.org/t/p/w780/") + imageUrl; };
+  virtual std::string imageUrl(const char *imageUrl) { return concatenate("http://image.tmdb.org/t/p/w780/", imageUrl); }
   virtual bool getSingleImage(eImageLevel level, eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   bool getSingleImageMovie(     eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   bool getSingleImageCollection(eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
 private:
-  int m_collectionId = -1;
 };
 
 // tv   *********************************
@@ -103,8 +110,10 @@ public:
 // fill vdr service interface
   virtual tvType getType() const { return tSeries; }
   virtual void getScraperOverview(cGetScraperOverview *scraperOverview);
+  virtual bool getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName = NULL);
   virtual void getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv);
-  virtual vector<cActor> GetActors() = 0;
+  virtual vector<cActor> GetActors(bool fullPath = true) = 0;
+  virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath) = 0;
 // images
   virtual bool getSingleImage(eImageLevel level, eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImageEpisode(  eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL) = 0;
@@ -114,8 +123,8 @@ public:
 protected:
   cTv(const cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): cMovieOrTv(db, id, seasonNumber,  episodeNumber) {}
   virtual std::string imageUrl(const char *imageUrl) = 0;
-private:
-  std::vector<cActor> getGuestStars(const char *str);
+//private:
+//  void addGuestStars(std::vector<cActor> &result, const char *str);
 };
 
 // tv, the moviedb ********************************************
@@ -126,10 +135,11 @@ public:
   cTvMoviedb(const cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
   virtual int dbID() { return m_id; }
   virtual void DeleteMediaAndDb();
-  virtual vector<cActor> GetActors();
+  virtual vector<cActor> GetActors(bool fullPath = true);
+  virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath);
   virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
-  virtual std::string imageUrl(const char *imageUrl) { return std::string("http://image.tmdb.org/t/p/w780/") + imageUrl; };
+  virtual std::string imageUrl(const char *imageUrl) { return concatenate("http://image.tmdb.org/t/p/w780/", imageUrl); }
   virtual bool getSingleImageEpisode(  eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImageSeason(   eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
   virtual bool getSingleImageTvShow(   eOrientation orientation, string *relPath=NULL, string *fullPath=NULL, int *width=NULL, int *height=NULL);
@@ -144,9 +154,10 @@ public:
   cTvTvdb(const cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
   virtual int dbID() { return m_id * -1; }
   virtual void DeleteMediaAndDb();
-  virtual vector<cActor> GetActors();
+  virtual vector<cActor> GetActors(bool fullPath = true);
+  virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath);
 // Media
-  virtual vector<cTvMedia> getImages(eOrientation orientation);
+  virtual vector<cTvMedia> getImages(eOrientation orientation, int maxImages = 3, bool fullPath = true);
   virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
 protected:
   virtual std::string imageUrl(const char *imageUrl) { return cTVDBScraper::getFullDownloadUrl(imageUrl); }

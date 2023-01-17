@@ -121,14 +121,14 @@ void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, std:
   cLargeString buffer("cMovieDbMovie::AddMovieResults", 10000);
   size_t size0 = resultSet.size();
   AddMovieResults(buffer, resultSet, SearchString, normedStrings, description, true, years, lang);
-  if (resultSet.size() > size0) return;
-  if (!searchString1.empty() ) AddMovieResults(buffer, resultSet, searchString1, normedStrings, description, false, years, lang);
-  if (resultSet.size() > size0) return;
-  if (!searchString2.empty() ) AddMovieResults(buffer, resultSet, searchString2, normedStrings, description, false, years, lang);
-  if (resultSet.size() > size0) return;
-  if (searchString3.empty() ) return;
-  AddMovieResults(buffer, resultSet, searchString3, normedStrings, description, false, years, lang);
-  AddMovieResults(buffer, resultSet, searchString4, normedStrings, description, false, years, lang);
+  if (searchString1.length() > 6  || (!searchString1.empty() && resultSet.size() == size0) )
+    AddMovieResults(buffer, resultSet, searchString1, normedStrings, description, false, years, lang);
+  if (searchString2.length() > 6  || (!searchString2.empty() && resultSet.size() == size0) )
+    AddMovieResults(buffer, resultSet, searchString2, normedStrings, description, false, years, lang);
+  if (searchString3.length() > 6  || (!searchString3.empty() && resultSet.size() == size0) )
+    AddMovieResults(buffer, resultSet, searchString3, normedStrings, description, false, years, lang);
+  if (searchString4.length() > 6  || (!searchString4.empty() && resultSet.size() == size0) )
+    AddMovieResults(buffer, resultSet, searchString4, normedStrings, description, false, years, lang);
 }
 
 void cMovieDbMovie::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch, const vector<int> &years, const cLanguage *lang){

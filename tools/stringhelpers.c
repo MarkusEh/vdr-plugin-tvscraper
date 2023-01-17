@@ -6,6 +6,76 @@
 #include <iostream>
 
 using namespace std;
+
+// UTF8 string utilities ****************
+void AppendUtfCodepoint(std::string &target, wint_t codepoint){
+  if (codepoint <= 0x7F){
+     target.push_back( (char) (codepoint) );
+     return;
+  }
+  if (codepoint <= 0x07FF) {
+     target.push_back( (char) (0xC0 | (codepoint >> 6 ) ) );
+     target.push_back( (char) (0x80 | (codepoint & 0x3F)) );
+     return;
+  }
+  if (codepoint <= 0xFFFF) {
+     target.push_back( (char) (0xE0 | ( codepoint >> 12)) );
+     target.push_back( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+     target.push_back( (char) (0x80 | ( codepoint & 0x3F)) );
+     return;
+  }
+     target.push_back( (char) (0xF0 | ((codepoint >> 18) & 0x07)) );
+     target.push_back( (char) (0x80 | ((codepoint >> 12) & 0x3F)) );
+     target.push_back( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+     target.push_back( (char) (0x80 | ( codepoint & 0x3F)) );
+     return;
+}
+
+int utf8CodepointIsValid(const char *p){
+// In case of invalid UTF8, return 0
+// otherwise, return number of characters for this UTF codepoint
+  static const uint8_t LEN[] = {2,2,2,2,3,3,4,0};
+
+  int len = ((*p & 0xC0) == 0xC0) * LEN[(*p >> 3) & 7] + ((*p | 0x7F) == 0x7F);
+  for (int k=1; k < len; k++) if ((p[k] & 0xC0) != 0x80) len = 0;
+  return len;
+}
+
+wint_t Utf8ToUtf32(const char *&p, int len) {
+// assumes, that uft8 validity checks have already been done. len must be provided. call utf8CodepointIsValid first
+// change p to position of next codepoint (p = p + len)
+  static const uint8_t FF_MSK[] = {0xFF >>0, 0xFF >>0, 0xFF >>3, 0xFF >>4, 0xFF >>5, 0xFF >>0, 0xFF >>0, 0xFF >>0};
+  wint_t val = *p & FF_MSK[len];
+  const char *q = p + len;
+  for (p++; p < q; p++) val = (val << 6) | (*p & 0x3F);
+  return val;
+}
+
+wint_t getUtfCodepoint(const char *p) {
+// get next codepoint 0 is returned at end of string
+  if(!p || !*p) return 0;
+  int l = utf8CodepointIsValid(p);
+  if( l == 0 ) return '?';
+  const char *s = p;
+  return Utf8ToUtf32(s, l);
+}
+
+wint_t getNextUtfCodepoint(const char *&p){
+// get next codepoint, and increment p
+// 0 is returned at end of string, and p will point to the end of the string (0)
+  if(!p || !*p) return 0;
+  int l = utf8CodepointIsValid(p);
+  if( l == 0 ) { p++; return '?'; }
+  return Utf8ToUtf32(p, l);
+}
+void appendRemoveControlCharacters(std::string &target, const char *str) {
+  for(;;) {
+    wint_t cp = getNextUtfCodepoint(str);
+    if (cp == 0) return;
+    if (cp > 31 || cp == 10) AppendUtfCodepoint(target, cp);
+  }
+}
+
 // methods for char *s, make sure that s==NULL is just an empty string ========
 std::string charPointerToString(const unsigned char *s) {
   return s?(const char *)s:"";
@@ -26,7 +96,30 @@ bool stringEqual(const char *s1, const char *s2) {
   return false;
 }
 
+std::string concatenate(const char *s1, const char *s2) {
+  if (!s1 && !s2) return "";
+  if (!s1) return s2;
+  if (!s2) return s1;
+  std::string result;
+  result.reserve(strlen(s1) + strlen(s2));
+  result.append(s1);
+  result.append(s2);
+  return result;
+}
 
+std::string concatenate(const char *s1, const char *s2, const char *s3) {
+  if (!s1) return concatenate(s2, s3);
+  if (!s2) return concatenate(s1, s3);
+  if (!s3) return concatenate(s1, s2);
+  std::string result;
+  result.reserve(strlen(s1) + strlen(s2) + strlen(s3) );
+  result.append(s1);
+  result.append(s2);
+  result.append(s3);
+  return result;
+}
+
+// whitespace
 void StringRemoveTrailingWhitespace(string &str) {
   std::string whitespaces (" \t\f\v\n\r");
 

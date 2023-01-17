@@ -62,8 +62,8 @@ void cMovieOrTv::clearScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   scraperMovieOrTv->episode.IMDB_ID = "";
 }
 
-void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id, const char *pathPart, int width, int height) {
-// adds the acors found with sql&id to the list of actors
+void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id, const char *pathPart, bool fullPath, int width, int height) {
+// adds the actors found with sql&id to the list of actors
 // works for all actors found in themoviedb (movie & tv actors). Not for actors in thetvdb
   cActor actor;
   const char *actorId;
@@ -72,12 +72,13 @@ void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id,
   for (sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", id);
        m_db->QueryStep(statement, "sSSi", &actorId, &actor.name, &actor.role, &hasImage); ) {
     if (hasImage) {
-      actor.actorThumb.path = basePath + actorId + ".jpg";
+      actor.actorThumb.path = concatenate(basePath.c_str(), actorId, ".jpg");
       if (!FileExists(actor.actorThumb.path)) hasImage = false;
     }
     if (hasImage) {
       actor.actorThumb.width = width;
       actor.actorThumb.height = height;
+      if (!fullPath) actor.actorThumb.path = concatenate(pathPart, actorId, ".jpg");
     } else {
       actor.actorThumb.width = width;
       actor.actorThumb.height = height;
@@ -88,14 +89,19 @@ void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id,
 }
 
 // images
-vector<cTvMedia> cMovieOrTv::getImages(eOrientation orientation) {
+vector<cTvMedia> cMovieOrTv::getImages(eOrientation orientation, int maxImages, bool fullPath) {
   vector<cTvMedia> images;
   cTvMedia image;
   cImageLevelsInt level;
   if (getType() == tMovie) level = cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection);
   else level = cImageLevelsInt(eImageLevel::tvShowCollection, eImageLevel::seasonMovie, eImageLevel::anySeasonCollection);
-  if (getSingleImageBestL(level, orientation, NULL, &image.path, &image.width, &image.height) != eImageLevel::none)
-    images.push_back(image);
+  if (fullPath) {
+    if (getSingleImageBestL(level, orientation, NULL, &image.path, &image.width, &image.height) != eImageLevel::none)
+      images.push_back(image);
+  } else {
+    if (getSingleImageBestL(level, orientation, &image.path, NULL, &image.width, &image.height) != eImageLevel::none)
+      images.push_back(image);
+  }
   return images;
 }
 
@@ -109,14 +115,18 @@ std::vector<cTvMedia> cMovieOrTv::getBanners() {
   return banners;
 }
 
-void cMovieOrTv::copyImagesToRecordingFolder(const std::string &recordingFileName) {
-  if (recordingFileName.empty() ) return;
+bool cMovieOrTv::copyImagesToRecordingFolder(const std::string &recordingFileName) {
+// return true if a fanart was copied
+  if (recordingFileName.empty() ) return true;
   string path;
   cImageLevelsInt level(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection);
   if (getSingleImageBestL(level, eOrientation::portrait, NULL, &path) != eImageLevel::none)
     CopyFile(path, recordingFileName + "/poster.jpg" );
-  if (getSingleImageBestL(level, eOrientation::landscape, NULL, &path) != eImageLevel::none)
+  if (getSingleImageBestL(level, eOrientation::landscape, NULL, &path) != eImageLevel::none) {
     CopyFile(path, recordingFileName + "/fanart.jpg" );
+    return true;
+  }
+  return false;
 }
 
 eImageLevel cMovieOrTv::getSingleImageBestLO(cImageLevelsInt level, cOrientationsInt orientations, string *relPath, string *fullPath, int *width, int *height) {
@@ -225,7 +235,7 @@ bool cMovieOrTv::checkFullPath(const stringstream &ssFullPath, string *relPath, 
 
 bool cMovieOrTv::checkRelPath(const stringstream &ssRelPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height) {
 // Should only be used if relPath != NULL && fullPath == NULL
-// Actually, even in this case it is uncleary whether the performance is better than the performance of checkFullPath
+// Actually, even in this case it is unclear whether the performance is better than the performance of checkFullPath
 // Writing code for both, checkFullPath and checkRelPath
   if (relPath) {
     *relPath = ssRelPath.str();
@@ -254,6 +264,11 @@ void cMovieMoviedb::DeleteMediaAndDb() {
   m_db->DeleteMovie(m_id);
 } 
 
+std::string cMovieMoviedb::getCollectionName() {
+  const char *sql = "select movie_collection_name from movies3 where movie_id = ?";
+  return m_db->QueryString(sql, "i", dbID() );
+}
+
 void cMovieMoviedb::getScraperOverview(cGetScraperOverview *scraperOverview) {
   scraperOverview->m_videoType = eVideoType::movie;
   scraperOverview->m_dbid = dbID();
@@ -281,6 +296,34 @@ void cMovieMoviedb::getScraperOverview(cGetScraperOverview *scraperOverview) {
     m_collectionId = scraperOverview->m_collectionId > 0?scraperOverview->m_collectionId:0;
     getSingleImageBestLO(scraperOverview->m_imageLevels, scraperOverview->m_imageOrientations, &(scraperOverview->m_image->path), NULL, &(scraperOverview->m_image->width), &(scraperOverview->m_image->height) );
   }
+}
+
+bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
+// return false if no data are available. In this case, paramters will NOT change
+  m_collectionId = 0;
+  if (collectionId) *collectionId = 0;
+  if (runtime) *runtime = 0;
+  if (episodeName) *episodeName = "";
+  const char *title_ = NULL;
+  const char *collectionName_ = NULL;
+  const char *IMDB_ID_ = NULL;
+  const char *releaseDate_ = NULL;
+  int runtime_;
+  const char sql[] = "select movie_title, movie_collection_id, movie_collection_name, " \
+    "movie_release_date, movie_runtime, movie_IMDB_ID from movies3 where movie_id = ?";
+  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
+  if (!m_db->QueryStep(statement, "sissis",
+      &title_, &m_collectionId, &collectionName_, &releaseDate_, &runtime_, &IMDB_ID_)) {
+    return false;
+  }
+  if (title)       *title = charPointerToString(title_);
+  if (imdbId)      *imdbId = charPointerToString(IMDB_ID_);
+  if (releaseDate) *releaseDate = charPointerToString(releaseDate_);
+  if (collectionName) *collectionName = charPointerToString(collectionName_);
+  sqlite3_finalize(statement);
+  if (collectionId) *collectionId = m_collectionId;
+  if (runtime)      *runtime = runtime_;
+  return true;
 }
 
 void cMovieMoviedb::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
@@ -339,11 +382,11 @@ void cMovieMoviedb::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   }
 }
 
-std::vector<cActor> cMovieMoviedb::GetActors() {
+std::vector<cActor> cMovieMoviedb::GetActors(bool fullPath) {
   std::vector<cActor> actors;
   const char sql[] = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_movie " \
                      "where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?";
-  AddActors(actors, sql,  dbID(), "movies/actors/actor_");
+  AddActors(actors, sql,  dbID(), "movies/actors/actor_", fullPath);
   return actors;
 }
 
@@ -463,6 +506,61 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const vector<int> &y
   return best_distance;
 }
 
+bool cTv::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
+// return false if no data are available. In this case, paramters will NOT change
+// return runtime only if episode runtime is available. No guess here (from list of episode runtimes)
+// we start to collect episode information. Data available from episode will not be requested from TV show
+  if (collectionId) *collectionId = 0;
+  if (collectionName) *collectionName = "";
+  if (runtime) *runtime = 0;
+  bool episodeDataAvailable = false, episodeImdbIdAvailable = false, episodeReleaseDateAvailable = false;
+  if ((m_seasonNumber != 0 || m_episodeNumber != 0) &&
+    (episodeName != NULL || imdbId != NULL || releaseDate != NULL || runtime != NULL)) {
+    const char *episodeName_ = NULL;
+    const char *episodeAirDate_ = NULL;
+    const char *episodeIMDB_ID_ = NULL;
+    int runtime_ = 0;
+    char sql_e[] = "select episode_name, episode_air_date, episode_run_time, episode_IMDB_ID " \
+      "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
+    sqlite3_stmt *statement = m_db->QueryPrepare(sql_e, "iii", dbID(), m_seasonNumber, m_episodeNumber);
+    if (m_db->QueryStep(statement, "ssis", &episodeName_, &episodeAirDate_, &runtime_, &episodeIMDB_ID_)) {
+      episodeDataAvailable = true;
+      episodeReleaseDateAvailable = episodeAirDate_ && *episodeAirDate_;
+      episodeImdbIdAvailable = episodeIMDB_ID_ && *episodeIMDB_ID_;
+      if (episodeName) *episodeName = charPointerToString(episodeName_);
+      if (releaseDate) *releaseDate = charPointerToString(episodeAirDate_);
+      if (imdbId) *imdbId = charPointerToString(episodeIMDB_ID_);
+      sqlite3_finalize(statement);
+      if (runtime) *runtime = runtime_;
+    }
+  }
+
+  if (title == NULL && (imdbId == NULL || episodeImdbIdAvailable) && (releaseDate == NULL || episodeReleaseDateAvailable) ) {
+    if (!episodeDataAvailable) return false;
+    if (collectionId) *collectionId = 0;
+    return true;
+  }
+  const char *title_ = NULL;
+  const char *IMDB_ID_ = NULL;
+  const char *firstAirDate_ = NULL;
+  const char sql[] = "select tv_name, tv_first_air_date, tv_IMDB_ID from tv2 where tv_id = ?";
+  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
+  if (!m_db->QueryStep(statement, "sss", &title_, &firstAirDate_, &IMDB_ID_)) {
+    if (!episodeDataAvailable) return false;
+    if (title) *title = "";
+    if (collectionId) *collectionId = 0;
+    return true;
+  }
+  if (title) *title = charPointerToString(title_);
+  if (!episodeDataAvailable) {
+    if (imdbId) *imdbId = charPointerToString(IMDB_ID_);
+    if (releaseDate) *releaseDate = charPointerToString(firstAirDate_);
+    if (episodeName) *episodeName = "";
+  }
+  sqlite3_finalize(statement);
+  return true;
+}
+
 void cTv::getScraperOverview(cGetScraperOverview *scraperOverview) {
   scraperOverview->m_videoType = eVideoType::tvShow;
   scraperOverview->m_dbid = dbID();
@@ -509,6 +607,30 @@ void cTv::getScraperOverview(cGetScraperOverview *scraperOverview) {
 
 }
 
+void addGuestStars(std::vector<cActor> &result, const char *str) {
+// format of str as defined in thetvdbscraper/tvdbseries.c cTVDBSeries::ParseJson_Character
+// |actorName: actoreRoleName|actorName2: actoreRoleName2|...
+  if (!str || !*str) return;
+  cActor actor;
+  actor.actorThumb.path = "";
+  actor.actorThumb.width = 0;
+  actor.actorThumb.height = 0;
+  if (str[0] != '|') { actor.name = str; result.push_back(actor); }
+  const char *lDelimPos = str;
+  for (const char *rDelimPos = strchr(lDelimPos + 1, '|'); rDelimPos != NULL; rDelimPos = strchr(lDelimPos + 1, '|') ) {
+    std::string_view pers_name = std::string_view(lDelimPos + 1, rDelimPos - lDelimPos - 1);
+    auto del2 = pers_name.find(": ");
+    if (del2 == std::string::npos) {
+      actor.name = pers_name;
+      actor.role = "";
+    } else {
+      actor.name = pers_name.substr(0, del2);
+      actor.role = pers_name.substr(del2 + 2);
+    }
+    result.push_back(actor);
+    lDelimPos = rDelimPos;
+  }
+}
 void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   scraperMovieOrTv->movie = false;
   scraperMovieOrTv->episodeFound = (m_seasonNumber != 0 || m_episodeNumber != 0);
@@ -563,7 +685,7 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   for (statement = m_db->QueryPrepare(
     "select episode_run_time from tv_episode_run_time where tv_id = ?", "i", dbID() );
     m_db->QueryStep(statement, "i", &runtime);) {
-    scraperMovieOrTv->runtimes.push_back(runtime);
+    if (runtime > 0) scraperMovieOrTv->runtimes.push_back(runtime);
   }
 
   scraperMovieOrTv->actors = GetActors();
@@ -585,7 +707,7 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   char *writer;
   char *guestStars;
   char *episodeImageUrl;
-  char sql_e[] = "select episode_absolute_number, episode_name, episode_air_date, " \
+  const char *sql_e = "select episode_absolute_number, episode_name, episode_air_date, " \
     "episode_vote_average, episode_vote_count, episode_overview, " \
     "episode_guest_stars, episode_director, episode_writer, episode_IMDB_ID, episode_still_path " \
     "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
@@ -598,7 +720,7 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
      &scraperMovieOrTv->episode.IMDB_ID, &episodeImageUrl) ) {
     stringToVector(scraperMovieOrTv->episode.director, director);
     stringToVector(scraperMovieOrTv->episode.writer, writer);
-    scraperMovieOrTv->episode.guestStars = getGuestStars(guestStars);
+    addGuestStars(scraperMovieOrTv->episode.guestStars, guestStars);
     if (episodeImageUrl && *episodeImageUrl && scraperMovieOrTv->httpImagePaths) {
       scraperMovieOrTv->episode.episodeImageUrl = imageUrl(episodeImageUrl);
     }
@@ -608,23 +730,16 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
     getSingleImage(eImageLevel::episodeMovie, eOrientation::landscape, NULL, &scraperMovieOrTv->episode.episodeImage.path, &scraperMovieOrTv->episode.episodeImage.width, &scraperMovieOrTv->episode.episodeImage.height);
 }
 
-std::vector<cActor> cTv::getGuestStars(const char *str) {
-  std::vector<cActor> result;
-  if (!str || !*str) return result;
-  cActor actor;
-  actor.role = "";
-  actor.actorThumb.path = "";
-  actor.actorThumb.width = 0;
-  actor.actorThumb.height = 0;
-  if (str[0] != '|') { actor.name = str; result.push_back(actor); return result; }
-  const char *lDelimPos = str;
-  for (const char *rDelimPos = strchr(lDelimPos + 1, '|'); rDelimPos != NULL; rDelimPos = strchr(lDelimPos + 1, '|') ) {
-    actor.name = string(lDelimPos + 1, rDelimPos - lDelimPos - 1);
-    result.push_back(actor);
-    lDelimPos = rDelimPos;
+void cTvTvdb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
+  char *guestStars;
+  const char *sql = "select episode_guest_stars from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
+  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "iii", dbID(), m_seasonNumber, m_episodeNumber);
+  if (m_db->QueryStep(statement, "s", &guestStars) ) {
+    addGuestStars(actors, guestStars);
+    sqlite3_finalize(statement);
   }
-  return result;
 }
+
 // implemntation of cTvMoviedb  *********************
 void cTvMoviedb::DeleteMediaAndDb() {
   stringstream folder;
@@ -633,15 +748,20 @@ void cTvMoviedb::DeleteMediaAndDb() {
   m_db->DeleteSeries(m_id);
 }
 
-std::vector<cActor> cTvMoviedb::GetActors() {
-  std::vector<cActor> actors;
-  const char sql[] = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_tv " \
-                     "where actor_tv.actor_id = actors.actor_id and actor_tv.tv_id = ?";
-  AddActors(actors, sql,  dbID(), "movies/actors/actor_");
+void cTvMoviedb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
 // actors from guest stars
   const char sql_guests[] = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_tv_episode " \
                             "where actor_tv_episode.actor_id = actors.actor_id and actor_tv_episode.episode_id = ?";
-  if (m_seasonNumber != 0 || m_episodeNumber != 0) AddActors(actors, sql_guests,  m_episodeNumber, "movies/actors/actor_");
+  if (m_seasonNumber != 0 || m_episodeNumber != 0) AddActors(actors, sql_guests,  m_episodeNumber, "movies/actors/actor_", fullPath);
+}
+
+std::vector<cActor> cTvMoviedb::GetActors(bool fullPath) {
+  std::vector<cActor> actors;
+  const char sql[] = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_tv " \
+                     "where actor_tv.actor_id = actors.actor_id and actor_tv.tv_id = ?";
+  AddActors(actors, sql,  dbID(), "movies/actors/actor_", fullPath);
+// actors from guest stars
+//  AddGuestActors(actors, false);  (exclude guest stars, so we can list them separately)
   return actors;
 }
 
@@ -719,7 +839,7 @@ void cTvTvdb::DeleteMediaAndDb() {
   m_db->DeleteSeries(m_id * -1);
 }
 
-std::vector<cActor> cTvTvdb::GetActors() {
+std::vector<cActor> cTvTvdb::GetActors(bool fullPath) {
   std::vector<cActor> actors;
 // base path
   stringstream basePath_stringstream;
@@ -732,9 +852,16 @@ std::vector<cActor> cTvTvdb::GetActors() {
   for (sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", m_id);
        m_db->QueryStep(statement, "sSS", &actorId, &actor.name, &actor.role); ) {
     if (actorId && actorId[0] != '-') {
-      actor.actorThumb.width = 300;
-      actor.actorThumb.height = 450;
       actor.actorThumb.path = basePath + actorId + ".jpg";
+      if (FileExists(actor.actorThumb.path)) {
+        actor.actorThumb.width = 300;
+        actor.actorThumb.height = 450;
+        if (!fullPath) actor.actorThumb.path.erase(0, config.GetBaseDirLen());
+      } else {
+        actor.actorThumb.path = "";
+        actor.actorThumb.width = 0;
+        actor.actorThumb.height = 0;
+      }
     } else {
       actor.actorThumb.width = 300;
       actor.actorThumb.height = 450;
@@ -746,18 +873,22 @@ std::vector<cActor> cTvTvdb::GetActors() {
 }
 
 //images ***************************
-vector<cTvMedia> cTvTvdb::getImages(eOrientation orientation) {
+vector<cTvMedia> cTvTvdb::getImages(eOrientation orientation, int maxImages, bool fullPath) {
   vector<cTvMedia> images;
   if (orientation != eOrientation::portrait && orientation != eOrientation::landscape) return images;
   stringstream path0;
   path0 << config.GetBaseDirSeries() << m_id << ((orientation == eOrientation::portrait)?"/poster_":"/fanart_");
   string s_path0 = path0.str();
-  for (int i=0; i<3; i++) {
+  for (int i=0; i<maxImages; i++) {
     stringstream path;
     path << s_path0 << i << ".jpg";
     cTvMedia media;
-    if (checkFullPath(path, NULL, &media.path, &media.width, &media.height, (orientation == eOrientation::portrait)?680:1920, (orientation == eOrientation::portrait)?1000:1080)) images.push_back(media);
-  }                                                                                                                                    
+    if (fullPath) {
+      if (checkFullPath(path, NULL, &media.path, &media.width, &media.height, (orientation == eOrientation::portrait)?680:1920, (orientation == eOrientation::portrait)?1000:1080)) images.push_back(media);
+    } else {
+      if (checkFullPath(path, &media.path, NULL, &media.width, &media.height, (orientation == eOrientation::portrait)?680:1920, (orientation == eOrientation::portrait)?1000:1080)) images.push_back(media);
+    }
+  }
   return images;
 }
 

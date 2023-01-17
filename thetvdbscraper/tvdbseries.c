@@ -158,18 +158,19 @@ bool cTVDBSeries::ParseJson_Series(json_t *jSeries) {
   return true;
 }
 
-bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode) {
+int cTVDBSeries::ParseJson_Episode(json_t *jEpisode) {
+// return episode ID
 // read data from json, for one episode, and write this data to db
-  if (m_seriesID == 0) return false;  // seriesID must be set, before calling
+  if (m_seriesID == 0) return 0;  // seriesID must be set, before calling
 // seasonType == 1 -> "Aired Order", "official"
 // seasonType == 2 -> "DVD Order", "dvd"
 // seasonType == 3 -> "Absolute Order", "absolute"
-  if (!jEpisode) return false;
+  if (!jEpisode) return 0;
 //read the episode
   int episodeID = json_integer_value_validated(jEpisode, "id");
-  if (episodeID == 0) return false;
+  if (episodeID == 0) return 0;
   string episodeName = json_string_value_validated(jEpisode, "name");
-//  if (episodeName.empty() ) return false;
+//  if (episodeName.empty() ) return 0;
   int seasonNumber = json_integer_value_validated(jEpisode, "seasonNumber");
   int episodeNumber = json_integer_value_validated(jEpisode, "number");
   string episodeOverview = json_string_value_validated(jEpisode, "overview");
@@ -187,7 +188,7 @@ bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode) {
   float episodeRating = 0.0;     // not available
   int episodeVoteCount = 0;      // not available
   m_db->InsertTv_s_e(m_seriesID * (-1), seasonNumber, episodeNumber, episodeAbsoluteNumber, episodeID, episodeName, episodeFirstAired, episodeRating, episodeVoteCount, episodeOverview, episodeGuestStars, episodeDirector, episodeWriter, episodeIMDB_ID, episodeFilename, episodeRunTime);
-  return true;
+  return episodeID;
 }
 
 bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode, const cLanguage *lang) {
@@ -381,15 +382,16 @@ bool cTVDBSeries::ParseJson_Character(json_t *jCharacter) {
     return true;
   }
   if (type == 4) {
-// "Guest Star"    if (episodeId == 0) return false;
-//    string image = json_string_value_validated(jCharacter, "personImgURL");
-    string entry = personName;
+// "Guest Star"
+    if (episodeId == 0) return false;
+//  string image = json_string_value_validated(jCharacter, "personImgURL");
+    string entry = std::move(personName);
     if (!name.empty() ) {
       entry.append(": ");
       entry.append(name);
     }
     string currentEntry = m_db->QueryString("select episode_guest_stars from tv_s_e where episode_id =?", "i", episodeId);
-    if (currentEntry.find(entry) == string::npos) return false; // already in db
+    if (currentEntry.find(entry) != string::npos) return false; // already in db
     if (currentEntry.empty() ) currentEntry = "|";
     currentEntry.append(entry);
     currentEntry.append("|");

@@ -35,7 +35,7 @@ public:
     virtual ~cTVDBSeries(void);
     bool ParseJson_all(json_t *data);
     bool ParseJson_Series(json_t *jSeries);
-    bool ParseJson_Episode(json_t *jEpisode);
+    int ParseJson_Episode(json_t *jEpisode);
     bool ParseJson_Episode(json_t *jEpisode, const cLanguage *lang);
     void StoreDB();
     bool ParseJson_Character(json_t *jCharacter);

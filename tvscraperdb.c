@@ -109,6 +109,7 @@ string cTVScraperDB::QueryString(const char *query, const char *bind, ...) const
 
 bool cTVScraperDB::QueryInt(int &result, const char *query, const char *bind, ...) const {
 // return true if the requested entry exists in database
+// if the requested entry exists in database, but no value was written to the cell: set result = -1
 // bind: see prepare_bind comments for complete list of supported values
   va_list vl;
   va_start(vl, bind);
@@ -116,6 +117,8 @@ bool cTVScraperDB::QueryInt(int &result, const char *query, const char *bind, ..
 }
 
 int cTVScraperDB::QueryInt(const char *query, const char *bind, ...) const {
+// return 0 if the requested entry doe not exist in database
+// if the requested entry exists in database, but no value was written to the cell: return -1
 // bind: see prepare_bind comments for complete list of supported values
   va_list vl;
   va_start(vl, bind);
@@ -125,6 +128,8 @@ int cTVScraperDB::QueryInt(const char *query, const char *bind, ...) const {
 }
 
 sqlite3_int64 cTVScraperDB::QueryInt64(const char *query, const char *bind, ...) const {
+// return 0 if the requested entry doe not exist in database
+// if the requested entry exists in database, but no value was written to the cell: return -1
 // bind: see prepare_bind comments for complete list of supported values
   va_list vl;
   va_start(vl, bind);
@@ -201,14 +206,14 @@ int cTVScraperDB::step_read_result(sqlite3_stmt *statement, const char *fmt_resu
 // return SQLITE_ROW if a line was found (return the result of sqlite3_step, or -1 in case of an error)
 // va_list &vl: pointers to result parameters
 // fmt_result:
-//    S: std::string *
-//    s: const unsigned char *
-//    i: int
-//    b: bool
-//    l: sqlite3_int64
-//    t: time_t
-//    d: double
-//    f: float
+//    S: std::string *          uninitialized cell: ""
+//    s: const unsigned char *  uninitialized cell: NULL pointer
+//    i: int                    uninitialized cell: -1
+//    b: bool                   uninitialized cell: false
+//    l: sqlite3_int64          uninitialized cell: 0
+//    t: time_t                 uninitialized cell: 0
+//    d: double                 uninitialized cell: 0.0
+//    f: float                  uninitialized cell: 0.0
   int result = sqlite3_step(statement);
   printSqlite3Errmsg("cTVScraperDB::step_read_result");
   if (result != SQLITE_ROW) return result;
@@ -942,7 +947,7 @@ int cTVScraperDB::GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv
   if (season_number == -100) return GetMovieRuntime(movie_tv_id);
   int runtime = QueryInt("select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", movie_tv_id, season_number, episode_number);
   if (runtime > 0) return runtime;
-  char sql[] = "select episode_run_time from tv_episode_run_time where tv_id = ?";
+  const char *sql = "select episode_run_time from tv_episode_run_time where tv_id = ?";
   if (QueryInt("select count(episode_run_time) from tv_episode_run_time where tv_id = ?", "i", movie_tv_id) <= 1)
     return QueryInt(sql, "i", movie_tv_id);
 // tv show, more than one runtime is available. Select the best fitting one
@@ -950,9 +955,10 @@ int cTVScraperDB::GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv
   int best_runtime = 0;
   for (sqlite3_stmt *statement = QueryPrepare(sql, "i", movie_tv_id); QueryStep(statement, "i", &runtime);) {
     int dist = sEventOrRecording->DurationDistance(runtime);
+    if (dist < 0) continue; // no data
     if (dist < runtime_distance) {
       best_runtime = runtime;
-      dist = runtime_distance;
+      runtime_distance = dist;
     }
   }
   return best_runtime;

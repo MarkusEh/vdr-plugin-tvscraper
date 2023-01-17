@@ -63,5 +63,5 @@ class cScraperRec {
 };
 
 bool timersForEvents(const cTVScraperDB &db);
-const cEvent* getEvent(tEventID eventid, const tChannelID &channelid);
+cEvent* getEvent(tEventID eventid, const tChannelID &channelid);
 #endif // __TVSCRAPER_AUTOTIMERS_H

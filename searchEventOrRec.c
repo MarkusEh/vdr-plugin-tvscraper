@@ -21,9 +21,7 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
     initSearchString(m_TVshowSearchString);
     initSearchString(m_movieSearchString);
     m_sEventOrRecording->AddYears(m_years);
-    ::AddYears(m_years, m_baseNameOrTitle.c_str() );
-    ::AddYears(m_years, m_TVshowSearchString.c_str() );
-    ::AddYears(m_years, m_movieSearchString.c_str() );
+    ::AddYears(m_years, (const char *)m_baseName);
   }
 bool cSearchEventOrRec::isTitlePartOfPathName(size_t baseNameLen) {
   return minDistanceStrings(m_sEventOrRecording->Recording()->Name(), m_sEventOrRecording->Recording()->Info()->Title() ) < 600;
@@ -44,7 +42,7 @@ void cSearchEventOrRec::initSearchString3dots(std::string &searchString) {
   size_t num_added = 0;
   if (end) num_added = end - shortText;
   else num_added = strlen(shortText);
-  searchString.resize(len - 3);
+  searchString.erase(len - 3);
   searchString.append(" ");
   searchString.append(shortText, num_added);
 }
@@ -68,12 +66,12 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
 //  debug |= recording->Info() && recording->Info()->Title() && strcmp(recording->Info()->Title(), "Die Sendung mit der Maus: 25 Jahre nach dem Mauerfall (2/4)") == 0;
 
 // set m_baseNameOrTitle (the db search string) to the recording file name, as default
-  cString baseName = recording->BaseName();
-  if ((const char *)baseName == NULL) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitle: baseName == NULL");
-  size_t baseNameLen = strlen(baseName);
+  m_baseName = recording->BaseName();
+  if ((const char *)m_baseName == NULL) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitle: baseName == NULL");
+  size_t baseNameLen = strlen(m_baseName);
   if (baseNameLen == 0) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitle: baseNameLen == 0");
-  if (baseName[0] == '%') m_baseNameOrTitle = ( (const char *)baseName ) + 1;
-                     else m_baseNameOrTitle = ( (const char *)baseName );
+  if (m_baseName[0] == '%') m_baseNameOrTitle = ( (const char *)m_baseName ) + 1;
+                       else m_baseNameOrTitle = ( (const char *)m_baseName );
 // check: do we have something better? Note: for TV shows, the recording file name is often the name of the episode, and the title must be used as db search string
   m_movieSearchString = m_baseNameOrTitle;
   if (!recording->Info()->Title() ) return; // no title, go ahead with basename, best what we have (very old recording?)
@@ -93,8 +91,8 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
   const char *shortText = recording->Info()->ShortText();
   if (!shortText || ! *shortText) shortText = recording->Info()->Description();
   if (!shortText || ! *shortText) return; // no short text, no description -> go ahead with base name
-  int distTitle     = sentence_distance(recording->Info()->Title(), m_baseNameOrTitle.c_str() );
-  int distShortText = sentence_distance(shortText, m_baseNameOrTitle.c_str() );
+  int distTitle     = sentence_distance(recording->Info()->Title(), m_baseNameOrTitle);
+  int distShortText = sentence_distance(shortText, m_baseNameOrTitle);
   if (debug) esyslog("tvscraper: distTitle %i, distShortText %i", distTitle, distShortText);
   if (distTitle > 600 && distShortText > 600) {
 // neither title nor shortText match the filename
@@ -114,7 +112,7 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
   m_baseNameEquShortText = true;
 }
 
-bool cSearchEventOrRec::isVdrDate(const std::string &baseName) {
+bool cSearchEventOrRec::isVdrDate(std::string_view baseName) {
 // return true if string matches the 2020.01.12-02:35 pattern.
   int start;
   for (start = 0; !isdigit(baseName[start]) && start < (int)baseName.length(); start++);
@@ -134,7 +132,7 @@ bool cSearchEventOrRec::isVdrDate(const std::string &baseName) {
   return true;
 }
 
-bool cSearchEventOrRec::isVdrDate2(const std::string &baseName) {
+bool cSearchEventOrRec::isVdrDate2(std::string_view baseName) {
 // return true if string matches the "Mit 01.12.2009-02:35" pattern.
   int start;
   for (start = 0; !isdigit(baseName[start]) && start < (int)baseName.length(); start++);
@@ -158,7 +156,7 @@ void cSearchEventOrRec::initSearchString(std::string &searchString) {
   bool searchStringSubstituted = m_overrides->Substitute(searchString);
   if (!searchStringSubstituted) {
 // some more, but only if no explicit substitution
-    searchString = m_overrides->RemovePrefix(searchString);
+    m_overrides->RemovePrefix(searchString);
     StringRemoveLastPartWithP(searchString); // always remove this: Year, number of season/episode, ... but not a part of the name
   }
   transform(searchString.begin(), searchString.end(), searchString.begin(), ::tolower);

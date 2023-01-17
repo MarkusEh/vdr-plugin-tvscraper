@@ -58,6 +58,7 @@ void cTVScraperConfig::SetBaseDir(const string &dir) {
   else baseDir = dir + "/";
   baseDirLen = baseDir.length();
   if (baseDirLen) {
+    baseDirEpg = baseDir + "epg/";
     baseDirSeries = baseDir + "series/";
     baseDirMovies = baseDir + "movies/";
     baseDirMovieActors = baseDirMovies + "actors/";
@@ -72,9 +73,13 @@ void cTVScraperConfig::SetBaseDir(const string &dir) {
 
 void cTVScraperConfig::Initialize() {
 // we don't lock here. This is called during plugin initialize, and there are no other threads at this point in time
+
+// these values are in setup.conf. Set here defaults, if values in setup.conf are missing.
   if (m_HD_Channels.empty() ) {m_HD_Channels = getDefaultHD_Channels(); m_HD_ChannelsModified = false; }
   if (   m_channels.empty() )     m_channels = getDefaultChannels();
   if (m_defaultLanguage == 0) setDefaultLanguage();
+// read from /var/lib/vdr/plugins/tvscraper/channelmap.conf
+  loadChannelmap(m_channelMap);
 }
 void cTVScraperConfig::SetAutoTimersPath(const string &option) {
   m_autoTimersPathSet = true;
@@ -185,6 +190,16 @@ void cTVScraperConfig::setDefaultLanguage() {
   if (lc != 0) m_defaultLanguage = lc;
   else m_defaultLanguage = li;
   esyslog("tvscraper: set default language to %s", m_languages.find(m_defaultLanguage)->getNames().c_str() );
+}
+const sChannelMapEpg *cTVScraperConfig::GetChannelMapEpg(const tChannelID &channelID) const {
+  vector<sChannelMapEpg>::const_iterator channelMapEpg_it = std::lower_bound(m_channelMap.begin(), m_channelMap.end(), channelID,
+     [](const sChannelMapEpg &cm, const tChannelID &c)
+            {
+                return cm.channelID < c;
+            });
+  if (channelMapEpg_it == m_channelMap.end() ) return NULL;
+  if (channelMapEpg_it->channelID == channelID) return &(*channelMapEpg_it);
+  return NULL;
 }
 
 // implement class cTVScraperConfigLock *************************

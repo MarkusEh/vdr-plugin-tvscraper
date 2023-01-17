@@ -130,6 +130,179 @@ int csRecording::DurationInSecMarks_int(void) {
   return m_durationInSecMarks;
 }
 
+int parseMarkadVpsKeyword(std::ifstream &markad, const char *fname) {
+// return 0: EOF, or error
+// 1 start
+// 2 pause start
+// 3 pause stop
+// 4 stop
+  if (!markad) return 0;
+  std::string line;
+  markad >> line;
+  if (line.empty() ) return 0;
+  if (line.compare(0, 6,  "START:", 6) == 0) return 1;
+  if (line.compare(0, 5,  "STOP:", 5) == 0) return 4;
+  if (line.compare(0, 5,  "PAUSE"  , 5) != 0) {
+    esyslog("tvscraper: ERROR parsing markad.vps, line = %s, file = %s", line.c_str(), fname );
+    return 0;
+  }
+  line = "";
+  markad >> line;
+  if (line.empty() ) {
+    esyslog("tvscraper: ERROR parsing markad.vps, line empty after PAUSE, file = %s", fname);
+    return 0;
+  }
+  if (line.compare(0, 6,  "START:", 6) == 0) return 2;
+  if (line.compare(0, 5,  "STOP:", 5) == 0) return 3;
+  esyslog("tvscraper: ERROR parsing markad.vps, line after PAUSE = %s, file = %s", line.c_str(), fname );
+  return 0;
+}
+int parseMarkadVps(std::ifstream &markad, int &time, const char *fname) {
+// return 0: EOF, or error
+// 1 start
+// 2 pause start
+// 3 pause stop
+// 4 stop
+// time: timestamp in sec (since recording start)
+  time = -1;
+  int keyword = parseMarkadVpsKeyword(markad, fname);
+  if (keyword == 0) return 0;
+  if (!markad) {
+    esyslog("tvscraper: ERROR parsing markad.vps, EOF after keyword = %d, file = %s", keyword, fname);
+    return 0;
+  }
+  std::string line;
+  markad >> line;
+  if (line.empty() ) {
+    esyslog("tvscraper: ERROR parsing markad.vps, empty line after keyword = %d, file = %s", keyword, fname);
+    return 0;
+  }
+  if (!markad) {
+    esyslog("tvscraper: ERROR parsing markad.vps, EOF after keyword = %d and line %s, file = %s", keyword, line.c_str() , fname);
+    return 0;
+  }
+  markad >> time;
+  return keyword;
+}
+
+int csRecording::getVpsLength() {
+// -4: not checked.  (will not be returned)
+// -3: markad.vps not available or wrong format
+// -2: VPS not used.
+// -1: VPS used, but no time available
+// >0: VPS length in seconds
+  if (m_vps_length > -4) return m_vps_length;
+  std::string filename = concatenate(m_recording->FileName(), "/markad.vps");
+  struct stat buffer;
+  if (stat (filename.c_str(), &buffer) != 0) { m_vps_length = -3; return m_vps_length; }
+
+  std::ifstream markad(filename.c_str());
+  if (!markad) { m_vps_length = -3; return m_vps_length; }
+  std::string l1;
+  markad >> l1;
+  if (l1 == "VPSTIMER=NO") { m_vps_length = -2; return m_vps_length; }
+  if (l1 != "VPSTIMER=YES") {
+//    esyslog("tvscraper: ERROR: markad.vps, wrong format, first line=%s, path %s", l1.c_str(), m_recording->FileName());
+// remove this error. There are old versions of markad.vps without this line
+    m_vps_length = -3;
+    return m_vps_length;
+  }
+  m_vps_length = -1;  // VPS was used. Check the length
+  if (!markad) return m_vps_length;
+  int time_start_sequence, time_end_sequence;
+  int keyword = parseMarkadVps(markad, time_start_sequence, m_recording->FileName());
+  if (keyword == 0) return m_vps_length;
+  if (keyword != 1) {
+    esyslog("tvscraper: ERROR: markad.vps, first keyword = %d, path %s", keyword, m_recording->FileName());
+    return m_vps_length;
+  }
+  m_vps_start = time_start_sequence;
+  for (int cur_length = 0;;) {
+    keyword = parseMarkadVps(markad, time_end_sequence, m_recording->FileName());
+    if (keyword != 4 && keyword != 2) {
+      esyslog("tvscraper: ERROR: markad.vps, keyword %d after start sequence, path %s", keyword, m_recording->FileName());
+      return m_vps_length;
+    }
+    if (time_start_sequence >= time_end_sequence) {
+      esyslog("tvscraper: ERROR:time_start_sequence %d > time_end_sequence %d, keyword %d,  path %s", time_start_sequence, time_end_sequence, keyword, m_recording->FileName());
+      return m_vps_length;
+    }
+    cur_length += (time_end_sequence - time_start_sequence);
+    if (keyword == 4) {
+      m_vps_length = cur_length;
+      return m_vps_length;
+    }
+    keyword = parseMarkadVps(markad, time_start_sequence, m_recording->FileName());
+    if (keyword != 3) {
+      esyslog("tvscraper: ERROR: markad.vps, keyword %d after pause start sequence, path %s", keyword, m_recording->FileName());
+      return m_vps_length;
+    }
+  }
+}
+bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
+// return false if no info is available
+  std::string filename = concatenate(m_recording->FileName(), "/tvscrapper.json" );
+  struct stat buffer;
+  if (stat (filename.c_str(), &buffer) != 0) return false;
+
+  rapidjson::Document document;
+  if (jsonReadFile(document, filename.c_str())) return false; // error parsing json file
+  rapidjson::Value::ConstMemberIterator timer_j = document.FindMember("timer");
+  if (timer_j == document.MemberEnd() ) return false;  // timer information not available
+
+  if (!assertGetValue(timer_j->value, "vps", vps, filename.c_str() ) ) return false;
+  time_t start, stop;
+  if (!assertGetValue(timer_j->value, "start_time", start, filename.c_str() ) ) return false;
+  if (!assertGetValue(timer_j->value, "start_time", stop, filename.c_str() ) ) return false;
+  lengthInSeconds = stop - start;
+  return true;
+}
+
+int csRecording::durationDeviationNoVps() {
+// vps was NOT used.
+  bool vps;
+  int lengthInSeconds;
+  if (getTvscraperTimerInfo(vps, lengthInSeconds) ) {
+    if (vps) esyslog("tvscraper: ERROR, inconsistent VPS data in %s", m_recording->FileName() );
+    return std::max(0, lengthInSeconds - m_recording->LengthInSeconds());
+  } else
+    return std::max(0, m_recording->Info()->GetEvent()->Duration() + (::Setup.MarginStart + ::Setup.MarginStop) * 60 - m_recording->LengthInSeconds());
+}
+int csRecording::durationDeviationVps(int s_runtime) {
+// VPS was used, but we don't have the VPS start / end mark
+  int deviation = m_recording->Info()->GetEvent()->Duration() - m_recording->LengthInSeconds();
+  if (deviation <= 0) return 0; // recording is longer than event duration -> no error
+  if (deviation <= 6*60) return 0; // we assume VPS was used, und report only huge deviations > 6min
+  if (s_runtime <= 0) return deviation;
+  return std::min(deviation, std::abs(s_runtime*60 - m_recording->LengthInSeconds()));
+}
+int csRecording::durationDeviation(int s_runtime) {
+// return deviation between actual reording length, and planned duration (timer / vps)
+  if (!m_recording || !m_recording->FileName() || !m_recording->Info() || !m_recording->Info()->GetEvent() ) return 6000;
+  if (m_recording->IsEdited() ) return 0;  // we assume, who ever edited the recording checked for completeness
+  if (m_recording->IsInUse()&&ruTimer == ruTimer) return 0;  // still recording => incomplete, this check is useless
+  if (!m_recording->Info()->GetEvent()->Vps() ) return durationDeviationNoVps();
+// event has VPS. Was VPS used?
+  int vps_used_markad = getVpsLength();
+  if (vps_used_markad == -2) return durationDeviationNoVps();
+  if (vps_used_markad >=  0) return std::abs(vps_used_markad + m_vps_start - m_recording->LengthInSeconds() );
+  if (vps_used_markad == -1) return durationDeviationVps(s_runtime);
+// still unclear whether VPS was used
+  bool vps;
+  int lengthInSeconds;
+  if (getTvscraperTimerInfo(vps, lengthInSeconds) ) {
+// information in tvscraper.json is available
+    if(!vps) return std::max(0, lengthInSeconds - m_recording->LengthInSeconds());
+// vps was used, but the VPS start/stop marks are missing
+    return durationDeviationVps(s_runtime);
+  }
+// still unclear whether VPS was used, no final inforamtion is available. Guess
+  int deviationNoVps = m_recording->Info()->GetEvent()->Duration() + (::Setup.MarginStart + ::Setup.MarginStop) * 60 - m_recording->LengthInSeconds();
+  int deviationVps = m_recording->Info()->GetEvent()->Duration() - m_recording->LengthInSeconds();
+  if (std::abs(deviationVps) < std::abs(deviationNoVps)) return durationDeviationVps(s_runtime);
+  return std::max(0, deviationNoVps);
+}
+
 csEventOrRecording *GetsEventOrRecording(const cEvent *event, const cRecording *recording) {
   if (event) return new csEventOrRecording(event);
   if (recording && recording->Info() && recording->Info()->GetEvent() ) return new csRecording(recording);

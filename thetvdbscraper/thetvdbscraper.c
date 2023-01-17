@@ -62,6 +62,17 @@ bool cTVDBScraper::GetToken(const std::string &jsonResponse) {
   return true;
 }
 
+void getCharacters(json_t *jData, cTVDBSeries &series) {
+  json_t *jCharacters = json_object_get(jData, "characters");
+  if (json_is_array(jCharacters)) {
+    size_t index;
+    json_t *jCharacter;
+    json_array_foreach(jCharacters, index, jCharacter) {
+      series.ParseJson_Character(jCharacter);
+    }
+  }
+}
+
 int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
 // return 0 in case of error
 // return -1 if the object does not exist in external db
@@ -75,6 +86,10 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
 
   cTVDBSeries series(db, this, seriesID);
 // this call gives also episode related information like actors, images, ...
+// Change: season images type 6 ("Banner") & 7 ("Poster") still included
+// Episode Guest stars, writer, ... NOT included any more
+// Episode Guest stars, writer, ... NOT available in https://api4.thetvdb.com/v4/seasons/1978231/extended
+//
   string url = baseURL4 + "series/" + std::to_string(seriesID) + "/extended?meta=translations&short=false";
   int error;
   cLargeString buffer("cTVDBScraper::StoreSeriesJson", 15000);
@@ -100,7 +115,14 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
         size_t index;
         json_t *jEpisode;
         json_array_foreach(jEpisodesDataEpisodes, index, jEpisode) {
-          series.ParseJson_Episode(jEpisode);
+          int epidodeID = series.ParseJson_Episode(jEpisode);
+          if (epidodeID != 0) {
+            string urlEp = baseURL4 + "episodes/" + std::to_string(epidodeID) + "/extended";
+            json_t *jEpisode = CallRestJson(urlEp, buffer);
+            json_t *jEpisodeData = json_object_get(jEpisode, "data");
+            getCharacters(jEpisodeData, series);
+            json_decref(jEpisode);
+          }
         }
       }
     }
@@ -110,14 +132,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   }
 // characters / actors
 // we also add characters to episodes. Therefore, we do this after parsing the episodes
-  json_t *jCharacters = json_object_get(jSeriesData, "characters");
-  if (json_is_array(jCharacters)) {
-    size_t index;
-    json_t *jCharacter;
-    json_array_foreach(jCharacters, index, jCharacter) {
-      series.ParseJson_Character(jCharacter);
-    }
-  }
+  getCharacters(jSeriesData, series);
 // we also add season images. Therefore, we do this after parsing the episodes
   series.ParseJson_Artwork(jSeriesData);
 // store series here, as here information (incl. episode runtimes, poster URL, ...) is complete

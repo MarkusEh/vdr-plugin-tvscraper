@@ -55,6 +55,7 @@ void cTVScraperWorker::SetDirectories(void) {
     movieDir = strMovieDir.str();
     bool ok = false;
     ok = CreateDirectory(plgBaseDir.substr(0, config.GetBaseDirLen()-1 ));
+    if (ok) ok = CreateDirectory(config.GetBaseDirEpg() );
     if (ok)
         ok = CreateDirectory(seriesDir);
     if (ok)
@@ -145,6 +146,8 @@ bool cTVScraperWorker::ScrapEPG(void) {
       esyslog("tvscraper: ERROR: don't scrape more than 1000 channels");
       break;
     }
+    cTvspEpg tvspEpg(config.GetChannelMapEpg(channelID));
+
     map<tChannelID, set<int>*>::iterator currentEventsCurrentChannelIT = currentEvents.find(channelID);
     if (currentEventsCurrentChannelIT == currentEvents.end() ) {
       currentEvents.insert(pair<tChannelID, set<int>*>(channelID, new set<int>));
@@ -170,13 +173,14 @@ bool cTVScraperWorker::ScrapEPG(void) {
 #if VDRVERSNUM >= 20301
           LOCK_SCHEDULES_READ;
 #endif
-          const cEvent *event = getEvent(eventID, channelID);
+          cEvent *event = getEvent(eventID, channelID);
           if (!event) continue;
           newEvent = true;
           if (!newEventSchedule) {
             dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), (const char *)channelID.ToString());
             newEventSchedule = true;
           }
+					tvspEpg.enhanceEvent(event);
           csEventOrRecording sEvent(event);
           cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);
           movieOrTv = SearchEventOrRec.Scrape();
@@ -257,6 +261,25 @@ bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
   return false;
 }
 
+void writeTimerInfo(const cTimer *timer, const char *pathName) {
+  std::string filename = concatenate(pathName, "/tvscrapper.json");
+
+  rapidjson::Document document;
+  if (jsonReadFile(document, filename.c_str())) return; // error parsing json file
+  if (document.HasMember("timer") ) return;  // timer information already available
+
+  rapidjson::Value timer_j;
+  timer_j.SetObject();
+
+  timer_j.AddMember("vps", rapidjson::Value().SetBool(timer->HasFlags(tfVps)), document.GetAllocator());
+  timer_j.AddMember("start_time", rapidjson::Value().SetInt(timer->StartTime()), document.GetAllocator());
+  timer_j.AddMember("stop_time", rapidjson::Value().SetInt(timer->StopTime()), document.GetAllocator());
+
+  document.AddMember("timer", timer_j, document.GetAllocator());
+
+  jsonWriteFile(document, filename.c_str());
+}
+
 bool cTVScraperWorker::CheckRunningTimers(void) {
 // assign scrape result from EPG to recording
 // return true if new data are assigned to one or more recordings
@@ -278,6 +301,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         continue;
       }
       recordingFileNames.push_back(rc->FileName() );
+      writeTimerInfo(timer, rc->FileName() );
     }
   } // timer lock is released
   for (const string &filename: recordingFileNames) {
@@ -300,10 +324,13 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         newRecData = true;
         movieOrTv = cMovieOrTv::getMovieOrTv(db, &sRecording);
         if (movieOrTv) {
-          movieOrTv->copyImagesToRecordingFolder(recording->FileName() );
+          if (!movieOrTv->copyImagesToRecordingFolder(recording->FileName() )) {
+            if (recording->Info()) CopyFile(getEpgImagePath(recording->Info()->GetEvent(), false), std::string(recording->FileName() ) + "/fanart.jpg");
+          }
           delete movieOrTv;
           movieOrTv = NULL;
-        }
+        } else
+          if (recording->Info()) CopyFile(getEpgImagePath(recording->Info()->GetEvent(), false), std::string(recording->FileName() ) + "/fanart.jpg");
       }
       if (r == 0) {
         tEventID eventID = sRecording.EventID();

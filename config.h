@@ -36,8 +36,17 @@ class cLanguage {
       return result.str();
     }
 };
+struct sChannelMapEpg {
+      std::string extid;    // ARD
+      std::string source;   // tvsp
+      tChannelID channelID; // VDR channel ID
+      int vps;
+      int merge;
+};
 
 bool operator< (const tChannelID &c1, const tChannelID &c2);
+bool operator< (const sChannelMapEpg &cm1, const sChannelMapEpg &cm2) { return cm1.channelID < cm2.channelID; }
+bool operator< (const sChannelMapEpg &cm1, const tChannelID &c2) { return cm1.channelID < c2; }
 bool operator< (const cLanguage &l1, const cLanguage &l2) {
   return l1.m_id < l2.m_id;
 }
@@ -64,8 +73,10 @@ class cTVScraperConfig {
         bool m_autoTimersPathSet = false; // if true, all autoTimers will use m_autoTimersPath
         std::string m_autoTimersPath;
         string baseDir;       // /var/cache/vdr/plugins/tvscraper/
+        vector<sChannelMapEpg> m_channelMap;
 // "calculated" parameters, from command line paramters
         int baseDirLen;
+        string baseDirEpg = "";
         string baseDirSeries = "";
         string baseDirMovies = "";
         string baseDirMovieActors = "";
@@ -122,6 +133,7 @@ class cTVScraperConfig {
         void SetBaseDir(const string &dir);
         const string &GetBaseDir(void) const { return baseDir; };
         int GetBaseDirLen(void) const { return baseDirLen; };
+        const string &GetBaseDirEpg(void) const { return baseDirEpg; };
         const string &GetBaseDirSeries(void) const { return baseDirSeries; };
         const string &GetBaseDirMovies(void) const { return baseDirMovies; };
         const string &GetBaseDirMovieActors(void) const { return baseDirMovieActors; };
@@ -150,6 +162,7 @@ class cTVScraperConfig {
         const cLanguage *GetLanguage(const tChannelID &channelID) const;  // this will ALLWAYS return a valid pointer to cLanguage
         bool isDefaultLanguage(const cLanguage *l) const { if (!l) return true; cTVScraperConfigLock ll; bool r = l->m_id == m_defaultLanguage; return r; }
         int GetLanguage_n(const tChannelID &channelID) const;
+        const sChannelMapEpg *GetChannelMapEpg(const tChannelID &channelID) const;
 };
 
 #endif //__TVSCRAPER_CONFIG_H

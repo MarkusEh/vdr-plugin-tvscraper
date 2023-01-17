@@ -91,68 +91,6 @@ size_t sentence_distance_int(std::string_view sentence1, std::string_view senten
   return seq_distance(word_list(sentence1, len1, max_len), word_list(sentence2, len2, max_len), &word_distance);
 }
 
-// UTF8 string utilities ****************
-void AppendUtfCodepoint(std::string &target, wint_t codepoint){
-  if (codepoint <= 0x7F){
-     target.push_back( (char) (codepoint) );
-     return;
-  }
-  if (codepoint <= 0x07FF) {
-     target.push_back( (char) (0xC0 | (codepoint >> 6 ) ) );
-     target.push_back( (char) (0x80 | (codepoint & 0x3F)) );
-     return;
-  }
-  if (codepoint <= 0xFFFF) {
-     target.push_back( (char) (0xE0 | ( codepoint >> 12)) );
-     target.push_back( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
-     target.push_back( (char) (0x80 | ( codepoint & 0x3F)) );
-     return;
-  }
-     target.push_back( (char) (0xF0 | ((codepoint >> 18) & 0x07)) );
-     target.push_back( (char) (0x80 | ((codepoint >> 12) & 0x3F)) );
-     target.push_back( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
-     target.push_back( (char) (0x80 | ( codepoint & 0x3F)) );
-     return;
-}
-
-int utf8CodepointIsValid(const char *p){
-// In case of invalid UTF8, return 0
-// otherwise, return number of characters for this UTF codepoint
-  static const uint8_t LEN[] = {2,2,2,2,3,3,4,0};
-
-  int len = ((*p & 0xC0) == 0xC0) * LEN[(*p >> 3) & 7] + ((*p | 0x7F) == 0x7F);
-  for (int k=1; k < len; k++) if ((p[k] & 0xC0) != 0x80) len = 0;
-  return len;
-}
-
-wint_t Utf8ToUtf32(const char *&p, int len) {
-// assumes, that uft8 validity checks have already been done. len must be provided. call utf8CodepointIsValid first
-// change p to position of next codepoint (p = p + len)
-  static const uint8_t FF_MSK[] = {0xFF >>0, 0xFF >>0, 0xFF >>3, 0xFF >>4, 0xFF >>5, 0xFF >>0, 0xFF >>0, 0xFF >>0};
-  wint_t val = *p & FF_MSK[len];
-  const char *q = p + len;
-  for (p++; p < q; p++) val = (val << 6) | (*p & 0x3F);
-  return val;
-}
-
-wint_t getUtfCodepoint(const char *p) {
-// get next codepoint 0 is returned at end of string
-  if(!p || !*p) return 0;
-  int l = utf8CodepointIsValid(p);
-  if( l == 0 ) return '?';
-  const char *s = p;
-  return Utf8ToUtf32(s, l);
-}
-
-wint_t getNextUtfCodepoint(const char *&p){
-// get next codepoint, and increment p
-// 0 is returned at end of string, and p will point to the end of the string (0)
-  if(!p || !*p) return 0;
-  int l = utf8CodepointIsValid(p);
-  if( l == 0 ) { p++; return '?'; }
-  return Utf8ToUtf32(p, l);
-}
-
 int rom_char_val(char c) {
   switch(tolower(c)) {
     case 'm': return 1000;

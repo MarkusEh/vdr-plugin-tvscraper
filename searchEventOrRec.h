@@ -13,8 +13,8 @@ private:
   void SearchTvAll(vector<searchResultTvMovie> &searchResults);
   bool isTitlePartOfPathName(size_t baseNameLen);
   void initBaseNameOrTitle(void);
-  bool isVdrDate(const std::string &baseName);
-  bool isVdrDate2(const std::string &baseName);
+  bool isVdrDate(std::string_view baseName);
+  bool isVdrDate2(std::string_view baseName);
   void initSearchString3dots(std::string &searchString);
   void initSearchString(std::string &searchString);
   void setFastMatch(searchResultTvMovie &searchResult);
@@ -40,7 +40,8 @@ private:
   cTVDBScraper *m_tvdbScraper;
   cTVScraperDB *m_db; 
 // "calculated"
-  std::string m_baseNameOrTitle;
+  cString m_baseName;
+  std::string_view m_baseNameOrTitle;
   std::string m_episodeName;
   std::string m_movieSearchString;
   std::string m_TVshowSearchString;

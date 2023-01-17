@@ -1,4 +1,5 @@
 #include <map>
+#include <charconv>
 #include "overrides.h"
 
 using namespace std;
@@ -9,7 +10,7 @@ cOverRides::cOverRides(void) {
 cOverRides::~cOverRides() {
 }
 
-void cOverRides::ReadConfig(string confDir) {
+void cOverRides::ReadConfig(string_view confDir) {
     stringstream sstrConfFile;
     sstrConfFile << confDir << "/override.conf";
     string confFile = sstrConfFile.str();
@@ -33,12 +34,12 @@ void cOverRides::ReadConfig(string confDir) {
     }
 }
 
-void cOverRides::ReadConfigLine(string line) {
-    vector<string> flds = getSetFromString<string, vector<string>>(line.c_str());
+void cOverRides::ReadConfigLine(const char *line) {
+    vector<string_view> flds = getSetFromString<string_view, vector<string_view>>(line);
     if (flds.size() > 0) {
         if (!flds[0].compare("ignore")) {
             if (flds.size() == 2) {
-                ignores.push_back(flds[1]);
+                ignores.push_back(string(flds[1]));
             }
         } else if (!flds[0].compare("settype")) {
             if (flds.size() == 3) {
@@ -54,27 +55,29 @@ void cOverRides::ReadConfigLine(string line) {
             }
         } else if (!flds[0].compare("thetvdbID")) {
             if (flds.size() == 3) {
-                m_thetvdbID.insert(pair<string, int>(flds[1],  atoi(flds[2].c_str()) ));
+                int thetvdbID;
+                std::from_chars_result r = from_chars(flds[2].data(), flds[2].data() + flds[2].length(), thetvdbID);
+                if (r.ec !=  std::errc() ) esyslog("tvscraper: ERROR in override.conf, not a number in field thetvdbID");
+                else m_thetvdbID.insert(pair<string, int>(flds[1], thetvdbID));
             }
         } else if (!flds[0].compare("ignorePath")) {
             if (flds.size() == 2) {
                 if (flds[1].find("/", flds[1].length()-1) != std::string::npos)
-                    ignorePath.push_back(flds[1]);
+                    ignorePath.push_back(string(flds[1]));
                 else
-                    ignorePath.push_back(flds[1] + "/");
+                    ignorePath.push_back(string(flds[1]) + "/");
             }
         } else if (!flds[0].compare("removePrefix")) {
-                removePrefixes.push_back(flds[1]);
+                removePrefixes.push_back(string(flds[1]));
         }
     }
 }
 
-bool cOverRides::Ignore(string title) {
-    vector<string>::iterator pos;
-    for ( pos = ignores.begin(); pos != ignores.end(); ++pos) {
-        if (!title.compare(pos->c_str())) {
+bool cOverRides::Ignore(string_view title) {
+    for (const string &pos: ignores) {
+        if (title == pos) {
             if (config.enableDebug)
-                esyslog("tvscraper: ignoring \"%s\" because of override.conf", title.c_str());
+                esyslog("tvscraper: ignoring \"%.*s\" because of override.conf", (int)title.length(), title.data());
             return true;
         }
     }
@@ -92,51 +95,47 @@ bool cOverRides::Substitute(string &title) {
     return false;
 }
 
-int cOverRides::thetvdbID(string title) {
-    map<string,int>::iterator hit = m_thetvdbID.find(title);
+int cOverRides::thetvdbID(string_view title) {
+    map<string,int,std::less<>>::iterator hit = m_thetvdbID.find(title);
     if (hit != m_thetvdbID.end()) {
         if (config.enableDebug)
-            esyslog("tvscraper: title \"%s\", use thetvdb ID %i override.conf", title.c_str(), (int)hit->second);
+            esyslog("tvscraper: title \"%.*s\", use thetvdb ID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
         return (int)hit->second;
     }
     return 0;
 }
 
-string cOverRides::RemovePrefix(string title) {
+void cOverRides::RemovePrefix(string &title) {
   size_t nTitle = title.length();
   for (const string &prefix: removePrefixes) {
     size_t nPrefix = prefix.length();
     if (nPrefix >= nTitle - 3) continue;
     if (!title.compare(0, nPrefix, prefix) ) {
       for (; nPrefix < nTitle - 3 && title[nPrefix] == ' '; nPrefix++);
-      if (nPrefix < nTitle - 3)
-         return(title.substr(nPrefix) );
-      else return title;
+      if (nPrefix < nTitle - 3) title.erase(0, nPrefix);
+      return;
     }
   }
-  return title;
 }
 
-scrapType cOverRides::Type(const string &title) {
-    map<string,scrapType>::iterator hit = searchTypes.find(title);
+scrapType cOverRides::Type(string_view title) {
+    map<string,scrapType, less<>>::iterator hit = searchTypes.find(title);
     if (hit != searchTypes.end()) {
         if (config.enableDebug)
-            esyslog("tvscraper: using type %d for \"%s\" because of override.conf", (int)hit->second, title.c_str());
+            esyslog("tvscraper: using type %d for \"%.*s\" because of override.conf", (int)hit->second, (int)title.length(), title.data());
         return (scrapType)hit->second;
     }
     return scrapNone;
 }
 
-bool cOverRides::IgnorePath(string path) {
-    vector<string>::iterator pos;
-    for ( pos = ignorePath.begin(); pos != ignorePath.end(); ++pos) {
-        if (path.find(pos->c_str()) != string::npos) {
-            if (config.enableDebug)
-                esyslog("tvscraper: ignoring path \"%s\" because of override.conf", path.c_str());
-            return true;
-        }
+bool cOverRides::IgnorePath(string_view path) {
+  for (const string &pos: ignorePath) {
+    if (path.find(pos) != string::npos) {
+      if (config.enableDebug) esyslog("tvscraper: ignoring path \"%.*s\" because of override.conf", (int)path.length(), path.data());
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 void cOverRides::Dump(void) {

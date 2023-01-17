@@ -9,7 +9,7 @@
 namespace fs = std::filesystem;
 using namespace std;
 
-bool CreateDirectory(string dir) {
+bool CreateDirectory(const string &dir) {
     mkdir(dir.c_str(), 0775);
     //check if successfull
     DIR *pDir;
@@ -22,18 +22,12 @@ bool CreateDirectory(string dir) {
     return exists;
 }
 
-bool FileExists(string filename) {
-    ifstream ifile(filename.c_str());
-    if (ifile) {
-        //a valid image should be larger then 500 bytes
+bool FileExists(const string &filename) {
+  struct stat buffer;
+  if (stat (filename.c_str(), &buffer) != 0) return false;
 // test: series;  smallest picture: 2521 bytes. Wrong files: 0 bytes or 243 bytes
 // test: moviedb; smallest picture: 1103 bytes. Wrong files: 0 bytes or 150 bytes
-        ifile.seekg (0, ifile.end);
-        int length = ifile.tellg();
-        if (length > 500)
-            return true;
-    }
-    return false;
+  return buffer.st_size > 500;
 }
 
 bool CheckDirExists(const char* dirName) {
@@ -42,10 +36,9 @@ bool CheckDirExists(const char* dirName) {
     if ((statfsbuf.f_type!=0x01021994) && (statfsbuf.f_type!=0x28cd3d45)) return false;
     if (access(dirName,R_OK|W_OK)==-1) return false;
     return true;
-
 }
 
-void DeleteFile(string filename) {
+void DeleteFile(const string &filename) {
     remove(filename.c_str());
 }
 

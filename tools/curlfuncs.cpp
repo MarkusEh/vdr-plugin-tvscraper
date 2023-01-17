@@ -37,7 +37,8 @@ inline void InitCurlLibraryIfNeeded()
       throw string("Could not create new curl instance");
     curl_easy_setopt(curlfuncs::curl, CURLOPT_NOPROGRESS, 1);       // Do not show progress
     curl_easy_setopt(curlfuncs::curl, CURLOPT_FOLLOWLOCATION, 1);
-    curl_easy_setopt(curlfuncs::curl, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0; Mayukh's libcurl wrapper http://www.mayukhbose.com/)");
+//  curl_easy_setopt(curlfuncs::curl, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0; Mayukh's libcurl wrapper http://www.mayukhbose.com/)");
+    curl_easy_setopt(curlfuncs::curl, CURLOPT_USERAGENT, "User-Agent: 4.2 (Nexus 10; Android 6.0.1; de_DE)");
     curlfuncs::bInitialized = true;
   }
 }
@@ -51,6 +52,7 @@ bool CurlGetUrl_int(const char *url, void *sOutput, struct curl_slist *headers, 
   curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPGET, 1);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEFUNCTION, func);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEDATA, sOutput);       // Set option to write to string
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_ACCEPT_ENCODING, "");
   return curl_easy_perform(curlfuncs::curl) == 0;
 }
 bool CurlGetUrl_int(const char *url, string &sOutput, struct curl_slist *headers) {
@@ -69,6 +71,7 @@ bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers) {
     ret = CurlGetUrl_int(url, sOutput, headers);
     if (ret && sOutput.length() > 10) {
       if(sOutput[0] == '{') return true; // json file, OK
+      if(sOutput[0] == '[') return true; // json file, OK
       if(strncmp(sOutput.data(), "<html>", 6) != 0 && sOutput[0] == '<') return true; // xml  file, OK
 //    if("<html>"sv.compare(0, 6, sOutput) != 0 && sOutput[0] == '<') return true; // xml  file, OK
     }

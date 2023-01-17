@@ -50,7 +50,7 @@ bool operator< (const cEventMovieOrTv &first, const cTimerMovieOrTv &timer2) {
 }
 
 // getEvent ********************************
-const cEvent* getEvent(tEventID eventid, const tChannelID &channelid) {
+cEvent* getEvent(tEventID eventid, const tChannelID &channelid) {
 // note: NULL is returned, if this event is not available
   if ( !channelid.Valid() || eventid == 0 ) return NULL;
   cSchedule const* schedule;
@@ -64,7 +64,7 @@ const cEvent* getEvent(tEventID eventid, const tChannelID &channelid) {
   schedule = schedules->GetSchedule( channelid );
 #endif
   if (!schedule) return NULL;
-  return schedule->GetEvent(eventid);
+  return const_cast<cEvent *>(schedule->GetEvent(eventid));
 // note: GetEvent is deprecated, but GetEventById not available in VDR 2.4.8. return schedule->GetEventById(eventid);
 }
 
@@ -153,6 +153,12 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
 #else
     int numberOfErrors = 0;
 #endif
+    if (numberOfErrors == 0) {
+      int runtime;
+      if (season_number == -100) runtime = db.QueryInt("select movie_runtime from movies3 where movie_id = ?", "i", movie_tv_id);
+      else runtime = db.QueryInt("select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", movie_tv_id, season_number, episode_number);
+      if (sRecording.durationDeviation(runtime) > 60) numberOfErrors = 1;  // in case of deviations > 1min, create timer ...
+    }
     cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, hd, numberOfErrors);
     auto found = recordings.find(scraperRec);
     if (found == recordings.end() ) recordings.insert(std::move(scraperRec)); // not in list -> insert

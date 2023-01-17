@@ -8,22 +8,22 @@ using namespace std;
 class cOverRides {
 private:
     vector<string> ignores;
-    map<string,scrapType> searchTypes;
+    map<string,scrapType, less<>> searchTypes;
     map<string,string> substitutes;
-    map<string,int> m_thetvdbID;
+    map<string,int,less<>> m_thetvdbID;
     vector<string> ignorePath;
     vector<string> removePrefixes;
-    void ReadConfigLine(string line);
+    void ReadConfigLine(const char *line);
 public:
     cOverRides(void);
     virtual ~cOverRides(void);
-    void ReadConfig(string confDir);
-    bool Ignore(string title);
+    void ReadConfig(string_view confDir);
+    bool Ignore(string_view title);
     bool Substitute(string &title);
-    string RemovePrefix(string title);
-    scrapType Type(const string &title);
-    int thetvdbID(string title);
-    bool IgnorePath(string path);
+    void RemovePrefix(string &title);
+    scrapType Type(string_view title);
+    int thetvdbID(string_view title);
+    bool IgnorePath(string_view path);
     void Dump(void);
 }; 
 #endif //__TVSCRAPER_OVERRIDES_H

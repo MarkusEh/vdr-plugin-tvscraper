@@ -119,3 +119,28 @@ eOrientation cOrientationsInt::popFirst() {
 eOrientation cOrientationsInt::pop() {
   return (eOrientation)((m_orientations >> (m_pop++ * 3)) & 7);
 }
+
+std::string getEpgImagePath(const cEvent *event, bool createPaths) {
+  std::string path = config.GetBaseDirEpg();
+  path.append(to_string(event->StartTime() ));
+  if (createPaths) CreateDirectory(path);
+  path.append("/");
+  path.append((const char *)event->ChannelID().ToString() );
+  if (createPaths) CreateDirectory(path);
+  path.append("/");
+  path.append(to_string(event->EventID() ));
+  path.append(".jpg");
+  return path;
+}
+
+cTvMedia getEpgImage(const cEvent *event, bool fullPath) {
+  cTvMedia result;
+  if (!event) return result;
+  result.path = getEpgImagePath(event, false);
+  if (FileExists(result.path)) {
+    if (!fullPath) result.path.erase(0, config.GetBaseDirLen());
+    result.width = 952;
+    result.height = 714;
+  } else result.path = "";
+  return result;
+}
