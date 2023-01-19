@@ -45,15 +45,22 @@ and it's sub-pages.
 Requirements
 ------------
 
-To run the plugin the following libaries have to be installed:
+- vdr 2.4.0 or later. Recommended: vdr 2.6.0 or later
 - libsqlite3
 - libcurl
 - libjansson
-- gcc must support -std=c++17  (for GCC v5, v6, v7: -std=c++1z instead of -std=c++17 might help. Also, a patch might help, see https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517)
-- vdr 2.4.0 or later. Recommended: vdr 2.6.x or later
+- gcc must support -std=c++17
+Note: if your version of GCC does not support -std=c++17, you can use -std=c++1z instead of -std=c++17. But:
+  - If you use -std=c++1z and see errors indicating a missing include (filesystem), you can change #include <filesystem> to #include <experimental/filesystem>
+  - There might be still compilation errors, because features in <filesystem> might be missing in <experimental/filesystem> . In this case, you have to upgrade your gcc compiler to GCC v8 or later
+  - See also:
+    - https://stackoverflow.com/questions/60336940/g-error-unrecognized-std-c17-what-is-g-version-and-how-to-install#60340063
+    - https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517
+    - https://www.vdr-portal.de/forum/index.php?thread/135453-kann-tvscraper-auf-opensuse-leap-15-4-nicht-%C3%BCbersetzen/&postID=1355981#post1355981
 
-If you use TVGuide: Version 1.3.6+ is required
-If you use SkinNopacity: Version 1.1.12+ is required
+
+- If you use TVGuide: Version 1.3.6+ is required
+- If you use SkinNopacity: Version 1.1.12+ is required
 
 Installation and configuration
 ------------------------------
@@ -98,6 +105,42 @@ If /dev/shm/ is available, the database is kept in memory during runtime
 which improves performance. In the configured plugin basedir only a
 persistant backup of the database is stored then. If /dev/shm/ is not
 available, only the database file in the plugin base directory is used.
+
+
+External EPG
+------------
+There are solutions to import external EPG to vdr, mixing the
+EIT EPG information (comming from the station) with the information
+of the external EPG provider, and using own IDs for the EPG events.
+See, for example, [epgd](https://github.com/horchi/vdr-epg-daemon)
+While this works good aver all, it breaks VDR functions relying
+on data from EIT, like VPS.
+
+To ensure the complete VDR functionality relying on EIT (including VPS),
+another approach can be used: Leave VDR as is in almost all aspects,
+and only replace the description of the EPG events with infomation
+from an external EPG provider.
+This is implemented as proof of concept in extEpg.c
+
+To try it out,
+- Note: For this feature, only information which is publicly available
+on the internet is used. Publicly available means not encrypted and
+not protected with passwords or API keys.
+Make sure to use this feature only if this is allowed by the laws and
+regulations applicable to you.
+- Disable all other plugins providing external epg, like vdr-plugin-epg2vdr.
+- Copy the channelmap.conf file in the format
+defined by [epgd](https://github.com/horchi/vdr-epg-daemon) to the
+tvscraper plugin configuration directoy (for debian based distributions,
+this should be /var/lib/vdr/plugins/tvscraper).
+- Note: even if the format of channelmap.conf is identical, this does not
+mean that all [epgd](https://github.com/horchi/vdr-epg-daemon) features
+are available. For example, this proof of concept is only available
+for tvsp. All lines in channelmap.conf not starting with "tvsp:" are ignored.
+- Restart vdr. That should by all.
+- To disable this feature, remove channelmap.conf from the tvscraper plugin
+configuration directoy and restart vdr
+
 
 Usage
 -----
