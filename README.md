@@ -123,9 +123,9 @@ from an external EPG provider.
 This is implemented as proof of concept in extEpg.c
 
 To try it out,
-- Note: For this feature, only information which is publicly available
-on the internet is used. Publicly available means not encrypted and
-not protected with passwords or API keys.
+- Note: This is only a proof of concept and not intended for productive use.
+For this feature, only information which is publicly available
+on the internet is used.
 Make sure to use this feature only if this is allowed by the laws and
 regulations applicable to you.
 - Disable all other plugins providing external epg, like vdr-plugin-epg2vdr.
