@@ -29,7 +29,7 @@ themoviedb.org API for movies. Check the websites of both services for
 the terms of use.
 
 Important: To avoid unnecessary traffic, only activate these channels
-to be scrapped which are reasonable. After plugin installation all
+to be scraped which are reasonable. After plugin installation all
 channels are deactivated by default, so please consider this point when
 you activate the channels you are interested in ;)
 
@@ -47,7 +47,7 @@ Requirements
 - libsqlite3
 - libcurl
 - libjansson
-- gcc must support -std=c++17
+- gcc v8 or later. gcc must support -std=c++17.
 Note: if your version of GCC does not support -std=c++17, you can use -std=c++1z instead of -std=c++17. But:
   - If you use -std=c++1z and see errors indicating a missing include (filesystem), you can change #include \<filesystem\> to #include \<experimental/filesystem\>
   - There might be still compilation errors, because features in \<filesystem\> might be missing in \<experimental/filesystem\> . In this case, you have to upgrade your gcc compiler to GCC v8 or later
@@ -78,7 +78,7 @@ parameter
 
 --readOnlyClient
 
-is provided, the client needs only read access, and will not scrap.
+is provided, the client needs only read access, and will not scrape.
 This feature is experimental, and might not work in all situations,
 e.g. for very old recordings with missing data in the info/info.vdr file.
 Make sure that the same version of tvscraper is running on client and server.
@@ -88,10 +88,10 @@ In some situations,
 on the server might help
 
 As already mentioned, after first installations no channels are activated
-to be scrapped. Please configure these channels in the plugin setup menu.
+to be scraped. Please configure these channels in the plugin setup menu.
 (not required in --readOnlyClient mode).
 Additionally you can trigger that your already existing recordings are
-scrapped, so that also for this recordings metadata is available.
+scraped, so that also for this recordings metadata is available.
 
 With a "make install" the file "override.conf" which provides the
 possibility to define scraping behaviour manually (see description
@@ -112,7 +112,7 @@ There are solutions to import external EPG to vdr, mixing the
 EIT EPG information (comming from the station) with the information
 of the external EPG provider, and using own IDs for the EPG events.
 See, for example, [epgd](https://github.com/horchi/vdr-epg-daemon).
-While this works good aver all, it breaks VDR functions relying
+While this works good over all, it breaks VDR functions relying
 on data from EIT, like VPS.
 
 To ensure the complete VDR functionality relying on EIT (including VPS),
@@ -135,8 +135,8 @@ mean that all [epgd](https://github.com/horchi/vdr-epg-daemon) features
 are available. For example, this proof of concept is only available
 for tvsp. All lines in channelmap.conf not starting with "tvsp:" are ignored.
 - Restart vdr. That should by all.
-- To disable this feature, remove channelmap.conf from the tvscraper plugin
-configuration directoy and restart vdr
+- To disable this feature, remove channelmap.conf from \<PLGCFGDIR\>
+directoy and restart vdr
 
 
 Usage
@@ -157,7 +157,7 @@ meta data so that the information for this movie will be kept permanentely.
 
 Usage of override.conf: even if tvscraper tries to do everything correct on
 it's own, in some cases scraping delivers wrong results. Some EPG Events are
-not reasonable to scrap, because they reoccur constantly but deliver wrong
+not reasonable to scrape, because they reoccur constantly but deliver wrong
 results everytime, or tvscraper searchs for a movie instead of a series
 (for instance german "Heute"). In such cases it is possible to use
 \<PLGCFGDIR\>/override.conf to adjust the scraping behaviour. Each line in
@@ -165,18 +165,26 @@ this file has to start either with "ignore", "settype", "substitute" or
 "ignorePath":
 
 - Ignore specific EPG Events or recordings: just create a line in the format
+```
   ignore;string
   to ignore "string".
-- Set scrap type for specific EPG Event or recording:
+```
+- Set scrape type for specific EPG Event or recording:
+```
   settype;string;type
   "string" defines the name of the event or recording to set the type manually,
   "type" can be either "series" or "movie"
+```
 - Substitute Search String:
+```
   substitute;string;substitution
   "string" is replaced by "substitution" in every search.
+```
 - Ignore all recordings in a deditcatd directory:
+```
   ignorePath;string
   "string" can be any substring of a recording path, e.g. "music/"
+```
 
 Service Interface
 -----------------
@@ -216,7 +224,7 @@ Some calls offered by the service interface (see services.h for complete list):
   Retreive poster for specified event or recording.
 
 ```
-  // Data structure for service "GetPoster"
+// Data structure for service "GetPoster"
 class ScraperGetPoster {
 public:
 // in
@@ -281,4 +289,4 @@ Example: (see services.h for data structures of cSeries & cMovie, and for enum t
     }
 ```
 
-see services.h for more available methods
+See services.h for more available methods
