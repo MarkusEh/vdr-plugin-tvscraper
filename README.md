@@ -2,11 +2,9 @@
 
 This is a "plugin" for the Video Disk Recorder (VDR).
 
-Written by:                   Stefan Braun <louis.braun@gmx.de>
-Re-written and maintained by: Markus Ehrnsperger (MarkusE @ vdr-portal.de)
-
-Latest version available at:
-https://github.com/MarkusEh/vdr-plugin-tvscraper
+- Written by:                   Stefan Braun <louis.braun@gmx.de>
+- Re-written and maintained by: Markus Ehrnsperger (MarkusE @ vdr-portal.de)
+- Latest version available at:  https://github.com/MarkusEh/vdr-plugin-tvscraper
 
 Movie information provided by [TMDB](https://www.themoviedb.org/).
 Series / TV show information provided by TheTVDB.com. [Please consider supporting them](https://u10505776.ct.sendgrid.net/ls/click?upn=xMYYCP13hVd-2BZPpbVcMPHeLXfv-2BPRdIsKm2qSeirIHi7kH9am8IxD-2BavFbeqGqIXIcjH_INgc0CXRkIvGU-2BJ1W6HLAynNbR0UBoMb2tkpDdezO3QRj-2FQPQAMrtJKVcB0N7eSvbYpjQTDNOQBf2pb94uDgGr0-2BXyXFk7Oyfva30BASYCRLvtRQyi5eOCAbH8fon7UETlPydobeLA3Recu9OsXol8c7Ng4pDAsH6KsFF8CH7HQoVxivnpKrQW2v4ek7U-2BYlWmH31o9Koke3vq-2FDsQ0P-2BiKLECU3LgttsntUcN8fnUs-3D).
@@ -51,8 +49,8 @@ Requirements
 - libjansson
 - gcc must support -std=c++17
 Note: if your version of GCC does not support -std=c++17, you can use -std=c++1z instead of -std=c++17. But:
-  - If you use -std=c++1z and see errors indicating a missing include (filesystem), you can change #include <filesystem> to #include <experimental/filesystem>
-  - There might be still compilation errors, because features in <filesystem> might be missing in <experimental/filesystem> . In this case, you have to upgrade your gcc compiler to GCC v8 or later
+  - If you use -std=c++1z and see errors indicating a missing include (filesystem), you can change #include \<filesystem\> to #include \<experimental/filesystem\>
+  - There might be still compilation errors, because features in \<filesystem\> might be missing in \<experimental/filesystem\> . In this case, you have to upgrade your gcc compiler to GCC v8 or later
   - See also:
     - https://stackoverflow.com/questions/60336940/g-error-unrecognized-std-c17-what-is-g-version-and-how-to-install#60340063
     - https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517
@@ -68,7 +66,7 @@ Installation and configuration
 Just install the plugin depending on your used distribution. During VDR
 startup the plugin base directory can be set with the following option:
 
--d <CACHEDIR>, --dir=<CACHEDIR> Set directory where database and images
+-d \<CACHEDIR\>, --dir=\<CACHEDIR\> Set directory where database and images
                                 are stored
 
 If no directory is provided, the plugin uses VDRCACHEDIR as default.
@@ -97,8 +95,9 @@ scrapped, so that also for this recordings metadata is available.
 
 With a "make install" the file "override.conf" which provides the
 possibility to define scraping behaviour manually (see description
-below) is created in <PLGCFGDIR>. An existing override.conf will
-not be overwritten.
+below) is created in \<PLGCFGDIR\> (for debian based distributions,
+this should be /var/lib/vdr/plugins/tvscraper).
+An existing override.conf will not be overwritten.
 
 The plugins uses a sqlite3 database to store the necessary information.
 If /dev/shm/ is available, the database is kept in memory during runtime
@@ -112,7 +111,7 @@ External EPG
 There are solutions to import external EPG to vdr, mixing the
 EIT EPG information (comming from the station) with the information
 of the external EPG provider, and using own IDs for the EPG events.
-See, for example, [epgd](https://github.com/horchi/vdr-epg-daemon)
+See, for example, [epgd](https://github.com/horchi/vdr-epg-daemon).
 While this works good aver all, it breaks VDR functions relying
 on data from EIT, like VPS.
 
@@ -130,9 +129,7 @@ Make sure to use this feature only if this is allowed by the laws and
 regulations applicable to you.
 - Disable all other plugins providing external epg, like vdr-plugin-epg2vdr.
 - Copy the channelmap.conf file in the format
-defined by [epgd](https://github.com/horchi/vdr-epg-daemon) to the
-tvscraper plugin configuration directoy (for debian based distributions,
-this should be /var/lib/vdr/plugins/tvscraper).
+defined by [epgd](https://github.com/horchi/vdr-epg-daemon) to \<PLGCFGDIR\>
 - Note: even if the format of channelmap.conf is identical, this does not
 mean that all [epgd](https://github.com/horchi/vdr-epg-daemon) features
 are available. For example, this proof of concept is only available
@@ -163,7 +160,7 @@ it's own, in some cases scraping delivers wrong results. Some EPG Events are
 not reasonable to scrap, because they reoccur constantly but deliver wrong
 results everytime, or tvscraper searchs for a movie instead of a series
 (for instance german "Heute"). In such cases it is possible to use
-<PLGCFGDIR>/override.conf to adjust the scraping behaviour. Each line in
+\<PLGCFGDIR\>/override.conf to adjust the scraping behaviour. Each line in
 this file has to start either with "ignore", "settype", "substitute" or
 "ignorePath":
 
@@ -192,56 +189,33 @@ object as input variable inside the struct passed to the call.
 
 As output variables tvscraper provides media info via the "cTvMedia" struct:
 
+```
 class cTvMedia {
 public:
     std::string path;
     int width;
     int height;
 };
-
+```
 
 and actors information via the "cActor" struct:
 
+```
 class cActor {
     std::string name;
     std::string role;
     cTvMedia actorThumb;
 };
+```
 
-The service interface offers the following calls:
+Some calls offered by the service interface (see services.h for complete list):
 
-- GetPosterBanner
-
-  With this call, a poster for a movie or a banner for a series which belongs
-  to a specific event can be retreived.
-
-// Data structure for service "GetPosterBanner"
-class ScraperGetPosterBanner {
-public:
-// in
-    const cEvent *event;             // check type for this event
-//out
-    tvType type;                         //typeSeries or typeMovie
-    cTvMedia poster;
-    cTvMedia banner;
-};
-
-
-  Example:
-
-  static cPlugin *pTVScraper = cPluginManager::GetPlugin("tvscraper");
-  if (pTVScraper) {
-    ScraperGetPosterBanner call;
-    call.event = Event;			//provide Event here
-    if (pTVScraper->Service("GetPosterBanner", &call)) {
-    	... further processing of call.media and call.type
-    }
-  }
 
 - GetPoster
 
   Retreive poster for specified event or recording.
 
+```
   // Data structure for service "GetPoster"
 class ScraperGetPoster {
 public:
@@ -251,9 +225,11 @@ public:
 //out
     cTvMedia poster;
 };
+```
 
     Example:
 
+```
     static cPlugin *pTVScraper = cPluginManager::GetPlugin("tvscraper");
     if (pTVScraper) {
       ScraperGetPoster call;
@@ -263,9 +239,11 @@ public:
           ... further processing of call.media
       }
     }
+```
 
 - call GetEventType, GetSeries & GetMovie
 
+```
 // Data structure for service "GetEventType"
 class ScraperGetEventType {
 public:
@@ -278,9 +256,11 @@ public:
     int seriesId;  // note: Please ignore, nothing usefull
     int episodeId; // note: Please ignore, nothing usefull
 };
+```
 
 Example: (see services.h for data structures of cSeries & cMovie, and for enum tvType with tSeries & tMovie)
 
+```
   static cPlugin *pTVScraper = cPluginManager::GetPlugin("tvscraper");
   if (pTVScraper) {
     ScraperGetEventType call;
@@ -299,5 +279,6 @@ Example: (see services.h for data structures of cSeries & cMovie, and for enum t
         ... further processing ...
       }
     }
+```
 
 see services.h for more available methods
