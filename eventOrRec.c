@@ -258,12 +258,31 @@ bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
   return true;
 }
 
+bool csRecording::getEpgsearchTimerInfo(bool &vps, int &lengthInSeconds) {
+// false: No info available
+// otherwise: Epgsearch was used, timer length
+  cXmlString epgsearchAux(m_recording->Info()->Aux(), "epgsearch"); 
+  if (!epgsearchAux.isValid()) return false;
+  cXmlString epgsearchStart(epgsearchAux, "start");
+  if (!epgsearchStart.isValid()) return false;
+  cXmlString epgsearchStop(epgsearchAux, "stop");
+  if (!epgsearchStop.isValid()) return false;
+  int start = epgsearchStart.getInt();
+  int stop = epgsearchStop.getInt();
+  lengthInSeconds = stop - start;
+  vps = (start == m_recording->Info()->GetEvent()->StartTime() ) &&
+        (lengthInSeconds == m_recording->Info()->GetEvent()->Duration() );
+  return true;
+}
 int csRecording::durationDeviationNoVps() {
 // vps was NOT used.
   bool vps;
   int lengthInSeconds;
   if (getTvscraperTimerInfo(vps, lengthInSeconds) ) {
     if (vps) esyslog("tvscraper: ERROR, inconsistent VPS data in %s", m_recording->FileName() );
+    return std::max(0, lengthInSeconds - m_recording->LengthInSeconds());
+  } else if (getEpgsearchTimerInfo(vps, lengthInSeconds) ) {
+    if (vps) esyslog("tvscraper: ERROR, inconsistent VPS data (epgsearch) in %s", m_recording->FileName() );
     return std::max(0, lengthInSeconds - m_recording->LengthInSeconds());
   } else
     return std::max(0, m_recording->Info()->GetEvent()->Duration() + (::Setup.MarginStart + ::Setup.MarginStop) * 60 - m_recording->LengthInSeconds());
@@ -292,6 +311,12 @@ int csRecording::durationDeviation(int s_runtime) {
   int lengthInSeconds;
   if (getTvscraperTimerInfo(vps, lengthInSeconds) ) {
 // information in tvscraper.json is available
+    if(!vps) return std::max(0, lengthInSeconds - m_recording->LengthInSeconds());
+// vps was used, but the VPS start/stop marks are missing
+    return durationDeviationVps(s_runtime);
+  }
+  if (getEpgsearchTimerInfo(vps, lengthInSeconds) ) {
+// epgsearch was used, and information in aux is available
     if(!vps) return std::max(0, lengthInSeconds - m_recording->LengthInSeconds());
 // vps was used, but the VPS start/stop marks are missing
     return durationDeviationVps(s_runtime);

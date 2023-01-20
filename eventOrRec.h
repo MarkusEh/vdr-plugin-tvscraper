@@ -55,6 +55,7 @@ private:
   int DurationInSecMarks(void) { return m_durationInSecMarks?m_durationInSecMarks:DurationInSecMarks_int(); }
   int DurationInSecMarks_int(void);
   bool getTvscraperTimerInfo(bool &vps, int &lengthInSeconds);
+  bool getEpgsearchTimerInfo(bool &vps, int &lengthInSeconds);
   int durationDeviationNoVps();
   int durationDeviationVps(int s_runtime);
 // member vars
