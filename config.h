@@ -116,7 +116,8 @@ class cTVScraperConfig {
 { 7, "fra", "fr-FR", "français"},
 { 8, "ita", "it-IT", "italiano"},
 { 9, "nld", "nl-NL", "Nederlands"},
-{10, "spa", "es-ES", "español"}
+{10, "spa", "es-ES", "español"},
+{11, "fin", "fi-FI", "suomi"}
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
 // list of data that can be changed in the setup menu
