@@ -403,13 +403,13 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         cMovieOrTv *movieOrTv = GetMovieOrTv(call->m_event, call->m_recording, &call->m_runtime);
         if (!movieOrTv) {
           call->m_videoType = eVideoType::none;
-          if (call->m_image) *(call->m_image) = getEpgImage(call->m_event);
+          if (call->m_image) *(call->m_image) = getEpgImage(call->m_event, call->m_recording);
           return true;
         }
         if (call->m_runtime < 0) call->m_runtime = 0;
         movieOrTv->getScraperOverview(call);
         delete movieOrTv;
-        if (call->m_image && call->m_image->path.empty() ) *(call->m_image) = getEpgImage(call->m_event);
+        if (call->m_image && call->m_image->path.empty() ) *(call->m_image) = getEpgImage(call->m_event, call->m_recording);
         return true;
     }
     if (strcmp(Id, "GetScraperImageDir") == 0) {
@@ -585,13 +585,14 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         ScraperGetPoster* call = (ScraperGetPoster*) Data;
         cMovieOrTv *movieOrTv = GetMovieOrTv(call->event, call->recording);
         if (!movieOrTv) {
-          call->poster = getEpgImage(call->event);
+          call->poster = getEpgImage(call->event, call->recording, true);
         } else {
           movieOrTv->getSingleImageBestLO(
             cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
             cOrientationsInt(eOrientation::portrait, eOrientation::landscape, eOrientation::banner),
             NULL, &call->poster.path, &call->poster.width, &call->poster.height);
           delete movieOrTv;
+          if (call->poster.path.empty() ) call->poster = getEpgImage(call->event, call->recording, true);
         }
         return true;
     }
@@ -601,13 +602,14 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         ScraperGetPosterThumb* call = (ScraperGetPosterThumb*) Data;
         cMovieOrTv *movieOrTv = GetMovieOrTv(call->event, call->recording);
         if (!movieOrTv) {
-          call->poster = getEpgImage(call->event);
+          call->poster = getEpgImage(call->event, call->recording, true);
         } else {
           movieOrTv->getSingleImageBestLO(
             cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
             cOrientationsInt(eOrientation::portrait, eOrientation::landscape, eOrientation::banner),
             NULL, &call->poster.path, &call->poster.width, &call->poster.height);
           delete movieOrTv;
+          if (call->poster.path.empty() ) call->poster = getEpgImage(call->event, call->recording, true);
         }
         return true;
     }

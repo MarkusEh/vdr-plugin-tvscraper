@@ -112,7 +112,7 @@ bool orientationsIncludesLandscape(cOrientationsInt imageOrientations) {
 cTvMedia cScraperVideoImp::getImage(cImageLevels imageLevels, cOrientations imageOrientations, bool fullPath)
 {
   cTvMedia image;
-  if (!m_movieOrTv) return orientationsIncludesLandscape(imageOrientations)?getEpgImage(m_event, fullPath):image;
+  if (!m_movieOrTv) return orientationsIncludesLandscape(imageOrientations)?getEpgImage(m_event, m_recording, fullPath):image;
 
   if (m_collectionId == -2 && m_movieOrTv->getType() == tMovie) {
     m_runtime = 0;
@@ -123,7 +123,7 @@ cTvMedia cScraperVideoImp::getImage(cImageLevels imageLevels, cOrientations imag
     m_movieOrTv->getSingleImageBestLO(imageLevels, imageOrientations, NULL, &image.path, &image.width, &image.height);
   else
     m_movieOrTv->getSingleImageBestLO(imageLevels, imageOrientations, &image.path, NULL, &image.width, &image.height);
-  if (image.path.empty() && orientationsIncludesLandscape(imageOrientations)) return getEpgImage(m_event, fullPath);
+  if (image.path.empty() && orientationsIncludesLandscape(imageOrientations)) return getEpgImage(m_event, m_recording, fullPath);
   return image;
 }
 

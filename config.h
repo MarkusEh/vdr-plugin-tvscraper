@@ -77,6 +77,7 @@ class cTVScraperConfig {
 // "calculated" parameters, from command line paramters
         int baseDirLen;
         string baseDirEpg = "";
+        string baseDirRecordings = "";
         string baseDirSeries = "";
         string baseDirMovies = "";
         string baseDirMovieActors = "";
@@ -116,7 +117,8 @@ class cTVScraperConfig {
 { 7, "fra", "fr-FR", "français"},
 { 8, "ita", "it-IT", "italiano"},
 { 9, "nld", "nl-NL", "Nederlands"},
-{10, "spa", "es-ES", "español"}
+{10, "spa", "es-ES", "español"},
+{11, "fin", "fi-FI", "suomi"},
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
 // list of data that can be changed in the setup menu
@@ -134,6 +136,7 @@ class cTVScraperConfig {
         const string &GetBaseDir(void) const { return baseDir; };
         int GetBaseDirLen(void) const { return baseDirLen; };
         const string &GetBaseDirEpg(void) const { return baseDirEpg; };
+        const string &GetBaseDirRecordings(void) const { return baseDirRecordings; };
         const string &GetBaseDirSeries(void) const { return baseDirSeries; };
         const string &GetBaseDirMovies(void) const { return baseDirMovies; };
         const string &GetBaseDirMovieActors(void) const { return baseDirMovieActors; };

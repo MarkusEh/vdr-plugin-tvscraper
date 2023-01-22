@@ -2,8 +2,7 @@
 #include <fstream>
 #include <filesystem>
 #include "../rapidjson/document.h"
-#include "../rapidjson/istreamwrapper.h"
-//#include "../rapidjson/writer.h"
+//#include "../rapidjson/istreamwrapper.h"
 #include "../rapidjson/prettywriter.h"
 #include "../rapidjson/stringbuffer.h"
 #include "../rapidjson/ostreamwrapper.h"
@@ -90,29 +89,21 @@ int getBool(const rapidjson::Value &json, const char *tag, bool *b=NULL) {
   return res->value.GetBool()?1:0;
 }
 
-int jsonReadFile(rapidjson::Document &document, const char *filename) {
+cLargeString jsonReadFile(rapidjson::Document &document, const char *filename) {
 // if file does not exist: return 0, and an empty (valid!) document
 // if file does     exist: return 0, read the file and return document with parsed content
 // if file does     exist, but is not valid json: return 1 (error).
 
-  if (std::filesystem::exists(filename) ) {
-// parse existing json file
-    std::ifstream ifs(filename);
-    if (!ifs.is_open() ) {
-      esyslog("tvscraper: ERROR jsonReadFile, could not open file %s for reading", filename);
-      return 1;
-    }
-    rapidjson::IStreamWrapper isw(ifs);
-    document.ParseStream(isw);
-    if (document.HasParseError() ) {
-      esyslog("tvscraper: ERROR jsonReadFile, file %s parse error %s", filename, rapidjson::GetParseError_En(document.GetParseError()) );
-      return 1;
-    }
-  } else {
-// create new json document
+  cLargeString jfile(filename);
+  if (jfile.empty() ) {
     document.SetObject();
+    return jfile;
   }
-  return 0;
+  document.ParseInsitu(jfile.data() );
+  if (document.HasParseError() ) {
+    esyslog("tvscraper: ERROR jsonReadFile, file %s size %zu parse error %s", filename, jfile.length(), rapidjson::GetParseError_En(document.GetParseError()) );
+  }
+  return jfile;
 }
 
 int jsonWriteFile(rapidjson::Document &document, const char *filename) {

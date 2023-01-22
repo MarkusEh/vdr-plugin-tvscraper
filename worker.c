@@ -15,6 +15,7 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
 //    initSleep = 2 * 60 * 1000;
     initSleep =     60 * 1000;
     loopSleep = 5 * 60 * 1000;
+    lastTimerRecordingCheck = 0;
 }
 
 cTVScraperWorker::~cTVScraperWorker() {
@@ -56,12 +57,10 @@ void cTVScraperWorker::SetDirectories(void) {
     bool ok = false;
     ok = CreateDirectory(plgBaseDir.substr(0, config.GetBaseDirLen()-1 ));
     if (ok) ok = CreateDirectory(config.GetBaseDirEpg() );
-    if (ok)
-        ok = CreateDirectory(seriesDir);
-    if (ok)
-        ok = CreateDirectory(movieDir);
-    if (ok)
-        ok = CreateDirectory(movieDir + "/tv");
+    if (ok) ok = CreateDirectory(config.GetBaseDirRecordings() );
+    if (ok) ok = CreateDirectory(seriesDir);
+    if (ok) ok = CreateDirectory(movieDir);
+    if (ok) ok = CreateDirectory(movieDir + "/tv");
     if (!ok) {
         esyslog("tvscraper: ERROR: check %s for write permissions", plgBaseDir.c_str());
         startLoop = false;
@@ -190,9 +189,15 @@ bool cTVScraperWorker::ScrapEPG(void) {
           delete movieOrTv;
           movieOrTv = NULL;
         }
+        if (!Running() ) {
+          for (auto &event: currentEvents) delete event.second;
+          return newEvent;
+        }
         waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
+        bool newRec = CheckRunningTimers();
+        if (newRec) db->BackupToDisc();
       }
-    }
+    }  // end loop over all events
   } // end loop over all channels
   currentEvents.swap(lastEvents);
   for (auto &event: currentEvents) delete event.second;
@@ -242,7 +247,13 @@ void cTVScraperWorker::ScrapRecordings(void) {
     }
     if (!Running() ) break;
     waitCondition.TimedWait(mutex, 100);
+    if (!Running() ) break;
+    bool newRec = CheckRunningTimers();
+    if (!Running() ) break;
+    if (newRec) db->BackupToDisc();
+    if (!Running() ) break;
   }
+  deleteOutdatedRecordingImages(db);
 }
 
 bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
@@ -265,7 +276,9 @@ void writeTimerInfo(const cTimer *timer, const char *pathName) {
   std::string filename = concatenate(pathName, "/tvscrapper.json");
 
   rapidjson::Document document;
-  if (jsonReadFile(document, filename.c_str())) return; // error parsing json file
+  cLargeString document_s(jsonReadFile(document, filename.c_str()));
+//  if (jsonReadFile(document, filename.c_str())) return; // error parsing json file
+  if (document.HasParseError() ) return;
   if (document.HasMember("timer") ) return;  // timer information already available
 
   rapidjson::Value timer_j;
@@ -284,8 +297,11 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
 // assign scrape result from EPG to recording
 // return true if new data are assigned to one or more recordings
   if (config.GetReadOnlyClient() ) return false;
+  if (lastTimerRecordingCheck + 2 * 60 > time(0) ) return false;  // no need to check more often
+  lastTimerRecordingCheck = time(0);
   bool newRecData = false;
   vector<string> recordingFileNames; // filenames of recordings with running timers
+  struct stat buffer;
   { // in this block, we lock the timers
 #if APIVERSNUM < 20301
     for (cTimer *timer = Timers.First(); timer; timer = Timers.Next(timer))
@@ -300,13 +316,17 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
         continue;
       }
-      recordingFileNames.push_back(rc->FileName() );
-      writeTimerInfo(timer, rc->FileName() );
+      if (stat(concatenate(rc->FileName(), "/tvscrapper.json").c_str(), &buffer) != 0) {
+        recordingFileNames.push_back(rc->FileName() );
+        writeTimerInfo(timer, rc->FileName() );
+      }
     }
   } // timer lock is released
   for (const string &filename: recordingFileNames) {
 // loop over all recordings with running timers
     cMovieOrTv *movieOrTv = NULL;
+    std::string epgImagePath;
+    std::string recordingImagePath;
     { // in this block we have recording locks
 #if APIVERSNUM < 20301
       const cRecording *recording = Recordings.GetByName(filename.c_str() );
@@ -318,19 +338,20 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: no recording for file \"%s\"", filename.c_str() );
         continue;
       }
+      const cEvent *event = (recording->Info())?recording->Info()->GetEvent():NULL;
+      epgImagePath = event?getEpgImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID(), false):"";
+      recordingImagePath = getRecordingImagePath(recording);
+
       csRecording sRecording(recording);
       int r = db->SetRecording(&sRecording);
       if (r == 2) {
         newRecData = true;
         movieOrTv = cMovieOrTv::getMovieOrTv(db, &sRecording);
         if (movieOrTv) {
-          if (!movieOrTv->copyImagesToRecordingFolder(recording->FileName() )) {
-            if (recording->Info()) CopyFile(getEpgImagePath(recording->Info()->GetEvent(), false), std::string(recording->FileName() ) + "/fanart.jpg");
-          }
+          movieOrTv->copyImagesToRecordingFolder(recording->FileName() );
           delete movieOrTv;
           movieOrTv = NULL;
-        } else
-          if (recording->Info()) CopyFile(getEpgImagePath(recording->Info()->GetEvent(), false), std::string(recording->FileName() ) + "/fanart.jpg");
+        }
       }
       if (r == 0) {
         tEventID eventID = sRecording.EventID();
@@ -347,6 +368,14 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
       movieOrTv->DownloadImages(moviedbScraper, tvdbScraper, filename);
       delete movieOrTv;
       movieOrTv = NULL;
+    }
+    std::string fanartImg = filename + "/fanart.jpg";
+    if (!FileExists(fanartImg) && !epgImagePath.empty() ) {
+//    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), fanartImg.c_str() );
+      CopyFile(epgImagePath, fanartImg);
+//    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), recordingImagePath.c_str() );
+      CopyFile(epgImagePath, recordingImagePath);
+      if (!newRecData) TouchFile(config.GetRecordingsUpdateFileName().c_str());
     }
   }
   if (newRecData && !recordingFileNames.empty() ) TouchFile(config.GetRecordingsUpdateFileName().c_str());

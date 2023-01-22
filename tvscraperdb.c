@@ -295,10 +295,16 @@ int cTVScraperDB::prepare_bind(sqlite3_stmt **statement, const char *query, cons
   int result = sqlite3_prepare_v2(db, query, -1, statement, 0);
   printSqlite3Errmsg(query);
   if (result != SQLITE_OK) return result;
+  std::string_view sv;
   for (int i=0; bind[i]; i++) {
     switch (bind[i]) {
       case 's':
         sqlite3_bind_text(*statement, i + 1, va_arg(vl,char*), -1, SQLITE_STATIC);
+        break;
+      case 'V':
+//        valr_s=static_cast<std::string*>(va_arg(vl,void*) );
+        sv = va_arg(vl,std::string_view);
+        sqlite3_bind_text(*statement, i + 1, sv.data(), sv.length(), SQLITE_STATIC);
         break;
       case 'd':
       case 'f':  // float parameters are automatically promoted to double, so they come in here as double ...

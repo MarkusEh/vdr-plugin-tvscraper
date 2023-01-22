@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
+#include <charconv>
 
 // implemntation of cMovieOrTv  *********************
 
@@ -467,6 +468,7 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const vector<int> &y
   bool debug = dbID() == 197649 || dbID() == 197648 || tvSearchEpisodeString_i.length() > 200;
   debug = debug || (tvSearchEpisodeString_i.length() > 0 && tvSearchEpisodeString_i[0] == 0);
   debug = debug || (tvSearchEpisodeString_i.length() > 1 && tvSearchEpisodeString_i[1] == 0);
+  debug = false;
   if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string_i length %zu, \"%.*s\", dbid %i", tvSearchEpisodeString_i.length(), std::min(100, static_cast<int>(tvSearchEpisodeString_i.length())), tvSearchEpisodeString_i.data(), dbID());
   std::string tvSearchEpisodeString = normString(tvSearchEpisodeString_i);
   if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\", dbid %i", tvSearchEpisodeString.c_str(), dbID());
@@ -1045,6 +1047,45 @@ void cMovieOrTv::CleanupTv_media(const cTVScraperDB *db) {
   }
 }
 
+void deleteOutdatedRecordingImages(const cTVScraperDB *db) {
+// check recording. Delete if this does not exist
+for (const std::filesystem::directory_entry& dir_entry : 
+        std::filesystem::directory_iterator{config.GetBaseDirRecordings() }) 
+  {
+    std::vector<std::string> parts = getSetFromString<std::string,std::vector<std::string>>(dir_entry.path().filename().string().c_str(), '_');
+    if (parts.size() != 3) {
+      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts.size: %zu, filename: %s", parts.size(), dir_entry.path().filename().string().c_str());
+      continue;
+    }
+    tEventID eventID = 0;
+    time_t eventStartTime = 0;
+    auto result = std::from_chars(parts[0].data(), parts[0].data() + parts[0].length(), eventStartTime);
+    if (result.ec == std::errc::invalid_argument) {
+      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts[0]: %.*s, filename: %s", static_cast<int>(parts[0].length()), parts[0].data(), dir_entry.path().filename().string().c_str());
+      continue;
+    }
+    result = std::from_chars(parts[2].data(), parts[2].data() + parts[2].length() - 4, eventID);
+    if (result.ec == std::errc::invalid_argument) {
+      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts[2]: %.*s, filename: %s", static_cast<int>(parts[2].length()), parts[2].data(), dir_entry.path().filename().string().c_str());
+      continue;
+    }
+    const char *sql = "SELECT count(event_id) FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ?";
+    bool found = db->QueryInt(sql, "its", (int)eventID, eventStartTime, parts[1].c_str() ) > 0;
+//    esyslog("tvscraper, DEBUG, recording eventID %i eventStartTime %lld channel_id %.*s %s", (int)eventID, (long long)eventStartTime, static_cast<int>(parts[1].length()), parts[1].data(), found?"found":"not found");
+    if (!found) DeleteFile(config.GetBaseDirRecordings() + dir_entry.path().filename().string());
+  }
+}
+
+void deleteOutdatedEpgImages() {
+// check event start time. Delete if older than yesterday
+for (const std::filesystem::directory_entry& dir_entry : 
+        std::filesystem::directory_iterator{config.GetBaseDirEpg() }) 
+  {
+    if (!dir_entry.is_directory() ) continue;
+    if (dir_entry.path().filename().string().find_first_not_of("0123456789") != std::string::npos) continue;
+    if (atoll(dir_entry.path().filename().string().c_str() ) + 24*60*60 < time(0) ) DeleteAll(dir_entry.path().filename().string());
+  }
+}
 void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check all movies in db
   CleanupTv_media(db);
@@ -1068,6 +1109,9 @@ void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
   cMovieMoviedb::DeleteAllIfUnused(db);
 // delete all outdated events
   db->ClearOutdated();
+// delete outdated images from external EPG
+  deleteOutdatedEpgImages();
+  deleteOutdatedRecordingImages(db);
 }
 
 void cMovieOrTv::DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, const cTVScraperDB *db) {
@@ -1078,8 +1122,10 @@ for (const std::filesystem::directory_entry& dir_entry :
     if (! dir_entry.is_directory() ) continue;
     if (dir_entry.path().filename().string().find_first_not_of("0123456789") != std::string::npos) continue;
     cMovieOrTv *movieOrTv = getMovieOrTv(db, atoi(dir_entry.path().filename().string().c_str() ), type);
-    movieOrTv->DeleteIfUnused();
-    if(movieOrTv) delete(movieOrTv);
+    if(movieOrTv) {
+      movieOrTv->DeleteIfUnused();
+      delete(movieOrTv);
+    }
   }
 }
 

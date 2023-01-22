@@ -120,23 +120,46 @@ eOrientation cOrientationsInt::pop() {
   return (eOrientation)((m_orientations >> (m_pop++ * 3)) & 7);
 }
 
-std::string getEpgImagePath(const cEvent *event, bool createPaths) {
+std::string getRecordingImagePath(tEventID eventID, time_t eventStartTime, const tChannelID &channelID) {
+  std::string path = config.GetBaseDirRecordings();
+  path.append(to_string(eventStartTime));
+  path.append("_");
+  path.append((const char *)channelID.ToString() );
+  path.append("_");
+  path.append(to_string(eventID));
+  path.append(".jpg");
+  return path;
+}
+std::string getRecordingImagePath(const cRecording *recording) {
+  if (!recording || !recording->Info()) return "";
+  const cEvent *event = recording->Info()->GetEvent();
+  if (!event) return "";
+  return getRecordingImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID());
+}
+
+std::string getEpgImagePath(tEventID eventID, time_t eventStartTime, const tChannelID &channelID, bool createPaths) {
   std::string path = config.GetBaseDirEpg();
-  path.append(to_string(event->StartTime() ));
+  path.append(to_string(eventStartTime));
   if (createPaths) CreateDirectory(path);
   path.append("/");
-  path.append((const char *)event->ChannelID().ToString() );
+  path.append((const char *)channelID.ToString() );
   if (createPaths) CreateDirectory(path);
   path.append("/");
-  path.append(to_string(event->EventID() ));
+  path.append(to_string(eventID));
   path.append(".jpg");
   return path;
 }
 
-cTvMedia getEpgImage(const cEvent *event, bool fullPath) {
+std::string getEpgImagePath(const cEvent *event, bool createPaths) {
+  if (event) return getEpgImagePath(event->EventID(), event->StartTime(), event->ChannelID(), createPaths);
+  return "";
+}
+
+cTvMedia getEpgImage(const cEvent *event, const cRecording *recording, bool fullPath) {
   cTvMedia result;
-  if (!event) return result;
-  result.path = getEpgImagePath(event, false);
+  if (!event && !recording) return result;
+  if (event && recording) return result;
+  result.path = event?getEpgImagePath(event, false):getRecordingImagePath(recording);
   if (FileExists(result.path)) {
     if (!fullPath) result.path.erase(0, config.GetBaseDirLen());
     result.width = 952;

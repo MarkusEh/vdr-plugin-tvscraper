@@ -59,6 +59,7 @@ void cTVScraperConfig::SetBaseDir(const string &dir) {
   baseDirLen = baseDir.length();
   if (baseDirLen) {
     baseDirEpg = baseDir + "epg/";
+    baseDirRecordings = baseDir + "recordings/";
     baseDirSeries = baseDir + "series/";
     baseDirMovies = baseDir + "movies/";
     baseDirMovieActors = baseDirMovies + "actors/";

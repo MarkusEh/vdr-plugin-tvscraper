@@ -3,8 +3,8 @@
 #include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include "largeString.h"
-#include <vdr/plugin.h>
 
 cLargeString::cLargeString(const char *name, size_t initialSize, size_t increaseSize, bool debugBufferSize) {
   if (name) m_name = name;
@@ -18,12 +18,43 @@ cLargeString::cLargeString(const char *name, size_t initialSize, size_t increase
   m_s = (char *) malloc(initialSize * sizeof(char));
   if (!m_s) {
     esyslog("cLargeString::cLargeString, ERROR out of memory, name = %s, initialSize = %zu", m_name.c_str(), initialSize);
-    throw std::runtime_error("cLargeString::cLargeString, ERROR out of memory");
+//  throw std::runtime_error("cLargeString::cLargeString, ERROR out of memory");
     return;
   }
   m_buffer_end = m_s + initialSize;
   m_string_end = m_s;
 }
+cLargeString::cLargeString(const char *filename, bool *exists) {
+  if (exists) *exists = false;
+  if (!filename) return;
+  m_name = filename;
+  struct stat buffer;                                                                                                                       
+  if (stat(filename, &buffer) != 0) return;
+
+// file exists, length buffer.st_size
+  if (exists) *exists = true;
+  if (buffer.st_size == 0) return;  // empty file
+  m_s = (char *) malloc((buffer.st_size + 1) * sizeof(char));  // add one. So we can add the 0 string terminator
+  if (!m_s) {
+    esyslog("tvscraper, cLargeString::cLargeString, ERROR out of memory, filename = %s, requested size = %zu", filename, buffer.st_size + 1);
+//  throw std::runtime_error("cLargeString::cLargeString, ERROR out of memory");
+    return;
+  }
+  m_buffer_end = m_s + buffer.st_size + 1;
+  m_string_end = m_s;
+  FILE *f = fopen(filename, "rb");
+  if (!f) {
+    esyslog("tvscraper, ERROR: stat OK, fopen fails, filename %s", filename);
+    return;
+  }
+  size_t num_read = fread (m_s, 1, buffer.st_size, f);
+  if (num_read != (size_t)buffer.st_size) {
+    esyslog("tvscraper, ERROR: num_read = %zu, buffer.st_size = %zu, ferror %i, filename %s", num_read, (size_t)buffer.st_size, ferror(f), filename);
+  }
+  fclose(f);
+  m_string_end = m_s + num_read;
+}
+
 cLargeString::~cLargeString() {
   if (!m_s) return;
   free (m_s);
@@ -100,6 +131,7 @@ bool cLargeString::append(int i) {
 }
 
 bool cLargeString::appendLen(size_t len) {
+  if (!m_s) return false;
   char *newStringEnd = m_string_end + len;
   if (newStringEnd < m_buffer_end) return true;
   return enlarge(newStringEnd + 1 - m_buffer_end);

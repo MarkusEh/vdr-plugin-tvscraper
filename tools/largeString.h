@@ -20,10 +20,21 @@ class cLargeString {
     bool appendLen(size_t len);  // enure buffer is large enough to append len characters
     void setMaxSize() { m_maxSize = std::max(m_maxSize, (size_t)(m_string_end - m_s)); }
   public:
+    cLargeString(const cLargeString& o) = delete;
+    cLargeString(cLargeString&& o):
+      m_s(o.m_s),
+      m_string_end(o.m_string_end),
+      m_buffer_end(o.m_buffer_end),
+      m_increaseSize(o.m_increaseSize),
+      m_maxSize(o.m_maxSize),
+      m_name(std::move(o.m_name)),
+      m_debugBufferSize(o.m_debugBufferSize),
+      m_endBorrowed(o.m_endBorrowed) {}
     cLargeString(const char *name, size_t initialSize, size_t increaseSize = 0, bool debugBufferSize = false);
+    cLargeString(const char *filename, bool *exists = NULL);
     ~cLargeString();
-    char *data() { *m_string_end = 0; return m_s; }
-    const char *c_str() const { *m_string_end = 0; return m_s; }
+    char *data() { if (m_string_end) *m_string_end = 0; return m_s; }
+    const char *c_str() const { if (m_string_end) *m_string_end = 0; return m_s; }
     bool append(char c);
     bool append(const char *s);
     bool append(const char *s, size_t len);
@@ -36,7 +47,7 @@ class cLargeString {
     size_t length() const { return m_string_end - m_s; }
     bool empty() const { return m_string_end == m_s; }
     cLargeString &erase(size_t index = 0) { setMaxSize(); m_string_end = std::min(m_string_end, m_s + index); return *this;}
-    char operator[](size_t i) const { return *(m_s + i); }
+    char operator[](size_t i) const { return m_s?*(m_s + i):0; }
     operator std::string_view() const { return m_s?std::string_view(m_s, m_string_end - m_s):std::string_view(); }
 };
 

@@ -16,6 +16,7 @@ private:
     cOverRides *overrides;
     int initSleep;
     int loopSleep;
+    time_t lastTimerRecordingCheck;
     cCondVar waitCondition;
     cMutex mutex;
     cTVScraperDB *db;

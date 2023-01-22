@@ -35,7 +35,7 @@ void cTvspEpgOneDay::initJson(time_t startTime) {
   << std::setfill('0') << std::setw(2) << (time->tm_mon + 1)
   << '-' << std::setfill('0') << std::setw(2) << time->tm_mday;
   std::string url = date.str();
-  if (m_channelMapEpg->extid[0] == 'A') esyslog("tvscraper epg about to download %s", url.c_str() );
+// if (m_channelMapEpg->extid[0] == 'A') esyslog("tvscraper epg about to download %s", url.c_str() );
 // calculate m_start: today 5 am
   time->tm_sec = 0;
   time->tm_min = 0;
