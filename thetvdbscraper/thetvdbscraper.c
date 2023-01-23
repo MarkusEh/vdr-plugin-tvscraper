@@ -118,7 +118,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
           int epidodeID = series.ParseJson_Episode(jEpisode);
           if (epidodeID != 0) {
             string urlEp = baseURL4 + "episodes/" + std::to_string(epidodeID) + "/extended";
-            json_t *jEpisode = CallRestJson(urlEp, buffer);
+            json_t *jEpisode = CallRestJson(urlEp, buffer, NULL, true);
             json_t *jEpisodeData = json_object_get(jEpisode, "data");
             getCharacters(jEpisodeData, series);
             json_decref(jEpisode);
@@ -175,7 +175,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, const cLanguage *lang) {
   return seriesID;
 }
 
-json_t *cTVDBScraper::CallRestJson(const std::string &url, cLargeString &buffer, int *error) {
+json_t *cTVDBScraper::CallRestJson(const std::string &url, cLargeString &buffer, int *error, bool disableLog) {
 // return NULL in case of errors
 // if error is given, it will be set to -1 if an object is requested which does not exist
 // otherwise, the caller must ensure to call json_decref(...); on the returned reference
@@ -186,7 +186,7 @@ json_t *cTVDBScraper::CallRestJson(const std::string &url, cLargeString &buffer,
   headers = curl_slist_append(headers, "accept: application/json");
   headers = curl_slist_append(headers, tokenHeader.c_str() );
   headers = curl_slist_append(headers, "charset: utf-8");
-  if (config.enableDebug) esyslog("tvscraper: calling %s", url.c_str());
+  if (config.enableDebug && !disableLog) esyslog("tvscraper: calling %s", url.c_str());
   bool result = CurlGetUrl(url.c_str(), buffer, headers);
   curl_slist_free_all(headers);
   if (!result) {

@@ -20,8 +20,8 @@ rapidjson::Value::ConstMemberIterator assertTagExists(const rapidjson::Value &js
   return res;
 }
 
-bool assertGetValue(const rapidjson::Value &json, const char *tag, int64_t &value, const char *context) {
-// return false if tag does not exist, or is not a int64_t
+bool assertGetValueInt64(const rapidjson::Value &json, const char *tag, int64_t &value, const char *context) {
+// return false if tag does not exist, or is not int64_t
 // context is used only for error message. Should be filename (if possible)
   rapidjson::Value::ConstMemberIterator res = assertTagExists(json, tag, context);
   if (res == json.MemberEnd() ) return false;
@@ -31,6 +31,30 @@ bool assertGetValue(const rapidjson::Value &json, const char *tag, int64_t &valu
   }
   esyslog("tvscraper: ERROR, assertGetValue, tag %s not int64_t, context %s", tag, context?context:"no context available");
   return false;
+}
+bool assertGetValue(const rapidjson::Value &json, const char *tag, int &value, const char *context) {
+// return false if tag does not exist, or is not int
+// context is used only for error message. Should be filename (if possible)
+  rapidjson::Value::ConstMemberIterator res = assertTagExists(json, tag, context);
+  if (res == json.MemberEnd() ) return false;
+  if (res->value.IsInt() ) {
+    value = res->value.GetInt();
+    return true;
+  }
+  esyslog("tvscraper: ERROR, assertGetValue, tag %s not int, context %s", tag, context?context:"no context available");
+  return false;
+}
+bool assertGetValue(const rapidjson::Value &json, const char *tag, long int &value, const char *context) {
+  int64_t v;
+  bool result = assertGetValueInt64(json, tag, v, context);
+  value = v;
+  return result;
+}
+bool assertGetValue(const rapidjson::Value &json, const char *tag, long long int &value, const char *context) {
+  int64_t v;
+  bool result = assertGetValueInt64(json, tag, v, context);
+  value = v;
+  return result;
 }
 
 bool assertGetValue(const rapidjson::Value &json, const char *tag, bool &value, const char *context) {
@@ -46,14 +70,7 @@ bool assertGetValue(const rapidjson::Value &json, const char *tag, bool &value, 
   return false;
 }
 
-bool getValue(const rapidjson::Value &json, const char *tag, bool &value) {
-// return false if tag does not exist, or is not a bool
-  rapidjson::Value::ConstMemberIterator res = json.FindMember(tag);
-  if (res == json.MemberEnd() || !res->value.IsBool() ) return false;
-  value = res->value.GetBool();
-  return true;
-}
-
+// getValue for int, long int, and long long int ==================================
 bool getValue(const rapidjson::Value &json, const char *tag, int &value) {
 // return false if tag does not exist, or is not an int
   rapidjson::Value::ConstMemberIterator res = json.FindMember(tag);
@@ -61,20 +78,36 @@ bool getValue(const rapidjson::Value &json, const char *tag, int &value) {
   value = res->value.GetInt();
   return true;
 }
-
-bool getValue(const rapidjson::Value &json, const char *tag, int64_t &value) {
+bool getValue(const rapidjson::Value &json, const char *tag, long int &value) {
 // return false if tag does not exist, or is not an int64
   rapidjson::Value::ConstMemberIterator res = json.FindMember(tag);
   if (res == json.MemberEnd() || !res->value.IsInt64() ) return false;
   value = res->value.GetInt64();
   return true;
 }
+bool getValue(const rapidjson::Value &json, const char *tag, long long int &value) {
+// return false if tag does not exist, or is not int64
+  rapidjson::Value::ConstMemberIterator res = json.FindMember(tag);
+  if (res == json.MemberEnd() || !res->value.IsInt64() ) return false;
+  value = res->value.GetInt64();
+  return true;
+}
 
+// getValue for char *  ==========================================================
 bool getValue(const rapidjson::Value &json, const char *tag, const char *&value) {
 // return false if tag does not exist, or is not a string
   rapidjson::Value::ConstMemberIterator res = json.FindMember(tag);
   if (res == json.MemberEnd() || !res->value.IsString() ) return false;
   value = res->value.GetString();
+  return true;
+}
+
+// getValue for bool    ==========================================================
+bool getValue(const rapidjson::Value &json, const char *tag, bool &value) {
+// return false if tag does not exist, or is not a bool
+  rapidjson::Value::ConstMemberIterator res = json.FindMember(tag);
+  if (res == json.MemberEnd() || !res->value.IsBool() ) return false;
+  value = res->value.GetBool();
   return true;
 }
 

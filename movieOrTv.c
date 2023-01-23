@@ -1083,7 +1083,7 @@ for (const std::filesystem::directory_entry& dir_entry :
   {
     if (!dir_entry.is_directory() ) continue;
     if (dir_entry.path().filename().string().find_first_not_of("0123456789") != std::string::npos) continue;
-    if (atoll(dir_entry.path().filename().string().c_str() ) + 24*60*60 < time(0) ) DeleteAll(dir_entry.path().filename().string());
+    if (atoll(dir_entry.path().filename().string().c_str() ) + 24*60*60 < time(0) ) DeleteAll(config.GetBaseDirEpg() + dir_entry.path().filename().string());
   }
 }
 void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {

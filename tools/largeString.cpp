@@ -34,9 +34,9 @@ cLargeString::cLargeString(const char *filename, bool *exists) {
 // file exists, length buffer.st_size
   if (exists) *exists = true;
   if (buffer.st_size == 0) return;  // empty file
-  m_s = (char *) malloc((buffer.st_size + 1) * sizeof(char));  // add one. So we can add the 0 string terminator
+  m_s = (char *) malloc((size_t)(buffer.st_size + 1) * sizeof(char));  // add one. So we can add the 0 string terminator
   if (!m_s) {
-    esyslog("tvscraper, cLargeString::cLargeString, ERROR out of memory, filename = %s, requested size = %zu", filename, buffer.st_size + 1);
+    esyslog("tvscraper, cLargeString::cLargeString, ERROR out of memory, filename = %s, requested size = %zu", filename, (size_t)(buffer.st_size + 1));
 //  throw std::runtime_error("cLargeString::cLargeString, ERROR out of memory");
     return;
   }
@@ -47,7 +47,7 @@ cLargeString::cLargeString(const char *filename, bool *exists) {
     esyslog("tvscraper, ERROR: stat OK, fopen fails, filename %s", filename);
     return;
   }
-  size_t num_read = fread (m_s, 1, buffer.st_size, f);
+  size_t num_read = fread (m_s, 1, (size_t)buffer.st_size, f);
   if (num_read != (size_t)buffer.st_size) {
     esyslog("tvscraper, ERROR: num_read = %zu, buffer.st_size = %zu, ferror %i, filename %s", num_read, (size_t)buffer.st_size, ferror(f), filename);
   }
