@@ -240,7 +240,7 @@ bool cMovieOrTv::checkRelPath(const stringstream &ssRelPath, string *relPath, st
 // Writing code for both, checkFullPath and checkRelPath
   if (relPath) {
     *relPath = ssRelPath.str();
-    if (!FileExists (config.GetBaseDir() + *relPath) ) {*relPath = ""; return false; }
+    if (!FileExistsRelPath (relPath->c_str() ) ) {*relPath = ""; return false; }
     if (fullPath) *fullPath = config.GetBaseDir() + *relPath;
   } else {
     if (fullPath) {
@@ -391,9 +391,30 @@ std::vector<cActor> cMovieMoviedb::GetActors(bool fullPath) {
   return actors;
 }
 
+bool checkRelPath(string &relPath, int *width, int *height, int i_width, int i_height) {
+  if (!FileExistsRelPath(relPath.c_str() ) ) { relPath = ""; return false; }
+  if (width) *width = i_width;
+  if (height) *height = i_height;
+  return true;
+}
+
+bool getSingleImageMovie(string &relPath, int *width, int *height, eOrientation orientation, const char *relBasePath, int id) {
+  switch (orientation) {
+    case eOrientation::portrait:
+      relPath = concatenate(relBasePath, id, "_poster.jpg");
+      return checkRelPath(relPath, width, height, 500, 750);
+    case eOrientation::landscape:
+      relPath = concatenate(relBasePath, id, "_backdrop.jpg");
+      return checkRelPath(relPath, width, height, 1280, 720);
+    default: return false;
+  }
+}
 // movie images *****************************
 bool cMovieMoviedb::getSingleImageMovie(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
-  stringstream path;                                                                                                                                  
+  if (!fullPath && relPath)
+    return ::getSingleImageMovie(*relPath, width, height, orientation, "movies/", m_id);
+
+  stringstream path;
   switch (orientation) {
     case eOrientation::portrait:
       path << config.GetBaseDirMovies() << m_id << "_poster.jpg";
@@ -410,6 +431,9 @@ bool cMovieMoviedb::getSingleImageCollection(eOrientation orientation, string *r
   if (m_collectionId <  0) m_collectionId = m_db->GetMovieCollectionID(m_id);
   if (m_collectionId <  0) m_collectionId = 0;
   if (m_collectionId == 0) return false;
+  if (!fullPath && relPath)
+    return ::getSingleImageMovie(*relPath, width, height, orientation, "movies/collections/", m_collectionId);
+
   stringstream path;                                                                                                                                  
   path << config.GetBaseDirMovieCollections() << m_collectionId;
   switch (orientation) {
@@ -916,8 +940,25 @@ bool cTvTvdb::getSingleImageAnySeason(eOrientation orientation, string *relPath,
   return false;
 }
 
+bool getSingleImageTvShow(string &relPath, int *width, int *height, eOrientation orientation, int id) {
+  switch (orientation) {
+    case eOrientation::portrait:
+      relPath = concatenate("series/", id, "/poster_0.jpg");
+      return checkRelPath(relPath, width, height, 680, 1000);
+    case eOrientation::landscape:
+      relPath = concatenate("series/", id, "/fanart_0.jpg");
+      return checkRelPath(relPath, width, height, 1920, 1080);
+    case eOrientation::banner:
+      relPath = concatenate("series/", id, "/banner.jpg");
+      return checkRelPath(relPath, width, height, 758, 140);
+    default: return false;
+  }
+}
 bool cTvTvdb::getSingleImageTvShow(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
 // Does not depend on episode or season!
+  if (!fullPath && relPath)
+    return ::getSingleImageTvShow(*relPath, width, height, orientation, m_id);
+
   stringstream path;
   path << config.GetBaseDirSeries() << m_id;
   switch (orientation) {
@@ -942,6 +983,10 @@ bool cTvTvdb::getSingleImageSeason(eOrientation orientation, string *relPath, st
 // Portrait  (will return the season poster)
   if (orientation != eOrientation::portrait) return false;
   if (m_seasonNumber == 0 && m_episodeNumber == 0) return false;  // no episode found
+  if (!fullPath && relPath) {
+    *relPath = concatenate("series/", m_id, "/season_poster_", m_seasonNumber, ".jpg");
+    return ::checkRelPath(*relPath, width, height, 680, 1000);
+  }
   stringstream path;
   path << config.GetBaseDirSeries() << m_id << "/season_poster_" << m_seasonNumber << ".jpg";
   return checkFullPath(path, relPath, fullPath, width, height, 680, 1000);
@@ -955,6 +1000,10 @@ bool cTvTvdb::getSingleImageEpisode(eOrientation orientation, string *relPath, s
 // Portrait  (will return false, there is no portrait for episode still)
   if (orientation != eOrientation::landscape) return false;
   if (m_seasonNumber == 0 && m_episodeNumber == 0) return false;  // no episode found
+  if (!fullPath && relPath) {
+    *relPath = concatenate("series/", m_id, "/", m_seasonNumber, "/still_", m_episodeNumber, ".jpg");
+    return ::checkRelPath(*relPath, width, height, 300, 200);
+  }
   stringstream path;
   path << config.GetBaseDirSeries() << m_id << "/" << m_seasonNumber << "/still_" << m_episodeNumber << ".jpg";
   return checkFullPath(path, relPath, fullPath, width, height, 300, 200);

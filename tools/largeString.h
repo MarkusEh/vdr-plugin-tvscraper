@@ -29,7 +29,7 @@ class cLargeString {
       m_maxSize(o.m_maxSize),
       m_name(std::move(o.m_name)),
       m_debugBufferSize(o.m_debugBufferSize),
-      m_endBorrowed(o.m_endBorrowed) {}
+      m_endBorrowed(o.m_endBorrowed) { o.m_s = NULL; }
     cLargeString(const char *name, size_t initialSize, size_t increaseSize = 0, bool debugBufferSize = false);
     cLargeString(const char *filename, bool *exists = NULL);
     ~cLargeString();

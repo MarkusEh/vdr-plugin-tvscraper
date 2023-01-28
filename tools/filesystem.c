@@ -30,6 +30,16 @@ bool FileExists(const string &filename) {
   return buffer.st_size > 500;
 }
 
+bool FileExistsRelPath(const char *relPathname) {
+  if (!relPathname || !*relPathname) return false;
+  char filename[config.GetBaseDirLen() + strlen(relPathname) +1];
+  strcpy(filename, config.GetBaseDir().c_str() );
+  strcpy(filename + config.GetBaseDirLen(), relPathname);
+  struct stat buffer;
+  if (stat (filename, &buffer) != 0) return false;
+  return buffer.st_size > 500;
+}
+
 bool CheckDirExists(const char* dirName) {
     struct statfs statfsbuf;
     if (statfs(dirName,&statfsbuf)==-1) return false;

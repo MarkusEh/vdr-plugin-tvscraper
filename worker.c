@@ -355,8 +355,8 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
       }
       if (r == 0) {
         tEventID eventID = sRecording.EventID();
-        cString channelIDs = sRecording.ChannelIDs();
-        esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", eventID, (const char *)channelIDs, filename.c_str() );
+        std::string channelIDs = sRecording.ChannelIDs();
+        esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
         if (ConnectScrapers() ) { 
           cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, moviedbScraper, tvdbScraper, db);  
           movieOrTv = SearchEventOrRec.Scrape();

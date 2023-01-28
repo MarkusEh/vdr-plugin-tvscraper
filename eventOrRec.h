@@ -12,7 +12,7 @@ public:
   virtual time_t StartTime() const { return m_event->StartTime(); }
   virtual time_t EndTime() const { return m_event->EndTime(); }
   virtual int DurationInSec() const { return m_event->Duration(); }
-  virtual const cString ChannelIDs() const { return ChannelID().ToString(); }
+  virtual const std::string ChannelIDs() const { return channelToString(ChannelID() ); }
   virtual const cRecording *Recording() const { return NULL; }
   virtual void AddYears(vector<int> &years) const;
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
@@ -42,7 +42,7 @@ public:
   virtual int DurationInSec() const { return m_event->Duration()?m_event->Duration():m_recording->FileName() ? m_recording->LengthInSeconds() : 0; }
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }
-  virtual const cString ChannelIDs() const { return (EventID()&&ChannelID().Valid())?ChannelID().ToString():cString(m_recording->Name() ); } // if there is no eventID or no ChannelID(), use Name instead
+  virtual const std::string ChannelIDs() const { return (EventID()&&ChannelID().Valid())?channelToString(ChannelID() ):m_recording->Name(); } // if there is no eventID or no ChannelID(), use Name instead
   virtual const char *Title() const { return m_recording->Info()->Title(); }
   virtual const char *ShortText() const { return m_recording->Info()->ShortText(); }
   virtual const char *Description() const { return m_recording->Info()->Description(); }

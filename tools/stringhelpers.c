@@ -96,6 +96,35 @@ bool stringEqual(const char *s1, const char *s2) {
   return false;
 }
 
+int numChars(int i) {
+// return number of characters requird to print i
+  int result = 0;
+  if (i < 0) {
+    i *= -1;
+    result++;
+  }
+  if (i < 10) return result + 1;
+  for (; i; i /= 10) result++;
+// std::cout "numChars = " << result << "\n";
+  return result;
+}
+char *intToChars(char *bufferEnd, int i) {
+// notes:
+//    sizeof(buffer) must be >= numChars(i) + 1 !! This is not checked ....
+//    bufferEnd = buffer + sizeof(buffer);
+//    available to write: [buffer, bufferEnd)  (bufferEnd is excluded)
+// return pointer to char representation of i
+  bool minus = i < 0;
+  if (minus) i *= -1;
+  *(--bufferEnd) = 0;
+  if (i < 10) {
+    *(--bufferEnd) = '0' + i;
+  } else {
+    for (; i; i /= 10) *(--bufferEnd) = '0' + (i%10);
+  }
+  if (minus) *(--bufferEnd) = '-';
+  return bufferEnd;
+}
 std::string concatenate(const char *s1, const char *s2) {
   if (!s1 && !s2) return "";
   if (!s1) return s2;
@@ -116,6 +145,59 @@ std::string concatenate(const char *s1, const char *s2, const char *s3) {
   result.append(s1);
   result.append(s2);
   result.append(s3);
+  return result;
+}
+
+std::string concatenate(const char *s1, int i, const char *s3) {
+  int s1Len = s1?strlen(s1):0;
+  int iLen = numChars(i);
+  int s3Len = s3?strlen(s3):0;
+  std::string result;
+  result.reserve(s1Len + iLen + s3Len);
+  if (s1) result.append(s1);
+  char buffer [iLen + 1];
+  result.append(intToChars(buffer + iLen + 1, i));
+  if (s3) result.append(s3);
+  return result;
+}
+
+std::string concatenate(const char *s1, int i2, const char *s3, int i4, const char *s5) {
+  int s1Len = s1?strlen(s1):0;
+  int i2Len = numChars(i2);
+  int s3Len = s3?strlen(s3):0;
+  int i4Len = numChars(i4);
+  int s5Len = s5?strlen(s5):0;
+  std::string result;
+  result.reserve(s1Len + i2Len + s3Len + i4Len + s5Len);
+  int buf_size = std::max(i2Len, i4Len) + 1;
+  char buffer [buf_size];
+  if (s1) result.append(s1);
+  result.append(intToChars(buffer + buf_size, i2));
+  if (s3) result.append(s3);
+  result.append(intToChars(buffer + buf_size, i4));
+  if (s5) result.append(s5);
+  return result;
+}
+
+std::string concatenate(const char *s1, int i2, const char *s3, int i4, const char *s5, int i6, const char *s7) {
+  int s1Len = s1?strlen(s1):0;
+  int i2Len = numChars(i2);
+  int s3Len = s3?strlen(s3):0;
+  int i4Len = numChars(i4);
+  int s5Len = s5?strlen(s5):0;
+  int i6Len = numChars(i6);
+  int s7Len = s7?strlen(s7):0;
+  std::string result;
+  result.reserve(s1Len + i2Len + s3Len + i4Len + s5Len + i6Len + s7Len);
+  int buf_size = std::max(i2Len, std::max(i4Len, i6Len)) + 1;
+  char buffer [buf_size];
+  if (s1) result.append(s1);
+  result.append(intToChars(buffer + buf_size, i2));
+  if (s3) result.append(s3);
+  result.append(intToChars(buffer + buf_size, i4));
+  if (s5) result.append(s5);
+  result.append(intToChars(buffer + buf_size, i6));
+  if (s7) result.append(s7);
   return result;
 }
 
@@ -324,9 +406,35 @@ std::string vectorToString(const std::vector<std::string> &vec) {
   return result;
 }
 
+void sourceToBuf(char *buffer, int Code) {
+//char buffer[16];
+  int st_Mask = 0xFF000000;
+  char *q = buffer;
+  *q++ = (Code & st_Mask) >> 24;
+  if (int n = cSource::Position(Code)) {
+     q += snprintf(q, 14, "%u.%u", abs(n) / 10, abs(n) % 10); // can't simply use "%g" here since the silly 'locale' messes up the decimal point
+     *q++ = (n < 0) ? 'W' : 'E';
+     }
+  *q = 0;
+}
+
+void channelToBuf(char *buffer, const tChannelID &channelID) {
+// char buffer[256];
+  char buffer_src[16];
+  sourceToBuf(buffer_src, channelID.Source());
+  snprintf(buffer, 256, channelID.Rid() ? "%s-%d-%d-%d-%d" : "%s-%d-%d-%d",
+     buffer_src, channelID.Nid(), channelID.Tid(), channelID.Sid(), channelID.Rid() );
+}
+
+std::string channelToString(const tChannelID &channelID) {
+  char buffer[256];
+  channelToBuf(buffer, channelID);
+  return buffer;
+}
+
 std::string objToString(const int &i) { return std::to_string(i); }
 std::string objToString(const std::string &i) { return i; }
-std::string objToString(const tChannelID &i) { return (const char *)i.ToString(); }
+std::string objToString(const tChannelID &i) { return channelToString(i); }
 
 template<class T, class C=std::set<T>>
 std::string getStringFromSet(const C &in, char delim = ';') {
