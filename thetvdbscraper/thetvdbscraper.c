@@ -103,6 +103,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   series.ParseJson_Series(jSeriesData);
 // episodes
   string urlE = baseURL4 + "series/" + std::to_string(seriesID) + "/episodes/default/" + series.m_language + "?page=0";
+//string urlE = concatenate(baseURL4.c_str(), "series/", seriesID, "/episodes/default/" + series.m_language.c_str() + "?page=0";
   while (!urlE.empty() ) {
     json_t *jEpisodes = CallRestJson(urlE, buffer);
     urlE = "";
@@ -115,6 +116,9 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
         size_t index;
         json_t *jEpisode;
         json_array_foreach(jEpisodesDataEpisodes, index, jEpisode) {
+          series.ParseJson_Episode(jEpisode);
+/*
+// dont't read episode character data here, this is too often called just to figure out if we have the right series
           int epidodeID = series.ParseJson_Episode(jEpisode);
           if (epidodeID != 0) {
             string urlEp = baseURL4 + "episodes/" + std::to_string(epidodeID) + "/extended";
@@ -123,6 +127,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
             getCharacters(jEpisodeData, series);
             json_decref(jEpisode);
           }
+*/
         }
       }
     }

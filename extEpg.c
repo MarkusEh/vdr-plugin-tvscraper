@@ -143,8 +143,8 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
     descr += "Episode: ";
     appendRemoveControlCharacters(descr, s);
     descr += "\n";
-    if (getValue(tvspEvent_j, "seasonNumber", s) ) { descr += "Staffel: "; descr += s; descr += "\n"; }
-    if (getValue(tvspEvent_j, "episodeNumber", s) ) { descr += "Folge: "; descr += s; descr += "\n"; }
+    if (getValue(tvspEvent_j, "seasonNumber", s) ) { descr += "Staffel tvsp: "; descr += s; descr += "\n"; }
+    if (getValue(tvspEvent_j, "episodeNumber", s) ) { descr += "Folge tvsp: "; descr += s; descr += "\n"; }
     descr += "\n";
   }
 // rating

@@ -35,8 +35,9 @@ inline void InitCurlLibraryIfNeeded()
     curlfuncs::curl = curl_easy_init();
     if (!curlfuncs::curl)
       throw string("Could not create new curl instance");
-    curl_easy_setopt(curlfuncs::curl, CURLOPT_NOPROGRESS, 1);       // Do not show progress
-    curl_easy_setopt(curlfuncs::curl, CURLOPT_FOLLOWLOCATION, 1);
+    curl_easy_setopt(curlfuncs::curl, CURLOPT_NOPROGRESS, 1L);      // Do not show progress
+    curl_easy_setopt(curlfuncs::curl, CURLOPT_TIMEOUT, 60L);       // Timeout 60 Secs. This is required. Otherwise, the thread might hang forever, if router is reset (once a day ...)
+    curl_easy_setopt(curlfuncs::curl, CURLOPT_FOLLOWLOCATION, 1L);
 //  curl_easy_setopt(curlfuncs::curl, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0; Mayukh's libcurl wrapper http://www.mayukhbose.com/)");
     curl_easy_setopt(curlfuncs::curl, CURLOPT_USERAGENT, "User-Agent: 4.2 (Nexus 10; Android 6.0.1; de_DE)");
     curlfuncs::bInitialized = true;
@@ -49,7 +50,7 @@ bool CurlGetUrl_int(const char *url, void *sOutput, struct curl_slist *headers, 
 
   curl_easy_setopt(curlfuncs::curl, CURLOPT_URL, url);            // Set the URL to get
   curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPHEADER, headers);
-  curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPGET, 1);
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPGET, 1L);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEFUNCTION, func);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEDATA, sOutput);       // Set option to write to string
   curl_easy_setopt(curlfuncs::curl, CURLOPT_ACCEPT_ENCODING, "");
@@ -98,7 +99,7 @@ int CurlGetUrlFile(const char *url, const char *filename)
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEFUNCTION, NULL);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEDATA, fp);       // Set option to write to file
   curl_easy_setopt(curlfuncs::curl, CURLOPT_URL, url);            // Set the URL to get
-  curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPGET, 1);
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPGET, 1L);
   if (curl_easy_perform(curlfuncs::curl) == 0)
     nRet = 1;
   else
@@ -127,7 +128,7 @@ bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, strin
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEFUNCTION, NULL);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEDATA, fp);       // Set option to write to file
   curl_easy_setopt(curlfuncs::curl, CURLOPT_URL, url);            // Set the URL to get
-  curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPGET, 1);
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPGET, 1L);
   res =  curl_easy_perform(curlfuncs::curl);
   fclose(fp);
   if(res == CURLE_OK) return true;
@@ -140,7 +141,7 @@ bool CurlPostUrl(const char *url, const string &sPost, string &sOutput, struct c
   InitCurlLibraryIfNeeded();
   curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_URL, url);
-  curl_easy_setopt(curlfuncs::curl, CURLOPT_POST, 1);
+  curl_easy_setopt(curlfuncs::curl, CURLOPT_POST, 1L);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_POSTFIELDS, sPost.c_str() );
 
   curl_easy_setopt(curlfuncs::curl, CURLOPT_WRITEFUNCTION, curl_collect_data_string);
