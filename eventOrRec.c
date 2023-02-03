@@ -192,11 +192,11 @@ int csRecording::getVpsLength() {
 // -1: VPS used, but no time available
 // >0: VPS length in seconds
   if (m_vps_length > -4) return m_vps_length;
-  std::string filename = concatenate(m_recording->FileName(), "/markad.vps");
+  CONCAT(filename, "ss", m_recording->FileName(), "/markad.vps");
   struct stat buffer;
-  if (stat (filename.c_str(), &buffer) != 0) { m_vps_length = -3; return m_vps_length; }
+  if (stat (filename, &buffer) != 0) { m_vps_length = -3; return m_vps_length; }
 
-  std::ifstream markad(filename.c_str());
+  std::ifstream markad(filename);
   if (!markad) { m_vps_length = -3; return m_vps_length; }
   std::string l1;
   markad >> l1;
@@ -241,21 +241,20 @@ int csRecording::getVpsLength() {
 }
 bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
 // return false if no info is available
-  std::string filename = concatenate(m_recording->FileName(), "/tvscrapper.json" );
+  CONCAT(filename, "ss", m_recording->FileName(), "/tvscrapper.json");
   struct stat buffer;
-  if (stat (filename.c_str(), &buffer) != 0) return false;
+  if (stat (filename, &buffer) != 0) return false;
 
   rapidjson::Document document;
-  cLargeString document_s(jsonReadFile(document, filename.c_str()));
-//  if (jsonReadFile(document, filename.c_str())) return false; // error parsing json file
+  cLargeString document_s(jsonReadFile(document, filename));
   if (document.HasParseError() ) return false;
   rapidjson::Value::ConstMemberIterator timer_j = document.FindMember("timer");
   if (timer_j == document.MemberEnd() ) return false;  // timer information not available
 
-  if (!assertGetValue(timer_j->value, "vps", vps, filename.c_str() ) ) return false;
+  if (!assertGetValue(timer_j->value, "vps", vps, filename ) ) return false;
   time_t start, stop;
-  if (!assertGetValue(timer_j->value, "start_time", start, filename.c_str() ) ) return false;
-  if (!assertGetValue(timer_j->value, "stop_time", stop, filename.c_str() ) ) return false;
+  if (!assertGetValue(timer_j->value, "start_time", start, filename ) ) return false;
+  if (!assertGetValue(timer_j->value, "stop_time", stop, filename ) ) return false;
   lengthInSeconds = stop - start;
   return true;
 }

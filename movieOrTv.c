@@ -67,22 +67,21 @@ void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id,
 // adds the actors found with sql&id to the list of actors
 // works for all actors found in themoviedb (movie & tv actors). Not for actors in thetvdb
   cActor actor;
+  actor.actorThumb.width = width;
+  actor.actorThumb.height = height;
   const char *actorId;
   int hasImage;
-  const string basePath = config.GetBaseDir() + pathPart;
   for (sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", id);
        m_db->QueryStep(statement, "sSSi", &actorId, &actor.name, &actor.role, &hasImage); ) {
     if (hasImage) {
-      actor.actorThumb.path = concatenate(basePath.c_str(), actorId, ".jpg");
-      if (!FileExists(actor.actorThumb.path)) hasImage = false;
-    }
-    if (hasImage) {
-      actor.actorThumb.width = width;
-      actor.actorThumb.height = height;
-      if (!fullPath) actor.actorThumb.path = concatenate(pathPart, actorId, ".jpg");
+      CONCAT(path, "ssss", config.GetBaseDir().c_str(), pathPart, actorId, ".jpg");
+      if (FileExists(path)) {
+        if (fullPath) actor.actorThumb.path = path;
+        else actor.actorThumb.path = path + config.GetBaseDirLen();
+      } else {
+        actor.actorThumb.path = "";
+      }
     } else {
-      actor.actorThumb.width = width;
-      actor.actorThumb.height = height;
       actor.actorThumb.path = "";
     }
     actors.push_back(actor);
@@ -206,54 +205,6 @@ bool cTv::getSingleImage(eImageLevel level, eOrientation orientation, string *re
     case eImageLevel::anySeasonCollection: return getSingleImageAnySeason(orientation, relPath, fullPath, width, height);
     default: return false;
   }
-}
-
-bool cMovieOrTv::checkFullPath(const string &sFullPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height) {
-  if (!FileExists (sFullPath) ) return false;
-  if (fullPath) *fullPath = sFullPath;
-  if (relPath) *relPath = sFullPath.substr(config.GetBaseDirLen());
-  if (width) *width = i_width;
-  if (height) *height = i_height;
-  return true;
-}
-
-bool cMovieOrTv::checkFullPath(const stringstream &ssFullPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height) {
-// This should be used if fullPath != NULL
-// Can also be used in all other cases
-  if (fullPath) {
-    *fullPath = ssFullPath.str();
-    if (!FileExists (*fullPath) ) {*fullPath = ""; return false; }
-    if (relPath) *relPath = fullPath->substr(config.GetBaseDirLen());
-  } else {
-    string s_fullPath = ssFullPath.str();
-    if (!FileExists (s_fullPath) ) return false;
-    if (relPath) *relPath = s_fullPath.substr(config.GetBaseDirLen());
-  }
-  if (width) *width = i_width;
-  if (height) *height = i_height;
-  return true;
-}
-
-bool cMovieOrTv::checkRelPath(const stringstream &ssRelPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height) {
-// Should only be used if relPath != NULL && fullPath == NULL
-// Actually, even in this case it is unclear whether the performance is better than the performance of checkFullPath
-// Writing code for both, checkFullPath and checkRelPath
-  if (relPath) {
-    *relPath = ssRelPath.str();
-    if (!FileExistsRelPath (relPath->c_str() ) ) {*relPath = ""; return false; }
-    if (fullPath) *fullPath = config.GetBaseDir() + *relPath;
-  } else {
-    if (fullPath) {
-      *fullPath = config.GetBaseDir() + ssRelPath.str();
-      if (!FileExists (*fullPath) ) {*fullPath = ""; return false; }
-    } else {
-      string s_fullPath = config.GetBaseDir() + ssRelPath.str();
-      if (!FileExists (s_fullPath) ) return false;
-    }
-  }
-  if (width) *width = i_width;
-  if (height) *height = i_height;
-  return true;
 }
 
 // implementation of cMovieMoviedb  *********************
@@ -398,32 +349,38 @@ bool checkRelPath(string &relPath, int *width, int *height, int i_width, int i_h
   return true;
 }
 
-bool getSingleImageMovie(string &relPath, int *width, int *height, eOrientation orientation, const char *relBasePath, int id) {
+bool checkPath(const char *path, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height) {
+  if (!FileExists(path) ) return false;
+  if (fullPath) *fullPath = path;
+  if (relPath) *relPath = path + config.GetBaseDirLen();
+  if (width) *width = i_width;
+  if (height) *height = i_height;
+  return true;
+}
+bool checkPathC(string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height, const char *fmt, ...) {
+  if (!fmt) return false;
+  va_list vl;
+  va_start(vl, fmt);
+  char buffer[concat::vsprint(NULL, fmt, vl) + 1];
+  va_end(vl);
+  va_start(vl, fmt);
+  concat::vsprint(buffer, fmt, vl);
+  va_end(vl);
+  return checkPath(buffer, relPath, fullPath, width, height, i_width, i_height);
+}
+
+bool getSingleImageMovie(string *relPath, string *fullPath, int *width, int *height, eOrientation orientation, const char *basePath, unsigned int id) {
   switch (orientation) {
     case eOrientation::portrait:
-      relPath = concatenate(relBasePath, id, "_poster.jpg");
-      return checkRelPath(relPath, width, height, 500, 750);
+      return checkPathC(relPath, fullPath, width, height, 500, 750, "sus", basePath, id, "_poster.jpg");
     case eOrientation::landscape:
-      relPath = concatenate(relBasePath, id, "_backdrop.jpg");
-      return checkRelPath(relPath, width, height, 1280, 720);
+      return checkPathC(relPath, fullPath, width, height, 1280,  720, "sus", basePath, id, "_backdrop.jpg");
     default: return false;
   }
 }
 // movie images *****************************
 bool cMovieMoviedb::getSingleImageMovie(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
-  if (!fullPath && relPath)
-    return ::getSingleImageMovie(*relPath, width, height, orientation, "movies/", m_id);
-
-  stringstream path;
-  switch (orientation) {
-    case eOrientation::portrait:
-      path << config.GetBaseDirMovies() << m_id << "_poster.jpg";
-      return checkFullPath(path, relPath, fullPath, width, height, 500, 750);
-    case eOrientation::landscape:
-      path << config.GetBaseDirMovies() << m_id << "_backdrop.jpg";
-      return checkFullPath(path, relPath, fullPath, width, height, 1280, 720);
-    default: return false;
-  }
+  return ::getSingleImageMovie(relPath, fullPath, width, height, orientation, config.GetBaseDirMovies().c_str(), m_id);
 }
 
 bool cMovieMoviedb::getSingleImageCollection(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
@@ -431,20 +388,7 @@ bool cMovieMoviedb::getSingleImageCollection(eOrientation orientation, string *r
   if (m_collectionId <  0) m_collectionId = m_db->GetMovieCollectionID(m_id);
   if (m_collectionId <  0) m_collectionId = 0;
   if (m_collectionId == 0) return false;
-  if (!fullPath && relPath)
-    return ::getSingleImageMovie(*relPath, width, height, orientation, "movies/collections/", m_collectionId);
-
-  stringstream path;                                                                                                                                  
-  path << config.GetBaseDirMovieCollections() << m_collectionId;
-  switch (orientation) {
-    case eOrientation::portrait:
-      path << "_poster.jpg";
-      return checkFullPath(path, relPath, fullPath, width, height, 500, 750);
-    case eOrientation::landscape:
-      path << "_backdrop.jpg";
-      return checkFullPath(path, relPath, fullPath, width, height, 1280, 720);
-    default: return false;
-  }
+  return ::getSingleImageMovie(relPath, fullPath, width, height, orientation, config.GetBaseDirMovieCollections().c_str(), m_collectionId);
 }
 
 // implemntation of cTv  *********************
@@ -799,16 +743,15 @@ bool cTvMoviedb::getSingleImageAnySeason(eOrientation orientation, string *relPa
 // Landscape (will return false, there is no season backdrop / fanart) 
 // Portrait  (will return the season poster)
   if (orientation != eOrientation::portrait) return false;
-  stringstream path;
-  path << config.GetBaseDirMovieTv() << m_id;
-  const std::filesystem::path fs_path(path.str() );
+  CONCAT(dir_path, "su", config.GetBaseDirMovieTv().c_str(), m_id);
+  const std::filesystem::path fs_path(dir_path);
   if (std::filesystem::exists(fs_path) ) {
     for (auto const& dir_entry : std::filesystem::directory_iterator{fs_path}) {
       if (dir_entry.is_directory()) {
-        if (checkFullPath(dir_entry.path()/"poster.jpg", relPath, fullPath, width, height, 780, 1108)) return true;
+        if (checkPathC(relPath, fullPath, width, height, 780, 1108, "ss", dir_entry.path().c_str(), "/poster.jpg")) return true;
       }
     }
-  } // else esyslog("tvscraper:cTvMoviedb::getSingleImageAnySeason ERROR dir %s does not exist", path.str().c_str() );
+  } // else esyslog("tvscraper:cTvMoviedb::getSingleImageAnySeason ERROR dir %s does not exist", dir_path);
 
   return false;
 }
@@ -819,15 +762,12 @@ bool cTvMoviedb::getSingleImageTvShow(eOrientation orientation, string *relPath,
 // Banner    (will return false, there is no banner in themoviedb)
 // Landscape (will return backdrop) 
 // Portrait  (will return poster)
-  stringstream path;
-  path << config.GetBaseDirMovieTv() << m_id;
+  if (orientation == eOrientation::banner) return false;
   switch (orientation) {
     case eOrientation::portrait:
-      path << "/poster.jpg";
-      return checkFullPath(path, relPath, fullPath, width, height, 780, 1108);
+      return checkPathC(relPath, fullPath, width, height, 780, 1108, "sus", config.GetBaseDirMovieTv().c_str(), m_id, "/poster.jpg");
     case eOrientation::landscape:
-      path << "/backdrop.jpg";
-      return checkFullPath(path, relPath, fullPath, width, height, 1280, 720);
+      return checkPathC(relPath, fullPath, width, height, 1280, 720, "sus", config.GetBaseDirMovieTv().c_str(), m_id, "/backdrop.jpg");
     default: return false;
   }
 }
@@ -839,9 +779,8 @@ bool cTvMoviedb::getSingleImageSeason(eOrientation orientation, string *relPath,
 // Portrait  (will return the season poster)
   if (orientation != eOrientation::portrait) return false;
   if (m_seasonNumber == 0 && m_episodeNumber == 0) return false;  // no episode found
-  stringstream path;
-  path << config.GetBaseDirMovieTv() << m_id << "/" << m_seasonNumber << "/poster.jpg";
-  return checkFullPath(path, relPath, fullPath, width, height, 780, 1108);
+  CONCAT(path, "susus", config.GetBaseDirMovieTv().c_str(), m_id, "/", m_seasonNumber, "/poster.jpg");
+  return checkPath(path, relPath, fullPath, width, height, 780, 1108);
 }
 
 bool cTvMoviedb::getSingleImageEpisode(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
@@ -852,46 +791,33 @@ bool cTvMoviedb::getSingleImageEpisode(eOrientation orientation, string *relPath
 // Portrait  (will return false, there is no portrait for episode still)
   if (orientation != eOrientation::landscape) return false;
   if (m_seasonNumber == 0 && m_episodeNumber == 0) return false;  // no episode found
-  stringstream path;
-  path << config.GetBaseDirMovieTv() << m_id << "/" << m_seasonNumber << "/still_" << m_episodeNumber << ".jpg";
-  return checkFullPath(path, relPath, fullPath, width, height, 300, 200);
+  CONCAT(path, "sususus", config.GetBaseDirMovieTv().c_str(), m_id, "/", m_seasonNumber, "/still_", m_episodeNumber, ".jpg");
+  return checkPath(path, relPath, fullPath, width, height, 300, 200);
 }
 
 // implemntation of cTvTvdb  *********************
 void cTvTvdb::DeleteMediaAndDb() {
-  stringstream folder;
-  folder << config.GetBaseDirSeries() << m_id;
-  DeleteAll(folder.str() );
+  CONCAT(folder, "su", config.GetBaseDirSeries().c_str(), m_id);
+  DeleteAll(folder);
   m_db->DeleteSeries(m_id * -1);
 }
 
 std::vector<cActor> cTvTvdb::GetActors(bool fullPath) {
   std::vector<cActor> actors;
-// base path
-  stringstream basePath_stringstream;
-  basePath_stringstream  << config.GetBaseDirSeries() << m_id << "/actor_";
-  const string basePath = basePath_stringstream.str();
-// add actors
   cActor actor;
   const char *actorId;
   const char sql[] = "SELECT actor_number, actor_name, actor_role FROM series_actors WHERE actor_series_id = ?";
   for (sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", m_id);
        m_db->QueryStep(statement, "sSS", &actorId, &actor.name, &actor.role); ) {
+    actor.actorThumb.width = 300;
+    actor.actorThumb.height = 450;
+    actor.actorThumb.path = "";
     if (actorId && actorId[0] != '-') {
-      actor.actorThumb.path = basePath + actorId + ".jpg";
-      if (FileExists(actor.actorThumb.path)) {
-        actor.actorThumb.width = 300;
-        actor.actorThumb.height = 450;
-        if (!fullPath) actor.actorThumb.path.erase(0, config.GetBaseDirLen());
-      } else {
-        actor.actorThumb.path = "";
-        actor.actorThumb.width = 0;
-        actor.actorThumb.height = 0;
+      CONCAT(path, "susss", config.GetBaseDirSeries().c_str(), m_id, "/actor_", actorId, ".jpg");
+      if (FileExists(path)) {
+        if (fullPath) actor.actorThumb.path = path;
+        else actor.actorThumb.path = path + config.GetBaseDirLen();
       }
-    } else {
-      actor.actorThumb.width = 300;
-      actor.actorThumb.height = 450;
-      actor.actorThumb.path = "";
     }
     actors.push_back(actor);
   }
@@ -902,17 +828,14 @@ std::vector<cActor> cTvTvdb::GetActors(bool fullPath) {
 vector<cTvMedia> cTvTvdb::getImages(eOrientation orientation, int maxImages, bool fullPath) {
   vector<cTvMedia> images;
   if (orientation != eOrientation::portrait && orientation != eOrientation::landscape) return images;
-  stringstream path0;
-  path0 << config.GetBaseDirSeries() << m_id << ((orientation == eOrientation::portrait)?"/poster_":"/fanart_");
-  string s_path0 = path0.str();
+  CONCAT(path0, "sus", config.GetBaseDirSeries().c_str(), m_id, (orientation == eOrientation::portrait)?"/poster_":"/fanart_");
   for (int i=0; i<maxImages; i++) {
-    stringstream path;
-    path << s_path0 << i << ".jpg";
+    CONCAT(path, "sus", path0, i, ".jpg");
     cTvMedia media;
     if (fullPath) {
-      if (checkFullPath(path, NULL, &media.path, &media.width, &media.height, (orientation == eOrientation::portrait)?680:1920, (orientation == eOrientation::portrait)?1000:1080)) images.push_back(media);
+      if (checkPath(path, NULL, &media.path, &media.width, &media.height, (orientation == eOrientation::portrait)?680:1920, (orientation == eOrientation::portrait)?1000:1080)) images.push_back(media);
     } else {
-      if (checkFullPath(path, &media.path, NULL, &media.width, &media.height, (orientation == eOrientation::portrait)?680:1920, (orientation == eOrientation::portrait)?1000:1080)) images.push_back(media);
+      if (checkPath(path, &media.path, NULL, &media.width, &media.height, (orientation == eOrientation::portrait)?680:1920, (orientation == eOrientation::portrait)?1000:1080)) images.push_back(media);
     }
   }
   return images;
@@ -925,54 +848,35 @@ bool cTvTvdb::getSingleImageAnySeason(eOrientation orientation, string *relPath,
 // 2: Landscape (will return false, there is no season backdrop / fanart) 
 // 1: Portrait  (will return the season poster)
   if (orientation != eOrientation::portrait) return false;
-  stringstream path;
-  path << config.GetBaseDirSeries() << m_id;
 //  path << config.GetBaseDirSeries() << m_id << "/season_poster_" << m_seasonNumber << ".jpg";
+  CONCAT(dir_path, "su", config.GetBaseDirSeries().c_str(), m_id);
 
-  const std::filesystem::path fs_path(path.str() );
+  const std::filesystem::path fs_path(dir_path);
   if (std::filesystem::exists(fs_path) ) {
     for (auto const& dir_entry : std::filesystem::directory_iterator{fs_path}) {
       if (dir_entry.path().filename().string().find("season_poster_") != std::string::npos) {
-        if (checkFullPath(dir_entry.path(), relPath, fullPath, width, height, 680, 1000)) return true; 
-      }                                                                                                                                                     
-    }                                                                                                                                                     
-  } else esyslog("tvscraper:cTvTvdb::getSingleImageAnySeason ERROR dir %s does not exist", path.str().c_str() );
+        if (checkPath(dir_entry.path().c_str(), relPath, fullPath, width, height, 680, 1000)) return true;
+      }
+    }
+  } else esyslog("tvscraper:cTvTvdb::getSingleImageAnySeason ERROR dir %s does not exist", dir_path);
   return false;
 }
 
-bool getSingleImageTvShow(string &relPath, int *width, int *height, eOrientation orientation, int id) {
+bool getSingleImageTvShow(string *relPath, string *fullPath, int *width, int *height, eOrientation orientation, unsigned int id) {
   switch (orientation) {
     case eOrientation::portrait:
-      relPath = concatenate("series/", id, "/poster_0.jpg");
-      return checkRelPath(relPath, width, height, 680, 1000);
+      return checkPathC(relPath, fullPath, width, height, 680, 1000, "sus", config.GetBaseDirSeries().c_str(), id, "/poster_0.jpg");
     case eOrientation::landscape:
-      relPath = concatenate("series/", id, "/fanart_0.jpg");
-      return checkRelPath(relPath, width, height, 1920, 1080);
+      return checkPathC(relPath, fullPath, width, height, 1920, 1080, "sus", config.GetBaseDirSeries().c_str(), id, "/fanart_0.jpg");
     case eOrientation::banner:
-      relPath = concatenate("series/", id, "/banner.jpg");
-      return checkRelPath(relPath, width, height, 758, 140);
+      return checkPathC(relPath, fullPath, width, height, 758, 140, "sus", config.GetBaseDirSeries().c_str(), id, "/banner.jpg");
     default: return false;
   }
 }
+
 bool cTvTvdb::getSingleImageTvShow(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
 // Does not depend on episode or season!
-  if (!fullPath && relPath)
-    return ::getSingleImageTvShow(*relPath, width, height, orientation, m_id);
-
-  stringstream path;
-  path << config.GetBaseDirSeries() << m_id;
-  switch (orientation) {
-    case eOrientation::portrait:
-      path << "/poster_0.jpg";
-      return checkFullPath(path, relPath, fullPath, width, height, 680, 1000);
-    case eOrientation::landscape:
-      path << "/fanart_0.jpg";
-      return checkFullPath(path, relPath, fullPath, width, height, 1920, 1080);
-    case eOrientation::banner:
-      path << "/banner.jpg";
-      return checkFullPath(path, relPath, fullPath, width, height, 758, 140);
-    default: return false;
-  }
+  return ::getSingleImageTvShow(relPath, fullPath, width, height, orientation, m_id);
 }
 
 bool cTvTvdb::getSingleImageSeason(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
@@ -983,13 +887,8 @@ bool cTvTvdb::getSingleImageSeason(eOrientation orientation, string *relPath, st
 // Portrait  (will return the season poster)
   if (orientation != eOrientation::portrait) return false;
   if (m_seasonNumber == 0 && m_episodeNumber == 0) return false;  // no episode found
-  if (!fullPath && relPath) {
-    *relPath = concatenate("series/", m_id, "/season_poster_", m_seasonNumber, ".jpg");
-    return ::checkRelPath(*relPath, width, height, 680, 1000);
-  }
-  stringstream path;
-  path << config.GetBaseDirSeries() << m_id << "/season_poster_" << m_seasonNumber << ".jpg";
-  return checkFullPath(path, relPath, fullPath, width, height, 680, 1000);
+  CONCAT(path, "susus", config.GetBaseDirSeries().c_str(), m_id, "/season_poster_", m_seasonNumber, ".jpg");
+  return checkPath(path, relPath, fullPath, width, height, 680, 1000);
 }
 
 bool cTvTvdb::getSingleImageEpisode(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
@@ -1000,13 +899,8 @@ bool cTvTvdb::getSingleImageEpisode(eOrientation orientation, string *relPath, s
 // Portrait  (will return false, there is no portrait for episode still)
   if (orientation != eOrientation::landscape) return false;
   if (m_seasonNumber == 0 && m_episodeNumber == 0) return false;  // no episode found
-  if (!fullPath && relPath) {
-    *relPath = concatenate("series/", m_id, "/", m_seasonNumber, "/still_", m_episodeNumber, ".jpg");
-    return ::checkRelPath(*relPath, width, height, 300, 200);
-  }
-  stringstream path;
-  path << config.GetBaseDirSeries() << m_id << "/" << m_seasonNumber << "/still_" << m_episodeNumber << ".jpg";
-  return checkFullPath(path, relPath, fullPath, width, height, 300, 200);
+  CONCAT(path, "sususus", config.GetBaseDirSeries().c_str(), m_id, "/", m_seasonNumber, "/still_", m_episodeNumber, ".jpg");
+  return checkPath(path, relPath, fullPath, width, height, 300, 200);
 }
 
 // static methods  *********************
@@ -1127,6 +1021,7 @@ for (const std::filesystem::directory_entry& dir_entry :
 
 void deleteOutdatedEpgImages() {
 // check event start time. Delete if older than yesterday
+if (!CheckDirExists(config.GetBaseDirEpg().c_str() )) return;
 for (const std::filesystem::directory_entry& dir_entry : 
         std::filesystem::directory_iterator{config.GetBaseDirEpg() }) 
   {

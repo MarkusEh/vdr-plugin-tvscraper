@@ -14,7 +14,7 @@ private:
     time_t tokenHeaderCreated = 0;
     string baseDir;
     cTVScraperDB *db;
-    json_t *CallRestJson(const std::string &url, cLargeString &buffer, int *error = NULL, bool disableLog = false);
+    json_t *CallRestJson(const char *url, cLargeString &buffer, int *error = NULL, bool disableLog = false);
     bool GetToken(const std::string &jsonResponse);
     bool AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);
     bool ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);

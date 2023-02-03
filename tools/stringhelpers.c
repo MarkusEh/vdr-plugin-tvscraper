@@ -1,3 +1,4 @@
+#include <cstdarg>
 #include <string>
 #include <string.h>
 #include <vector>
@@ -5,9 +6,45 @@
 #include <set>
 #include <iostream>
 
+#define CONCAT(result, fmt, ...) \
+char result[concat::sprint(NULL, fmt, __VA_ARGS__) + 1]; \
+concat::sprint(result, fmt, __VA_ARGS__);
+
+#define CONVERT(result, from, fn) \
+char result[fn(NULL, from) + 1]; \
+fn(result, from);
+
+
 using namespace std;
 
 // UTF8 string utilities ****************
+int AppendUtfCodepoint(char *&target, wint_t codepoint){
+  if (codepoint <= 0x7F){
+     *(target++) = (char) (codepoint);
+     *target = 0;
+     return 1;
+  }
+  if (codepoint <= 0x07FF) {
+     *(target++) =( (char) (0xC0 | (codepoint >> 6 ) ) );
+     *(target++) =( (char) (0x80 | (codepoint & 0x3F)) );
+     *target = 0;
+     return 2;
+  }
+  if (codepoint <= 0xFFFF) {
+     *(target++) =( (char) (0xE0 | ( codepoint >> 12)) );
+     *(target++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+     *(target++) =( (char) (0x80 | ( codepoint & 0x3F)) );
+     *target = 0;
+     return 3;
+  }
+     *(target++) =( (char) (0xF0 | ((codepoint >> 18) & 0x07)) );
+     *(target++) =( (char) (0x80 | ((codepoint >> 12) & 0x3F)) );
+     *(target++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+     *(target++) =( (char) (0x80 | ( codepoint & 0x3F)) );
+     *target = 0;
+     return 4;
+}
+
 void AppendUtfCodepoint(std::string &target, wint_t codepoint){
   if (codepoint <= 0x7F){
      target.push_back( (char) (codepoint) );
@@ -52,7 +89,8 @@ wint_t Utf8ToUtf32(const char *&p, int len) {
 }
 
 wint_t getUtfCodepoint(const char *p) {
-// get next codepoint 0 is returned at end of string
+// get next codepoint
+// 0 is returned at end of string
   if(!p || !*p) return 0;
   int l = utf8CodepointIsValid(p);
   if( l == 0 ) return '?';
@@ -96,35 +134,6 @@ bool stringEqual(const char *s1, const char *s2) {
   return false;
 }
 
-int numChars(int i) {
-// return number of characters requird to print i
-  int result = 0;
-  if (i < 0) {
-    i *= -1;
-    result++;
-  }
-  if (i < 10) return result + 1;
-  for (; i; i /= 10) result++;
-// std::cout "numChars = " << result << "\n";
-  return result;
-}
-char *intToChars(char *bufferEnd, int i) {
-// notes:
-//    sizeof(buffer) must be >= numChars(i) + 1 !! This is not checked ....
-//    bufferEnd = buffer + sizeof(buffer);
-//    available to write: [buffer, bufferEnd)  (bufferEnd is excluded)
-// return pointer to char representation of i
-  bool minus = i < 0;
-  if (minus) i *= -1;
-  *(--bufferEnd) = 0;
-  if (i < 10) {
-    *(--bufferEnd) = '0' + i;
-  } else {
-    for (; i; i /= 10) *(--bufferEnd) = '0' + (i%10);
-  }
-  if (minus) *(--bufferEnd) = '-';
-  return bufferEnd;
-}
 std::string concatenate(const char *s1, const char *s2) {
   if (!s1 && !s2) return "";
   if (!s1) return s2;
@@ -148,60 +157,128 @@ std::string concatenate(const char *s1, const char *s2, const char *s3) {
   return result;
 }
 
-std::string concatenate(const char *s1, int i, const char *s3) {
-  int s1Len = s1?strlen(s1):0;
-  int iLen = numChars(i);
-  int s3Len = s3?strlen(s3):0;
-  std::string result;
-  result.reserve(s1Len + iLen + s3Len);
-  if (s1) result.append(s1);
-  char buffer [iLen + 1];
-  result.append(intToChars(buffer + iLen + 1, i));
-  if (s3) result.append(s3);
-  return result;
+// std::string_view to_sv : increase type safety in ... methods  ================
+inline std::string_view to_sv(const char *s) {
+  if (s) return std::string_view(s);
+  return std::string_view();
+}
+inline std::string_view to_sv(const std::string &S) {
+  return S;
+}
+inline std::string_view to_sv(const std::string_view &V) {
+  return V;
 }
 
-std::string concatenate(const char *s1, int i2, const char *s3, int i4, const char *s5) {
-  int s1Len = s1?strlen(s1):0;
-  int i2Len = numChars(i2);
-  int s3Len = s3?strlen(s3):0;
-  int i4Len = numChars(i4);
-  int s5Len = s5?strlen(s5):0;
-  std::string result;
-  result.reserve(s1Len + i2Len + s3Len + i4Len + s5Len);
-  int buf_size = std::max(i2Len, i4Len) + 1;
-  char buffer [buf_size];
-  if (s1) result.append(s1);
-  result.append(intToChars(buffer + buf_size, i2));
-  if (s3) result.append(s3);
-  result.append(intToChars(buffer + buf_size, i4));
-  if (s5) result.append(s5);
-  return result;
+namespace concat {
+  template<class T> int toCharsU(char *buffer, T i0) {
+// notes:
+//    i0 must be unsigned !!!!
+//    return number of characters written to buffer  (don't count 0 terminator)
+//    if buffer==NULL: don't write anything, just return the number
+//    sizeof(buffer) must be >= this return value + 1 !! This is not checked ....
+    int numChars;
+    int i = i0;
+    if (i < 10) numChars = 1;
+    else for (numChars = 0; i; i /= 10) numChars++;
+    if (!buffer) return numChars;
+    char *bufferEnd = buffer + numChars;
+    i = i0;
+    *bufferEnd = 0;
+    if (i < 10) *(--bufferEnd) = '0' + i;
+    else for (; i; i /= 10) *(--bufferEnd) = '0' + (i%10);
+    return numChars;
+  }
+  template<class T> int toCharsI(char *buffer, T i) {
+    if (i >= 0) return toCharsU(buffer, i);
+    if (buffer) *(buffer++) = '-';
+    return toCharsU(buffer, -1*i) + 1;
+  }
+
+  typedef int (*tSprint)(char *to, std::string_view from);
+// convert from to to
+// return number of characters written to to  (don't count 0 terminator)
+// if to==NULL: don't write anything, just return the number
+
+  int vsprint(char *buffer, const char *fmt, va_list &vl) {
+  // return number of characters required to concatenate
+  // note: sizeof(buffer) must be this number + 1 (terminating 0)
+  // va_list &vl: list of objects to concatenate
+  // fmt:
+  //    s: const char *        must be zero terminated
+  //    V: std::string_view    use this and to_sv(...) for strings
+  //    u: unsigned int
+  //    i: int
+  //    t: time_t
+  //    w: 2 parameters: const char *, conversion function type tSprint
+  //    W: 2 parameters: string_view , conversion function type tSprint
+    if (!fmt) { if (buffer) *buffer = 0; return 0; }
+    int numChars = 0;
+    char *s;
+    std::string_view sv;
+    tSprint wf;
+    for (; *fmt; fmt++) {
+      switch (*fmt) {
+        case 's':
+          s = va_arg(vl,char*);
+          if (s) {
+            if (buffer) strcpy(buffer + numChars, s);
+            numChars += strlen(s);
+          }
+          break;
+        case 'V':
+          sv = va_arg(vl,std::string_view);
+          if (buffer) strncpy(buffer + numChars, sv.data(), sv.length());
+          numChars += sv.length();
+          break;
+        case 'i':
+          numChars += toCharsI(buffer?buffer + numChars:NULL, va_arg(vl,int));
+          break;
+        case 'u':
+          numChars += toCharsU(buffer?buffer + numChars:NULL, va_arg(vl,unsigned int));
+          break;
+        case 't':
+          numChars += toCharsU(buffer?buffer + numChars:NULL, va_arg(vl,time_t));
+          break;
+        case 'W':
+          sv = va_arg(vl,std::string_view);
+          wf = va_arg(vl,tSprint);
+          numChars += (*wf)(buffer?buffer + numChars:NULL, sv);
+          break;
+        case 'w':
+          s = va_arg(vl,char*);
+          wf = va_arg(vl,tSprint);
+          if (s) numChars += (*wf)(buffer?buffer + numChars:NULL, std::string_view(s));
+          break;
+        default:
+          esyslog("tvscraper: ERROR in stringhelpers->concat::vsprint, fmt: %s, unknown %c", fmt, *fmt);
+          va_arg(vl, void*);
+      }
+    }
+    if (buffer) *(buffer + numChars) = 0;
+    return numChars;
+  }
+  int sprint(char *buffer, const char *fmt, ...) {
+    va_list vl;
+    va_start(vl, fmt);
+    int result = vsprint(buffer, fmt, vl);
+    va_end(vl);
+    return result;
+  }
+}
+std::string concatenateAll(const char *fmt, ...) {
+// see numCharsAll for fmt
+  if (!fmt) return "";
+  va_list vl1, vl2;
+  va_start(vl1, fmt);
+  va_copy(vl2, vl1);
+  char buffer[concat::vsprint(NULL, fmt, vl1) + 1];
+  va_end(vl1);
+  concat::vsprint(buffer, fmt, vl2);
+  va_end(vl2);
+  return buffer;
 }
 
-std::string concatenate(const char *s1, int i2, const char *s3, int i4, const char *s5, int i6, const char *s7) {
-  int s1Len = s1?strlen(s1):0;
-  int i2Len = numChars(i2);
-  int s3Len = s3?strlen(s3):0;
-  int i4Len = numChars(i4);
-  int s5Len = s5?strlen(s5):0;
-  int i6Len = numChars(i6);
-  int s7Len = s7?strlen(s7):0;
-  std::string result;
-  result.reserve(s1Len + i2Len + s3Len + i4Len + s5Len + i6Len + s7Len);
-  int buf_size = std::max(i2Len, std::max(i4Len, i6Len)) + 1;
-  char buffer [buf_size];
-  if (s1) result.append(s1);
-  result.append(intToChars(buffer + buf_size, i2));
-  if (s3) result.append(s3);
-  result.append(intToChars(buffer + buf_size, i4));
-  if (s5) result.append(s5);
-  result.append(intToChars(buffer + buf_size, i6));
-  if (s7) result.append(s7);
-  return result;
-}
-
-// whitespace
+// whitespace ================================================================
 void StringRemoveTrailingWhitespace(string &str) {
   std::string whitespaces (" \t\f\v\n\r");
 

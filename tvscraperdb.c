@@ -226,7 +226,8 @@ int cTVScraperDB::step_read_result(sqlite3_stmt *statement, const char *fmt_resu
   for (int i=0; fmt_result[i]; i++) {
     switch (fmt_result[i]) {
       case 'S':
-        valr_s=static_cast<std::string*>(va_arg(vl,void*) );
+//        valr_s=static_cast<std::string*>(va_arg(vl,void*) );
+        valr_s=va_arg(vl,std::string*);
         *valr_s = charPointerToString(sqlite3_column_text(statement, i));
         break;
       case 's':
@@ -302,7 +303,6 @@ int cTVScraperDB::prepare_bind(sqlite3_stmt **statement, const char *query, cons
         sqlite3_bind_text(*statement, i + 1, va_arg(vl,char*), -1, SQLITE_STATIC);
         break;
       case 'V':
-//        valr_s=static_cast<std::string*>(va_arg(vl,void*) );
         sv = va_arg(vl,std::string_view);
         sqlite3_bind_text(*statement, i + 1, sv.data(), sv.length(), SQLITE_STATIC);
         break;

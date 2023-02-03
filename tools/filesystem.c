@@ -9,25 +9,32 @@
 namespace fs = std::filesystem;
 using namespace std;
 
-bool CreateDirectory(const string &dir) {
-    mkdir(dir.c_str(), 0775);
+bool CreateDirectory(const char *dir) {
+    mkdir(dir, 0775);
     //check if successfull
     DIR *pDir;
     bool exists = false;
-    pDir = opendir(dir.c_str());
+    pDir = opendir(dir);
     if (pDir != NULL) {
         exists = true;    
         closedir(pDir);
     }
     return exists;
 }
+bool CreateDirectory(const string &dir) {
+  return CreateDirectory(dir.c_str() );
+}
 
-bool FileExists(const string &filename) {
+bool FileExists(const char *filename) {
+  if (!filename) return false;
   struct stat buffer;
-  if (stat (filename.c_str(), &buffer) != 0) return false;
+  if (stat (filename, &buffer) != 0) return false;
 // test: series;  smallest picture: 2521 bytes. Wrong files: 0 bytes or 243 bytes
 // test: moviedb; smallest picture: 1103 bytes. Wrong files: 0 bytes or 150 bytes
   return buffer.st_size > 500;
+}
+bool FileExists(const string &filename) {
+  return FileExists(filename.c_str());
 }
 
 bool FileExistsRelPath(const char *relPathname) {

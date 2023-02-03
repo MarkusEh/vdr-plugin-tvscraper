@@ -10,6 +10,7 @@
  
 std::set<std::string_view> ignoreWords = {"der", "die", "das", "the", "I", "-"};
 std::string normString(const char *s, int len = -1);
+int normStringC(char *to, std::string_view from);
 int sentence_distance_normed_strings(std::string_view str1, std::string_view str2);
 class cNormedString {
   public:
@@ -24,14 +25,15 @@ class cNormedString {
 
 int minDistanceNormedStrings(int distance, const std::vector<cNormedString> &normedStrings, const char *string, std::string *r_normedString = NULL) {
   int len = StringRemoveLastPartWithP(string, strlen(string));
-  std::string normedString;
-  if (len == -1) normedString = normString(string);
-  else normedString = normString(string, len);
+  std::string_view sv;
+  if (len == -1) sv = string;
+  else sv = std::string_view(string, len);
+  CONVERT(normedString, sv, normStringC);
 
   for (const cNormedString &i_normedString: normedStrings)
     distance = i_normedString.minDistanceNormedString(distance, normedString);
 
-  if (r_normedString) *r_normedString = std::move(normedString);
+  if (r_normedString) *r_normedString = normedString;
   return distance;
 }
 
@@ -132,6 +134,42 @@ int romToArab(const char *&s, const char *se) {
   return ret;
 }
 
+int normStringC(char *to, std::string_view from) {
+// return number of characters written to to  (don't count 0 terminator)
+// if to==NULL: don't write anything, just return the number
+
+// replace invalid UTF8 characters with ' '
+// replace all non-alphanumeric characters with ' '
+// replace roman numbers with arabic numbers
+  if (from.length() == 0) { if (to) *to = 0; return 0; }
+  int numChars = 0;
+  const char *s  = from.data();       // s points to current char
+  const char *se = s + from.length(); // se points to char after last char (*se == 0 for c strings)
+  bool wordStart = true;
+  while (s < se) {
+    if (wordStart) {
+// At the beginning of a word, check for roman number
+      int i = romToArab(s, se); // this also increases s, if a roman number was found.
+      if (i > 0) {
+        int il = concat::toCharsU(to, (unsigned int)i);
+        if (to) to += il;
+        numChars += il;
+        continue;
+      }
+    }
+    int l = utf8CodepointIsValid(s);
+    wint_t cChar;
+    if (l == 0) { cChar = ' '; s++; l = 1; }  // invalid utf
+    else cChar = Utf8ToUtf32(s, l); // this also increases s
+    if (!std::iswalnum(cChar) ) { cChar = ' '; l = 1; }  // change to " "
+    if (cChar != ' ' || !wordStart) {
+      if (to) AppendUtfCodepoint(to, towlower(cChar));  // also increases to
+      numChars += l;
+      wordStart = cChar == ' ';
+    }
+  }
+  return numChars;
+}
 std::string normString(const char *s, int len) {
 // replace invalid UTF8 characters with ' '
 // replace all non-alphanumeric characters with ' '
@@ -139,10 +177,10 @@ std::string normString(const char *s, int len) {
 // if len >= 0: this is the length of the string, otherwise: 0 terminated
 // return the result
   std::string out;
-  if(!s || !*s || len == 0) return out;
-  if (len < 0 ) len = strlen(s);
+  if (!s || !*s || len == 0) return out;
+  if (len < 0) len = strlen(s);
   out.reserve(len);
-//  const char *sc = s; // sc points to current char
+//const char *sc = s;       // sc points to current char
   const char *se = s + len; // se points to char after last char (*se == 0 for c strings)
   while (s < se) {
     if (out.empty() || out.back() == ' ') {
@@ -168,38 +206,31 @@ inline std::string normString(const std::string_view &s) {
   return normString(s.data(), s.length() );
 }
 
-std::string removeRomanNum(const char *s, int len = -1) {
+int removeRomanNumC(char *to, std::string_view from) {
 // replace invalid UTF8 characters with ' '
 // replace roman numbers I - IX with ' '
-// len: num of character in s. If len == -1: s is 0 terminated
-// return the result
-  std::string out;
-  if(!s || !*s || len == 0) return out;
-  if (len < 0 ) len = strlen(s);
-  out.reserve(len);
-  const char *se = s + len; // se points to char after last char (*se == 0 for c strings)
+// return number of characters written to to  (don't count 0 terminator)
+// if to==NULL: don't write anything, just return the number
+
+  int numChars = 0;
+  const char *s  = from.data();
+  const char *se = s + from.length(); // se points to char after last char (*se == 0 for c strings)
+  bool wordStart = true;
   while (s < se) {
-    if (out.empty() || out.back() == ' ') {
+    if (wordStart) {
 // Beginning of a word
       int i = romToArab(s, se); // this also increases s, if a roman number was found.
       if ( i > 0) continue;
     }
-    wint_t cChar = getNextUtfCodepoint(s);  // this also increases s
-    AppendUtfCodepoint(out, cChar);
+    int l = utf8CodepointIsValid(s);
+    wint_t cChar;
+    if (l == 0) { cChar = '?'; s++; l = 1; }  // invalid utf
+    else cChar = Utf8ToUtf32(s, l); // this also increases s
+    if (to) AppendUtfCodepoint(to, cChar); // also increases to
+    numChars += l;
+    wordStart = cChar == ' ';
   }
-  return out;
-}
-
-std::string_view removeRomanNum(std::string_view str, std::string &buffer) {
-// replace roman numbers I - IX with ' '
-  if (str.empty() ) return str;
-  const char *sc = str.data();
-  const char *se = str.data() + str.length(); // se points to char after last char (*se == 0 for c strings)
-  bool found = romToArab(sc, se);
-  for (sc = str.data() + 1; !found && sc < se; sc++) found = *(sc  - 1) == ' ' && romToArab(sc, se);
-  if (!found) return str;
-  buffer = removeRomanNum(str.data(), str.length());
-  return buffer;
+  return numChars;
 }
 
 std::vector<cNormedString> getNormedStrings(std::string_view searchString, std::string_view &searchString1, std::string_view &searchString2, std::string_view &searchString3, std::string_view &searchString4) {
@@ -265,15 +296,6 @@ int normMatch(int i, int n) {
   return normMatch((float)i / (float)n) * 1000;
 }
 
-/*
-void resizeStringWordEnd(std::string &str, int len) {
-  if ((int)str.length() <= len) return;
-  const size_t found = str.find_first_of(" .,;:!?", len);
-  if (found == std::string::npos) return;
-  str.resize(found);
-}
-*/
-
 int dist_norm_fuzzy(std::string_view str_longer, std::string_view str_shorter, int max_length) {
 // return 0 - 1000
 // 0:    identical
@@ -319,12 +341,16 @@ int sentence_distance_normed_strings(std::string_view str1, std::string_view str
 
 int sentence_distance(const char *sentence1a, const char *sentence2a) {
   if (strcmp(sentence1a, sentence2a) == 0) return 0;
-  return sentence_distance_normed_strings(normString(sentence1a), normString(sentence2a));
+  CONVERT(ns1, std::string_view(sentence1a), normStringC);
+  CONVERT(ns2, std::string_view(sentence2a), normStringC);
+  return sentence_distance_normed_strings(ns1, ns2);
 }
 
 int sentence_distance(std::string_view sentence1a, std::string_view sentence2a) {
   if (sentence1a == sentence2a) return 0;
-  return sentence_distance_normed_strings(normString(sentence1a), normString(sentence2a));
+  CONVERT(ns1, sentence1a, normStringC);
+  CONVERT(ns2, sentence2a, normStringC);
+  return sentence_distance_normed_strings(ns1, ns2);
 }
 
 int minDistanceStrings(const char *str, const char *strToCompare, char delim = '~') {
@@ -334,9 +360,10 @@ int minDistanceStrings(const char *str, const char *strToCompare, char delim = '
   if (!str || !*str || !strToCompare || !*strToCompare) return minDist;
   const char *rDelimPos = strchr(str, delim);
   if (!rDelimPos) return minDist;  // there is no ~ in str
-  std::string stringToCompare = normString(strToCompare);
+  CONVERT(stringToCompare, std::string_view(strToCompare), normStringC);
   for (; rDelimPos; rDelimPos = strchr(str, delim) ) {
-    minDist = std::min(minDist, sentence_distance_normed_strings(stringToCompare, normString(str, rDelimPos - str)));
+    CONVERT(ns, std::string_view(str, rDelimPos - str), normStringC);
+    minDist = std::min(minDist, sentence_distance_normed_strings(stringToCompare, ns));
     str = rDelimPos + 1;
   }
   return minDist;

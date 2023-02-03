@@ -62,10 +62,6 @@ protected:
   
   cMovieOrTv(const cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): m_db(db), m_id(id), m_seasonNumber(seasonNumber), m_episodeNumber(episodeNumber) {}
   virtual std::string imageUrl(const char *imageUrl) = 0;
-// Media
-  bool checkFullPath(const string        &sFullPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height);
-  bool checkFullPath(const stringstream &ssFullPath, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height);
-  bool checkRelPath (const stringstream &ssRelPath,  string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height);
 private:
   int m_collectionId = -2; // -2: not checked
 };

@@ -25,16 +25,16 @@ int loadChannelmap(vector<sChannelMapEpg> &channelMap) {
     ciCount
   };
 
-  std::string path = concatenate(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N), "/channelmap.conf");
+  CONCAT(path, "ss", cPlugin::ConfigDirectory(PLUGIN_NAME_I18N), "/channelmap.conf");
   cmfile.open(path);
 
   if (cmfile.fail())
   {
-    esyslog("tvscraper, '%s' does not exist, external EPG disabled (see README.md). Message: '%s'", path.c_str() , strerror(errno));
+    esyslog("tvscraper, '%s' does not exist, external EPG disabled (see README.md). Message: '%s'", path, strerror(errno));
     return 0;
   }
 
-  esyslog("tvscraper, loading '%s'", path.c_str() );
+  esyslog("tvscraper, loading '%s'", path);
 
   while (!cmfile.eof())
   {
@@ -68,7 +68,7 @@ int loadChannelmap(vector<sChannelMapEpg> &channelMap) {
 
     if ((p == string::npos) || !s.substr(p+1).length())
     {
-      esyslog("tvscraper: ERROR parsing '%s' at line %d!", path.c_str() , line);
+      esyslog("tvscraper: ERROR parsing '%s' at line %d!", path, line);
       status = 0;
       break;
     }
@@ -91,7 +91,7 @@ int loadChannelmap(vector<sChannelMapEpg> &channelMap) {
 
     if (!right || !source || !extid)
     {
-      esyslog("tvscraper: ERROR: Syntax error in '%s' at line %d!", path.c_str() , line);
+      esyslog("tvscraper: ERROR: Syntax error in '%s' at line %d!", path, line);
 
       free(right);
       free(source);
@@ -111,7 +111,7 @@ int loadChannelmap(vector<sChannelMapEpg> &channelMap) {
     {
       channelMapEpg.channelID = tChannelID::FromString(pc);  // VDR channel ID
       if (!channelMapEpg.channelID.Valid() ) {
-        esyslog("tvscraper: ERROR parsing '%s' at line %d, channel %s not valid", path.c_str() , line, pc);
+        esyslog("tvscraper: ERROR parsing '%s' at line %d, channel %s not valid", path, line, pc);
       } else {
         channelMap.push_back(channelMapEpg);
         count++;

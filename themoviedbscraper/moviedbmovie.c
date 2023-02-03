@@ -136,37 +136,41 @@ void cMovieDbMovie::AddMovieResults(cLargeString &buffer, vector<searchResultTvM
     esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
     return;
   }
-  stringstream url;
-  string t = config.GetThemoviedbSearchOption();
-  string SearchString_ext_rom = removeRomanNum(SearchString.data(), SearchString.length());
-  url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
-  size_t num_pages = AddMovieResultsForUrl(buffer, url.str(), resultSet, normedStrings, description, setMinTextMatch);
+  const char *t = config.GetThemoviedbSearchOption().c_str();
+  CONVERT(SearchString_ext_rom, SearchString, removeRomanNumC);
+  if (*SearchString_ext_rom == 0) {
+    esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString_ext_rom == empty");
+    return;
+  }
+  CURLESCAPE(query, SearchString_ext_rom);
+  CONCAT(url, "ssssVsss", m_baseURL.c_str(), "/search/movie?api_key=", m_movieDBScraper->GetApiKey().c_str(), "&language=", to_sv(lang->m_themoviedb), t, "&query=", query);
+  size_t num_pages = AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch);
   bool found = false;
   if (num_pages > 3 && years.size() + 1 < num_pages) {
 // several pages, restrict with years
     for (const int &year: years) {
-      stringstream url;
-      url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&year=" << abs(year) << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
-      if (AddMovieResultsForUrl(buffer, url.str(), resultSet, normedStrings, description, setMinTextMatch) > 0) found = true;
+//      url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&year=" << abs(year) << "&query=" << query;
+      CONCAT(url, "ssssVssuss", m_baseURL.c_str(), "/search/movie?api_key=", m_movieDBScraper->GetApiKey().c_str(), "&language=", to_sv(lang->m_themoviedb), t, "&year=", (unsigned int)abs(year), "&query=", query);
+      if (AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch) > 0) found = true;
     }
   }
   if (! found) {
 // no years avilable, or not found with the available year. Check all results in all pages
     if (num_pages > 10) num_pages = 10;
     for (size_t page = 2; page <= num_pages; page ++) {
-      stringstream url;
-      url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&page=" << page << "&query=" << CurlEscape(SearchString_ext_rom.c_str());
-      AddMovieResultsForUrl(buffer, url.str(), resultSet, normedStrings, description, setMinTextMatch);
+//      url << m_baseURL << "/search/movie?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << t << "&page=" << page << "&query=" << query;
+      CONCAT(url, "ssssVssuss", m_baseURL.c_str(), "/search/movie?api_key=", m_movieDBScraper->GetApiKey().c_str(), "&language=", to_sv(lang->m_themoviedb), t, "&page=", (unsigned int)page, "&query=", query);
+      AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch);
     }
   }
 }
 
-int cMovieDbMovie::AddMovieResultsForUrl(cLargeString &buffer, const string &url, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch) {
+int cMovieDbMovie::AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch) {
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
   json_error_t error;
-  if (config.enableDebug) esyslog("tvscraper: calling %s", url.c_str());
-  if (!CurlGetUrl(url.c_str(), buffer)) return 0;
+  if (config.enableDebug) esyslog("tvscraper: calling %s", url);
+  if (!CurlGetUrl(url, buffer)) return 0;
   json_t *root = json_loads(buffer.c_str(), 0, &error);
   if (!root) return 0;
   if (json_integer_value_validated(root, "total_results") == 0) return 0;

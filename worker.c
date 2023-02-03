@@ -176,7 +176,8 @@ bool cTVScraperWorker::ScrapEPG(void) {
           if (!event) continue;
           newEvent = true;
           if (!newEventSchedule) {
-            dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), (const char *)channelID.ToString());
+            dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), channelToString(channelID).c_str() );
+//          dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), (const char *)channelID.ToString());
             newEventSchedule = true;
           }
 					tvspEpg.enhanceEvent(event);
@@ -273,11 +274,11 @@ bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
 }
 
 void writeTimerInfo(const cTimer *timer, const char *pathName) {
-  std::string filename = concatenate(pathName, "/tvscrapper.json");
+  CONCAT(filename, "ss", pathName, "/tvscrapper.json");
 
   rapidjson::Document document;
-  cLargeString document_s(jsonReadFile(document, filename.c_str()));
-//  if (jsonReadFile(document, filename.c_str())) return; // error parsing json file
+  cLargeString document_s(jsonReadFile(document, filename));
+//  if (jsonReadFile(document, filename)) return; // error parsing json file
   if (document.HasParseError() ) return;
   if (document.HasMember("timer") ) return;  // timer information already available
 
@@ -290,7 +291,7 @@ void writeTimerInfo(const cTimer *timer, const char *pathName) {
 
   document.AddMember("timer", timer_j, document.GetAllocator());
 
-  jsonWriteFile(document, filename.c_str());
+  jsonWriteFile(document, filename);
 }
 
 bool cTVScraperWorker::CheckRunningTimers(void) {
@@ -316,7 +317,8 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
         continue;
       }
-      if (stat(concatenate(rc->FileName(), "/tvscrapper.json").c_str(), &buffer) != 0) {
+      CONCAT(filename, "ss", rc->FileName(), "/tvscrapper.json");
+      if (stat(filename, &buffer) != 0) {
         recordingFileNames.push_back(rc->FileName() );
         writeTimerInfo(timer, rc->FileName() );
       }
