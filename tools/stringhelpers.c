@@ -18,31 +18,43 @@ fn(result, from);
 using namespace std;
 
 // UTF8 string utilities ****************
+/*
+int sprintWchar(char *to, wint_t cp) {
+}
+*/
 int AppendUtfCodepoint(char *&target, wint_t codepoint){
-  if (codepoint <= 0x7F){
-     *(target++) = (char) (codepoint);
-     *target = 0;
-     return 1;
+  if (codepoint <= 0x7F) {
+    if (target) {
+      *(target++) = (char) (codepoint);
+      *target = 0;
+    }
+    return 1;
   }
   if (codepoint <= 0x07FF) {
-     *(target++) =( (char) (0xC0 | (codepoint >> 6 ) ) );
-     *(target++) =( (char) (0x80 | (codepoint & 0x3F)) );
-     *target = 0;
-     return 2;
+    if (target) {
+      *(target++) =( (char) (0xC0 | (codepoint >> 6 ) ) );
+      *(target++) =( (char) (0x80 | (codepoint & 0x3F)) );
+      *target = 0;
+    }
+    return 2;
   }
   if (codepoint <= 0xFFFF) {
-     *(target++) =( (char) (0xE0 | ( codepoint >> 12)) );
-     *(target++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
-     *(target++) =( (char) (0x80 | ( codepoint & 0x3F)) );
-     *target = 0;
-     return 3;
+    if (target) {
+      *(target++) =( (char) (0xE0 | ( codepoint >> 12)) );
+      *(target++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+      *(target++) =( (char) (0x80 | ( codepoint & 0x3F)) );
+      *target = 0;
+    }
+    return 3;
   }
-     *(target++) =( (char) (0xF0 | ((codepoint >> 18) & 0x07)) );
-     *(target++) =( (char) (0x80 | ((codepoint >> 12) & 0x3F)) );
-     *(target++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
-     *(target++) =( (char) (0x80 | ( codepoint & 0x3F)) );
-     *target = 0;
-     return 4;
+    if (target) {
+      *(target++) =( (char) (0xF0 | ((codepoint >> 18) & 0x07)) );
+      *(target++) =( (char) (0x80 | ((codepoint >> 12) & 0x3F)) );
+      *(target++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+      *(target++) =( (char) (0x80 | ( codepoint & 0x3F)) );
+      *target = 0;
+    }
+  return 4;
 }
 
 void AppendUtfCodepoint(std::string &target, wint_t codepoint){

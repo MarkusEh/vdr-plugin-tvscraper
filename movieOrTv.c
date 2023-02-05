@@ -992,6 +992,7 @@ void cMovieOrTv::CleanupTv_media(const cTVScraperDB *db) {
 
 void deleteOutdatedRecordingImages(const cTVScraperDB *db) {
 // check recording. Delete if this does not exist
+if (!CheckDirExists(config.GetBaseDirRecordings().c_str() )) return;
 for (const std::filesystem::directory_entry& dir_entry : 
         std::filesystem::directory_iterator{config.GetBaseDirRecordings() }) 
   {

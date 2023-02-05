@@ -159,12 +159,11 @@ int normStringC(char *to, std::string_view from) {
     }
     int l = utf8CodepointIsValid(s);
     wint_t cChar;
-    if (l == 0) { cChar = ' '; s++; l = 1; }  // invalid utf
+    if (l == 0) { cChar = ' '; s++; }  // invalid utf
     else cChar = Utf8ToUtf32(s, l); // this also increases s
-    if (!std::iswalnum(cChar) ) { cChar = ' '; l = 1; }  // change to " "
+    if (!std::iswalnum(cChar) ) cChar = ' ';
     if (cChar != ' ' || !wordStart) {
-      if (to) AppendUtfCodepoint(to, towlower(cChar));  // also increases to
-      numChars += l;
+      numChars += AppendUtfCodepoint(to, towlower(cChar));  // also increases to
       wordStart = cChar == ' ';
     }
   }
@@ -224,10 +223,9 @@ int removeRomanNumC(char *to, std::string_view from) {
     }
     int l = utf8CodepointIsValid(s);
     wint_t cChar;
-    if (l == 0) { cChar = '?'; s++; l = 1; }  // invalid utf
+    if (l == 0) { cChar = '?'; s++; }  // invalid utf
     else cChar = Utf8ToUtf32(s, l); // this also increases s
-    if (to) AppendUtfCodepoint(to, cChar); // also increases to
-    numChars += l;
+    numChars += AppendUtfCodepoint(to, cChar); // also increases to
     wordStart = cChar == ' ';
   }
   return numChars;
