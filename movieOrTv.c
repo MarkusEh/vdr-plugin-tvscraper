@@ -745,8 +745,9 @@ bool cTvMoviedb::getSingleImageAnySeason(eOrientation orientation, string *relPa
   if (orientation != eOrientation::portrait) return false;
   CONCAT(dir_path, "su", config.GetBaseDirMovieTv().c_str(), m_id);
   const std::filesystem::path fs_path(dir_path);
+  std::error_code ec;
   if (std::filesystem::exists(fs_path) ) {
-    for (auto const& dir_entry : std::filesystem::directory_iterator{fs_path}) {
+    for (auto const& dir_entry : std::filesystem::directory_iterator(fs_path, ec)) {
       if (dir_entry.is_directory()) {
         if (checkPathC(relPath, fullPath, width, height, 780, 1108, "ss", dir_entry.path().c_str(), "/poster.jpg")) return true;
       }
@@ -853,7 +854,8 @@ bool cTvTvdb::getSingleImageAnySeason(eOrientation orientation, string *relPath,
 
   const std::filesystem::path fs_path(dir_path);
   if (std::filesystem::exists(fs_path) ) {
-    for (auto const& dir_entry : std::filesystem::directory_iterator{fs_path}) {
+    std::error_code ec;
+    for (auto const& dir_entry : std::filesystem::directory_iterator(fs_path, ec)) {
       if (dir_entry.path().filename().string().find("season_poster_") != std::string::npos) {
         if (checkPath(dir_entry.path().c_str(), relPath, fullPath, width, height, 680, 1000)) return true;
       }
@@ -993,8 +995,9 @@ void cMovieOrTv::CleanupTv_media(const cTVScraperDB *db) {
 void deleteOutdatedRecordingImages(const cTVScraperDB *db) {
 // check recording. Delete if this does not exist
 if (!CheckDirExists(config.GetBaseDirRecordings().c_str() )) return;
-for (const std::filesystem::directory_entry& dir_entry : 
-        std::filesystem::directory_iterator{config.GetBaseDirRecordings() }) 
+std::error_code ec;
+for (const std::filesystem::directory_entry& dir_entry:
+        std::filesystem::directory_iterator(config.GetBaseDirRecordings(), ec)) 
   {
     std::vector<std::string> parts = getSetFromString<std::string,std::vector<std::string>>(dir_entry.path().filename().string().c_str(), '_');
     if (parts.size() != 3) {
@@ -1023,8 +1026,9 @@ for (const std::filesystem::directory_entry& dir_entry :
 void deleteOutdatedEpgImages() {
 // check event start time. Delete if older than yesterday
 if (!CheckDirExists(config.GetBaseDirEpg().c_str() )) return;
-for (const std::filesystem::directory_entry& dir_entry : 
-        std::filesystem::directory_iterator{config.GetBaseDirEpg() }) 
+std::error_code ec;
+for (const std::filesystem::directory_entry& dir_entry:
+        std::filesystem::directory_iterator(config.GetBaseDirEpg(), ec) )
   {
     if (!dir_entry.is_directory() ) continue;
     if (dir_entry.path().filename().string().find_first_not_of("0123456789") != std::string::npos) continue;
@@ -1061,8 +1065,9 @@ void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
 
 void cMovieOrTv::DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, const cTVScraperDB *db) {
 // check for all subfolders in folder. If a subfolder has only digits, delete the movie/tv with this number
-for (const std::filesystem::directory_entry& dir_entry : 
-        std::filesystem::directory_iterator{folder}) 
+std::error_code ec;
+for (const std::filesystem::directory_entry& dir_entry:
+        std::filesystem::directory_iterator(folder, ec))
   {
     if (! dir_entry.is_directory() ) continue;
     if (dir_entry.path().filename().string().find_first_not_of("0123456789") != std::string::npos) continue;
@@ -1076,8 +1081,9 @@ for (const std::filesystem::directory_entry& dir_entry :
 
 void cMovieMoviedb::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check for all files in folder. If a file has the pattern for movie backdrop or poster, check the movie with this number
+std::error_code ec;
 for (const std::filesystem::directory_entry& dir_entry : 
-        std::filesystem::directory_iterator{config.GetBaseDirMovies() }) 
+        std::filesystem::directory_iterator(config.GetBaseDirMovies(), ec) )
   {
     if (! dir_entry.is_regular_file() ) continue;
     size_t pos = dir_entry.path().filename().string().find_first_not_of("0123456789");
