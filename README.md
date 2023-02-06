@@ -90,8 +90,8 @@ on the server might help
 As already mentioned, after first installations no channels are activated
 to be scraped. Please configure these channels in the plugin setup menu.
 (not required in --readOnlyClient mode).
-Additionally you can trigger that your already existing recordings are
-scraped, so that also for this recordings metadata is available.
+Additionally you can trigger scraping your already existing recordings,
+so that also for these recordings metadata is will be created.
 
 With a "make install" the file "override.conf" which provides the
 possibility to define scraping behaviour manually (see description
@@ -134,18 +134,30 @@ defined by [epgd](https://github.com/horchi/vdr-epg-daemon) to \<PLGCFGDIR\>
 mean that all [epgd](https://github.com/horchi/vdr-epg-daemon) features
 are available. For example, this proof of concept is only available
 for tvsp. All lines in channelmap.conf not starting with "tvsp:" are ignored.
-- Restart vdr. That should by all.
+- Restart vdr. That should be all.
 - To disable this feature, remove channelmap.conf from \<PLGCFGDIR\>
 directoy and restart vdr
 
+Directories
+-----------
+
+The plugin uses the following directories:
+\<CACHEDIR\>: For the database tvscraper2.db
+\<CACHEDIR\>/movies: For images found in www.themoviedb.org
+\<CACHEDIR\>/series: For images found in thetvdb.com
+\<CACHEDIR\>/epg: For images from the external epg provider: if configured (see "External EPG"), and no other images are available
+\<CACHEDIR\>/recordings: For images from the external epg provider (in case they are used in recordings)
 
 Usage
 -----
 
 After the initial configuration the plugin runs completely independent in
 the background, you don't have to care about anything. The plugins checks
-at least every 24 hours for new EPG events and collects the metadata for
+every 10 minutes for new EPG events and collects the metadata for
 these events automatically.
+Every 24 hours already existing EPG events are re-scanned, in case they
+changed (same stations add the shorttext later on, and some stations
+change event IDs ...).
 
 After each run the plugin performs a cleanup, all images for movies which
 are not available in the current EPG are deleted. Actors thumbs
@@ -155,35 +167,39 @@ propability that this data is needed in the future again is rather high.
 If a running recording is detected, the plugin marks the corresponding movie
 meta data so that the information for this movie will be kept permanentely.
 
-Usage of override.conf: even if tvscraper tries to do everything correct on
-it's own, in some cases scraping delivers wrong results. Some EPG Events are
+Usage of override.conf
+----------------------
+
+Even if tvscraper tries to do everything correct on
+it's own, in some cases scraping delivers wrong results. Some EPG events are
 not reasonable to scrape, because they reoccur constantly but deliver wrong
-results everytime, or tvscraper searchs for a movie instead of a series
+results everytime, or tvscraper finds for a movie instead of a series
 (for instance german "Heute"). In such cases it is possible to use
 \<PLGCFGDIR\>/override.conf to adjust the scraping behaviour. Each line in
 this file has to start either with "ignore", "settype", "substitute" or
 "ignorePath":
 
-- Ignore specific EPG Events or recordings: just create a line in the format
+- Ignore specific EPG events or recordings: just create a line in the format
 ```
-  ignore;string
-  to ignore "string".
+ignore;string
+to ignore "string".
 ```
-- Set scrape type for specific EPG Event or recording:
+- Set scrape type for specific EPG event or recording:
 ```
-  settype;string;type
-  "string" defines the name of the event or recording to set the type manually,
-  "type" can be either "series" or "movie"
+settype;string;type
+"string" defines the name of the event or recording to set
+the type manually,
+"type" can be either "series" or "movie"
 ```
 - Substitute Search String:
 ```
-  substitute;string;substitution
-  "string" is replaced by "substitution" in every search.
+substitute;string;substitution
+"string" is replaced by "substitution" in every search.
 ```
-- Ignore all recordings in a deditcatd directory:
+- Ignore all recordings in a dedicated directory:
 ```
-  ignorePath;string
-  "string" can be any substring of a recording path, e.g. "music/"
+ignorePath;string
+"string" can be any substring of a recording path, e.g. "music/"
 ```
 
 Service Interface
@@ -241,7 +257,7 @@ public:
     static cPlugin *pTVScraper = cPluginManager::GetPlugin("tvscraper");
     if (pTVScraper) {
       ScraperGetPoster call;
-      call.event = Event;                 //provide Event here
+      call.event = Event;                 //provide event here
       call.recording = Recording;         //if recording, otherwise NULL
       if (pTVScraper->Service("GetPoster", &call)) {
           ... further processing of call.media
@@ -272,7 +288,7 @@ Example: (see services.h for data structures of cSeries & cMovie, and for enum t
   static cPlugin *pTVScraper = cPluginManager::GetPlugin("tvscraper");
   if (pTVScraper) {
     ScraperGetEventType call;
-    call.event = Event;                 //provide Event here
+    call.event = Event;                 //provide event here
     call.recording = Recording;         //if recording, otherwise NULL
     if (pTVScraper->Service("GetEventType", &call)) {
       if (call.type == tSeries) {
