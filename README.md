@@ -142,11 +142,11 @@ Directories
 -----------
 
 The plugin uses the following directories:
-\<CACHEDIR\>: For the database tvscraper2.db
-\<CACHEDIR\>/movies: For images found in www.themoviedb.org
-\<CACHEDIR\>/series: For images found in thetvdb.com
-\<CACHEDIR\>/epg: For images from the external epg provider: if configured (see "External EPG"), and no other images are available
-\<CACHEDIR\>/recordings: For images from the external epg provider (in case they are used in recordings)
+- \<CACHEDIR\>: For the database tvscraper2.db
+- \<CACHEDIR\>/movies: For images found in www.themoviedb.org
+- \<CACHEDIR\>/series: For images found in thetvdb.com
+- \<CACHEDIR\>/epg: For images from the external epg provider: if configured (see "External EPG"), and no other images are available
+- \<CACHEDIR\>/recordings: For images from the external epg provider (in case they are used in recordings)
 
 Usage
 -----
