@@ -47,31 +47,25 @@ void cTVScraperWorker::SetDirectories(void) {
       startLoop = false;
       return;
     }
-    plgBaseDir = config.GetBaseDir();
-    stringstream strSeriesDir;
-    strSeriesDir << plgBaseDir << "series";
-    seriesDir = strSeriesDir.str();
-    stringstream strMovieDir;
-    strMovieDir << plgBaseDir << "movies";
-    movieDir = strMovieDir.str();
-    bool ok = false;
-    ok = CreateDirectory(plgBaseDir.substr(0, config.GetBaseDirLen()-1 ));
+    bool ok =    CreateDirectory(config.GetBaseDir() );
     if (ok) ok = CreateDirectory(config.GetBaseDirEpg() );
     if (ok) ok = CreateDirectory(config.GetBaseDirRecordings() );
-    if (ok) ok = CreateDirectory(seriesDir);
-    if (ok) ok = CreateDirectory(movieDir);
-    if (ok) ok = CreateDirectory(movieDir + "/tv");
+    if (ok) ok = CreateDirectory(config.GetBaseDirSeries() );
+    if (ok) ok = CreateDirectory(config.GetBaseDirMovies() );
+    if (ok) ok = CreateDirectory(config.GetBaseDirMovieActors() );
+    if (ok) ok = CreateDirectory(config.GetBaseDirMovieCollections() );
+    if (ok) ok = CreateDirectory(config.GetBaseDirMovieTv() );
     if (!ok) {
-        esyslog("tvscraper: ERROR: check %s for write permissions", plgBaseDir.c_str());
+        esyslog("tvscraper: ERROR: check %s for write permissions", config.GetBaseDir().c_str());
         startLoop = false;
     } else {
-        dsyslog("tvscraper: using base directory %s", plgBaseDir.c_str());
+        dsyslog("tvscraper: using base directory %s", config.GetBaseDir().c_str());
     }
 }
 
 bool cTVScraperWorker::ConnectScrapers(void) {
   if (!moviedbScraper) {
-    moviedbScraper = new cMovieDBScraper(movieDir, db, overrides);
+    moviedbScraper = new cMovieDBScraper(config.GetBaseDirMovies(), db, overrides);
     if (!moviedbScraper->Connect()) {
 	esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
 	delete moviedbScraper;
@@ -80,7 +74,7 @@ bool cTVScraperWorker::ConnectScrapers(void) {
     }
   }
   if (!tvdbScraper) {
-    tvdbScraper = new cTVDBScraper(seriesDir, db);
+    tvdbScraper = new cTVDBScraper(config.GetBaseDirSeries(), db);
     if (!tvdbScraper->Connect()) {
 	esyslog("tvscraper: ERROR, connection to TheTVDB failed");
 	delete tvdbScraper;

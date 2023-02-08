@@ -75,7 +75,7 @@ class cTVScraperConfig {
         string baseDir;       // /var/cache/vdr/plugins/tvscraper/
         vector<sChannelMapEpg> m_channelMap;
 // "calculated" parameters, from command line paramters
-        int baseDirLen;
+        int baseDirLen = 0;
         string baseDirEpg = "";
         string baseDirRecordings = "";
         string baseDirSeries = "";

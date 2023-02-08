@@ -1,6 +1,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/vfs.h>
+#include <dirent.h>
+#include <unistd.h>
 #include <fstream>
 #include <iostream>
 #include <cstdint>
@@ -10,16 +12,16 @@ namespace fs = std::filesystem;
 using namespace std;
 
 bool CreateDirectory(const char *dir) {
-    mkdir(dir, 0775);
-    //check if successfull
-    DIR *pDir;
-    bool exists = false;
-    pDir = opendir(dir);
-    if (pDir != NULL) {
-        exists = true;    
-        closedir(pDir);
-    }
-    return exists;
+  mkdir(dir, 0775);
+  //check if successfull
+  DIR *pDir;
+  bool exists = false;
+  pDir = opendir(dir);
+  if (pDir != NULL) {
+    exists = true;
+    closedir(pDir);
+  }
+  return exists;
 }
 bool CreateDirectory(const string &dir) {
   return CreateDirectory(dir.c_str() );
@@ -37,20 +39,20 @@ bool FileExists(const string &filename) {
   return FileExists(filename.c_str());
 }
 
-bool FileExistsRelPath(const char *relPathname) {
-  if (!relPathname || !*relPathname) return false;
-  char filename[config.GetBaseDirLen() + strlen(relPathname) +1];
-  strcpy(filename, config.GetBaseDir().c_str() );
-  strcpy(filename + config.GetBaseDirLen(), relPathname);
+bool DirExists(const char *dirname) {
+// Return true if dirname exists and is a directory
+  if (!dirname) return false;
   struct stat buffer;
-  if (stat (filename, &buffer) != 0) return false;
-  return buffer.st_size > 500;
+  if (stat (dirname, &buffer) != 0) return false;
+  return S_ISDIR(buffer.st_mode);
 }
-
-bool CheckDirExists(const char* dirName) {
+bool CheckDirExistsRam(const char* dirName) {
+// true if dir exists and is in RAM (CRAMFS or TMPFS)
     struct statfs statfsbuf;
     if (statfs(dirName,&statfsbuf)==-1) return false;
     if ((statfsbuf.f_type!=0x01021994) && (statfsbuf.f_type!=0x28cd3d45)) return false;
+// TMPFS_MAGIC  0x01021994
+// CRAMFS_MAGIC 0x28cd3d45
     if (access(dirName,R_OK|W_OK)==-1) return false;
     return true;
 }

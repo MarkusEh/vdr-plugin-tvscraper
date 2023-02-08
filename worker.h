@@ -9,10 +9,6 @@ private:
     bool startLoop;
     bool scanVideoDir;
     bool manualScan;
-    string plgBaseDir;
-    string plgConfDir;
-    string seriesDir;
-    string movieDir;
     cOverRides *overrides;
     int initSleep;
     int loopSleep;

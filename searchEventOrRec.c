@@ -14,6 +14,7 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
       esyslog("tvscraper: ERROR in cSearchEventOrRec: recording->Info() == NULL, Name = %s", m_sEventOrRecording->Recording()->Name() );
       return;
     }
+    initOriginalTitle();
     initBaseNameOrTitle();
     m_TVshowSearchString = m_baseNameOrTitle;
     initSearchString3dots(m_TVshowSearchString);
@@ -23,6 +24,12 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
     m_sEventOrRecording->AddYears(m_years);
     ::AddYears(m_years, (const char *)m_baseName);
   }
+
+void cSearchEventOrRec::initOriginalTitle() {
+  m_originalTitle = textAttributeValue(m_sEventOrRecording->Description(), "Originaltitel: ");
+  if (m_originalTitle.length() > 0 && config.enableDebug) esyslog("tvscraper, original title = \"%.*s\"", static_cast<int>(m_originalTitle.length()), m_originalTitle.data() );
+}
+
 bool cSearchEventOrRec::isTitlePartOfPathName(size_t baseNameLen) {
   return minDistanceStrings(m_sEventOrRecording->Recording()->Name(), m_sEventOrRecording->Recording()->Info()->Title() ) < 600;
 }
@@ -212,12 +219,12 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
     movieOrTv.id = searchResults[0].id();
     movieOrTv.year = searchResults[0].m_yearMatch?searchResults[0].year()*searchResults[0].m_yearMatch:0;
     Store(movieOrTv);
-    if(sType == scrapMovie) {
+    if (sType == scrapMovie) {
       movieOrTv.season = -100;
       movieOrTv.episode = 0;
       if (config.enableDebug) esyslog("tvscraper: movie \"%.*s\" successfully scraped, id %i", static_cast<int>(foundName.length()), foundName.data(), searchResults[0].id() );
       m_db->InsertCache(m_movieSearchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
-    } else if(sType == scrapSeries) {
+    } else if (sType == scrapSeries) {
 // search episode
       const cLanguage *lang = m_sEventOrRecording->GetLanguage();
       UpdateEpisodeListIfRequired(movieOrTv.id, lang);
@@ -338,16 +345,17 @@ int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
 
 void cSearchEventOrRec::SearchTvAll(vector<searchResultTvMovie> &searchResults) {
 // search for TV shows, in all formats (episode in short text, or in title)
+  if (m_originalTitle.length() > 0 && SearchTv(searchResults, m_originalTitle, true)) return;
   if (SearchTv(searchResults, m_TVshowSearchString)) return;
   SearchTvEpisTitle(searchResults, ':');
   SearchTvEpisTitle(searchResults, '-');
 }
 
-bool cSearchEventOrRec::SearchTv(vector<searchResultTvMovie> &resultSet, string_view searchString) {
+bool cSearchEventOrRec::SearchTv(vector<searchResultTvMovie> &resultSet, string_view searchString, bool originalTitle) {
 // return true if a result matching searchString was found, and no splitting of searchString was required
 // otherwise, return false. Note: also in this case some results might have been added
   extDbConnected = true;
-  const cLanguage *lang = m_sEventOrRecording->GetLanguage();
+  const cLanguage *lang = originalTitle?NULL:m_sEventOrRecording->GetLanguage();
   size_t oldSize = resultSet.size();
   if (m_tvdbScraper->AddResults4(resultSet, searchString, lang)) return true;
   if (resultSet.size() == oldSize) {
@@ -376,8 +384,11 @@ void cSearchEventOrRec::SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet
 
 void cSearchEventOrRec::SearchMovie(vector<searchResultTvMovie> &resultSet) {
   extDbConnected = true;
-  const cLanguage *lang = m_sEventOrRecording->GetLanguage();
-  m_movie.AddMovieResults(resultSet, m_movieSearchString, m_sEventOrRecording->Description(), m_years, lang);
+  if (m_originalTitle.length() > 0) {
+    m_movie.AddMovieResults(resultSet, m_originalTitle, m_sEventOrRecording->Description(), m_years, NULL);
+  } else {
+    m_movie.AddMovieResults(resultSet, m_movieSearchString, m_sEventOrRecording->Description(), m_years, m_sEventOrRecording->GetLanguage() );
+  }
 }
 
 bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {

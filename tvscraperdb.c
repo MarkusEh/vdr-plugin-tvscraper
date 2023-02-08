@@ -12,7 +12,7 @@ using namespace std;
 cTVScraperDB::cTVScraperDB(void) {
     db = NULL;
     string memHD = "/dev/shm/";
-    inMem = !config.GetReadOnlyClient() && CheckDirExists(memHD.c_str());
+    inMem = !config.GetReadOnlyClient() && CheckDirExistsRam(memHD.c_str());
     if (inMem) {
         stringstream sstrDbFileMem;
         sstrDbFileMem << memHD << "tvscraper2.db";

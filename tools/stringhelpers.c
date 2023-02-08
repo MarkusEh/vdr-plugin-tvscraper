@@ -337,6 +337,16 @@ const char *strstr_word (const char *haystack, const char *needle, size_t len = 
   return NULL;
 }
 
+std::string_view textAttributeValue(const char *text, const char *attributeName) {
+  if (!text || !attributeName) return std::string_view();
+  const char *found = strstr(text, attributeName);
+  if (!found) return std::string_view();
+  const char *avs = found + strlen(attributeName);
+  const char *ave = strchr(avs, '\n');
+  if (!ave) return std::string_view();
+  return std::string_view(avs, ave-avs);
+}
+
 bool splitString(std::string_view str, std::string_view delim, size_t minLengh, std::string_view &first, std::string_view &second) {
 // true if delim is part of str, and length of first & second >= minLengh
   std::size_t found = str.find(delim);
@@ -433,6 +443,30 @@ int NumberInLastPartWithP(std::string_view str) {
 }
 
 // methods for years =============================================================
+
+int yearToInt(const char *year) {
+// if the first 4 characters of year are digits, return this number as int
+// otherwise (or if year == NULL) return 0;
+  if (!year) return 0;
+  if (*year < '0' || *year > '9') return 0;
+  int result = (*year - '0') * 1000;
+  year++;
+  if (*year < '0' || *year > '9') return 0;
+  result += (*year - '0') * 100;
+  year++;
+  if (*year < '0' || *year > '9') return 0;
+  result += (*year - '0') * 10;
+  year++;
+  if (*year < '0' || *year > '9') return 0;
+  result += (*year - '0');
+  return result;
+}
+
+int stringToYear(const string &str) {
+  if (str.length() > 4 && isdigit(str[4]) ) return 0;
+  return yearToInt(str.c_str() );
+}
+
 const char *firstDigit(const char *found) {
   for (; ; found++) if (isdigit(*found) || ! *found) return found;
 }
@@ -440,31 +474,28 @@ const char *firstNonDigit(const char *found) {
   for (; ; found++) if (!isdigit(*found) || ! *found) return found;
 }
 
+void AddYear(vector<int> &years, int year) {
+  if (year <= 1920 || year >= 2100) return;
+  if (find(years.begin(), years.end(), year) == years.end()) years.push_back(year);
+  int yearp1 = ( year + 1 ) * (-1);
+  if (find(years.begin(), years.end(), yearp1) == years.end()) years.push_back(yearp1);
+  int yearm1 = ( year - 1 ) * (-1);
+  if (find(years.begin(), years.end(), yearm1) == years.end()) years.push_back(yearm1);
+}
+
 void AddYears(vector<int> &years, const char *str) {
   if (!str) return;
+  std::string_view year_sv = textAttributeValue(str, "Jahr: ");
+  if (year_sv.length() == 4) {
+    AddYear(years, yearToInt(year_sv.data()));
+//  if (config.enableDebug) esyslog("tvscraper, Jahr: %i", yearToInt(year_sv.data()));
+    return;
+  }
   const char *last;
   for (const char *first = firstDigit(str); *first; first = firstDigit(last) ) {
     last = firstNonDigit(first);
-    if (last - first  == 4) {
-      int year = atoi(first);
-      if (year > 1920 && year < 2100) {
-        if (find(years.begin(), years.end(), year) == years.end()) years.push_back(year);
-        int yearp1 = ( year + 1 ) * (-1);
-        if (find(years.begin(), years.end(), yearp1) == years.end()) years.push_back(yearp1);
-        int yearm1 = ( year - 1 ) * (-1);
-        if (find(years.begin(), years.end(), yearm1) == years.end()) years.push_back(yearm1);
-      }
-    }
+    if (last - first  == 4) AddYear(years, yearToInt(first));
   }
-}
-
-int stringToYear(const string &str) {
-  if (str.length() < 4) return 0;
-  int i;
-  for (i = 0; i < 4 && isdigit(str[i]); i++);
-  if (i != 4) return 0;
-  if (str.length() > 4 && isdigit(str[4]) ) return 0;
-  return atoi(str.c_str() );
 }
 
 // convert containers to strings, and strings to containers ==================

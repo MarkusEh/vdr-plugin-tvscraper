@@ -342,13 +342,6 @@ std::vector<cActor> cMovieMoviedb::GetActors(bool fullPath) {
   return actors;
 }
 
-bool checkRelPath(string &relPath, int *width, int *height, int i_width, int i_height) {
-  if (!FileExistsRelPath(relPath.c_str() ) ) { relPath = ""; return false; }
-  if (width) *width = i_width;
-  if (height) *height = i_height;
-  return true;
-}
-
 bool checkPath(const char *path, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height) {
   if (!FileExists(path) ) return false;
   if (fullPath) *fullPath = path;
@@ -438,34 +431,41 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const vector<int> &y
   debug = debug || (tvSearchEpisodeString_i.length() > 1 && tvSearchEpisodeString_i[1] == 0);
   debug = false;
   if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string_i length %zu, \"%.*s\", dbid %i", tvSearchEpisodeString_i.length(), std::min(100, static_cast<int>(tvSearchEpisodeString_i.length())), tvSearchEpisodeString_i.data(), dbID());
-  std::string tvSearchEpisodeString = normString(tvSearchEpisodeString_i);
-  if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\", dbid %i", tvSearchEpisodeString.c_str(), dbID());
+  CONVERT(tvSearchEpisodeString, tvSearchEpisodeString_i, normStringC);
+  if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\", dbid %i", tvSearchEpisodeString, dbID());
   int best_distance = 1000;
   int best_season = 0;
   int best_episode = 0;
   char *episodeName = NULL;
+  char *episode_air_date = NULL;
   int distance;
   int episode;
   int season;
   bool isDefaultLang = config.isDefaultLanguage(lang);
-  const char sqld[] = "select episode_name, season_number, episode_number from tv_s_e  where tv_id =?";
-  const char sqll[] = "select tv_s_e_name.episode_name, tv_s_e.season_number, tv_s_e.episode_number from tv_s_e, tv_s_e_name where tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;";
+  const char *sqld = "select episode_name, season_number, episode_number, episode_air_date FROM tv_s_e WHERE tv_id =?";
+  const char *sqll = "select tv_s_e_name.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name WHERE tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;";
   sqlite3_stmt *stmt;
   if (!isDefaultLang) stmt = m_db->QueryPrepare(sqll, "ii", dbID(), lang->m_id);
   else stmt = m_db->QueryPrepare(sqld, "i", dbID());
-  for( ; m_db->QueryStep(stmt, "sii", &episodeName, &season, &episode); ) {
+  for( ; m_db->QueryStep(stmt, "siis", &episodeName, &season, &episode, &episode_air_date); ) {
     if (!episodeName) continue;
     if (!isDefaultLang) distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeName);
-    else distance = sentence_distance_normed_strings(tvSearchEpisodeString, normString(episodeName));
-    if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.c_str(), episodeName, season, episode, dbID(), distance);
+    else {
+      CONVERT(episodeNameNorm, to_sv(episodeName), normStringC);
+      distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeNameNorm);
+    }
+    if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString, episodeName, season, episode, dbID(), distance);
     if (season == 0) distance += 10; // avoid season == 0, could be making of, ...
+    int year = yearToInt(episode_air_date);
+    if (find(years.begin(), years.end(), year) != years.end()) distance = std::max(0, distance-100);
+    else if (find(years.begin(), years.end(), -1 * year) != years.end()) distance = std::max(0, distance-50);
     if (distance < best_distance) {
       best_distance = distance;
       best_season = season;
       best_episode = episode;
     }
   }
-  if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" best_season %i best_episode %i dbid %i, best_distance %i", tvSearchEpisodeString.c_str(), best_season, best_episode, dbID(), best_distance);
+  if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" best_season %i best_episode %i dbid %i, best_distance %i", tvSearchEpisodeString, best_season, best_episode, dbID(), best_distance);
   if (best_distance > 700) {  // accept a rather high distance here. We return the distance, so the caller can finally decide to take this episode or not
     m_seasonNumber = 0;
     m_episodeNumber = 0;
@@ -994,7 +994,7 @@ void cMovieOrTv::CleanupTv_media(const cTVScraperDB *db) {
 
 void deleteOutdatedRecordingImages(const cTVScraperDB *db) {
 // check recording. Delete if this does not exist
-if (!CheckDirExists(config.GetBaseDirRecordings().c_str() )) return;
+if (!DirExists(config.GetBaseDirRecordings().c_str() )) return;
 std::error_code ec;
 for (const std::filesystem::directory_entry& dir_entry:
         std::filesystem::directory_iterator(config.GetBaseDirRecordings(), ec)) 
@@ -1025,7 +1025,7 @@ for (const std::filesystem::directory_entry& dir_entry:
 
 void deleteOutdatedEpgImages() {
 // check event start time. Delete if older than yesterday
-if (!CheckDirExists(config.GetBaseDirEpg().c_str() )) return;
+if (!DirExists(config.GetBaseDirEpg().c_str() )) return;
 std::error_code ec;
 for (const std::filesystem::directory_entry& dir_entry:
         std::filesystem::directory_iterator(config.GetBaseDirEpg(), ec) )

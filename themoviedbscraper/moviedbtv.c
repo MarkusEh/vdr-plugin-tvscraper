@@ -99,7 +99,10 @@ bool cMovieDbTv::AddTvResults(vector<searchResultTvMovie> &resultSet, string_vie
 // call api, get json
     cLargeString json("cMovieDbTv::AddTvResults", 10000);
     stringstream url;
-    url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << "&query=" << CurlEscape(tvSearchString_ext);
+    if (lang)
+      url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb << "&query=" << CurlEscape(tvSearchString_ext);
+    else
+      url << m_baseURL << "/search/tv?api_key=" << m_movieDBScraper->GetApiKey() << "&query=" << CurlEscape(tvSearchString_ext);
     if (config.enableDebug) esyslog("tvscraper: calling %s", url.str().c_str());
     if (!CurlGetUrl(url.str().c_str(), json)) return false;
 // parse json

@@ -7,10 +7,11 @@ public:
 private:
   scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, string_view &movieName, string_view &episodeSearchString);
   int Store(const sMovieOrTv &movieOrTv);
-  bool SearchTv(vector<searchResultTvMovie> &resultSet, string_view searchString);
+  bool SearchTv(vector<searchResultTvMovie> &resultSet, string_view searchString, bool originalTitle = false);
   void SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet, char delimiter); // Title: name of TV series, and episode name (with : or - between them)
   void SearchMovie(vector<searchResultTvMovie> &searchResults); // 0: no match; return movie ID, search result in m_searchResult_Movie
   void SearchTvAll(vector<searchResultTvMovie> &searchResults);
+  void initOriginalTitle();
   bool isTitlePartOfPathName(size_t baseNameLen);
   void initBaseNameOrTitle(void);
   bool isVdrDate(std::string_view baseName);
@@ -45,6 +46,7 @@ private:
   std::string m_episodeName;
   std::string m_movieSearchString;
   std::string m_TVshowSearchString;
+  std::string_view m_originalTitle;
   vector<int> m_years;
   bool m_baseNameEquShortText = false;
   cMovieDbTv m_tv;

@@ -103,7 +103,6 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   if (!jSeriesData) { json_decref(jSeries); return 0;}
   series.ParseJson_Series(jSeriesData);
 // episodes
-//string urlE = baseURL4 + "series/" + std::to_string(seriesID) + "/episodes/default/" + series.m_language + "?page=0";
   string urlE = concatenateAll("VsisVs", to_sv(baseURL4), "series/", seriesID, "/episodes/default/", to_sv(series.m_language), "?page=0");
   while (!urlE.empty() ) {
     json_t *jEpisodes = CallRestJson(urlE.c_str(), buffer);
@@ -157,7 +156,6 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, const cLanguage *lang) {
   cTVDBSeries series(db, this, seriesID);
 // episodes
   cLargeString buffer("cTVDBScraper::StoreSeriesJson lang", 10000);
-//string urlE = baseURL4 + "series/" + std::to_string(seriesID) + "/episodes/default/" + lang->m_thetvdb + "?page=0";
   string urlE = concatenateAll("VsisVs", to_sv(baseURL4), "series/", seriesID, "/episodes/default/", to_sv(lang->m_thetvdb), "?page=0");
   while (!urlE.empty() ) {
     json_t *jEpisodes = CallRestJson(urlE.c_str(), buffer);
@@ -428,13 +426,15 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
 // is this series already in the list?
   for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == seriesID * (-1) ) return;
 
+// create new result object sRes
   searchResultTvMovie sRes(seriesID * (-1), false, json_string_value_validated(data, "year"));
   sRes.setPositionInExternalResult(resultSet.size() );
-// name is the name in original / primary language
-  int dist_a = minDistanceNormedStrings(1000, normedStrings, json_string_value_validated_c(data, "name") );
 
+// distance == deviation from search text
+  int dist_a = 1000;
+// if search string is not in original language, consider name (== original name) same as alias
+  if (lang) dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value_validated_c(data, "name") );
   json_t *jAliases = json_object_get(data, "aliases");
-// in search results, aliases don't have language information
   if (json_is_array(jAliases) ) {
     size_t index;
     json_t *jElement;
@@ -442,19 +442,24 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
       dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value(jElement) );
     }
   }
-// no language information is available on the texts used so far
-// we give a malus for that, similar to movies
+// in search results, aliases don't have language information
 // in series/<id>/extended, language information for aliases IS available
-// still, effort using that seems to high
+// still, effort using that seems to be too high
+// we give a malus for the missing language information, similar to movies
   dist_a = std::min(dist_a + 50, 1000);
   int requiredDistance = 600; // "standard" require same text similarity as we required for episode matching
-  json_t *jTranslations = json_object_get(data, "translations");
-  if (json_is_object(jTranslations) ) {
-    json_t *langVal = json_object_get(jTranslations, lang->m_thetvdb);
-    if (langVal) {
-      dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value(langVal), &sRes.normedName);
-      requiredDistance = 700;  // translation in EPG language is available. Reduce requirement somewhat
+  if (lang) {
+    json_t *jTranslations = json_object_get(data, "translations");
+    if (json_is_object(jTranslations) ) {
+      json_t *langVal = json_object_get(jTranslations, lang->m_thetvdb);
+      if (langVal) {
+        dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value(langVal), &sRes.normedName);
+        requiredDistance = 700;  // translation in EPG language is available. Reduce requirement somewhat
+      }
     }
+  } else {
+// name is the name in original / primary language
+    dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value_validated_c(data, "name") );
   }
   if (dist_a < requiredDistance) {
     sRes.setMatchText(dist_a);

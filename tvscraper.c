@@ -203,9 +203,9 @@ enum eMediaType {
 #include "tools/largeString.h"
 #include "searchResultTvMovie.h"
 #include "searchResultTvMovie.c"
-#include "tools/stringhelpers.c"
 #include "config.h"
 cTVScraperConfig config;
+#include "tools/stringhelpers.c"
 #include "channelmap.c"
 #include "eventOrRec.h"
 #include "tvscraperdb.h"
