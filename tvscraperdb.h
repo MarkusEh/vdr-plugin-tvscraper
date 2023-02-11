@@ -7,6 +7,7 @@ using namespace std;
 // --- cTVScraperDB --------------------------------------------------------
 
 class cTVScraperDB {
+  friend class cStatement;
 private:
     sqlite3 *db;
     string dbPathPhys;

@@ -9,44 +9,43 @@ bool operator< (int first, const cScraperRec &sec) {
 }
 
 bool operator< (const cScraperRec &rec1, const cScraperRec &rec2) {
-  if (rec1.m_movie_tv_id != rec2.m_movie_tv_id) return rec1.m_movie_tv_id < rec2.m_movie_tv_id;
-  if (rec1.m_season_number != rec2.m_season_number) return rec1.m_season_number < rec2.m_season_number;
-  return rec1.m_episode_number < rec2.m_episode_number;
+  return compareMovieOrTvAT(&rec1, &rec2);
 }
 
 bool operator< (const cEventMovieOrTv &rec1, const cEventMovieOrTv &rec2) {
-  if (rec1.m_movie_tv_id != rec2.m_movie_tv_id) return rec1.m_movie_tv_id < rec2.m_movie_tv_id;
-  if (rec1.m_season_number != rec2.m_season_number) return rec1.m_season_number < rec2.m_season_number;
-  return rec1.m_episode_number < rec2.m_episode_number;
+  return compareMovieOrTvAT(&rec1, &rec2);
 }
 
 bool operator< (const cScraperRec &first, const cEventMovieOrTv &sec) {
-  if (first.m_movie_tv_id != sec.m_movie_tv_id) return first.m_movie_tv_id < sec.m_movie_tv_id;
-  if (first.m_season_number != sec.m_season_number) return first.m_season_number < sec.m_season_number;
-  return first.m_episode_number < sec.m_episode_number;
+  return compareMovieOrTvAT(&first, &sec);
 }
 bool operator< (const cEventMovieOrTv &first, const cScraperRec &sec) {
-  if (first.m_movie_tv_id != sec.m_movie_tv_id) return first.m_movie_tv_id < sec.m_movie_tv_id;
-  if (first.m_season_number != sec.m_season_number) return first.m_season_number < sec.m_season_number;
-  return first.m_episode_number < sec.m_episode_number;
+  return compareMovieOrTvAT(&first, &sec);
 }
 
 bool operator< (const cTimerMovieOrTv &timer1, const cTimerMovieOrTv &timer2) {
-  if (timer1.m_movie_tv_id != timer2.m_movie_tv_id) return timer1.m_movie_tv_id < timer2.m_movie_tv_id;
-  if (timer1.m_season_number != timer2.m_season_number) return timer1.m_season_number < timer2.m_season_number;
-  return timer1.m_episode_number < timer2.m_episode_number;
+  return compareMovieOrTvAT(&timer1, &timer2);
 }
 
 bool operator< (const cTimerMovieOrTv &timer1, const cEventMovieOrTv &sec) {
-  if (timer1.m_movie_tv_id != sec.m_movie_tv_id) return timer1.m_movie_tv_id < sec.m_movie_tv_id;
-  if (timer1.m_season_number != sec.m_season_number) return timer1.m_season_number < sec.m_season_number;
-  return timer1.m_episode_number < sec.m_episode_number;
+  return compareMovieOrTvAT(&timer1, &sec);
 }
 
 bool operator< (const cEventMovieOrTv &first, const cTimerMovieOrTv &timer2) {
-  if (first.m_movie_tv_id != timer2.m_movie_tv_id) return first.m_movie_tv_id < timer2.m_movie_tv_id;
-  if (first.m_season_number != timer2.m_season_number) return first.m_season_number < timer2.m_season_number;
-  return first.m_episode_number < timer2.m_episode_number;
+  return compareMovieOrTvAT(&first, &timer2);
+}
+
+cMovieOrTvAT::cMovieOrTvAT(const tChannelID &channel_id, const cMovieOrTv *movieOrTv) {
+  m_movie_tv_id = movieOrTv->dbID();
+  if (movieOrTv->getType() == tMovie) {
+    m_season_number = -100;
+    m_episode_number = 0;
+  } else {
+    m_season_number = movieOrTv->getSeason();
+    m_episode_number = movieOrTv->getEpisode();
+  }
+  m_hd = config.ChannelHD(channel_id);
+  m_language = config.GetLanguage_n(channel_id);
 }
 
 // getEvent ********************************
@@ -147,7 +146,6 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
     csRecording sRecording(rec);
     tEventID eventID = sRecording.EventID();
     time_t eventStartTime = sRecording.StartTime();
-    int hd = config.ChannelHD(sRecording.ChannelID());
 #if VDRVERSNUM >= 20505
     int numberOfErrors = rec->Info()->Errors();
 #else
@@ -159,7 +157,7 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
       else runtime = db.QueryInt("select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", movie_tv_id, season_number, episode_number);
       if (sRecording.durationDeviation(runtime) > 60) numberOfErrors = 1;  // in case of deviations > 1min, create timer ...
     }
-    cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, hd, numberOfErrors);
+    cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, numberOfErrors);
     auto found = recordings.find(scraperRec);
     if (found == recordings.end() ) recordings.insert(std::move(scraperRec)); // not in list -> insert
     else if (scraperRec.isBetter(*found)) {
@@ -171,7 +169,7 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
   return true;
 }
 
-bool InsertIfBetter (std::set<cTimerMovieOrTv, std::less<>> &timers, const cTimerMovieOrTv &timer, cTimerMovieOrTv *obsoletTimer = NULL) {
+bool InsertIfBetter (std::set<cTimerMovieOrTv, std::less<>> &timers, const cTimerMovieOrTv &timer, int *obsoletTimer = NULL) {
 // in case timer is already in list, insert "better" timer in list, and return "worse" timer in obsoletTimer if requested
 // return true if timer is already in list
   auto found = timers.find(timer);
@@ -180,12 +178,12 @@ bool InsertIfBetter (std::set<cTimerMovieOrTv, std::less<>> &timers, const cTime
     return false;
   }
   if (timer.isBetter(*found) ) {
-    if (obsoletTimer) *obsoletTimer = *found;
+    if (obsoletTimer) *obsoletTimer = found->m_timerId;
     timers.erase(found);
     timers.insert(timer);
     return true;
   }
-  if (obsoletTimer) *obsoletTimer = timer;
+  if (obsoletTimer) *obsoletTimer = timer.m_timerId;
   return true;
 }
 // getAllTimers  ********************************
@@ -193,8 +191,6 @@ void getAllTimers (const cTVScraperDB &db, std::set<cTimerMovieOrTv, std::less<>
 // only timers where a movie or TV episode was found (i.a. only events in db, and only if episode was found)
 // for each movie or tv, only one (the best) timer. HD better than SD. Otherwise, the earlier the better
   std::vector<int> timersToDelete;
-  cTimerMovieOrTv timer;
-  cTimerMovieOrTv obsoletTimer;
   { // start LOCK_TIMERS_READ block
 #if VDRVERSNUM >= 20301
   LOCK_TIMERS_READ;
@@ -213,22 +209,14 @@ void getAllTimers (const cTVScraperDB &db, std::set<cTimerMovieOrTv, std::less<>
       if (movieOrTv) delete movieOrTv;
       continue;
     }
-    timer.m_timerId = ti->Id();
-    timer.m_tstart = ti->StartTime();
+    cTimerMovieOrTv timer(ti, movieOrTv);
     timer.m_needed = false;
-    timer.m_movie_tv_id = movieOrTv->dbID();
-    if (movieOrTv->getType() == tMovie) {
-      timer.m_season_number = -100;
-      timer.m_episode_number = 0;
-    } else {
-      timer.m_season_number = movieOrTv->getSeason();
-      timer.m_episode_number = movieOrTv->getEpisode();
-    }
     delete movieOrTv;
     timer.m_hd = config.ChannelHD(ti->Channel()->GetChannelID());
     if (ownTimer) {
 // my timer
-      if (InsertIfBetter(myTimers, timer, &obsoletTimer) ) timersToDelete.push_back(obsoletTimer.m_timerId);
+      int obsoletTimer;
+      if (InsertIfBetter(myTimers, timer, &obsoletTimer) ) timersToDelete.push_back(obsoletTimer);
     } else {
 // not my timer
       InsertIfBetter(otherTimers, timer);
@@ -261,12 +249,12 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
   std::set<cEventMovieOrTv> result;
   const time_t now_m10 = time(0) - 10*60;
   const char sql_event[] = "select event_id, channel_id, valid_till, movie_tv_id, season_number, episode_number from event";
-  cEventMovieOrTv scraperEvent;
+  cEventMovieOrTv scraperEvent(0);
   int l_event_id;
   char *l_channel_id;
   sqlite3_int64 l_validTill;
-  for (sqlite3_stmt *statement = db.QueryPrepare(sql_event, "");
-    db.QueryStep(statement, "isliii", &l_event_id, &l_channel_id, &l_validTill, &scraperEvent.m_movie_tv_id, &scraperEvent.m_season_number, &scraperEvent.m_episode_number);)
+  for (cStatement statement(&db, sql_event, "");
+       statement.step("isliii", &l_event_id, &l_channel_id, &l_validTill, &scraperEvent.m_movie_tv_id, &scraperEvent.m_season_number, &scraperEvent.m_episode_number);)
   {
     if (scraperEvent.m_season_number == 0 && scraperEvent.m_episode_number == 0) continue;
     scraperEvent.m_channelid = tChannelID::FromString(l_channel_id);
@@ -283,6 +271,7 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
     scraperEvent.m_event_id = l_event_id;
     if (scraperEvent.m_season_number == -100) scraperEvent.m_episode_number = 0;
     scraperEvent.m_hd = config.ChannelHD(scraperEvent.m_channelid);
+    scraperEvent.m_language = config.GetLanguage_n(scraperEvent.m_channelid);
     auto found = result.find(scraperEvent);
     if (found == result.end() )
       result.insert(scraperEvent);
@@ -551,22 +540,32 @@ bool checkTimer(const cEventMovieOrTv &scraperEvent, std::set<cTimerMovieOrTv, s
 
 // timerForEvent ********************************
 bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, std::set<cTimerMovieOrTv, std::less<>> &myTimers, const std::set<cScraperRec, std::less<>> &recordings, const std::set<int> &collections) {
-// check:
+// for the given even, check:
 //   is there a recording, which can be improved -> timer
 //   else:
 //      is event part of a collection, that shall be recorded -> timer
 //      is event part of a TV show, that shall be recorded -> timer
 // return false if no timer is available or created. true, otherwise
 
-// is there a recording?
-  auto found = recordings.find(scraperEvent);
-  if (found != recordings.end()) {
-    if (scraperEvent.m_hd <  found->hd() ) return false;
-    if (scraperEvent.m_hd == found->hd() && found->numberOfErrors() == 0) return false;
-// we need a timer ...
-    if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, "improve", *found);
-    return true;
+  cMovieOrTvAT movieOrTvAT(&scraperEvent);
+  movieOrTvAT.m_language = 0;
+  bool betterRecordingFound = false;
+  for (auto found = recordings.lower_bound(movieOrTvAT);
+       found != recordings.end() && equalWoLanguageMovieOrTvAT(&(*found), &scraperEvent);
+       found ++) {
+// there is a recording
+    if (betterRecordingFound && scraperEvent.m_language != found->m_language) continue; // a recording which cannot be improved, in another language was already found. So we only check recordings in the same language.
+    if ((scraperEvent.m_hd >  found->hd()) ||
+        (scraperEvent.m_hd == found->hd() && found->numberOfErrors() > 0)) {
+// the recording can be improved with the event
+      if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, "improve", *found);
+      return true;
+    }
+// the recording is equal or better than the event
+    if (scraperEvent.m_language == found->m_language) return false;  // there is already a recording, in the same language, which cannot be improved with the event
+    betterRecordingFound = true;  // there is already a recording, in another language, which cannot be improved with the event
   }
+
 // there is no recording with this movie / TV show
   if (scraperEvent.m_season_number == -100) {
 // movie. Check: record because of collection?
@@ -575,15 +574,17 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
     if (collections.find(collection_id)  == collections.end() ) return false;
 // find recording with this collection (so new recording will be in same folder)
     char sql[] = "select movie_id from movies3 where movie_collection_id = ?";
-    cEventMovieOrTv eventMovieOrTv;
-    eventMovieOrTv.m_season_number = -100;
-    eventMovieOrTv.m_episode_number = 0;
-    for (sqlite3_stmt *statement = db.QueryPrepare(sql, "i", collection_id);
-          db.QueryStep(statement, "i", &eventMovieOrTv.m_movie_tv_id);) {
-      auto found_c = recordings.find(eventMovieOrTv);
-      if (found_c == recordings.end() ) continue;
-      if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, "collection", *found_c);
-      return true;
+    cMovieOrTvAT movieOrTvAT(0);
+    movieOrTvAT.m_season_number = -100;
+    movieOrTvAT.m_episode_number = 0;
+    movieOrTvAT.m_language = 0;
+    for (cStatement statement(&db, sql, "i", collection_id);
+          statement.step("i", &movieOrTvAT.m_movie_tv_id);) {
+      auto found = recordings.lower_bound(movieOrTvAT);
+      if (found != recordings.end() && equalWoLanguageMovieOrTvAT(&(*found), &scraperEvent) ) {
+        if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, "collection", *found);
+        return true;
+      }
     }
 // no recording with this collection found (?)
     if (checkTimer(scraperEvent, myTimers)) {

@@ -184,7 +184,6 @@ bool cTVScraperDB::QueryLine(const char *query, const char *bind, const char *fm
   va_end(vl);
   return lineFound;
 }
-
 bool cTVScraperDB::QueryStep(sqlite3_stmt *&statement, const char *fmt_result, ...) const {
 // return true if a row was found. Otherwise false
 // before returning false, sqlite3_finalize(statement) is called
@@ -222,35 +221,32 @@ int cTVScraperDB::step_read_result(sqlite3_stmt *statement, const char *fmt_resu
     esyslog("tvscraper: ERROR in cTVScraperDB::step_read_result, fmt_result: %s, cols %i", fmt_result, cols);
     return -1;
   }
-  std::string *valr_s;
   for (int i=0; fmt_result[i]; i++) {
     switch (fmt_result[i]) {
       case 'S':
-//        valr_s=static_cast<std::string*>(va_arg(vl,void*) );
-        valr_s=va_arg(vl,std::string*);
-        *valr_s = charPointerToString(sqlite3_column_text(statement, i));
+        *va_arg(vl,std::string*) = charPointerToString(sqlite3_column_text(statement, i));
         break;
       case 's':
-        *(va_arg(vl,const unsigned char **)) = sqlite3_column_text(statement, i);
+        *va_arg(vl,const unsigned char **) = sqlite3_column_text(statement, i);
         break;
       case 'd':
-        *(va_arg(vl,double*)) = sqlite3_column_double(statement, i);
+        *va_arg(vl,double*) = sqlite3_column_double(statement, i);
         break;
       case 'f':
-        *(va_arg(vl,float*)) = (float)sqlite3_column_double(statement, i);
+        *va_arg(vl,float*) = (float)sqlite3_column_double(statement, i);
         break;
       case 'i':
         if (sqlite3_column_type(statement, i) == SQLITE_NULL) *(va_arg(vl,int*)) = -1;
-        else *(va_arg(vl,int*)) = sqlite3_column_int(statement, i);
+        else *va_arg(vl,int*) = sqlite3_column_int(statement, i);
         break;
       case 'b':
-        *(va_arg(vl,bool*)) = (bool)sqlite3_column_int(statement, i);
+        *va_arg(vl,bool*) = (bool)sqlite3_column_int(statement, i);
         break;
       case 'l':
-        *(va_arg(vl,sqlite3_int64*)) = sqlite3_column_int64(statement, i);
+        *va_arg(vl,sqlite3_int64*) = sqlite3_column_int64(statement, i);
         break;
       case 't':
-        *(va_arg(vl,time_t*)) = (time_t) sqlite3_column_int64(statement, i);
+        *va_arg(vl,time_t*) = (time_t) sqlite3_column_int64(statement, i);
         break;
       default:
         esyslog("tvscraper: ERROR in cTVScraperDB::step_read_result, fmt_result: %s, unknown %c", fmt_result, fmt_result[i]);
@@ -279,6 +275,30 @@ sqlite3_stmt *cTVScraperDB::QueryPrepare(const char *query, const char *bind, ..
   va_end(vl);
   return statement;
 }
+class cStatement {
+  public:
+    cStatement(const cTVScraperDB *db, const char *query, const char *bind, ...) {
+      if (!db || !query || !bind) return;
+      m_db = db;
+      va_list vl;
+      va_start(vl, bind);
+      db->prepare_bind(&m_statement, query, bind, vl);
+      va_end(vl);
+    }
+    bool step(const char *fmt_result, ...) {
+      if (!m_statement || !fmt_result) return false;
+      va_list vl;
+      va_start(vl, fmt_result);
+      int OK_CODE = m_db->step_read_result(m_statement, fmt_result, vl);
+      va_end(vl);
+      return OK_CODE == SQLITE_ROW;
+    }
+    ~cStatement() { sqlite3_finalize(m_statement); }
+  private:
+    const cTVScraperDB *m_db;
+    sqlite3_stmt *m_statement = NULL;
+};
+
 
 int cTVScraperDB::prepare_bind(sqlite3_stmt **statement, const char *query, const char *bind, va_list &vl) const {
 // va_list &vl: bind parameters

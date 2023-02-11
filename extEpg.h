@@ -18,6 +18,11 @@ class cExtEpgHandler : public cEpgHandler
 // the decription contains tvsp, so it was provided externally and should not be changed by VDR
       return true;
     }
+    virtual bool SetShortText(cEvent *Event, const char *ShortText) {
+// return true if we want to prevent a change of Event->ShortText()
+      if (!ShortText || !*ShortText) return true;  // prevent deletion of an existing short text.
+      return false;
+    }
 };
 
 class cTvspEvent

@@ -188,6 +188,18 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
   if (getValue(tvspEvent_j, "director", s) ) { descr += "\nRegisseur: "; descr += s; descr += "\n"; }
   descr += "\nQuelle: tvsp";
   event->SetDescription(descr.c_str());
+  if (!event->ShortText() || !*event->ShortText() ) {
+// add a short text only if no short text is available from EIT (the TV station)
+    if (getValue(tvspEvent_j, "episodeTitle", s) ) event->SetShortText(s);
+    else if (getValue(tvspEvent_j, "conclusion", s) ) event->SetShortText(s);
+    else {
+      std::string shortText;
+      if (getValue(tvspEvent_j, "genre", s) ) shortText += s;
+      if (getValue(tvspEvent_j, "country", s) ) { if (!shortText.empty()) shortText += " / "; shortText += s; }
+      if (getValue(tvspEvent_j, "year", i) )    { if (!shortText.empty()) shortText += " / "; shortText += to_string(i); }
+      event->SetShortText(shortText.c_str());
+    }
+  }
 
 // image from external EPG provider
   rapidjson::Value::ConstMemberIterator images_it = tvspEvent_j.FindMember("images");

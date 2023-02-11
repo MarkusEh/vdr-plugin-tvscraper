@@ -16,9 +16,9 @@ class cMovieOrTv {
 public:
   virtual ~cMovieOrTv() {};
   virtual bool operator==(const cMovieOrTv &sec) const = 0;
-  virtual int dbID() = 0;
-  int getSeason() { return m_seasonNumber; }
-  int getEpisode() { return m_episodeNumber; }
+  virtual int dbID() const = 0;
+  int getSeason() const { return m_seasonNumber; }
+  int getEpisode() const { return m_episodeNumber; }
   virtual void DeleteMediaAndDb() = 0;
   virtual bool IsUsed() { return m_db->CheckMovieOutdatedEvents(dbID(), m_seasonNumber, m_episodeNumber) || m_db->CheckMovieOutdatedRecordings(dbID(), m_seasonNumber, m_episodeNumber); }
   void DeleteIfUnused() { if(!IsUsed()) DeleteMediaAndDb(); }
@@ -70,7 +70,7 @@ class cMovieMoviedb : public cMovieOrTv {
 
 public:
   cMovieMoviedb(const cTVScraperDB *db, int id): cMovieOrTv(db, id, -100, 0) {}
-  virtual int dbID() { return m_id; }
+  virtual int dbID() const { return m_id; }
   virtual bool operator==(const cMovieOrTv &sec) const { return getType() == sec.getType() && m_id == sec.m_id; }
   virtual void DeleteMediaAndDb();
   static void DeleteAllIfUnused(const cTVScraperDB *db);
@@ -96,7 +96,7 @@ private:
 class cTv : public cMovieOrTv {
 
 public:
-  virtual int dbID() = 0;
+  virtual int dbID() const = 0;
   virtual bool operator==(const cMovieOrTv &sec) const { return getType() == sec.getType() && m_id == sec.m_id && m_seasonNumber == sec.m_seasonNumber && m_episodeNumber == sec.m_episodeNumber; }
   virtual bool IsUsed();
   virtual void DeleteMediaAndDb() = 0;
@@ -129,7 +129,7 @@ class cTvMoviedb : public cTv {
 
 public:
   cTvMoviedb(const cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
-  virtual int dbID() { return m_id; }
+  virtual int dbID() const { return m_id; }
   virtual void DeleteMediaAndDb();
   virtual vector<cActor> GetActors(bool fullPath = true);
   virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath);
@@ -148,7 +148,7 @@ class cTvTvdb : public cTv {
 
 public:
   cTvTvdb(const cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
-  virtual int dbID() { return m_id * -1; }
+  virtual int dbID() const { return m_id * -1; }
   virtual void DeleteMediaAndDb();
   virtual vector<cActor> GetActors(bool fullPath = true);
   virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath);

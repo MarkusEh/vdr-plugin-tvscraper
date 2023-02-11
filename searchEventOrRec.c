@@ -21,8 +21,14 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
     initSearchString3dots(m_movieSearchString);
     initSearchString(m_TVshowSearchString);
     initSearchString(m_movieSearchString);
-    m_sEventOrRecording->AddYears(m_years);
-    ::AddYears(m_years, (const char *)m_baseName);
+    std::string_view year_sv = textAttributeValue(m_sEventOrRecording->Description(), "Jahr: ");
+    if (year_sv.length() == 4) {
+      AddYear(m_years, yearToInt(year_sv.data()));
+//    if (config.enableDebug) esyslog("tvscraper, Jahr: %i", yearToInt(year_sv.data()));
+    } else {
+      m_sEventOrRecording->AddYears(m_years);
+      ::AddYears(m_years, (const char *)m_baseName);
+    }
   }
 
 void cSearchEventOrRec::initOriginalTitle() {
