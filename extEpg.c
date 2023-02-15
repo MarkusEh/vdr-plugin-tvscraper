@@ -116,12 +116,14 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
     return true;
   }
 // event found, set the event description
+// note: VDR will remove control charaters (always): *p == 0x86 || *p == 0x87 || *p == 0x0D
+//  if Setup.EPGBugfixLevel > 1: VDR will remove "space", following the first "space" character. "space" is everything < 31
   const rapidjson::Value& tvspEvent_j = (*m_document)[event_it->m_line];
   std::string descr;
   const char *s;
   int i;
 // Fazit / conclusion
-  if (getValue(tvspEvent_j, "conclusion", s) ) { appendRemoveControlCharacters(descr, s); descr += "\n\n"; }
+  if (getValue(tvspEvent_j, "conclusion", s) ) { appendRemoveControlCharacters(descr, s); descr += "\n"; }
 // block: Genre, Kategorie, Land, Jahr
   if (getValue(tvspEvent_j, "genre", s) ) { descr += "Genre: "; descr += s; descr += "\n"; }
   if (getValue(tvspEvent_j, "sart_id", s) ) {
@@ -164,7 +166,7 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
 
 // preview & text
   if (getValue(tvspEvent_j, "preview", s) ) { descr += "\n"; appendRemoveControlCharacters(descr, s); descr += "\n";}
-  if (getValue(tvspEvent_j, "text", s) ) { descr += "\n"; appendRemoveControlCharacters(descr, s); descr += "\n";}
+  if (getValue(tvspEvent_j, "text", s) ) { descr += "\n"; appendRemoveControlCharactersKeepNl(descr, s); descr += "\n";}
 // actors
   bool first = true;
   rapidjson::Value::ConstMemberIterator actors_it = tvspEvent_j.FindMember("actors");
@@ -177,9 +179,12 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
           descr += first?"\nDarsteller: ":", ";
           first = false;
           appendRemoveControlCharacters(descr, itr->value.GetString());
-          descr += " (";
-          appendRemoveControlCharacters(descr, itr->name.GetString());
-          descr += ")";
+          const char *name = itr->name.GetString();
+          if (name && *name) {
+            descr += " (";
+            appendRemoveControlCharacters(descr, name);
+            descr += ")";
+          }
         }
       }
     }

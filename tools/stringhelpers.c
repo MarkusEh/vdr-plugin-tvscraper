@@ -122,7 +122,18 @@ void appendRemoveControlCharacters(std::string &target, const char *str) {
   for(;;) {
     wint_t cp = getNextUtfCodepoint(str);
     if (cp == 0) return;
-    if (cp > 31 || cp == 10) AppendUtfCodepoint(target, cp);
+    if (cp > 31) AppendUtfCodepoint(target, cp);
+    else target.append(" ");
+  }
+}
+void appendRemoveControlCharactersKeepNl(std::string &target, const char *str) {
+  for(;;) {
+    wint_t cp = getNextUtfCodepoint(str);
+    if (cp == 0) return;
+    if (cp == ' ' && str[1] == '\n') target.append("\n");
+    else if (cp > 31 || cp == '\n') AppendUtfCodepoint(target, cp);
+    else target.append(" ");
+//     else { target.append("#"); target.append(to_string(cp)); target.append(";"); AppendUtfCodepoint(target, cp); }
   }
 }
 
