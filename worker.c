@@ -130,16 +130,18 @@ bool cTVScraperWorker::ScrapEPG(void) {
   schedulesStateKey.Remove();
 #endif
 // loop over all channels configured for scraping, and create map to enable check for new events
+// note: as a result, elso information from external EPG providers is only collected for these channels
   map<tChannelID, set<int>*> currentEvents;
   set<tChannelID> channels;
   int msg_cnt = 0;
   int i_channel_num = 0;
-  for (const tChannelID &channelID: config.GetScrapeChannels() ) {  // GetScrapeChannels creates a copy, thread save
+  for (const tChannelID &channelID: config.GetScrapeAndEpgChannels() ) { // GetScrapeAndEpgChannels creates a copy, thread save
     if (i_channel_num++ > 1000) {
       esyslog("tvscraper: ERROR: don't scrape more than 1000 channels");
       break;
     }
     cTvspEpg tvspEpg(config.GetChannelMapEpg(channelID));
+    bool channelActive = config.ChannelActive(channelID);
 
     map<tChannelID, set<int>*>::iterator currentEventsCurrentChannelIT = currentEvents.find(channelID);
     if (currentEventsCurrentChannelIT == currentEvents.end() ) {
@@ -168,13 +170,14 @@ bool cTVScraperWorker::ScrapEPG(void) {
 #endif
           cEvent *event = getEvent(eventID, channelID);
           if (!event) continue;
+					tvspEpg.enhanceEvent(event);
+					if (!channelActive) continue;
           newEvent = true;
           if (!newEventSchedule) {
             dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), channelToString(channelID).c_str() );
 //          dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), (const char *)channelID.ToString());
             newEventSchedule = true;
           }
-					tvspEpg.enhanceEvent(event);
           csEventOrRecording sEvent(event);
           cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);
           movieOrTv = SearchEventOrRec.Scrape();

@@ -150,7 +150,7 @@ class cTVScraperConfig {
         bool GetReadOnlyClient() const { return readOnlyClient; }
 // Methods to access parameters (lists) that can be changed in setup menu
 // These methods are thread save
-        set<tChannelID> GetScrapeChannels() const { cTVScraperConfigLock l; set<tChannelID> result = m_channels; return result; }
+        set<tChannelID> GetScrapeAndEpgChannels() const;
         bool ChannelActive(const tChannelID &channelID) const { cTVScraperConfigLock l; return m_channels.find(channelID) != m_channels.end(); }   // do we have to scrape this channel?
         int ChannelHD(const tChannelID &channelID) const { cTVScraperConfigLock l; auto f = m_HD_Channels.find(channelID); if (f != m_HD_Channels.end()) return f->second; return 0; }
         map<tChannelID, int> GetChannelHD() const { map<tChannelID, int> r; cTVScraperConfigLock l; if (m_HD_ChannelsModified) r = m_HD_Channels; return r; }

@@ -260,7 +260,7 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
   int l_event_id;
   char *l_channel_id;
   sqlite3_int64 l_validTill;
-  for (cStatement statement(&db, sql_event, "");
+  for (cSqlStatement statement(&db, sql_event, "");
        statement.step("isliii", &l_event_id, &l_channel_id, &l_validTill, &scraperEvent.m_movie_tv_id, &scraperEvent.m_season_number, &scraperEvent.m_episode_number);)
   {
     if (scraperEvent.m_season_number == 0 && scraperEvent.m_episode_number == 0) continue;
@@ -592,7 +592,7 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
     movieOrTvAT.m_season_number = -100;
     movieOrTvAT.m_episode_number = 0;
     movieOrTvAT.m_language = 0;
-    for (cStatement statement(&db, sql, "i", collection_id);
+    for (cSqlStatement statement(&db, sql, "i", collection_id);
           statement.step("i", &movieOrTvAT.m_movie_tv_id);) {
       auto found = recordings.lower_bound(movieOrTvAT);
       if (found != recordings.end() && equalWoLanguageMovieOrTvAT(&(*found), &movieOrTvAT) ) {

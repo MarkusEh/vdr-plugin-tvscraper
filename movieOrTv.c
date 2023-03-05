@@ -71,8 +71,8 @@ void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id,
   actor.actorThumb.height = height;
   const char *actorId;
   int hasImage;
-  for (sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", id);
-       m_db->QueryStep(statement, "sSSi", &actorId, &actor.name, &actor.role, &hasImage); ) {
+  for (cSqlStatement statement(m_db, sql, "i", id);
+       statement.step("sSSi", &actorId, &actor.name, &actor.role, &hasImage); ) {
     if (hasImage) {
       CONCAT(path, "ssss", config.GetBaseDir().c_str(), pathPart, actorId, ".jpg");
       if (FileExists(path)) {
@@ -230,8 +230,8 @@ void cMovieMoviedb::getScraperOverview(cGetScraperOverview *scraperOverview) {
   const char *releaseDate = NULL;
   const char sql[] = "select movie_title, movie_collection_id, movie_collection_name, " \
     "movie_release_date, movie_runtime, movie_IMDB_ID from movies3 where movie_id = ?";
-  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
-  if (!m_db->QueryStep(statement, "sissis",
+  cSqlStatement statement(m_db, sql, "i", dbID() );
+  if (!statement.step("sissis",
       &title, &scraperOverview->m_collectionId, &collectionName,
       &releaseDate, &scraperOverview->m_runtime, &IMDB_ID)) {
     scraperOverview->m_videoType = eVideoType::none;
@@ -242,7 +242,6 @@ void cMovieMoviedb::getScraperOverview(cGetScraperOverview *scraperOverview) {
   if (scraperOverview->m_collectionName && collectionName) *scraperOverview->m_collectionName = collectionName;
   if (scraperOverview->m_releaseDate && releaseDate) *scraperOverview->m_releaseDate = releaseDate;
 
-  sqlite3_finalize(statement);
   if (scraperOverview->m_image) {
 // get image (landscape, if possible)
     m_collectionId = scraperOverview->m_collectionId > 0?scraperOverview->m_collectionId:0;
@@ -263,8 +262,8 @@ bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, st
   int runtime_;
   const char sql[] = "select movie_title, movie_collection_id, movie_collection_name, " \
     "movie_release_date, movie_runtime, movie_IMDB_ID from movies3 where movie_id = ?";
-  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
-  if (!m_db->QueryStep(statement, "sissis",
+  cSqlStatement statement(m_db, sql, "i", dbID() );
+  if (!statement.step("sissis",
       &title_, &m_collectionId, &collectionName_, &releaseDate_, &runtime_, &IMDB_ID_)) {
     return false;
   }
@@ -272,7 +271,6 @@ bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, st
   if (imdbId)      *imdbId = charPointerToString(IMDB_ID_);
   if (releaseDate) *releaseDate = charPointerToString(releaseDate_);
   if (collectionName) *collectionName = charPointerToString(collectionName_);
-  sqlite3_finalize(statement);
   if (collectionId) *collectionId = m_collectionId;
   if (runtime)      *runtime = runtime_;
   return true;
@@ -290,8 +288,8 @@ void cMovieMoviedb::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
     "movie_budget, movie_revenue, movie_genres, movie_homepage, " \
     "movie_release_date, movie_runtime, movie_popularity, movie_vote_average, movie_vote_count, " \
     "movie_production_countries, movie_posterUrl, movie_fanartUrl, movie_IMDB_ID from movies3 where movie_id = ?";
-  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
-  scraperMovieOrTv->found = m_db->QueryStep(statement, "SSSSbiSiisSSiffisssS",
+  cSqlStatement statement(m_db, sql, "i", dbID() );
+  scraperMovieOrTv->found = statement.step("SSSSbiSiisSSiffisssS",
       &scraperMovieOrTv->title, &scraperMovieOrTv->originalTitle, &scraperMovieOrTv->tagline, &scraperMovieOrTv->overview,
       &scraperMovieOrTv->adult, &scraperMovieOrTv->collectionId, &scraperMovieOrTv->collectionName,
       &scraperMovieOrTv->budget, &scraperMovieOrTv->revenue, &genres, &scraperMovieOrTv->homepage, 
@@ -307,7 +305,6 @@ void cMovieMoviedb::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
     if (posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = imageUrl(posterUrl);
     if (fanartUrl && *fanartUrl) scraperMovieOrTv->fanartUrl = imageUrl(fanartUrl);
   }
-  sqlite3_finalize(statement);
 
   scraperMovieOrTv->actors = GetActors();
   if (scraperMovieOrTv->media) {
@@ -326,11 +323,10 @@ void cMovieMoviedb::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
 // director, writer
   char *director;
   char *writer;
-  statement = m_db->QueryPrepare("select movie_director, movie_writer from movie_runtime2 where movie_id = ?", "i", m_id);
-  if (m_db->QueryStep(statement, "ss", &director, &writer) ) {
+  statement.prepareBind("select movie_director, movie_writer from movie_runtime2 where movie_id = ?", "i", m_id);
+  if (statement.step("ss", &director, &writer) ) {
     stringToVector(scraperMovieOrTv->director, director);
     stringToVector(scraperMovieOrTv->writer, writer);
-    sqlite3_finalize(statement);
   }
 }
 
@@ -444,10 +440,10 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const vector<int> &y
   bool isDefaultLang = config.isDefaultLanguage(lang);
   const char *sqld = "select episode_name, season_number, episode_number, episode_air_date FROM tv_s_e WHERE tv_id =?";
   const char *sqll = "select tv_s_e_name.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name WHERE tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;";
-  sqlite3_stmt *stmt;
-  if (!isDefaultLang) stmt = m_db->QueryPrepare(sqll, "ii", dbID(), lang->m_id);
-  else stmt = m_db->QueryPrepare(sqld, "i", dbID());
-  for( ; m_db->QueryStep(stmt, "siis", &episodeName, &season, &episode, &episode_air_date); ) {
+  cSqlStatement statement(m_db);
+  if (!isDefaultLang) statement.prepareBind(sqll, "ii", dbID(), lang->m_id);
+  else statement.prepareBind(sqld, "i", dbID());
+  for( ; statement.step("siis", &episodeName, &season, &episode, &episode_air_date); ) {
     if (!episodeName) continue;
     if (!isDefaultLang) distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeName);
     else {
@@ -492,15 +488,14 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
     int runtime_ = 0;
     char sql_e[] = "select episode_name, episode_air_date, episode_run_time, episode_IMDB_ID " \
       "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-    sqlite3_stmt *statement = m_db->QueryPrepare(sql_e, "iii", dbID(), m_seasonNumber, m_episodeNumber);
-    if (m_db->QueryStep(statement, "ssis", &episodeName_, &episodeAirDate_, &runtime_, &episodeIMDB_ID_)) {
+    cSqlStatement statement(m_db, sql_e, "iii", dbID(), m_seasonNumber, m_episodeNumber);
+    if (statement.step("ssis", &episodeName_, &episodeAirDate_, &runtime_, &episodeIMDB_ID_)) {
       episodeDataAvailable = true;
       episodeReleaseDateAvailable = episodeAirDate_ && *episodeAirDate_;
       episodeImdbIdAvailable = episodeIMDB_ID_ && *episodeIMDB_ID_;
       if (episodeName) *episodeName = charPointerToString(episodeName_);
       if (releaseDate) *releaseDate = charPointerToString(episodeAirDate_);
       if (imdbId) *imdbId = charPointerToString(episodeIMDB_ID_);
-      sqlite3_finalize(statement);
       if (runtime) *runtime = runtime_;
     }
   }
@@ -514,8 +509,8 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
   const char *IMDB_ID_ = NULL;
   const char *firstAirDate_ = NULL;
   const char sql[] = "select tv_name, tv_first_air_date, tv_IMDB_ID from tv2 where tv_id = ?";
-  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
-  if (!m_db->QueryStep(statement, "sss", &title_, &firstAirDate_, &IMDB_ID_)) {
+  cSqlStatement statement(m_db, sql, "i", dbID() );
+  if (!statement.step("sss", &title_, &firstAirDate_, &IMDB_ID_)) {
     if (!episodeDataAvailable) return false;
     if (title) *title = "";
     if (collectionId) *collectionId = 0;
@@ -527,7 +522,6 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
     if (releaseDate) *releaseDate = charPointerToString(firstAirDate_);
     if (episodeName) *episodeName = "";
   }
-  sqlite3_finalize(statement);
   return true;
 }
 
@@ -548,12 +542,11 @@ void cTv::getScraperOverview(cGetScraperOverview *scraperOverview) {
     const char *episodeAirDate = NULL;
     char sql_e[] = "select episode_name, episode_air_date, episode_IMDB_ID " \
       "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-    sqlite3_stmt *statement = m_db->QueryPrepare(sql_e, "iii", dbID(), m_seasonNumber, m_episodeNumber);
-    if (m_db->QueryStep(statement, "sss", &episodeName, &episodeAirDate, &episodeIMDB_ID)) {
+    cSqlStatement statement(m_db, sql_e, "iii", dbID(), m_seasonNumber, m_episodeNumber);
+    if (statement.step("sss", &episodeName, &episodeAirDate, &episodeIMDB_ID)) {
       if (scraperOverview->m_episodeName && episodeName) *scraperOverview->m_episodeName = episodeName;
       if (scraperOverview->m_IMDB_ID && episodeIMDB_ID) *scraperOverview->m_IMDB_ID = episodeIMDB_ID;
       if (scraperOverview->m_releaseDate && episodeAirDate) *scraperOverview->m_releaseDate = episodeAirDate;
-      sqlite3_finalize(statement);
     }
   }
 
@@ -561,15 +554,14 @@ void cTv::getScraperOverview(cGetScraperOverview *scraperOverview) {
   const char *IMDB_ID = NULL;
   const char *firstAirDate = NULL;
   const char sql[] = "select tv_name, tv_first_air_date, tv_IMDB_ID from tv2 where tv_id = ?";
-  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
-  if (!m_db->QueryStep(statement, "sss", &title, &firstAirDate, &IMDB_ID)) {
+  cSqlStatement statement(m_db, sql, "i", dbID() );
+  if (!statement.step("sss", &title, &firstAirDate, &IMDB_ID)) {
     scraperOverview->m_videoType = eVideoType::none;
     return;
   }
   if (scraperOverview->m_title && title) *scraperOverview->m_title = title;
   if (scraperOverview->m_IMDB_ID && scraperOverview->m_IMDB_ID->empty() && IMDB_ID) *scraperOverview->m_IMDB_ID = IMDB_ID;
   if (scraperOverview->m_releaseDate && scraperOverview->m_releaseDate->empty() && firstAirDate) *scraperOverview->m_releaseDate = firstAirDate;
-  sqlite3_finalize(statement);
 
 // image
   if (scraperOverview->m_image)
@@ -607,10 +599,9 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
   const char *posterUrl;
   if (scraperMovieOrTv->episodeFound && scraperMovieOrTv->httpImagePaths) {
     const char sql_sp[] = "select media_path from tv_media where tv_id = ? and media_number = ? and media_type = ?";
-    sqlite3_stmt *statement = m_db->QueryPrepare(sql_sp, "iii", dbID(), m_seasonNumber, mediaSeason);
-    if (m_db->QueryStep(statement, "s", &posterUrl)) {
+    cSqlStatement statement(m_db, sql_sp, "iii", dbID(), m_seasonNumber, mediaSeason);
+    if (statement.step("s", &posterUrl)) {
       if (posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = imageUrl(posterUrl);
-      sqlite3_finalize(statement);
     }
   }
   const char *networks;
@@ -621,8 +612,8 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
     "tv_networks, tv_genres, tv_popularity, tv_vote_average, tv_vote_count, " \
     "tv_posterUrl, tv_fanartUrl, tv_IMDB_ID, tv_status, tv_created_by " \
     "from tv2 where tv_id = ?";
-  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", dbID() );
-  scraperMovieOrTv->found = m_db->QueryStep(statement, "SSSSssffissSSs",
+  cSqlStatement statement(m_db, sql, "i", dbID() );
+  scraperMovieOrTv->found = statement.step("SSSSssffissSSs",
       &scraperMovieOrTv->title, &scraperMovieOrTv->originalTitle, &scraperMovieOrTv->overview,
       &scraperMovieOrTv->releaseDate, &networks, &genres,
       &scraperMovieOrTv->popularity, &scraperMovieOrTv->voteAverage, &scraperMovieOrTv->voteCount,
@@ -637,24 +628,22 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
         posterUrl && *posterUrl) scraperMovieOrTv->posterUrl = imageUrl(posterUrl);
     if (fanartUrl && *fanartUrl) scraperMovieOrTv->fanartUrl = imageUrl(fanartUrl);
   }
-  sqlite3_finalize(statement);
 // if no poster was found, use first season poster
   if (scraperMovieOrTv->httpImagePaths && scraperMovieOrTv->posterUrl.empty() ) {
     const char sql_spa[] =
       "select media_path from tv_media where tv_id = ? and media_number >= 0 and media_type = ?";
-    for (sqlite3_stmt *statement = m_db->QueryPrepare(sql_spa, "ii", dbID(), mediaSeason);
-         m_db->QueryStep(statement, "s", &posterUrl);) 
+    for (cSqlStatement statement(m_db, sql_spa, "ii", dbID(), mediaSeason);
+         statement.step("s", &posterUrl);)
       if (posterUrl && *posterUrl) {
         scraperMovieOrTv->posterUrl = imageUrl(posterUrl);
-        sqlite3_finalize(statement);
         break;
       }
    }
 // runtimes
   int runtime;
-  for (statement = m_db->QueryPrepare(
+  for (cSqlStatement statement(m_db,
     "select episode_run_time from tv_episode_run_time where tv_id = ?", "i", dbID() );
-    m_db->QueryStep(statement, "i", &runtime);) {
+    statement.step("i", &runtime);) {
     if (runtime > 0) scraperMovieOrTv->runtimes.push_back(runtime);
   }
 
@@ -681,8 +670,8 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
     "episode_vote_average, episode_vote_count, episode_overview, " \
     "episode_guest_stars, episode_director, episode_writer, episode_IMDB_ID, episode_still_path " \
     "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-  statement = m_db->QueryPrepare(sql_e, "iii", dbID(), m_seasonNumber, m_episodeNumber);
-  if (m_db->QueryStep(statement, "iSSfiSsssSs", 
+  statement.prepareBind(sql_e, "iii", dbID(), m_seasonNumber, m_episodeNumber);
+  if (statement.step("iSSfiSsssSs",
      &scraperMovieOrTv->episode.absoluteNumber, &scraperMovieOrTv->episode.name,
      &scraperMovieOrTv->episode.firstAired,
      &scraperMovieOrTv->episode.vote_average, &scraperMovieOrTv->episode.vote_count, 
@@ -694,7 +683,6 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
     if (episodeImageUrl && *episodeImageUrl && scraperMovieOrTv->httpImagePaths) {
       scraperMovieOrTv->episode.episodeImageUrl = imageUrl(episodeImageUrl);
     }
-    sqlite3_finalize(statement);
   }
   if (scraperMovieOrTv->media)
     getSingleImage(eImageLevel::episodeMovie, eOrientation::landscape, NULL, &scraperMovieOrTv->episode.episodeImage.path, &scraperMovieOrTv->episode.episodeImage.width, &scraperMovieOrTv->episode.episodeImage.height);
@@ -703,11 +691,8 @@ void cTv::getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) {
 void cTvTvdb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
   char *guestStars;
   const char *sql = "select episode_guest_stars from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-  sqlite3_stmt *statement = m_db->QueryPrepare(sql, "iii", dbID(), m_seasonNumber, m_episodeNumber);
-  if (m_db->QueryStep(statement, "s", &guestStars) ) {
-    addGuestStars(actors, guestStars);
-    sqlite3_finalize(statement);
-  }
+  cSqlStatement statement(m_db, sql, "iii", dbID(), m_seasonNumber, m_episodeNumber);
+  if (statement.step("s", &guestStars) ) addGuestStars(actors, guestStars);
 }
 
 // implemntation of cTvMoviedb  *********************
@@ -808,8 +793,8 @@ std::vector<cActor> cTvTvdb::GetActors(bool fullPath) {
   cActor actor;
   const char *actorId;
   const char sql[] = "SELECT actor_number, actor_name, actor_role FROM series_actors WHERE actor_series_id = ?";
-  for (sqlite3_stmt *statement = m_db->QueryPrepare(sql, "i", m_id);
-       m_db->QueryStep(statement, "sSS", &actorId, &actor.name, &actor.role); ) {
+  for (cSqlStatement statement(m_db, sql, "i", m_id);
+       statement.step("sSS", &actorId, &actor.name, &actor.role); ) {
     actor.actorThumb.width = 300;
     actor.actorThumb.height = 450;
     actor.actorThumb.path = "";
@@ -983,7 +968,7 @@ void cMovieOrTv::CleanupTv_media(const cTVScraperDB *db) {
   const char *sql2 = "select tv_id from tv_media";
   int tv_id;
   std::set<int> tv_ids;
-  for (sqlite3_stmt *statement = db->QueryPrepare(sql2, ""); db->QueryStep(statement, "i", &tv_id);)
+  for (cSqlStatement statement(db, sql2, ""); statement.step("i", &tv_id);)
     tv_ids.insert(tv_id);
   for (const int &tv_id2: tv_ids) {
     if (db->CheckMovieOutdatedEvents(tv_id2, 0, 0)) continue;
@@ -1039,16 +1024,16 @@ void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check all movies in db
   CleanupTv_media(db);
   int movie_id;
-  for (sqlite3_stmt *statement = db->GetAllMovies();
-       db->QueryStep(statement, "i", &movie_id);) {
+  for (cSqlStatement statement(db, "select movie_id from movies3;", "");
+       statement.step("i", &movie_id);) {
     cMovieMoviedb movieMoviedb(db, movie_id);
     movieMoviedb.DeleteIfUnused();
   }
 
 // check all tv shows in db
   int tvID;
-  for (sqlite3_stmt *statement = db->QueryPrepare("select tv_id from tv2;", "");
-       db->QueryStep(statement, "i", &tvID);) {
+  for (cSqlStatement statement(db, "select tv_id from tv2;", "");
+       statement.step("i", &tvID);) {
     if (tvID > 0) { cTvMoviedb tvMoviedb(db, tvID); tvMoviedb.DeleteIfUnused(); }
        else        { cTvTvdb tvTvdb(db, tvID * -1); tvTvdb.DeleteIfUnused(); }
   }

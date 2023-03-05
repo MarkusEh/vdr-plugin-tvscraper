@@ -236,7 +236,7 @@ cTVScraperConfig config;
 #include "extEpg.c"
 #include "services.c"
 
-static const char *VERSION        = "1.1.10";
+static const char *VERSION        = "1.1.11";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 
 class cPluginTvscraper : public cPlugin {

@@ -165,7 +165,7 @@ bool cTVScraperDB::QueryValue(const char *query, const char *bind, const char *f
 bool cTVScraperDB::QueryLine(const char *query, const char *bind, const char *fmt_result, ...) const {
 // read one line to parameter list
 // return true if a line was found
-// va_list &vl: first bind parameters, then pointers to result parameters
+// ... : first bind parameters, then pointers to result parameters
 // bind & fmt_result:
 //    s: const unsigned char * is not allowed for fmt_result as the reference will not be valid any more once this method returns ...
 //    S: std::string
@@ -183,21 +183,6 @@ bool cTVScraperDB::QueryLine(const char *query, const char *bind, const char *fm
   sqlite3_finalize(statement);
   va_end(vl);
   return lineFound;
-}
-bool cTVScraperDB::QueryStep(sqlite3_stmt *&statement, const char *fmt_result, ...) const {
-// return true if a row was found. Otherwise false
-// before returning false, sqlite3_finalize(statement) is called
-// fmt_result: see step_read_result comments for complete list of supported values
-
-  if (!statement) return false;
-  va_list vl;
-  va_start(vl, fmt_result);
-  int OK_CODE = step_read_result(statement, fmt_result, vl);
-  va_end(vl);
-  if (OK_CODE == SQLITE_ROW) return true;
-  sqlite3_finalize(statement);
-  statement = NULL;
-  return false;
 }
 
 int cTVScraperDB::step_read_result(sqlite3_stmt *statement, const char *fmt_result, va_list &vl) const {
@@ -256,50 +241,6 @@ int cTVScraperDB::step_read_result(sqlite3_stmt *statement, const char *fmt_resu
   return result;
 }
 
-sqlite3_stmt *cTVScraperDB::QueryPrepare(const char *query, const char *bind, ...) const {
-// starting point to read multipe lines from db
-// bind: see prepare_bind comments for complete list of supported values
-// example code:
-/*
-  int tvID;
-  for (sqlite3_stmt *statement = db->QueryPrepare("select tv_id from tv2;", "");
-       db->QueryStep(statement, "i", &tvID);) {
-// code to be executed for each line
-  }
-*/
-
-  va_list vl;
-  va_start(vl, bind);
-  sqlite3_stmt *statement;
-  prepare_bind(&statement, query, bind, vl);
-  va_end(vl);
-  return statement;
-}
-class cStatement {
-  public:
-    cStatement(const cTVScraperDB *db, const char *query, const char *bind, ...) {
-      if (!db || !query || !bind) return;
-      m_db = db;
-      va_list vl;
-      va_start(vl, bind);
-      db->prepare_bind(&m_statement, query, bind, vl);
-      va_end(vl);
-    }
-    bool step(const char *fmt_result, ...) {
-      if (!m_statement || !fmt_result) return false;
-      va_list vl;
-      va_start(vl, fmt_result);
-      int OK_CODE = m_db->step_read_result(m_statement, fmt_result, vl);
-      va_end(vl);
-      return OK_CODE == SQLITE_ROW;
-    }
-    ~cStatement() { sqlite3_finalize(m_statement); }
-  private:
-    const cTVScraperDB *m_db;
-    sqlite3_stmt *m_statement = NULL;
-};
-
-
 int cTVScraperDB::prepare_bind(sqlite3_stmt **statement, const char *query, const char *bind, va_list &vl) const {
 // va_list &vl: bind parameters
 // bind:
@@ -344,6 +285,34 @@ int cTVScraperDB::prepare_bind(sqlite3_stmt **statement, const char *query, cons
   return result;
 }
 
+// implement methods of class cSqlStatement ====================================================
+cSqlStatement::cSqlStatement(const cTVScraperDB *db, const char *query, const char *bind, ...) {
+  if (!db || !query || !bind) return;
+  m_db = db;
+  va_list vl;
+  va_start(vl, bind);
+  m_db->prepare_bind(&m_statement, query, bind, vl);
+  va_end(vl);
+}
+void cSqlStatement::prepareBind(const char *query, const char *bind, ...) {
+  if (!m_db || !query || !bind) return;
+  sqlite3_finalize(m_statement);
+  m_statement = NULL;
+  va_list vl;
+  va_start(vl, bind);
+  m_db->prepare_bind(&m_statement, query, bind, vl);
+  va_end(vl);
+}
+bool cSqlStatement::step(const char *fmt_result, ...) {
+  if (!m_db || !m_statement || !fmt_result) return false;
+  va_list vl;
+  va_start(vl, fmt_result);
+  int OK_CODE = m_db->step_read_result(m_statement, fmt_result, vl);
+  va_end(vl);
+  return OK_CODE == SQLITE_ROW;
+}
+
+// helpers for updates, if db changes =======================================
 bool cTVScraperDB::TableColumnExists(const char *table, const char *column) {
   bool found = false;
   stringstream sql;
@@ -688,10 +657,6 @@ bool cTVScraperDB::CreateTables(void) {
     return true;
 }
 
-sqlite3_stmt *cTVScraperDB::GetAllMovies() const {
-  return QueryPrepare("select movie_id from movies3;", "");
-}
-
 void cTVScraperDB::ClearOutdated() const {
 // delete all invalid events pointing to movies
 // and delete all invalid events pointing to series
@@ -978,7 +943,7 @@ int cTVScraperDB::GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv
 // tv show, more than one runtime is available. Select the best fitting one
   int runtime_distance = 20000;
   int best_runtime = 0;
-  for (sqlite3_stmt *statement = QueryPrepare(sql, "i", movie_tv_id); QueryStep(statement, "i", &runtime);) {
+  for (cSqlStatement statement(this, sql, "i", movie_tv_id); statement.step("i", &runtime);) {
     int dist = sEventOrRecording->DurationDistance(runtime);
     if (dist < 0) continue; // no data
     if (dist < runtime_distance) {
@@ -1224,9 +1189,9 @@ bool cTVScraperDB::GetFromCache(const string &movieNameCache, csEventOrRecording
     const char sql[] = "select year, episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
                        "from cache WHERE movie_name_cache = ? AND recording = ? and duration BETWEEN ? and ? " \
                        "and year != ?";
-    for (sqlite3_stmt *statement = QueryPrepare(sql,
+    for (cSqlStatement statement(this, sql,
         "siiii", movieNameCache.c_str(), recording, durationInSecLow, durationInSec + 300, 0);
-          QueryStep(statement, "iiiii", &movieOrTv.year, &movieOrTv.episodeSearchWithShorttext,
+          statement.step("iiiii", &movieOrTv.year, &movieOrTv.episodeSearchWithShorttext,
                     &movieOrTv.id, &movieOrTv.season, &movieOrTv.episode);) {
 // there was a year match. Check: do have a year match?
       vector<int> years;
@@ -1236,7 +1201,6 @@ bool cTVScraperDB::GetFromCache(const string &movieNameCache, csEventOrRecording
         if      (movieOrTv.id     == 0)    movieOrTv.type = scrapNone;
         else if (movieOrTv.season == -100) movieOrTv.type = scrapMovie;
         else                               movieOrTv.type = scrapSeries;
-        sqlite3_finalize(statement);
         return true;
       }
     }
@@ -1345,7 +1309,7 @@ int cTVScraperDB::findUnusedActorNumber (int seriesID) {
   const char sql[] = "select actor_number from series_actors where actor_series_id = ?";
   int actorNumber;
   std::set<int> numbers;
-  for (sqlite3_stmt *stmt = QueryPrepare(sql, "i", seriesID); QueryStep(stmt, "i", &actorNumber);) numbers.insert(actorNumber);
+  for (cSqlStatement statement(this, sql, "i", seriesID); statement.step("i", &actorNumber);) numbers.insert(actorNumber);
 // 2. first number not in set of existing numbers (numbers)
   if (numbers.empty() ) return 0;
   return *(numbers.rbegin()) + 1;
@@ -1378,7 +1342,7 @@ vector<int> cTVScraperDB::getSimilarTvShows(int tv_id) const {
   vector<int> result;
   int id;
   char sql2[] = "select tv_id from tv_similar where equal_id = ?";
-  for (sqlite3_stmt *stmt = QueryPrepare(sql2, "i", equalId); QueryStep(stmt, "i", &id);) result.push_back(id);
+  for (cSqlStatement stmt(this, sql2, "i", equalId); stmt.step("i", &id);) result.push_back(id);
   return result;
 }
 void cTVScraperDB::setSimilar(int tv_id1, int tv_id2) {

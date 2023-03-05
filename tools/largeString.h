@@ -21,6 +21,7 @@ class cLargeString {
     void setMaxSize() { m_maxSize = std::max(m_maxSize, (size_t)(m_string_end - m_s)); }
   public:
     cLargeString(const cLargeString& o) = delete;
+    cLargeString &operator= (const cLargeString &) = delete;
     cLargeString(cLargeString&& o):
       m_s(o.m_s),
       m_string_end(o.m_string_end),

@@ -7,7 +7,7 @@ using namespace std;
 // --- cTVScraperDB --------------------------------------------------------
 
 class cTVScraperDB {
-  friend class cStatement;
+  friend class cSqlStatement;
 private:
     sqlite3 *db;
     string dbPathPhys;
@@ -30,19 +30,20 @@ private:
     bool CreateTables(void);
     void WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number);
 public:
+    cTVScraperDB(const cTVScraperDB &) = delete;
+    cTVScraperDB &operator= (const cTVScraperDB &) = delete;
     cTVScraperDB(void);
     virtual ~cTVScraperDB(void);
     bool Connect(void);
     void BackupToDisc(void);
 // allow sql statments from outside this class
+// see also class cSqlStatement
     int execSql(const char *query, const char *bind, ...) const;
     bool QueryLine(const char *query, const char *bind, const char *fmt_result, ...) const;
     int QueryInt(const char *query, const char *bind, ...) const;
     bool QueryInt(int &result, const char *query, const char *bind, ...) const;
     sqlite3_int64 QueryInt64(const char *query, const char *bind, ...) const;
     string QueryString(const char *query, const char *bind, ...) const;
-    sqlite3_stmt *QueryPrepare(const char *query, const char *bind, ...) const;
-    bool QueryStep(sqlite3_stmt *&statement, const char *fmt_result, ...) const;
     void ClearOutdated() const;
     bool CheckMovieOutdatedEvents(int movieID, int season_number, int episode_number) const;
     bool CheckMovieOutdatedRecordings(int movieID, int season_number, int episode_number) const;
@@ -108,10 +109,27 @@ public:
     int findUnusedActorNumber (int seriesID);
     vector<vector<string> > GetActorDownload(int tvID, bool movie);
     void DeleteActorDownload (int tvID, bool movie) const;
-    sqlite3_stmt *GetAllMovies() const;
     int GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
     vector<int> getSimilarTvShows(int tv_id) const;
     void setSimilar(int tv_id1, int tv_id2);
 };
+class cSqlStatement {
+  public:
+    cSqlStatement(const cSqlStatement &) = delete;
+    cSqlStatement &operator= (const cSqlStatement &) = delete;
+    cSqlStatement(const cTVScraperDB *db) { m_db = db; }
+    cSqlStatement(const cTVScraperDB *db, const char *query, const char *bind, ...);
+    void prepareBind(const char *query, const char *bind, ...); // see cTVScraperDB::prepare_bind for parameters
+      // step:
+      // see cTVScraperDB::step_read_result for parameters
+      // s (char *) results will be valit until the prepareBind is called on this cSqlStatement,
+      //                   or this cSqlStatement is destroyed
+    bool step(const char *fmt_result, ...);
+    ~cSqlStatement() { sqlite3_finalize(m_statement); }
+  private:
+    const cTVScraperDB *m_db = NULL;
+    sqlite3_stmt *m_statement = NULL;
+};
+
 
 #endif //__TVSCRAPER_TVSCRAPPERDB_H

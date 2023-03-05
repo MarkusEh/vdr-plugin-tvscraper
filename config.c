@@ -203,6 +203,17 @@ const sChannelMapEpg *cTVScraperConfig::GetChannelMapEpg(const tChannelID &chann
   return NULL;
 }
 
+set<tChannelID> cTVScraperConfig::GetScrapeAndEpgChannels() const {
+  set<tChannelID> result;
+  {
+    cTVScraperConfigLock l;
+    result = m_channels;
+  }
+  for (const sChannelMapEpg &channelEpg: m_channelMap) result.insert(channelEpg.channelID);
+  return result;
+}
+
+
 // implement class cTVScraperConfigLock *************************
 cTVScraperConfigLock::cTVScraperConfigLock(bool Write) {
   config.stateLock.Lock(m_stateKey, Write);

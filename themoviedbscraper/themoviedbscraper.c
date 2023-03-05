@@ -130,14 +130,13 @@ void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
 void cMovieDBScraper::DownloadMediaTv(int tvID) {
   int season;
   const char *path;
-  for (sqlite3_stmt *statement = db->QueryPrepare("select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0", "ii", tvID, (int)mediaSeason);
-    db->QueryStep(statement, "si", &path, &season);) {
+  for (cSqlStatement statement(db, "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0", "ii", tvID, (int)mediaSeason);
+    statement.step("si", &path, &season);) {
       stringstream pathPoster;
       pathPoster << GetTvBaseDir() << tvID;
       CreateDirectory(pathPoster.str() );
       pathPoster << "/";
       DownloadFile(GetPosterBaseUrl(), path, pathPoster.str(), season, "/poster.jpg", false);
-      sqlite3_finalize(statement);
       break;
   }
   for (int type = 1; type <= 2; type ++) {

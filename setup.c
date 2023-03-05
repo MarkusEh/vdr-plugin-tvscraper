@@ -29,8 +29,8 @@ std::set<int> cTVScraperSetup::getAllTV_Shows() {
 // add all TV Shows from recordings
   const char sql[] = "select DISTINCT movie_tv_id from recordings2 where season_number != -100";
   int tvID;
-  for (sqlite3_stmt *statement = m_db.QueryPrepare(sql, "");
-       m_db.QueryStep(statement, "i", &tvID);) result.insert(tvID);
+  for (cSqlStatement statement(&m_db, sql, "");
+       statement.step("i", &tvID);) result.insert(tvID);
 // add all TV Shows from config, where we create recordings for missing episodes
   cTVScraperConfigLock l;
   for (const int &id: config.m_TV_Shows ) result.insert(id);
@@ -384,11 +384,10 @@ cTVScraperTV_ShowsSetup::cTVScraperTV_ShowsSetup(vector<int> &listSelections, co
   Clear();
   int i = 0;
   for (const int &TV_show: TV_Shows) {
-    sqlite3_stmt *statement = db.QueryPrepare(sql, "i", TV_show);
+    cSqlStatement statement(&db, sql, "i", TV_show);
     const char *name;
-    if (db.QueryStep(statement, "s", &name) && name && *name)
+    if (statement.step("s", &name) && name && *name)
       Add(new cMenuEditBoolItem(name, &(listSelections[i]) ));
-    sqlite3_finalize(statement);
     i++;
   }
   SetCurrent(Get(currentItem));

@@ -154,14 +154,14 @@ std::vector<std::unique_ptr<cCharacter>> cScraperVideoImp::getCharacters(bool fu
   if (m_movieOrTv->getType() != tMovie && !isEpisodeIdentified() ) return result;
   char *director_ = NULL;
   char *writer_ = NULL;
-  sqlite3_stmt *statement;
+  cSqlStatement statement(m_db);
   if (m_movieOrTv->getType() == tMovie) {
-    statement = m_db->QueryPrepare("select movie_director, movie_writer from movie_runtime2 where movie_id = ?", "i", m_movieOrTv->dbID() );
+    statement.prepareBind("select movie_director, movie_writer from movie_runtime2 where movie_id = ?", "i", m_movieOrTv->dbID() );
   } else {
     const char *sql_e = "select episode_director, episode_writer from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-    statement = m_db->QueryPrepare(sql_e, "iii", m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode() );
+    statement.prepareBind(sql_e, "iii", m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode() );
   }
-  if (!m_db->QueryStep(statement, "ss", &director_, &writer_) ) return result;
+  if (!statement.step("ss", &director_, &writer_) ) return result;
   std::vector<std::string> directors;
   stringToVector(directors, director_);
   for (const auto &director: directors)
@@ -170,7 +170,6 @@ std::vector<std::unique_ptr<cCharacter>> cScraperVideoImp::getCharacters(bool fu
   stringToVector(writers, writer_);
   for (const auto &writer: writers)
     result.push_back(std::make_unique<cCharacterImp>(eCharacterType::writer, writer));
-  sqlite3_finalize(statement);
   return result;
 }
 
@@ -203,15 +202,15 @@ bool cScraperVideoImp::getMovieOrTv(std::string *title, std::string *originalTit
   char *posterUrl_ = NULL;
   char *fanartUrl_ = NULL;
   int lastSeason_ = 0;
-  sqlite3_stmt *statement;
+  cSqlStatement statement(m_db);
   if (m_movieOrTv->getType() == tMovie) {
     const char *sql_m = "select movie_title, movie_original_title, movie_tagline, movie_overview, " \
       "movie_adult, movie_collection_id, movie_collection_name, " \
       "movie_budget, movie_revenue, movie_genres, movie_homepage, " \
       "movie_release_date, movie_runtime, movie_popularity, movie_vote_average, movie_vote_count, " \
       "movie_production_countries, movie_posterUrl, movie_fanartUrl, movie_IMDB_ID from movies3 where movie_id = ?";
-    statement = m_db->QueryPrepare(sql_m, "i", m_movieOrTv->dbID() );
-    if (!m_db->QueryStep(statement, "ssssbisiisssiffissss",
+    statement.prepareBind(sql_m, "i", m_movieOrTv->dbID() );
+    if (!statement.step("ssssbisiisssiffissss",
       &title_, &originalTitle_, &tagline_, &overview_, &adult_, &m_collectionId, &collectionName_,
       &budget_, &revenue_, &genres_, &homepage_, &releaseDate_, &m_runtime, &popularity_, &voteAverage_, &voteCount_,
       &productionCountries_, &posterUrl_, &fanartUrl_, &imdbId_) ) return false;
@@ -222,8 +221,8 @@ bool cScraperVideoImp::getMovieOrTv(std::string *title, std::string *originalTit
         "tv_networks, tv_genres, tv_created_by, tv_popularity, tv_vote_average, tv_vote_count, " \
         "tv_posterUrl, tv_fanartUrl, tv_IMDB_ID, tv_status, tv_last_season " \
         "from tv2 where tv_id = ?";
-      statement = m_db->QueryPrepare(sql_s, "i", m_movieOrTv->dbID() );
-      if (!m_db->QueryStep(statement, "sssssssffissssi",
+      statement.prepareBind(sql_s, "i", m_movieOrTv->dbID() );
+      if (!statement.step("sssssssffissssi",
         &title_, &originalTitle_, &overview_, &releaseDate_, &networks_, &genres_, &createdBy_,
         &popularity_, &voteAverage_, &voteCount_, &posterUrl_, &fanartUrl_, &imdbId_, &status_, &lastSeason_) ) return false;
     } else return false;
@@ -248,39 +247,6 @@ bool cScraperVideoImp::getMovieOrTv(std::string *title, std::string *originalTit
   if (collectionName) *collectionName = charPointerToString(collectionName_);
   if (status) *status = charPointerToString(status_);
   if (networks) { networks->clear(); stringToVector(*networks, networks_); }
-/*
-  if (posterUrl) {
-    *posterUrl = ""; // "default", if there is nothing better ...
-    if (isEpisodeIdentified() ) {  // we use the season poster of this season, if available
-      char *posterUrlSp_;
-      const char sql_sp[] = "select media_path from tv_media where tv_id = ? and media_number = ? and media_type = ?";
-      sqlite3_stmt *statement_sp = m_db->QueryPrepare(sql_sp, "iii", m_movieOrTv->dbID(), m_movieOrTv->getSeason(), mediaSeason);
-      if (m_db->QueryStep(statement_sp, "s", &posterUrlSp_)) {
-        if (posterUrlSp_ && *posterUrlSp_) *posterUrl = m_movieOrTv->imageUrl(posterUrlSp_);
-        sqlite3_finalize(statement_sp);
-      }
-    }
-    if (posterUrl->empty() && posterUrl_ && *posterUrl_) *posterUrl = m_movieOrTv->imageUrl(posterUrl_);
-    if (posterUrl->empty() && m_movieOrTv->getType() == tSeries) {
-// no poster was found. Use first season poster
-    const char sql_spa[] =
-      "select media_path from tv_media where tv_id = ? and media_number >= 0 and media_type = ?";
-    for (sqlite3_stmt *statementPoster = m_db->QueryPrepare(sql_spa, "ii", m_movieOrTv->dbID(), mediaSeason);
-         m_db->QueryStep(statementPoster, "s", &posterUrl_);)
-      if (posterUrl_ && *posterUrl_) {
-        *posterUrl = m_movieOrTv->imageUrl(posterUrl_);
-        sqlite3_finalize(statementPoster);
-        break;
-      }
-    }
-  }
-  if (fanartUrl) {
-    if (fanartUrl_ && *fanartUrl_) *fanartUrl = m_movieOrTv->imageUrl(fanartUrl_);
-    else *fanartUrl = "";
-  }
-*/
-
-  sqlite3_finalize(statement);
   return true;
 }
 
@@ -317,8 +283,8 @@ bool cScraperVideoImp::getEpisode(std::string *name, std::string *overview, int 
     "episode_run_time, episode_vote_average, episode_vote_count, episode_overview, " \
     "episode_IMDB_ID " \
     "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-  sqlite3_stmt *statement = m_db->QueryPrepare(sql_e, "iii", m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode() );
-  if (!m_db->QueryStep(statement, "issifiss", &absoluteNumber_,
+  cSqlStatement statement(m_db, sql_e, "iii", m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode() );
+  if (!statement.step("issifiss", &absoluteNumber_,
      &name_, &firstAired_, &runtime_, &voteAverage_, &voteCount_, &overview_, &imdbId_)) return false;
   if (name) *name = charPointerToString(name_);
   if (overview) *overview = charPointerToString(overview_);
@@ -331,12 +297,5 @@ bool cScraperVideoImp::getEpisode(std::string *name, std::string *overview, int 
   if (voteAverage) *voteAverage = voteAverage_;
   if (voteCount) *voteCount = voteCount_;
   if (imdbId) *imdbId = charPointerToString(imdbId_);
-/*
-  if (imageUrl) {
-    if (imageUrl_ && *imageUrl_) *imageUrl = m_movieOrTv->imageUrl(imageUrl_);
-    else *imageUrl = "";
-  }
-*/
-  sqlite3_finalize(statement);
   return true;
 }
