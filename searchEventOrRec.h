@@ -25,13 +25,13 @@ private:
   void ScrapAssign(const sMovieOrTv &movieOrTv);
   int UpdateEpisodeListIfRequired(int tvID, const cLanguage *lang);
   int UpdateEpisodeListIfRequired_i(int tvID);
-  void getActorMatches(const std::string &actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, vector<string> &alreadyFound);
-  void getDirectorWriterMatches(const std::string &directorWriter, int &numMatchesAll, int &numMatchesSure, vector<string> &alreadyFound);
-  void getDirectorWriterMatches(searchResultTvMovie &sR, const std::vector<std::string> &directorWriters);
-  void getActorMatches(searchResultTvMovie &sR, const std::vector<std::vector<std::string>> &actors);
-  bool addActor(const char *description, const char *name, size_t len, int &numMatches, vector<string> &alreadyFound);
-  bool addActor(const char *description, const string &name, int &numMatches, vector<string> &alreadyFound);
-  bool selectBestAndEnhanvceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));
+  void getActorMatches(const char *actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, cContainer &alreadyFound);
+  void getDirectorWriterMatches(const std::string_view &directorWriter, int &numMatchesAll, int &numMatchesSure, cContainer &alreadyFound);
+  void getDirectorWriterMatches(searchResultTvMovie &sR, const char *directors, const char *writers);
+  void getActorMatches(searchResultTvMovie &sR, cSql &actors);
+  bool addActor(const char *description, const char *name, size_t len, int &numMatches, cContainer &alreadyFound);
+  bool addActor(const char *description, const string_view &name, int &numMatches, cContainer &alreadyFound);
+  bool selectBestAndEnhanceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));
   static void enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
   static void enhance2(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
 // passed from constructor
@@ -47,7 +47,7 @@ private:
   std::string m_movieSearchString;
   std::string m_TVshowSearchString;
   std::string_view m_originalTitle;
-  vector<int> m_years;
+  cYears m_years;
   bool m_baseNameEquShortText = false;
   cMovieDbTv m_tv;
   cMovieDbMovie m_movie;

@@ -7,172 +7,16 @@
  */
 #include "services.h"
 #include <map>
-// BEGIN OF deprecated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// removed from services.h, please dont use
-// still here, so old plugins (with the old interface) continue to work for some time ...
-// everything after this line is deprecated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// use cGetScraperVideo / cScraperVideo instead
-enum class eVideoType {
-  none = 0,
-  movie = 1,
-  tvShow = 2,
-  musicVideo = 3,
-};
-
-class cEpisode2 {
-public:
-    int number;
-    int season;
-    int absoluteNumber;
-    std::string name;
-    std::string firstAired;
-    std::vector<cActor> guestStars;
-    std::string overview;
-    float vote_average;
-    int vote_count;
-    cTvMedia episodeImage;
-    std::string episodeImageUrl;
-    std::vector<std::string> director;
-    std::vector<std::string> writer;
-    std::string IMDB_ID;
-};
-
-// Data structure for Kodi
+// Some documantation about KODI TV interface, and supported data: ======================================
 // see https://alwinesch.github.io/group__cpp__kodi__addon__pvr___defs__epg___p_v_r_e_p_g_tag.html
 // see https://alwinesch.github.io/group__cpp__kodi__addon__pvr___defs___recording___p_v_r_recording.html
 // Series link: If set for an epg-based timer rule, matching events will be found by checking strSeriesLink instead of strTitle (and bFullTextEpgSearch)  see https://github.com/xbmc/xbmc/pull/12609/files
 // tag.SetFlags(PVR_RECORDING_FLAG_IS_SERIES);
 // SetSeriesNumber (this is the season number)
 
-//Data structure for full information
-class cScraperMovieOrTv {
-public:
-//IN
-    const cEvent *event;             // must be NULL for recordings ; provide data for this event
-    const cRecording *recording;     // must be NULL for events     ; or for this recording
-    bool httpImagePaths;             // if true, provide http paths to images
-    bool media;                      // if true, provide local filenames for media
-//OUT
-// Note: tvscraper will clear all output parameters, so you don't have to do this before calling tvscraper
-    bool found;
-    bool movie;
-    std::string title;
-    std::string originalTitle;
-    std::string tagline;
-    std::string overview;
-    std::vector<std::string> genres;
-    std::string homepage;
-    std::string releaseDate;  // for TV shows: firstAired
-    bool adult;
-    std::vector<int> runtimes;
-    float popularity;
-    float voteAverage;
-    int voteCount;
-    std::vector<std::string> productionCountries;
-    std::vector<cActor> actors;
-    std::string IMDB_ID;
-    std::string posterUrl;   // only if httpImagePaths == true
-    std::string fanartUrl;   // only if httpImagePaths == true
-    std::vector<cTvMedia> posters;
-    std::vector<cTvMedia> banners;
-    std::vector<cTvMedia> fanarts;
-// only for movies
-    int budget;
-    int revenue;
-    int collectionId;
-    std::string collectionName;
-    cTvMedia collectionPoster;
-    cTvMedia collectionFanart;
-    std::vector<std::string> director;
-    std::vector<std::string> writer;
-// only for TV Shows
-    std::string status;
-    std::vector<std::string> networks;
-    std::vector<std::string> createdBy;
-// episode related
-    bool episodeFound;
-    cTvMedia seasonPoster;
-    cEpisode2 episode;
-};
-
-//Data structure for live, overview information for each recording / event
-// to uniquely identify a recording/event:
-// movie + dbid + seasonNumber + episodeNumber (for movies, only dbid is required)
-// note: if nothing was found, m_videoType = videoType::none will be returned
-class cGetScraperOverview {
-public:
-  cGetScraperOverview (const cEvent *event = NULL, const cRecording *recording = NULL, std::string *title = NULL, std::string *episodeName = NULL, std::string *IMDB_ID = NULL, cTvMedia *image = NULL, cImageLevels imageLevels = cImageLevels(), cOrientations imageOrientations = cOrientations(), std::string *releaseDate = NULL, std::string *collectionName = NULL):
-  m_event(event),
-  m_recording(recording),
-  m_title(title),
-  m_episodeName(episodeName),
-  m_IMDB_ID(IMDB_ID),
-  m_image(image),
-  m_imageLevels(imageLevels),
-  m_imageOrientations(imageOrientations),
-  m_releaseDate(releaseDate),
-  m_collectionName(collectionName)
-  {
-  }
-
-  bool call(cPlugin *pScraper) {
-    m_videoType = eVideoType::none;
-    if (!pScraper) return false;
-    else return pScraper->Service("GetScraperOverview", this);
-  }
-//IN: Use constructor, setRequestedImageFormat and setRequestedImageLevel to set these values
-  const cEvent *m_event;             // must be NULL for recordings ; provide data for this event
-  const cRecording *m_recording;     // must be NULL for events     ; or for this recording
-  std::string *m_title;
-  std::string *m_episodeName;
-  std::string *m_IMDB_ID;
-  cTvMedia *m_image;
-  cImageLevels m_imageLevels;
-  cOrientations m_imageOrientations;
-  std::string *m_releaseDate;
-  std::string *m_collectionName;
-//OUT
-// Note: tvscraper will clear all output parameters, so you don't have to do this before calling tvscraper
-  eVideoType m_videoType;
-  int m_dbid;
-  int m_runtime;
-// only for movies
-  int m_collectionId;
-// only for TV shows
-  int m_episodeNumber;
-  int m_seasonNumber;
-};
-
-inline bool operator< (const tChannelID &c1, const tChannelID &c2) {
-  if (c1.Source() != c2.Source() ) return c1.Source() < c2.Source();
-  if (c1.Nid() != c2.Nid() ) return c1.Nid() < c2.Nid();
-  if (c1.Tid() != c2.Tid() ) return c1.Tid() < c2.Tid();
-  if (c1.Sid() != c2.Sid() ) return c1.Sid() < c2.Sid();
-  return c1.Rid() < c2.Rid();
-}
-class cGetChannelLanguages {
-public:
-  cGetChannelLanguages() {}
-  std::map<tChannelID, int> m_channelLanguages; // if a channel is not in this map, it has the default language
-  int m_defaultLanguage;
-  std::map<int, std::string> m_channelNames;
-  bool call(cPlugin *pScraper) {
-    if (!pScraper) return false;
-    else return pScraper->Service("GetChannelLanguages", this);
-  }
-};
-
-class cGetChannelHD {
-public:
-  cGetChannelHD() {}
-  std::map<tChannelID, int> m_channelHD; // if a channel is not in this map, it is SD
-// currently, only 0 (SD) and 1 (HD) are supported. More might be added
-// note: if this map is empty, the SD/HD information was not maitained
-  bool call(cPlugin *pScraper) {
-    if (!pScraper) return false;
-    else return pScraper->Service("GetChannelHD", this);
-  }
-};
+// BEGIN OF deprecated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// removed from services.h, please don't use
+// still here, so old plugins (with the old interface) continue to work for some time ...
 
 // Data structure for service "GetPosterBanner"
 // deprecated, please use "GetPosterBannerV2"
@@ -189,6 +33,7 @@ public:
     cTvMedia banner;
 };
 // END OF deprecated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 enum eMediaType {
     mediaFanartCollection = -2,
     mediaPosterCollection = -1,
@@ -201,11 +46,11 @@ enum eMediaType {
 
 #include <getopt.h>
 #include "tools/largeString.h"
-#include "searchResultTvMovie.h"
-#include "searchResultTvMovie.c"
 #include "config.h"
 cTVScraperConfig config;
 #include "tools/stringhelpers.c"
+#include "searchResultTvMovie.h"
+#include "searchResultTvMovie.c"
 #include "channelmap.c"
 #include "eventOrRec.h"
 #include "tvscraperdb.h"
@@ -281,7 +126,8 @@ cPluginTvscraper::~cPluginTvscraper() {
 
 const char *cPluginTvscraper::CommandLineHelp(void) {
     return "  -d <CACHEDIR>, --dir=<CACHEDIR> Set directory where database and images are stored\n" \
-           "  -c, --readOnlyClient Don't update any data, just read the data\n";
+           "  -c, --readOnlyClient Don't update any data, just read the data\n"  \
+           "  -p, --autoTimersPath Overide the default path for auto timer recordings\n";
 }
 
 bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
@@ -343,6 +189,7 @@ bool cPluginTvscraper::Start(void) {
 void cPluginTvscraper::Stop(void) {
     while (workerThread->Active()) {
         workerThread->Stop();
+        sleep(1);
     }
     delete workerThread;
     delete db;
@@ -397,40 +244,10 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         call->m_scraperVideo = std::make_unique<cScraperVideoImp>(call->m_event, call->m_recording, db);
         return true;
     }
-    if (strcmp(Id, "GetScraperOverview") == 0) {
-        if (Data == NULL) return true;
-        cGetScraperOverview* call = (cGetScraperOverview*) Data;
-        cMovieOrTv *movieOrTv = GetMovieOrTv(call->m_event, call->m_recording, &call->m_runtime);
-        if (!movieOrTv) {
-          call->m_videoType = eVideoType::none;
-          if (call->m_image) *(call->m_image) = getEpgImage(call->m_event, call->m_recording);
-          return true;
-        }
-        if (call->m_runtime < 0) call->m_runtime = 0;
-        movieOrTv->getScraperOverview(call);
-        delete movieOrTv;
-        if (call->m_image && call->m_image->path.empty() ) *(call->m_image) = getEpgImage(call->m_event, call->m_recording);
-        return true;
-    }
     if (strcmp(Id, "GetScraperImageDir") == 0) {
         if (Data == NULL) return true;
         cGetScraperImageDir* call = (cGetScraperImageDir*) Data;
         call->scraperImageDir = config.GetBaseDir();
-        return true;
-    }
-    if (strcmp(Id, "GetScraperMovieOrTv") == 0) {
-        if (Data == NULL) return true;
-    
-        cScraperMovieOrTv* call = (cScraperMovieOrTv*) Data;
-        call->found = false;
-        cMovieOrTv *movieOrTv = GetMovieOrTv(call->event, call->recording);
-        if (!movieOrTv) return true;
-
-        movieOrTv->clearScraperMovieOrTv(call);
-        call->found = true;
-        movieOrTv->getScraperMovieOrTv(call);
-        delete movieOrTv;
-	
         return true;
     }
 
@@ -459,16 +276,16 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         if (Data == NULL) return true;
         cSeries* call = (cSeries*) Data;
         if( call->seriesId == 0 || lastMovieOrTv == NULL) {
-            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", call->seriesId == 0 || lastMovieOrTv == 0");
-            call->name = "Error calling VDR service interface GetSeries";
-            return true;
+          esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", call->seriesId == 0 || lastMovieOrTv == 0");
+          call->name = "Error calling VDR service interface GetSeries";
+          return true;
         }
 
         float popularity, vote_average;
         if (!db->GetTv(lastMovieOrTv->dbID(), call->name, call->overview, call->firstAired, call->network, call->genre, popularity, vote_average, call->status)) {
-            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", Id = %i not found", lastMovieOrTv->dbID());
-            call->name = "Error calling VDR service interface GetSeries";
-            return true;
+          esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", Id = %i not found", lastMovieOrTv->dbID());
+          call->name = "Error calling VDR service interface GetSeries";
+          return true;
         }
         call->rating = vote_average;
 
@@ -479,17 +296,13 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         db->GetTvEpisode(lastMovieOrTv->dbID(), lastMovieOrTv->getSeason(), lastMovieOrTv->getEpisode(), episodeID, call->episode.name, call->episode.firstAired, vote_average, call->episode.overview, call->episode.guestStars);
         call->episode.rating = vote_average;
 // guestStars
-        if(call->episode.guestStars.empty() ) {
-          vector<vector<string> > GuestStars = db->GetGuestActorsTv(episodeID);
-          int numActors = GuestStars.size();
-          for (int i=0; i < numActors; i++) {
-              vector<string> row = GuestStars[i];
-              if (row.size() == 3) {
-                  if(i != 0) call->episode.guestStars.append("; ");
-                  call->episode.guestStars.append(row[1]); // name
-                  call->episode.guestStars.append(": ");
-                  call->episode.guestStars.append(row[2]); // role
-              }
+        if(lastMovieOrTv->dbID() > 0) {
+          call->episode.guestStars = "";
+          for (cSql &stmt: cSql(db, "select actor_name, actor_role from actors, actor_tv_episode where actor_tv_episode.actor_id = actors.actor_id and actor_tv_episode.episode_id = ?", episodeID)) {
+            if(!call->episode.guestStars.empty() ) call->episode.guestStars.append("; ");
+            call->episode.guestStars.append(stmt.getCharS(0)); // name
+            call->episode.guestStars.append(": ");
+            call->episode.guestStars.append(stmt.getCharS(1)); // role
           }
         }
         lastMovieOrTv->getSingleImage(eImageLevel::episodeMovie, eOrientation::landscape, NULL, &call->episode.episodeImage.path, &call->episode.episodeImage.width, &call->episode.episodeImage.height);
@@ -619,21 +432,6 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
       cGetScraperUpdateTimes* call = (cGetScraperUpdateTimes*) Data;
       call->m_EPG_UpdateTime = LastModifiedTime(config.GetEPG_UpdateFileName().c_str() );
       call->m_recordingsUpdateTime = LastModifiedTime(config.GetRecordingsUpdateFileName().c_str() );
-      return true;
-    }
-    if (strcmp(Id, "GetChannelLanguages") == 0) {
-      if (Data == NULL) return true;
-      cGetChannelLanguages* call = (cGetChannelLanguages*) Data;
-      call->m_channelLanguages = config.GetChannelLanguages();
-      call->m_defaultLanguage = config.GetDefaultLanguage()->m_id;
-      call->m_channelNames.clear();
-      for (const auto &lang: config.m_languages) call->m_channelNames.insert({lang.m_id, string(lang.m_name)});
-      return true;
-    }
-    if (strcmp(Id, "GetChannelHD") == 0) {
-      if (Data == NULL) return true;
-      cGetChannelHD* call = (cGetChannelHD*) Data;
-      call->m_channelHD = config.GetChannelHD();
       return true;
     }
   return false;

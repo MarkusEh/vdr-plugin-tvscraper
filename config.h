@@ -44,7 +44,13 @@ struct sChannelMapEpg {
       int merge;
 };
 
-bool operator< (const tChannelID &c1, const tChannelID &c2);
+inline bool operator< (const tChannelID &c1, const tChannelID &c2) {
+  if (c1.Source() != c2.Source() ) return c1.Source() < c2.Source();
+  if (c1.Nid() != c2.Nid() ) return c1.Nid() < c2.Nid();
+  if (c1.Tid() != c2.Tid() ) return c1.Tid() < c2.Tid();
+  if (c1.Sid() != c2.Sid() ) return c1.Sid() < c2.Sid();
+  return c1.Rid() < c2.Rid();
+}
 bool operator< (const sChannelMapEpg &cm1, const sChannelMapEpg &cm2) { return cm1.channelID < cm2.channelID; }
 bool operator< (const sChannelMapEpg &cm1, const tChannelID &c2) { return cm1.channelID < c2; }
 bool operator< (const cLanguage &l1, const cLanguage &l2) {

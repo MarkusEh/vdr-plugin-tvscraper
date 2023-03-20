@@ -120,6 +120,7 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
 //  if Setup.EPGBugfixLevel > 1: VDR will remove "space", following the first "space" character. "space" is everything < 31
   const rapidjson::Value& tvspEvent_j = (*m_document)[event_it->m_line];
   std::string descr;
+  descr.reserve(700);
   const char *s;
   int i;
 // Fazit / conclusion

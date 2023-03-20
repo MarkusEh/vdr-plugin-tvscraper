@@ -27,10 +27,8 @@ std::set<int> cTVScraperSetup::getAllTV_Shows() {
 // add all TV Shows from recordings & from config, where we create recordings for missing episodes.
 // don't add TV Shows from tv2 / EPG events, as these are too many
 // add all TV Shows from recordings
-  const char sql[] = "select DISTINCT movie_tv_id from recordings2 where season_number != -100";
-  int tvID;
-  for (cSqlStatement statement(&m_db, sql, "");
-       statement.step("i", &tvID);) result.insert(tvID);
+  const char *sql = "select DISTINCT movie_tv_id from recordings2 where season_number != -100";
+  for (cSql &statement: cSql(&m_db, sql) ) result.insert(statement.getInt(0) );
 // add all TV Shows from config, where we create recordings for missing episodes
   cTVScraperConfigLock l;
   for (const int &id: config.m_TV_Shows ) result.insert(id);
@@ -378,16 +376,19 @@ eOSState cTVScraperListSetup::ProcessKey(eKeys Key) {
 
 /* cTVScraperTV_ShowsSetup */
 cTVScraperTV_ShowsSetup::cTVScraperTV_ShowsSetup(vector<int> &listSelections, const std::set<int> &TV_Shows, const cTVScraperDB &db): cOsdMenu(tr("Create timers for missing episodes of this TV show?"), 40, 5) {
-  const char sql[] = "select tv_name from tv2 where tv_id = ?";
+  const char *sql = "select tv_name from tv2 where tv_id = ?";
   SetMenuCategory(mcSetupPlugins);
   int currentItem = Current();
   Clear();
   int i = 0;
+  cSql statement(&db, sql);
   for (const int &TV_show: TV_Shows) {
-    cSqlStatement statement(&db, sql, "i", TV_show);
-    const char *name;
-    if (statement.step("s", &name) && name && *name)
+    statement.resetBindParameters(TV_show);
+    const char *name = NULL;
+    if (statement.readRow(name) && name && *name)
       Add(new cMenuEditBoolItem(name, &(listSelections[i]) ));
+    else
+      Add(new cMenuEditBoolItem(to_string(TV_show).c_str(), &(listSelections[i]) ));
     i++;
   }
   SetCurrent(Get(currentItem));

@@ -198,9 +198,8 @@ bool cTVDBSeries::ParseJson_Episode(json_t *jEpisode, const cLanguage *lang) {
   int episodeID = json_integer_value_validated(jEpisode, "id");
   if (episodeID == 0) return false;
   const char *episodeName = json_string_value_validated_c(jEpisode, "name");
-  string episodeNameS = normString(episodeName);
-  m_db->execSql("INSERT OR REPLACE INTO tv_s_e_name (episode_id, language_id, episode_name) VALUES (?, ?, ?);",
-    "iis", episodeID, lang->m_id, episodeNameS.c_str() );
+  m_db->exec("INSERT OR REPLACE INTO tv_s_e_name (episode_id, language_id, episode_name) VALUES (?, ?, ?);",
+    episodeID, lang->m_id, normString(episodeName) );
   return true;
 }
 
@@ -363,13 +362,13 @@ bool cTVDBSeries::ParseJson_Character(json_t *jCharacter) {
   if (type == 1) {
 // "Director"
     if (episodeId == 0) return false;
-    m_db->execSql("UPDATE tv_s_e SET episode_director = ? WHERE episode_id = ?", "si", personName.c_str(), episodeId);
+    m_db->exec("UPDATE tv_s_e SET episode_director = ? WHERE episode_id = ?", personName, episodeId);
     return true;
   }
   if (type == 2) {
 // "Writer"
     if (episodeId == 0) return false;
-    m_db->execSql("UPDATE tv_s_e SET episode_writer = ? WHERE episode_id = ?", "si", personName.c_str(), episodeId);
+    m_db->exec("UPDATE tv_s_e SET episode_writer = ? WHERE episode_id = ?", personName, episodeId);
     return true;
   }
   string name = json_string_value_validated(jCharacter, "name");
@@ -390,12 +389,12 @@ bool cTVDBSeries::ParseJson_Character(json_t *jCharacter) {
       entry.append(": ");
       entry.append(name);
     }
-    string currentEntry = m_db->QueryString("select episode_guest_stars from tv_s_e where episode_id =?", "i", episodeId);
+    string currentEntry = m_db->queryString("select episode_guest_stars from tv_s_e where episode_id =?", episodeId);
     if (currentEntry.find(entry) != string::npos) return false; // already in db
     if (currentEntry.empty() ) currentEntry = "|";
     currentEntry.append(entry);
     currentEntry.append("|");
-    m_db->execSql("UPDATE tv_s_e SET episode_guest_stars = ? WHERE episode_id = ?", "si", currentEntry.c_str(), episodeId);
+    m_db->exec("UPDATE tv_s_e SET episode_guest_stars = ? WHERE episode_id = ?", currentEntry, episodeId);
     return true;
   }
   return false;

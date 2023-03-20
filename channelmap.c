@@ -25,7 +25,7 @@ int loadChannelmap(vector<sChannelMapEpg> &channelMap) {
     ciCount
   };
 
-  CONCAT(path, "ss", cPlugin::ConfigDirectory(PLUGIN_NAME_I18N), "/channelmap.conf");
+  CONCATENATE(path, cPlugin::ConfigDirectory(PLUGIN_NAME_I18N), "/channelmap.conf");
   cmfile.open(path);
 
   if (cmfile.fail())

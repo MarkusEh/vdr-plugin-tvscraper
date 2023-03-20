@@ -160,8 +160,8 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
     if (numberOfErrors == 0) {
 // check duration deviation
       int runtime;
-      if (season_number == -100) runtime = db.QueryInt("select movie_runtime from movies3 where movie_id = ?", "i", movie_tv_id);
-      else runtime = db.QueryInt("select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", "iii", movie_tv_id, season_number, episode_number);
+      if (season_number == -100) runtime = db.queryInt("select movie_runtime from movies3 where movie_id = ?", movie_tv_id);
+      else runtime = db.queryInt("select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", movie_tv_id, season_number, episode_number);
       if (sRecording.durationDeviation(runtime) > 60) numberOfErrors = 1;  // in case of deviations > 1min, create timer ...
     }
     cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, numberOfErrors);
@@ -255,15 +255,18 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
 // for each movie or tv, only one (the best) event. HD better than SD. Otherwise, the earlier the better
   std::set<cEventMovieOrTv> result;
   const time_t now_m10 = time(0) - 10*60;
-  const char sql_event[] = "select event_id, channel_id, valid_till, movie_tv_id, season_number, episode_number from event";
+  const char *sql_event = "select event_id, channel_id, movie_tv_id, season_number, episode_number from event";
   cEventMovieOrTv scraperEvent(0);
-  int l_event_id;
-  char *l_channel_id;
-  sqlite3_int64 l_validTill;
-  for (cSqlStatement statement(&db, sql_event, "");
-       statement.step("isliii", &l_event_id, &l_channel_id, &l_validTill, &scraperEvent.m_movie_tv_id, &scraperEvent.m_season_number, &scraperEvent.m_episode_number);)
+  tEventID l_event_id = 0;
+  const char *l_channel_id = NULL;
+  for (cSql &statement: cSql(&db, sql_event))
   {
+    statement.readRow(l_event_id, l_channel_id, scraperEvent.m_movie_tv_id, scraperEvent.m_season_number, scraperEvent.m_episode_number);
     if (scraperEvent.m_season_number == 0 && scraperEvent.m_episode_number == 0) continue;
+    if (!l_channel_id || !*l_channel_id) {
+      esyslog("tvscraper: ERROR getAllEvents, l_channel_id == NULL");
+      continue;
+    }
     scraperEvent.m_channelid = tChannelID::FromString(l_channel_id);
     {
 #if VDRVERSNUM >= 20301
@@ -337,7 +340,7 @@ std::string getEpisodeName(const cTVScraperDB &db, const cEventMovieOrTv &scrape
     return event->ShortText();
 // no short text. Check episode name from data base
   const char sql[] = "select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-  std::string episode_name = db.QueryString(sql, "iii", scraperEvent.m_movie_tv_id, scraperEvent.m_season_number, scraperEvent.m_episode_number);
+  std::string episode_name = db.queryString(sql, scraperEvent.m_movie_tv_id, scraperEvent.m_season_number, scraperEvent.m_episode_number);
   if (!episode_name.empty() ) return episode_name;
 // no short text. No episode name in data base. Check description
   if (event->Description() && *event->Description() )
@@ -592,8 +595,8 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
     movieOrTvAT.m_season_number = -100;
     movieOrTvAT.m_episode_number = 0;
     movieOrTvAT.m_language = 0;
-    for (cSqlStatement statement(&db, sql, "i", collection_id);
-          statement.step("i", &movieOrTvAT.m_movie_tv_id);) {
+    for (cSql &statement: cSql(&db, sql, collection_id)) {
+      movieOrTvAT.m_movie_tv_id = statement.getInt(0);
       auto found = recordings.lower_bound(movieOrTvAT);
       if (found != recordings.end() && equalWoLanguageMovieOrTvAT(&(*found), &movieOrTvAT) ) {
         if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, "collection", &(*found));
@@ -624,12 +627,14 @@ bool timersForEvents(const cTVScraperDB &db) {
   std::set<cTimerMovieOrTv, std::less<>> otherTimers;
   std::set<cTimerMovieOrTv, std::less<>> myTimers;
   getAllTimers(db, otherTimers, myTimers);
+  esyslog("tvscraper: timersForEvents 5");
 
   for (const cEventMovieOrTv &scraperEvent: getAllEvents(db) ) {
     auto found = otherTimers.find(scraperEvent);
     if (found != otherTimers.end() && scraperEvent.m_hd <= found->m_hd ) continue;
     timerForEvent(db, scraperEvent, myTimers, recordings, collections);
   }
+  esyslog("tvscraper: timersForEvents 6");
 // delete obsolete timers
   for (const cTimerMovieOrTv &timerToDelete: myTimers) if (!timerToDelete.m_needed) {
 #if VDRVERSNUM >= 20301

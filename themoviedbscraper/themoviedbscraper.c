@@ -30,27 +30,25 @@ int cMovieDBScraper::GetMovieRuntime(int movieID) {
 // themoviedb never checked for runtime, check now
   cMovieDbMovie movie(db, this);
   movie.SetID(movieID);
-  StoreMovie(movie);
+  StoreMovie(movie, true);
   runtime = db->GetMovieRuntime(movieID);
+  if (runtime  >  0) return runtime;
   if (runtime == -1) return 0; // no runtime available in themoviedb
+  esyslog("tvscraper: ERROR, no runtime in cMovieDBScraper::GetMovieRuntime movieID = %d", movieID);
   return runtime;
 }
 
-vector<vector<string>> cMovieDBScraper::GetTvRuntimes(int tvID) {
-  vector<vector<string>> runtimes = db->GetTvRuntimes(tvID);
-  if (runtimes.size() > 0) return runtimes;
-// themoviedb never checked for runtime, check now
+void cMovieDBScraper::UpdateTvRuntimes(int tvID) {
   cMovieDbTv tv(db, this);
   tv.SetTvID(tvID);
-  tv.UpdateDb(false);
-  return db->GetTvRuntimes(tvID);
+  tv.UpdateDb(true);
 }
 
-void cMovieDBScraper::StoreMovie(cMovieDbMovie &movie) {
+void cMovieDBScraper::StoreMovie(cMovieDbMovie &movie, bool forceUpdate) {
 // if movie does not exist in DB, download movie and store it in DB
       int movieID = movie.ID();
-      if (db->MovieExists(movieID)) return;
-      if (config.enableDebug) esyslog("tvscraper: movie \"%i\" does not yet exist in db", movieID);
+      if (!forceUpdate && db->MovieExists(movieID)) return;
+      if (config.enableDebug && !forceUpdate) esyslog("tvscraper: movie \"%i\" does not yet exist in db", movieID);
       if(!movie.ReadMovie()) {
         esyslog("tvscraper: ERROR reading movie \"%i\" ", movieID);
         return;
@@ -116,57 +114,54 @@ void cMovieDBScraper::StoreMedia(cMovieDbMovie *movie, cMovieDbActors *actors) {
 }
 
 void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
-  stringstream actorsUrl;
-  actorsUrl << imageUrl << actorthumbSize;
-  stringstream actorsDestDir;
-  actorsDestDir << baseDir << "/actors";
-  CreateDirectory(actorsDestDir.str());
-  for (const vector<string> &actor: db->GetActorDownload(tvID, movie) )
-    if (actor.size() == 2 && !actor[1].empty() )
-      Download(actorsUrl.str() + actor[1], actorsDestDir.str() + "/actor_" + actor[0] + ".jpg");
+  CONCATENATE(actorsUrl, imageUrl, actorthumbSize);
+  CONCATENATE(actorsDestDir, baseDir, "/actors");
+  CreateDirectory(actorsDestDir);
+
+  const char *sql = "select actor_id, actor_path from actor_download where movie_id = ? and is_movie = ?";
+  for (cSql &stmt: cSql(db, sql, tvID,  movie)) {
+    const char *actor_path = stmt.getCharS(1);
+    if (!actor_path || !*actor_path) continue;
+    CONCATENATE(actorsFullUrl, actorsUrl, actor_path);
+    CONCATENATE(downloadFullPath, actorsDestDir, "/actor_", stmt.getInt(0), ".jpg");
+    Download(actorsFullUrl, downloadFullPath);
+  }
   db->DeleteActorDownload (tvID, movie);
 }
 
 void cMovieDBScraper::DownloadMediaTv(int tvID) {
-  int season;
-  const char *path;
-  for (cSqlStatement statement(db, "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0", "ii", tvID, (int)mediaSeason);
-    statement.step("si", &path, &season);) {
-      stringstream pathPoster;
-      pathPoster << GetTvBaseDir() << tvID;
-      CreateDirectory(pathPoster.str() );
-      pathPoster << "/";
-      DownloadFile(GetPosterBaseUrl(), path, pathPoster.str(), season, "/poster.jpg", false);
-      break;
+  const char *sql = "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0";
+// if mediaType == season_poster, media_number is the season
+  for (cSql &statement: cSql(db, sql, tvID, (int)mediaSeason)) {
+    std::string baseDirDownload = concatenate(GetTvBaseDir(), tvID);
+    CreateDirectory(baseDirDownload);
+    baseDirDownload += "/";
+    DownloadFile(GetPosterBaseUrl(), statement.getCharS(0), baseDirDownload, statement.getInt(1), "/poster.jpg", false);
+    break;
   }
-  for (int type = 1; type <= 2; type ++) {
-    for (vector<string> &media:db->GetTvMedia(tvID, (eMediaType) type, false) ) if (media.size() == 2 ) {
-      int season = atoi(media[1].c_str() );
-      if (season >= 0) {
-        DownloadFile(GetPosterBaseUrl(), media[0], GetTvBaseDir(), tvID, type==1?"/poster.jpg":"/backdrop.jpg", false);
-        break;
-      }
+  const char *sql2 = "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0";
+  for (int type = 1; type <= 2; type++) {
+    for (cSql &statement: cSql(db, sql2, tvID, type)) {
+      DownloadFile(GetPosterBaseUrl(), statement.getCharS(0), GetTvBaseDir(), tvID, type==1?"/poster.jpg":"/backdrop.jpg", false);
+      break;
     }
   }
   db->deleteTvMedia (tvID, false, true);
 }
 void cMovieDBScraper::DownloadMedia(int movieID) {
-  stringstream posterUrl;
-  posterUrl << imageUrl << posterSize;
-  stringstream backdropUrl;
-  backdropUrl << imageUrl << backdropSize;
-  stringstream destDir;
-  destDir << baseDir << "/";
-  string destDirCollections = destDir.str() +  "collections/";
+  const char *sql = "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number < 0";
+  std::string posterUrl = concatenate(imageUrl, posterSize);
+  std::string backdropUrl = concatenate(imageUrl, backdropSize);
+  std::string destDir = concatenate(baseDir, "/");
+  std::string destDirCollections = concatenate(destDir, "collections/");
   CreateDirectory(destDirCollections);
 
   for (int type = -2; type <= 2; type ++) if (type !=0) {
-    for (vector<string> &media:db->GetTvMedia(movieID, (eMediaType) type, true) ) if (media.size() == 2 ) {
-      int season = atoi(media[1].c_str() );
-      if (season < 0) {
-        DownloadFile((abs(type)==1?posterUrl:backdropUrl).str(), media[0], (type > 0)?(destDir.str()):destDirCollections, type > 0?movieID:season * -1, abs(type)==1?"_poster.jpg":"_backdrop.jpg", true);
-        break;
-      }
+    for (cSql &statement: cSql(db, sql, movieID, type)) {
+      int media_number = -1 * statement.getInt(1);
+      bool isPoster = abs(type)==1;
+      DownloadFile(isPoster?posterUrl:backdropUrl, statement.getCharS(0), (type > 0)?destDir:destDirCollections, type > 0?movieID:media_number, isPoster?"_poster.jpg":"_backdrop.jpg", true);
+      break;
     }
   }
   db->deleteTvMedia (movieID, true, true);

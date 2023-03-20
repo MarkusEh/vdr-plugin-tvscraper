@@ -151,8 +151,11 @@ int normStringC(char *to, std::string_view from) {
 // At the beginning of a word, check for roman number
       int i = romToArab(s, se); // this also increases s, if a roman number was found.
       if (i > 0) {
-        int il = concat::toCharsU(to, (unsigned int)i);
-        if (to) to += il;
+        int il = concat::numCharsU(i);
+        if (to) {
+          concat::addCharsU(to, il, i);
+          to += il;
+        }
         numChars += il;
         continue;
       }

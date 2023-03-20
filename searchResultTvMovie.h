@@ -22,7 +22,7 @@ public:
   void setDuration(int durationDeviation) { m_matches[3].match = 1 - normMatch(durationDeviation / 15.); }
   void setActors(int numMatches)  { m_matches[4].match = normMatch(numMatches/16.); }
   void setDirectorWriter(int numMatches)  { m_matches[5].match = normMatch(numMatches/2.); }
-  void setMatchYear(const std::vector<int> &years, int durationInSec);
+  void setMatchYear(const cYears &years, int durationInSec);
   void setMatchEpisode(int distance) { m_matches[6].match = (1000 - distance) / 1000.; }
   bool getMatchEpisode() const { return m_matches[6].match > 0.; }
   float getMatchText() const { return m_matches[0].match; }

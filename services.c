@@ -152,16 +152,17 @@ std::vector<std::unique_ptr<cCharacter>> cScraperVideoImp::getCharacters(bool fu
   for (const auto &actor: m_movieOrTv->GetActors(fullPath))
     result.push_back(std::make_unique<cCharacterImp>(eCharacterType::actor, actor.name, actor.role, actor.actorThumb));
   if (m_movieOrTv->getType() != tMovie && !isEpisodeIdentified() ) return result;
-  char *director_ = NULL;
-  char *writer_ = NULL;
-  cSqlStatement statement(m_db);
+  const char *director_ = NULL;
+  const char *writer_ = NULL;
+  cSql stmt(m_db);
   if (m_movieOrTv->getType() == tMovie) {
-    statement.prepareBind("select movie_director, movie_writer from movie_runtime2 where movie_id = ?", "i", m_movieOrTv->dbID() );
+    stmt.prepare("select movie_director, movie_writer from movie_runtime2 where movie_id = ?", m_movieOrTv->dbID());
   } else {
     const char *sql_e = "select episode_director, episode_writer from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-    statement.prepareBind(sql_e, "iii", m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode() );
+    stmt.prepare(sql_e, m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode());
   }
-  if (!statement.step("ss", &director_, &writer_) ) return result;
+  if (!stmt.readRow()) return result;
+  stmt >> director_ >> writer_;
   std::vector<std::string> directors;
   stringToVector(directors, director_);
   for (const auto &director: directors)
@@ -176,76 +177,50 @@ std::vector<std::unique_ptr<cCharacter>> cScraperVideoImp::getCharacters(bool fu
 bool cScraperVideoImp::getMovieOrTv(std::string *title, std::string *originalTitle, std::string *tagline, std::string *overview, std::vector<std::string> *genres, std::string *homepage, std::string *releaseDate, bool *adult, int *runtime, float *popularity, float *voteAverage, int *voteCount, std::vector<std::string> *productionCountries, std::string *imdbId, int *budget, int *revenue, int *collectionId, std::string *collectionName, std::string *status, std::vector<std::string> *networks, int *lastSeason)
 {
 // only for tMovie: runtime, adult, collection*, tagline, budget, revenue, homepage, productionCountries
-// only for tSeries: status, networks, createdBy
+// only for tSeries: status, networks, lastSeason
   m_runtime = 0;
   m_collectionId = 0;
   if (!m_movieOrTv) return false;
-  char *title_ = NULL;
-  char *originalTitle_ = NULL;
-  char *tagline_ = NULL;
-  char *overview_ = NULL;
-  char *genres_ = NULL;
-  char *homepage_ = NULL;
-  char *releaseDate_ = NULL;
-  bool adult_ = false;
-  float popularity_ = 0;
-  float voteAverage_ = 0;
-  int voteCount_ = 0;
-  char *productionCountries_ = NULL;
-  char *imdbId_ = NULL;
-  int budget_ = 0;
-  int revenue_ = 0;
-  char *collectionName_ = NULL;
-  char *status_ = NULL;
-  char *networks_ = NULL;
-  char *createdBy_ = NULL;
-  char *posterUrl_ = NULL;
-  char *fanartUrl_ = NULL;
-  int lastSeason_ = 0;
-  cSqlStatement statement(m_db);
+  const char *productionCountries_ = NULL;
+  const char *genres_ = NULL;
+  const char *networks_ = NULL;
+  cSql stmt(m_db);
   if (m_movieOrTv->getType() == tMovie) {
     const char *sql_m = "select movie_title, movie_original_title, movie_tagline, movie_overview, " \
       "movie_adult, movie_collection_id, movie_collection_name, " \
       "movie_budget, movie_revenue, movie_genres, movie_homepage, " \
       "movie_release_date, movie_runtime, movie_popularity, movie_vote_average, movie_vote_count, " \
-      "movie_production_countries, movie_posterUrl, movie_fanartUrl, movie_IMDB_ID from movies3 where movie_id = ?";
-    statement.prepareBind(sql_m, "i", m_movieOrTv->dbID() );
-    if (!statement.step("ssssbisiisssiffissss",
-      &title_, &originalTitle_, &tagline_, &overview_, &adult_, &m_collectionId, &collectionName_,
-      &budget_, &revenue_, &genres_, &homepage_, &releaseDate_, &m_runtime, &popularity_, &voteAverage_, &voteCount_,
-      &productionCountries_, &posterUrl_, &fanartUrl_, &imdbId_) ) return false;
+      "movie_production_countries, movie_IMDB_ID from movies3 where movie_id = ?";
+    stmt.prepare(sql_m, m_movieOrTv->dbID());
+    if (!stmt.readRow() ) return false;
+    stmt >> title >> originalTitle >> tagline >> overview >> adult >> m_collectionId >> collectionName;
+    stmt >> budget >> revenue >> genres_ >> homepage >> releaseDate >> m_runtime;
+    stmt >> popularity >> voteAverage >> voteCount >> productionCountries_ >> imdbId;
     m_movieOrTv->m_collectionId = m_collectionId;
+    if (status) *status = "";
+    if (lastSeason) *lastSeason = 0;
   } else {
     if (m_movieOrTv->getType() == tSeries) {
       const char *sql_s = "select tv_name, tv_original_name, tv_overview, tv_first_air_date, " \
-        "tv_networks, tv_genres, tv_created_by, tv_popularity, tv_vote_average, tv_vote_count, " \
-        "tv_posterUrl, tv_fanartUrl, tv_IMDB_ID, tv_status, tv_last_season " \
+        "tv_networks, tv_genres, tv_popularity, tv_vote_average, tv_vote_count, " \
+        "tv_IMDB_ID, tv_status, tv_last_season " \
         "from tv2 where tv_id = ?";
-      statement.prepareBind(sql_s, "i", m_movieOrTv->dbID() );
-      if (!statement.step("sssssssffissssi",
-        &title_, &originalTitle_, &overview_, &releaseDate_, &networks_, &genres_, &createdBy_,
-        &popularity_, &voteAverage_, &voteCount_, &posterUrl_, &fanartUrl_, &imdbId_, &status_, &lastSeason_) ) return false;
+      stmt.prepare(sql_s, m_movieOrTv->dbID());
+      if (!stmt.readRow() ) return false;
+      stmt >> title >> originalTitle >> overview >> releaseDate >> networks_ >> genres_;
+      stmt >> popularity >> voteAverage >> voteCount >> imdbId >> status >> lastSeason;
+      if (tagline) *tagline = "";
+      if (homepage) *homepage = "";
+      if (adult) *adult = false;
+      if (budget) *budget = 0;
+      if (revenue) *revenue = 0;
+      if (collectionName) *collectionName = "";
     } else return false;
   }
-  if (title) *title = charPointerToString(title_);
-  if (originalTitle) *originalTitle = charPointerToString(originalTitle_);
-  if (tagline) *tagline = charPointerToString(tagline_);
-  if (overview) *overview = charPointerToString(overview_);
-  if (genres) { genres->clear(); stringToVector(*genres, genres_); }
-  if (homepage) *homepage = charPointerToString(homepage_);
-  if (releaseDate) *releaseDate = charPointerToString(releaseDate_);
-  if (adult) *adult = adult_;
   if (runtime) *runtime = m_runtime;
-  if (popularity) *popularity = popularity_;
-  if (voteAverage) *voteAverage = voteAverage_;
-  if (voteCount) *voteCount = voteCount_;
-  if (productionCountries) { productionCountries->clear(); stringToVector(*productionCountries, productionCountries_); }
-  if (imdbId) *imdbId = charPointerToString(imdbId_);
-  if (budget) *budget = budget_;
-  if (revenue) *revenue = revenue_;
   if (collectionId) *collectionId = m_collectionId;
-  if (collectionName) *collectionName = charPointerToString(collectionName_);
-  if (status) *status = charPointerToString(status_);
+  if (genres) { genres->clear(); stringToVector(*genres, genres_); }
+  if (productionCountries) { productionCountries->clear(); stringToVector(*productionCountries, productionCountries_); }
   if (networks) { networks->clear(); stringToVector(*networks, networks_); }
   return true;
 }
@@ -271,31 +246,13 @@ bool cScraperVideoImp::isEpisodeIdentified() {
 bool cScraperVideoImp::getEpisode(std::string *name, std::string *overview, int *absoluteNumber, std::string *firstAired, int *runtime, float *voteAverage, int *voteCount, std::string *imdbId) {
   if (!isEpisodeIdentified() ) return false;
 
-  char *name_;
-  char *overview_;
-  int absoluteNumber_;
-  char *firstAired_;
-  int runtime_;
-  float voteAverage_;
-  int voteCount_;
-  char *imdbId_;
   const char *sql_e = "select episode_absolute_number, episode_name, episode_air_date, " \
     "episode_run_time, episode_vote_average, episode_vote_count, episode_overview, " \
     "episode_IMDB_ID " \
     "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-  cSqlStatement statement(m_db, sql_e, "iii", m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode() );
-  if (!statement.step("issifiss", &absoluteNumber_,
-     &name_, &firstAired_, &runtime_, &voteAverage_, &voteCount_, &overview_, &imdbId_)) return false;
-  if (name) *name = charPointerToString(name_);
-  if (overview) *overview = charPointerToString(overview_);
-  if (absoluteNumber) *absoluteNumber = absoluteNumber_;
-  if (firstAired) *firstAired = charPointerToString(firstAired_);
-  if (runtime) {
-    if (runtime_ > 0) *runtime = runtime_;
-    else *runtime = m_runtime_guess;
-  }
-  if (voteAverage) *voteAverage = voteAverage_;
-  if (voteCount) *voteCount = voteCount_;
-  if (imdbId) *imdbId = charPointerToString(imdbId_);
+  cSql stmt(m_db, sql_e, m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode());
+  if (!stmt.readRow() ) return false;
+  stmt >> absoluteNumber >> name >> firstAired >> runtime >> voteAverage >> voteCount >> overview >> imdbId;
+  if (runtime && *runtime <= 0) *runtime = m_runtime_guess;
   return true;
 }

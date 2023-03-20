@@ -4,10 +4,10 @@ csEventOrRecording::csEventOrRecording(const cEvent *event):
   m_event(event)
 {
 }
-void csEventOrRecording::AddYears(vector<int> &years) const {
-  ::AddYears(years, Title() );
-  ::AddYears(years, ShortText() );
-  ::AddYears(years, Description() );
+void csEventOrRecording::AddYears(cYears &years) const {
+  years.addYears(Description() );
+  years.addYears(ShortText() );
+  years.addYears(Title() );
 }
 int csEventOrRecording::DurationDistance(int DurationInMin) {
   int durationInMinLow, durationInMinHigh;
@@ -192,7 +192,7 @@ int csRecording::getVpsLength() {
 // -1: VPS used, but no time available
 // >0: VPS length in seconds
   if (m_vps_length > -4) return m_vps_length;
-  CONCAT(filename, "ss", m_recording->FileName(), "/markad.vps");
+  CONCATENATE(filename, m_recording->FileName(), "/markad.vps");
   struct stat buffer;
   if (stat (filename, &buffer) != 0) { m_vps_length = -3; return m_vps_length; }
 
@@ -241,7 +241,7 @@ int csRecording::getVpsLength() {
 }
 bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
 // return false if no info is available
-  CONCAT(filename, "ss", m_recording->FileName(), "/tvscrapper.json");
+  CONCATENATE(filename, m_recording->FileName(), "/tvscrapper.json");
   struct stat buffer;
   if (stat (filename, &buffer) != 0) return false;
 

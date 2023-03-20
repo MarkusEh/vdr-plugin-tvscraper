@@ -5,23 +5,107 @@
 #include <algorithm>
 #include <set>
 #include <iostream>
-
-#define CONCAT(result, fmt, ...) \
-char result[concat::sprint(NULL, fmt, __VA_ARGS__) + 1]; \
-concat::sprint(result, fmt, __VA_ARGS__);
+#include <charconv>
 
 #define CONVERT(result, from, fn) \
 char result[fn(NULL, from) + 1]; \
 fn(result, from);
 
+#define CV_VA_NUM_ARGS_HELPER(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, N, ...)    N
+#define CV_VA_NUM_ARGS(...)      CV_VA_NUM_ARGS_HELPER(__VA_ARGS__, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#define CAT( A, B ) A ## B
+#define SELECT( NAME, NUM ) CAT( NAME ## _, NUM )
+#define VA_SELECT( NAME, ... ) SELECT( NAME, CV_VA_NUM_ARGS(__VA_ARGS__) )(__VA_ARGS__)
+
+// concatenate macro based, and fastest ===============
+#define CONCATENATE_START_2(result, s1, s2) \
+int result##concatenate_lvls = 0; \
+int result##concatenate_lvl1 = concat::numChars(s1); \
+result##concatenate_lvls += result##concatenate_lvl1; \
+int result##concatenate_lvl2 = concat::numChars(s2); \
+result##concatenate_lvls += result##concatenate_lvl2;
+
+#define CONCATENATE_START_3(result, s1, s2, s3) \
+CONCATENATE_START_2(result, s1, s2) \
+int result##concatenate_lvl3 = concat::numChars(s3); \
+result##concatenate_lvls += result##concatenate_lvl3;
+
+#define CONCATENATE_START_4(result, s1, s2, s3, s4) \
+CONCATENATE_START_3(result, s1, s2, s3) \
+int result##concatenate_lvl4 = concat::numChars(s4); \
+result##concatenate_lvls += result##concatenate_lvl4;
+
+#define CONCATENATE_START_5(result, s1, s2, s3, s4, s5) \
+CONCATENATE_START_4(result, s1, s2, s3, s4) \
+int result##concatenate_lvl5 = concat::numChars(s5); \
+result##concatenate_lvls += result##concatenate_lvl5;
+
+#define CONCATENATE_START_6(result, s1, s2, s3, s4, s5, s6) \
+CONCATENATE_START_5(result, s1, s2, s3, s4, s5) \
+int result##concatenate_lvl6 = concat::numChars(s6); \
+result##concatenate_lvls += result##concatenate_lvl6;
+
+#define CONCATENATE_START_7(result, s1, s2, s3, s4, s5, s6, s7) \
+CONCATENATE_START_6(result, s1, s2, s3, s4, s5, s6) \
+int result##concatenate_lvl7 = concat::numChars(s7); \
+result##concatenate_lvls += result##concatenate_lvl7;
+
+#define CONCATENATE_START_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
+CONCATENATE_START_7(result, s1, s2, s3, s4, s5, s6, s7) \
+int result##concatenate_lvl8 = concat::numChars(s8); \
+result##concatenate_lvls += result##concatenate_lvl8;
+
+#define CONCATENATE_START_9(result, s1, s2, s3, s4, s5, s6, s7, s8, s9) \
+CONCATENATE_START_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
+int result##concatenate_lvl9 = concat::numChars(s9); \
+result##concatenate_lvls += result##concatenate_lvl9;
+
+#define CONCATENATE_END_ADDCHARS_B(result_concatenate_buf, lvl, s) \
+concat::addChars(result_concatenate_buf, lvl, s); \
+result_concatenate_buf += lvl;
+
+#define CONCATENATE_END_2(result, s1, s2) \
+char *result##concatenate_buf = result; \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl1, s1); \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl2, s2);
+
+#define CONCATENATE_END_3(result, s1, s2, s3) \
+CONCATENATE_END_2(result, s1, s2) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl3, s3);
+
+#define CONCATENATE_END_4(result, s1, s2, s3, s4) \
+CONCATENATE_END_3(result, s1, s2, s3) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl4, s4);
+
+#define CONCATENATE_END_5(result, s1, s2, s3, s4, s5) \
+CONCATENATE_END_4(result, s1, s2, s3, s4) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl5, s5);
+
+#define CONCATENATE_END_6(result, s1, s2, s3, s4, s5, s6) \
+CONCATENATE_END_5(result, s1, s2, s3, s4, s5) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl6, s6);
+
+#define CONCATENATE_END_7(result, s1, s2, s3, s4, s5, s6, s7) \
+CONCATENATE_END_6(result, s1, s2, s3, s4, s5, s6) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl7, s7);
+
+#define CONCATENATE_END_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
+CONCATENATE_END_7(result, s1, s2, s3, s4, s5, s6, s7) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl8, s8);
+
+#define CONCATENATE_END_9(result, s1, s2, s3, s4, s5, s6, s7, s8, s9) \
+CONCATENATE_END_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl9, s9);
+
+#define CONCATENATE(result, ...) \
+SELECT( CONCATENATE_START, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
+char result[result##concatenate_lvls + 1]; \
+SELECT( CONCATENATE_END, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
+*result##concatenate_buf = 0;
 
 using namespace std;
 
 // UTF8 string utilities ****************
-/*
-int sprintWchar(char *to, wint_t cp) {
-}
-*/
 int AppendUtfCodepoint(char *&target, wint_t codepoint){
   if (codepoint <= 0x7F) {
     if (target) {
@@ -137,9 +221,27 @@ void appendRemoveControlCharactersKeepNl(std::string &target, const char *str) {
   }
 }
 
+// std::string_view to_sv : increase type safety in ... methods  ================
+inline std::string_view to_sv(const char *s) {
+  if (s) return std::string_view(s);
+  return std::string_view();
+}
+inline std::string_view to_sv(const std::string &S) {
+  return S;
+}
+inline std::string_view to_sv(const std::string_view &V) {
+  return V;
+}
+
 // methods for char *s, make sure that s==NULL is just an empty string ========
 std::string charPointerToString(const unsigned char *s) {
-  return s?(const char *)s:"";
+  return s?reinterpret_cast<const char *>(s):"";
+}
+std::string_view charPointerToStringView(const unsigned char *s) {
+  return s?reinterpret_cast<const char *>(s):std::string_view();
+}
+std::string_view charPointerToStringView(const char *s) {
+  return s?s:std::string_view();
 }
 std::string charPointerToString(const char *s) {
   return s?s:"";
@@ -180,125 +282,108 @@ std::string concatenate(const char *s1, const char *s2, const char *s3) {
   return result;
 }
 
-// std::string_view to_sv : increase type safety in ... methods  ================
-inline std::string_view to_sv(const char *s) {
-  if (s) return std::string_view(s);
-  return std::string_view();
-}
-inline std::string_view to_sv(const std::string &S) {
-  return S;
-}
-inline std::string_view to_sv(const std::string_view &V) {
-  return V;
-}
-
 namespace concat {
-  template<class T> int toCharsU(char *buffer, T i0) {
-// notes:
-//    i0 must be unsigned !!!!
-//    return number of characters written to buffer  (don't count 0 terminator)
-//    if buffer==NULL: don't write anything, just return the number
-//    sizeof(buffer) must be >= this return value + 1 !! This is not checked ....
+  template<class T> inline int numCharsU(T i) {
+// note: i must be >= 0!!!!
+    if (i < 10) return 1;
     int numChars;
-    int i = i0;
-    if (i < 10) numChars = 1;
-    else for (numChars = 0; i; i /= 10) numChars++;
-    if (!buffer) return numChars;
-    char *bufferEnd = buffer + numChars;
-    i = i0;
+    for (numChars = 0; i; i /= 10) numChars++;
+    return numChars;
+  }
+  inline int numChars(const std::string_view &s) {
+    return s.length();
+  }
+  inline int numChars(const std::string &s) {
+    return s.length();
+  }
+  inline int numChars(const char *s) {
+    return s?strlen(s):0;
+  }
+  inline int numChars(int i) {
+    if (i >=0 ) return numCharsU(i);
+    return numCharsU(-1*i) + 1;
+  }
+  inline void addCharsU(char *b, int l, unsigned int i) {
+    if (i < 10) *b = '0' + i;
+    else for (b += l; i; i /= 10) *(--b) = '0' + (i%10);
+  }
+  inline void addChars(char *b, int l, int i) {
+    if (i >=0 ) addCharsU(b, l, i);
+    else {
+      *b = '-';
+      addCharsU(++b, --l, -1*i);
+    }
+  }
+  inline void addChars(char *b, int l, const std::string_view &s) {
+    memcpy(b, s.data(), l);
+  }
+  inline void addChars(char *b, int l, const std::string &s) {
+    memcpy(b, s.data(), l);
+  }
+  inline void addChars(char *b, int l, const char *s) {
+    memcpy(b, s, l);
+  }
+// methods to append to std::strings
+  inline void concatenate_intU(std::string &str, unsigned int i) {
+    char buf[21]; // unsingen int 64: max. 20. (18446744073709551615) signed int64: max. 19 (+ sign)
+    char *bufferEnd = buf+20;
     *bufferEnd = 0;
     if (i < 10) *(--bufferEnd) = '0' + i;
     else for (; i; i /= 10) *(--bufferEnd) = '0' + (i%10);
-    return numChars;
+    str.append(bufferEnd);
   }
-  template<class T> int toCharsI(char *buffer, T i) {
-    if (i >= 0) return toCharsU(buffer, i);
-    if (buffer) *(buffer++) = '-';
-    return toCharsU(buffer, -1*i) + 1;
+  inline void concatenate_int(std::string &str, unsigned int i) {
+    concatenate_intU(str, i);
   }
-
-  typedef int (*tSprint)(char *to, std::string_view from);
-// convert from to to
-// return number of characters written to to  (don't count 0 terminator)
-// if to==NULL: don't write anything, just return the number
-
-  int vsprint(char *buffer, const char *fmt, va_list &vl) {
-  // return number of characters required to concatenate
-  // note: sizeof(buffer) must be this number + 1 (terminating 0)
-  // va_list &vl: list of objects to concatenate
-  // fmt:
-  //    s: const char *        must be zero terminated
-  //    V: std::string_view    use this and to_sv(...) for strings
-  //    u: unsigned int
-  //    i: int
-  //    t: time_t
-  //    w: 2 parameters: const char *, conversion function type tSprint
-  //    W: 2 parameters: string_view , conversion function type tSprint
-    if (!fmt) { if (buffer) *buffer = 0; return 0; }
-    int numChars = 0;
-    char *s;
-    std::string_view sv;
-    tSprint wf;
-    for (; *fmt; fmt++) {
-      switch (*fmt) {
-        case 's':
-          s = va_arg(vl,char*);
-          if (s) {
-            if (buffer) strcpy(buffer + numChars, s);
-            numChars += strlen(s);
-          }
-          break;
-        case 'V':
-          sv = va_arg(vl,std::string_view);
-          if (buffer) strncpy(buffer + numChars, sv.data(), sv.length());
-          numChars += sv.length();
-          break;
-        case 'i':
-          numChars += toCharsI(buffer?buffer + numChars:NULL, va_arg(vl,int));
-          break;
-        case 'u':
-          numChars += toCharsU(buffer?buffer + numChars:NULL, va_arg(vl,unsigned int));
-          break;
-        case 't':
-          numChars += toCharsU(buffer?buffer + numChars:NULL, va_arg(vl,time_t));
-          break;
-        case 'W':
-          sv = va_arg(vl,std::string_view);
-          wf = va_arg(vl,tSprint);
-          numChars += (*wf)(buffer?buffer + numChars:NULL, sv);
-          break;
-        case 'w':
-          s = va_arg(vl,char*);
-          wf = va_arg(vl,tSprint);
-          if (s) numChars += (*wf)(buffer?buffer + numChars:NULL, std::string_view(s));
-          break;
-        default:
-          esyslog("tvscraper: ERROR in stringhelpers->concat::vsprint, fmt: %s, unknown %c", fmt, *fmt);
-          va_arg(vl, void*);
-      }
+  inline void concatenate_int(std::string &str, int i) {
+    if (i >= 0) concatenate_intU(str, i);
+    else {
+      str.append("-");
+      concatenate_intU(str, -1*i);
     }
-    if (buffer) *(buffer + numChars) = 0;
-    return numChars;
   }
-  int sprint(char *buffer, const char *fmt, ...) {
-    va_list vl;
-    va_start(vl, fmt);
-    int result = vsprint(buffer, fmt, vl);
-    va_end(vl);
-    return result;
+// strings
+  inline void concatenate_int(std::string &str, const char *s) {
+    str.append(s);
+  }
+  inline void concatenate_int(std::string &str, const std::string &s) {
+    str.append(s);
+  }
+  inline void concatenate_int(std::string &str, const std::string_view &s) {
+    str.append(s);
+  }
+
+  template<typename T, typename... Args>
+  void concatenate_int(std::string &str, const T &n, const Args&... args) {
+    concatenate_int(str, n);
+    concatenate_int(str, args...);
   }
 }
-std::string concatenateAll(const char *fmt, ...) {
-// see numCharsAll for fmt
-  if (!fmt) return "";
-  va_list vl1, vl2;
-  va_start(vl1, fmt);
-  va_copy(vl2, vl1);
-  char buffer[concat::vsprint(NULL, fmt, vl1) + 1];
-  va_end(vl1);
-  concat::vsprint(buffer, fmt, vl2);
-  va_end(vl2);
-  return buffer;
+class cConcatenate
+{
+  public:
+    cConcatenate(size_t buf_size = 0) { m_data.reserve(buf_size>0?buf_size:200); }
+    cConcatenate(const cConcatenate&) = delete;
+    cConcatenate &operator= (const cConcatenate &) = delete;
+    cConcatenate & operator<<(const char *s) { m_data.append(s); return *this; }
+    cConcatenate & operator<<(const std::string_view &sv) { m_data.append(sv); return *this; }
+    cConcatenate & operator<<(const std::string &st) { m_data.append(st); return *this; }
+    cConcatenate & operator<<(int i) {
+      concat::concatenate_int(m_data, i);
+      return *this;
+    }
+    std::string str() { return std::move(m_data); }
+  private:
+    std::string m_data;
+};
+
+template<typename... Args>
+std::string concatenate(const Args&... args) {
+  std::string result;
+  result.reserve(200);
+//  concat::concatenate_int(result, std::forward<Args>(args)...);
+  concat::concatenate_int(result, args...);
+  return result;
 }
 
 // whitespace ================================================================
@@ -455,76 +540,134 @@ int NumberInLastPartWithP(std::string_view str) {
 
 // methods for years =============================================================
 
-int yearToInt(const char *year) {
+class cYears {
+  public:
+    cYears() { m_years[0] = 0; }
+    cYears(const cYears&) = delete;
+    cYears &operator= (const cYears &) = delete;
+    class iterator: public std::iterator<std::forward_iterator_tag, int, int, const int*, int> {
+        const char *m_years;
+      public:
+        explicit iterator(const char *years): m_years(years) { }
+        iterator& operator++() {
+          if (*m_years) m_years++;
+          return *this;
+        }
+        bool operator==(iterator other) const { return m_years == other.m_years; }
+        bool operator!=(iterator other) const { return !(*this == other); }
+        reference operator*() const {
+          return (*m_years) + 1900;
+        }
+      };
+    iterator begin() const { return iterator(m_years); }
+    const iterator end() const { return iterator(m_years + m_years_p); }
+    void addYear(const char *year) { addYear(yearToInt(year)); }
+    void addYear(int year) {
+      if (m_explicitFound) return;
+      if (year <= 1920 || year >= 2100) return;
+      addYearInt(year-1900);
+    }
+    void addYears(const char *str) {
+      if (!str || m_explicitFound) return;
+      std::string_view year_sv = textAttributeValue(str, "Jahr: ");
+      if (year_sv.length() == 4) {
+        int y = yearToInt(year_sv.data() );
+        if (!(y <= 1920 || y >= 2100)) {
+          m_explicitFound = true;
+          m_years_p = 0;
+          m_years[m_years_p++] = y-1900;
+          m_years[m_years_p] = 0;
+          return;
+        }
+      }
+      const char *last;
+      for (const char *first = firstDigit(str); *first; first = firstDigit(last) ) {
+        last = firstNonDigit(first);
+        if (last - first  == 4) addYear(first);
+      }
+    }
+    int find2(int year) const {
+// 0 not found
+// 1 near  match found
+// 2 exact match found
+      if (year <= 1920 || year >= 2100) return 0;
+      const char *f = strchr(m_years, year-1900);
+      if (!f) return 0;
+      if (m_years + m_years_e > f) return 2;  // [m_years[0]; m_years[m_years_e]): exact matches
+      return 1;
+    }
+    int size() const { return strlen(m_years); }
+    static int yearToInt(const char *year) {
 // if the first 4 characters of year are digits, return this number as int
 // otherwise (or if year == NULL) return 0;
-  if (!year) return 0;
-  if (*year < '0' || *year > '9') return 0;
-  int result = (*year - '0') * 1000;
-  year++;
-  if (*year < '0' || *year > '9') return 0;
-  result += (*year - '0') * 100;
-  year++;
-  if (*year < '0' || *year > '9') return 0;
-  result += (*year - '0') * 10;
-  year++;
-  if (*year < '0' || *year > '9') return 0;
-  result += (*year - '0');
-  return result;
-}
+      if (!year) return 0;
+      if (*year < '0' || *year > '9') return 0;
+      int result = (*year - '0') * 1000;
+      year++;
+      if (*year < '0' || *year > '9') return 0;
+      result += (*year - '0') * 100;
+      year++;
+      if (*year < '0' || *year > '9') return 0;
+      result += (*year - '0') * 10;
+      year++;
+      if (*year < '0' || *year > '9') return 0;
+      result += (*year - '0');
+      return result;
+    }
+template<class T>
+    static int yearToInt(const T &str) {
+      if (str.length() < 4 || (str.length() > 4 && isdigit(str[4])) ) return 0;
+      return yearToInt(str.data() );
+    }
+    void finalize() {
+// this adds year +-1, at the end
+      if (m_years_e != -1) return;  // add this only once ...
+      m_years_e = m_years_p;
+      for (int i=0; i < m_years_e; i++) {
+        addYearInt(m_years[i] + 1);
+        addYearInt(m_years[i] - 1);
+      }
+    }
 
-int stringToYear(const string &str) {
-  if (str.length() > 4 && isdigit(str[4]) ) return 0;
-  return yearToInt(str.c_str() );
-}
+  private:
+    void addYearInt(int year) {
+// year must be in internal format !!! (real year - 1900)
+      if (m_years_p > 18) return;
+      if (strchr(m_years, year) != NULL) return;
+      m_years[m_years_p++] = year;
+      m_years[m_years_p] = 0;
+    }
+    static const char *firstDigit(const char *found) {
+      for (; ; found++) if (isdigit(*found) || ! *found) return found;
+    }
+    static const char *firstNonDigit(const char *found) {
+      for (; ; found++) if (!isdigit(*found) || ! *found) return found;
+    }
 
-const char *firstDigit(const char *found) {
-  for (; ; found++) if (isdigit(*found) || ! *found) return found;
-}
-const char *firstNonDigit(const char *found) {
-  for (; ; found++) if (!isdigit(*found) || ! *found) return found;
-}
-
-void AddYear(vector<int> &years, int year) {
-  if (year <= 1920 || year >= 2100) return;
-  if (find(years.begin(), years.end(), year) == years.end()) years.push_back(year);
-  int yearp1 = ( year + 1 ) * (-1);
-  if (find(years.begin(), years.end(), yearp1) == years.end()) years.push_back(yearp1);
-  int yearm1 = ( year - 1 ) * (-1);
-  if (find(years.begin(), years.end(), yearm1) == years.end()) years.push_back(yearm1);
-}
-
-void AddYears(vector<int> &years, const char *str) {
-  if (!str) return;
-  std::string_view year_sv = textAttributeValue(str, "Jahr: ");
-  if (year_sv.length() == 4) {
-    AddYear(years, yearToInt(year_sv.data()));
-//  if (config.enableDebug) esyslog("tvscraper, Jahr: %i", yearToInt(year_sv.data()));
-    return;
-  }
-  const char *last;
-  for (const char *first = firstDigit(str); *first; first = firstDigit(last) ) {
-    last = firstNonDigit(first);
-    if (last - first  == 4) AddYear(years, yearToInt(first));
-  }
-}
+    char m_years[20];
+    int m_years_p = 0;
+    int m_years_e = -1;
+    bool m_explicitFound = false;
+};
 
 // convert containers to strings, and strings to containers ==================
-void push_back_new(std::vector<std::string> &vec, const std::string str) {
+template<class T>
+void push_back_new(std::vector<T> &vec, const T &str) {
 // add str to vec, but only if str is not yet in vec and if str is not empty
   if (str.empty() ) return;
   if (find (vec.begin(), vec.end(), str) != vec.end() ) return;
   vec.push_back(str);
 }
 
-void stringToVector(std::vector<std::string> &vec, const char *str) {
+template<class T>
+void stringToVector(std::vector<T> &vec, const char *str) {
 // if str does not start with '|', don't split, just add str to vec
 // otherwise, split str at '|', and add each part to vec
   if (!str || !*str) return;
   if (str[0] != '|') { vec.push_back(str); return; }
   const char *lDelimPos = str;
   for (const char *rDelimPos = strchr(lDelimPos + 1, '|'); rDelimPos != NULL; rDelimPos = strchr(lDelimPos + 1, '|') ) {
-    push_back_new(vec, string(lDelimPos + 1, rDelimPos - lDelimPos - 1));
+    push_back_new(vec, T(lDelimPos + 1, rDelimPos - lDelimPos - 1));
     lDelimPos = rDelimPos;
   }
 }
@@ -643,6 +786,8 @@ class cXmlString {
       for (end = start; *end; end++);
       initialize(start, end, tag);
     }
+    cXmlString(const cXmlString&) = delete;
+    cXmlString &operator= (const cXmlString &) = delete;
     std::string getString() const {
       if (!m_start || !m_end) return "";
       return std::string(m_start, m_end - m_start);
@@ -691,3 +836,79 @@ const char* removePrefix(const char *s, const char *prefix) {
   if (strncmp(s, prefix, len) != 0) return NULL;
   return s+len;
 }
+
+class cSplit {
+  public:
+    cSplit(std::string_view sv, char delim): m_sv(sv), m_delim(delim), m_end(string_view(), m_delim) {}
+    cSplit(const char *s, char delim): m_sv(charPointerToStringView(s)), m_delim(delim), m_end(string_view(), m_delim) {}
+    cSplit(const cSplit&) = delete;
+    cSplit &operator= (const cSplit &) = delete;
+    class iterator: public std::iterator<std::forward_iterator_tag, std::string_view, int, const std::string_view*, std::string_view> {
+        std::string_view m_remainingParts;
+        char m_delim;
+        size_t m_next_delim;
+      public:
+        explicit iterator(std::string_view r, char delim): m_delim(delim) {
+          if (!r.empty() && r[0] == delim) m_remainingParts = r.substr(1);
+          else m_remainingParts = r;
+          m_next_delim = m_remainingParts.find(m_delim);
+        }
+        iterator& operator++() {
+          if (m_next_delim == std::string_view::npos) {
+            m_remainingParts = std::string_view();
+          } else {
+            m_remainingParts = m_remainingParts.substr(m_next_delim + 1);
+            m_next_delim = m_remainingParts.find(m_delim);
+          }
+          return *this;
+        }
+        bool operator==(iterator other) const { return m_remainingParts == other.m_remainingParts; }
+        bool operator!=(iterator other) const { return !(*this == other); }
+        reference operator*() const {
+          if (m_next_delim == std::string_view::npos) return m_remainingParts;
+          else return m_remainingParts.substr(0, m_next_delim);
+        }
+      };
+      iterator begin() { return iterator(m_sv, m_delim); }
+      const iterator &end() { return m_end; }
+      iterator find(std::string_view sv) {
+        if (m_sv.find(sv) == std::string_view::npos) return m_end;
+        return std::find(begin(), end(), sv);
+      }
+    private:
+      const std::string_view m_sv;
+      const char m_delim;
+      const iterator m_end;
+};
+
+class cContainer {
+  public:
+    cContainer(char delim = '|', int init_buffer_size = 300): m_delim(delim) {
+      m_buffer.reserve(init_buffer_size);
+      m_buffer.append(1, delim);
+    }
+    cContainer(const cContainer&) = delete;
+    cContainer &operator= (const cContainer &) = delete;
+    bool find(std::string_view sv) {
+      if (!sv.empty() ) {
+        size_t f = m_buffer.find(sv);
+        if (f == std::string_view::npos || f== 0 || f + sv.length() == m_buffer.length() ) return false;
+        if (m_buffer[f-1] == m_delim && m_buffer[f+sv.length()] == m_delim) return true;
+      }
+//      std::cout << " second check ";
+      CONCATENATE(ns, "|", sv, "|");
+      size_t f = m_buffer.find(ns);
+      return f != std::string_view::npos;
+    }
+    bool insert(std::string_view sv) {
+// true, if already in buffer (will not insert again ...)
+// else: false
+      if (find(sv)) return true;
+      m_buffer.append(sv);
+      m_buffer.append(1, m_delim);
+      return false;
+    }
+  private:
+    char m_delim;
+    std::string m_buffer;
+};

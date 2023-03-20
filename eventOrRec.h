@@ -14,7 +14,7 @@ public:
   virtual int DurationInSec() const { return m_event->Duration(); }
   virtual const std::string ChannelIDs() const { return channelToString(ChannelID() ); }
   virtual const cRecording *Recording() const { return NULL; }
-  virtual void AddYears(vector<int> &years) const;
+  virtual void AddYears(cYears &years) const;
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
   int DurationDistance(int DurationInMin);
   virtual string_view EpisodeSearchString() const;

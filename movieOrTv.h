@@ -23,15 +23,12 @@ public:
   virtual bool IsUsed() { return m_db->CheckMovieOutdatedEvents(dbID(), m_seasonNumber, m_episodeNumber) || m_db->CheckMovieOutdatedRecordings(dbID(), m_seasonNumber, m_episodeNumber); }
   void DeleteIfUnused() { if(!IsUsed()) DeleteMediaAndDb(); }
   virtual string getEpisodeName() { return "";}
-  virtual int searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOrTitle, const vector<int> &years, const cLanguage *lang) { return 1000;}
-  virtual int searchEpisode(string_view tvSearchEpisodeString, const vector<int> &years, const cLanguage *lang) { return 1000;}
+  virtual int searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang) { return 1000;}
+  virtual int searchEpisode(string_view tvSearchEpisodeString, const cYears &years, const cLanguage *lang) { return 1000;}
 // fill vdr service interface
   virtual tvType getType() const = 0;
-  void clearScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv);
-  virtual void getScraperOverview(cGetScraperOverview *scraperOverview) = 0;
   virtual bool getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName = NULL) = 0;
   virtual std::string getCollectionName() { return ""; }
-  virtual void getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv) = 0;
 // Actors
   void AddActors(std::vector<cActor> &actors, const char *sql, int id, const char *pathPart, bool fullPath = true, int width = 421, int height = 632);
   virtual vector<cActor> GetActors(bool fullPath = true) = 0;
@@ -50,7 +47,7 @@ public:
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, csEventOrRecording *sEventOrRecording, int *runtime=NULL);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cRecording *recording);
-  static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const vector<int> &years, const cLanguage *lang);
+  static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang);
   static void CleanupTv_media(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, const cTVScraperDB *db);
@@ -76,10 +73,8 @@ public:
   static void DeleteAllIfUnused(const cTVScraperDB *db);
 // fill vdr service interface
   virtual tvType getType() const { return tMovie; }
-  virtual void getScraperOverview(cGetScraperOverview *scraperOverview);
   virtual bool getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName = NULL);
   virtual std::string getCollectionName();
-  virtual void getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv);
   virtual vector<cActor> GetActors(bool fullPath = true);
   virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath) {}  // add nothing, no guest stars in movies
   virtual void DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName);
@@ -101,13 +96,11 @@ public:
   virtual bool IsUsed();
   virtual void DeleteMediaAndDb() = 0;
   virtual string getEpisodeName() { return m_db->GetEpisodeName(dbID(), m_seasonNumber, m_episodeNumber);}
-  virtual int searchEpisode(string_view tvSearchEpisodeString, const vector<int> &years, const cLanguage *lang);
-  virtual int searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOrTitle, const vector<int> &years, const cLanguage *lang);
+  virtual int searchEpisode(string_view tvSearchEpisodeString, const cYears &years, const cLanguage *lang);
+  virtual int searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang);
 // fill vdr service interface
   virtual tvType getType() const { return tSeries; }
-  virtual void getScraperOverview(cGetScraperOverview *scraperOverview);
   virtual bool getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName = NULL);
-  virtual void getScraperMovieOrTv(cScraperMovieOrTv *scraperMovieOrTv);
   virtual vector<cActor> GetActors(bool fullPath = true) = 0;
   virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath) = 0;
 // images

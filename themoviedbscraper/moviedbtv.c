@@ -51,11 +51,14 @@ bool cMovieDbTv::ReadTv(bool exits_in_db, cLargeString &buffer) {
     if (!tv) return false;
     bool ret = ReadTv(tv);
     if(ret) {
+      if (m_episodeRunTimes.empty() ) m_episodeRunTimes.insert(-1); // empty episodeRunTimes results in re-reading it from external db. And there is no data on external db ...
       if(!exits_in_db) {
 // no database entry for tvID, create the db entry
         m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks, m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, "", m_status, m_episodeRunTimes, m_createdBy);
         json_t *jCredits = json_object_get(tv, "credits");
         AddActorsTv(jCredits);
+      } else {
+        m_db->InsertTvEpisodeRunTimes(m_tvID, m_episodeRunTimes);
       }
     }
     json_decref(tv);

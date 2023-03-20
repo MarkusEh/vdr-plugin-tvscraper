@@ -31,7 +31,7 @@ public:
     int StoreSeriesJson(int seriesID, const cLanguage *lang);
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename);
     void StoreActors(int seriesID);
-    vector<vector<string>> GetTvRuntimes(int seriesID);
+    void UpdateTvRuntimes(int seriesID);
 //    void GetTvVote(int seriesID, float &vote_average, int &vote_count);
     int GetTvScore(int seriesID);
     void DownloadMedia (int tvID);

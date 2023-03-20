@@ -4,9 +4,7 @@
 
 searchResultTvMovie::searchResultTvMovie(int id, bool movie, const std::string &year):
      m_id(id), m_movie(movie) {
-// year
-  if (year.length() >= 4) m_year = atoi(year.substr(0,4).c_str() );
-              else m_year = 0;
+  m_year = cYears::yearToInt(year);
 // defaults for m_matches
   for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) m_matches[i].match = -1.;
   m_matches[0].weight = 0.6; // match text
@@ -103,12 +101,13 @@ Enterprise: 50616
 void setScore(int score);
 
 
-void searchResultTvMovie::setMatchYear(const std::vector<int> &years, int durationInSec) {
+void searchResultTvMovie::setMatchYear(const cYears &years, int durationInSec) {
 // input: list of years in texts
   if (m_year <= 0) { m_matches[1].match = 0.; return; }
   if (!m_movie &&  durationInSec < 80*60) m_matches[1].weight = 0.1; // for a series, this matching is more irrelevant. Except a min series with long episodes
-  if (std::find (years.begin(), years.end(), m_year    ) != years.end() ) { m_yearMatch =  1; m_matches[1].match = 1.; return; }
-  if (std::find (years.begin(), years.end(), m_year *-1) != years.end() ) { m_yearMatch = -1; m_matches[1].match = .8; return; }
+  int f = years.find2(m_year);
+  if (f == 2 ) { m_yearMatch =  1; m_matches[1].match = 1.; return; }
+  if (f == 1 ) { m_yearMatch = -1; m_matches[1].match = .8; return; }
   m_matches[1].match = .3; // some points for the existing year ...
 }
 

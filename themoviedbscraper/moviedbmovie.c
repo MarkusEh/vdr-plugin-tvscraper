@@ -114,7 +114,7 @@ bool cMovieDbMovie::ReadMovie(json_t *movie) {
     return true;
 }
 
-void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const vector<int> &years, const cLanguage *lang){
+void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const cYears &years, const cLanguage *lang){
   string_view searchString1, searchString2, searchString3, searchString4;
   std::vector<cNormedString> normedStrings = getNormedStrings(SearchString, searchString1, searchString2, searchString3, searchString4);
 
@@ -131,7 +131,7 @@ void cMovieDbMovie::AddMovieResults(vector<searchResultTvMovie> &resultSet, std:
     AddMovieResults(buffer, resultSet, searchString4, normedStrings, description, false, years, lang);
 }
 
-void cMovieDbMovie::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch, const vector<int> &years, const cLanguage *lang) {
+void cMovieDbMovie::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
   if (SearchString.empty() ) {
     esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
     return;
@@ -143,25 +143,30 @@ void cMovieDbMovie::AddMovieResults(cLargeString &buffer, vector<searchResultTvM
     return;
   }
   CURLESCAPE(query, SearchString_ext_rom);
-  char lang_u[lang?(concat::sprint(NULL, "sV", "&language=", to_sv(lang->m_themoviedb)) + 1):1];
-  if (lang) concat::sprint(lang_u, "sV", "&language=", to_sv(lang->m_themoviedb));
-  else lang_u[0] = 0;
+  int numLa1 = lang?concat::numChars("&language="):0;
+  int numLa2 = lang?concat::numChars(lang->m_themoviedb):0;
+  char lang_u[numLa1 + numLa2 + 1];
+  if (lang) {
+    concat::addChars(lang_u, numLa1, "&language=");
+    concat::addChars(lang_u + numLa1, numLa2, lang->m_themoviedb);
+  }
+  lang_u[numLa1 + numLa2] = 0;
 
-  CONCAT(url, "sssssss", m_baseURL.c_str(), "/search/movie?api_key=", m_movieDBScraper->GetApiKey().c_str(), lang_u, t, "&query=", query);
-  size_t num_pages = AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch);
+  CONCATENATE(url, m_baseURL, "/search/movie?api_key=", m_movieDBScraper->GetApiKey(), lang_u, t, "&query=", query);
+  int num_pages = AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch);
   bool found = false;
   if (num_pages > 3 && years.size() + 1 < num_pages) {
 // several pages, restrict with years
-    for (const int &year: years) {
-      CONCAT(url, "ssssssuss", m_baseURL.c_str(), "/search/movie?api_key=", m_movieDBScraper->GetApiKey().c_str(), lang_u, t, "&year=", (unsigned int)abs(year), "&query=", query);
+    for (int year: years) {
+      CONCATENATE(url, m_baseURL, "/search/movie?api_key=", m_movieDBScraper->GetApiKey(), lang_u, t, "&year=", (unsigned int)year, "&query=", query);
       if (AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch) > 0) found = true;
     }
   }
   if (! found) {
 // no years avilable, or not found with the available year. Check all results in all pages
     if (num_pages > 10) num_pages = 10;
-    for (size_t page = 2; page <= num_pages; page ++) {
-      CONCAT(url, "ssssssuss", m_baseURL.c_str(), "/search/movie?api_key=", m_movieDBScraper->GetApiKey().c_str(), lang_u, t, "&page=", (unsigned int)page, "&query=", query);
+    for (int page = 2; page <= num_pages; page ++) {
+      CONCATENATE(url, m_baseURL, "/search/movie?api_key=", m_movieDBScraper->GetApiKey(), lang_u, t, "&page=", (unsigned int)page, "&query=", query);
       AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch);
     }
   }

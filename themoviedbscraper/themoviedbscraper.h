@@ -39,14 +39,14 @@ public:
     const string GetActorsBaseUrl(void) { return imageUrl + actorthumbSize; }
     const string GetTvBaseDir(void) { return baseDir + "/tv/";  }
     const string GetActorsBaseDir(void) { return baseDir + "/actors";  }
-    void StoreMovie(cMovieDbMovie &movie);
+    void StoreMovie(cMovieDbMovie &movie, bool forceUpdate = false);
     bool DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName, bool movie);
     void DownloadMedia(int movieID);
     void DownloadMediaTv(int tvID);
     void DownloadActors(int tvID, bool movie);
     void StoreStill(int tvID, int seasonNumber, int episodeNumber, const string &stillPathTvEpisode);
     int GetMovieRuntime(int movieID);
-    vector<vector<string>> GetTvRuntimes(int tvID);
+    void UpdateTvRuntimes(int tvID);
 };
 
 

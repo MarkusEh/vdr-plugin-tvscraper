@@ -131,7 +131,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
 #endif
 // loop over all channels configured for scraping, and create map to enable check for new events
 // note: as a result, elso information from external EPG providers is only collected for these channels
-  map<tChannelID, set<int>*> currentEvents;
+  map<tChannelID, set<tEventID>*> currentEvents;
   set<tChannelID> channels;
   int msg_cnt = 0;
   int i_channel_num = 0;
@@ -143,12 +143,12 @@ bool cTVScraperWorker::ScrapEPG(void) {
     cTvspEpg tvspEpg(config.GetChannelMapEpg(channelID));
     bool channelActive = config.ChannelActive(channelID);
 
-    map<tChannelID, set<int>*>::iterator currentEventsCurrentChannelIT = currentEvents.find(channelID);
+    map<tChannelID, set<tEventID>*>::iterator currentEventsCurrentChannelIT = currentEvents.find(channelID);
     if (currentEventsCurrentChannelIT == currentEvents.end() ) {
-      currentEvents.insert(pair<tChannelID, set<int>*>(channelID, new set<int>));
+      currentEvents.insert(pair<tChannelID, set<tEventID>*>(channelID, new set<tEventID>));
       currentEventsCurrentChannelIT = currentEvents.find(channelID);
     }
-    map<tChannelID, set<int>*>::iterator lastEventsCurrentChannelIT = lastEvents.find(channelID);
+    map<tChannelID, set<tEventID>*>::iterator lastEventsCurrentChannelIT = lastEvents.find(channelID);
     bool newEventSchedule = false;
     std::string channelName;
     vector<tEventID> eventIDs = GetEventIDs(channelName, channelID, msg_cnt);
@@ -175,7 +175,6 @@ bool cTVScraperWorker::ScrapEPG(void) {
           newEvent = true;
           if (!newEventSchedule) {
             dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), channelToString(channelID).c_str() );
-//          dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), (const char *)channelID.ToString());
             newEventSchedule = true;
           }
           csEventOrRecording sEvent(event);
@@ -271,7 +270,7 @@ bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
 }
 
 void writeTimerInfo(const cTimer *timer, const char *pathName) {
-  CONCAT(filename, "ss", pathName, "/tvscrapper.json");
+  CONCATENATE(filename, pathName, "/tvscrapper.json");
 
   rapidjson::Document document;
   cLargeString document_s(jsonReadFile(document, filename));
@@ -314,7 +313,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
         continue;
       }
-      CONCAT(filename, "ss", rc->FileName(), "/tvscrapper.json");
+      CONCATENATE(filename, rc->FileName(), "/tvscrapper.json");
       if (stat(filename, &buffer) != 0) {
         recordingFileNames.push_back(rc->FileName() );
         writeTimerInfo(timer, rc->FileName() );
@@ -392,9 +391,9 @@ bool cTVScraperWorker::StartScrapping(bool &fullScan) {
   }
   if (resetScrapeTime || lastEvents.empty() ) {
 // a full scrape will be done, write this to db, so next full scrape will be in one day
-    db->execSql("delete from scrap_checker", "");
-    char sql[] = "INSERT INTO scrap_checker (last_scrapped) VALUES (?)";
-    db->execSql(sql, "t", time(0));
+    db->exec("delete from scrap_checker");
+    const char *sql = "INSERT INTO scrap_checker (last_scrapped) VALUES (?)";
+    db->exec(sql, time(0));
     fullScan = true;
     return true;
   }
