@@ -152,25 +152,20 @@ std::vector<std::unique_ptr<cCharacter>> cScraperVideoImp::getCharacters(bool fu
   for (const auto &actor: m_movieOrTv->GetActors(fullPath))
     result.push_back(std::make_unique<cCharacterImp>(eCharacterType::actor, actor.name, actor.role, actor.actorThumb));
   if (m_movieOrTv->getType() != tMovie && !isEpisodeIdentified() ) return result;
-  const char *director_ = NULL;
-  const char *writer_ = NULL;
   cSql stmt(m_db);
   if (m_movieOrTv->getType() == tMovie) {
-    stmt.prepare("select movie_director, movie_writer from movie_runtime2 where movie_id = ?", m_movieOrTv->dbID());
+    stmt.prepareBindStep("select movie_director, movie_writer from movie_runtime2 where movie_id = ?", m_movieOrTv->dbID());
   } else {
     const char *sql_e = "select episode_director, episode_writer from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-    stmt.prepare(sql_e, m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode());
+    stmt.prepareBindStep(sql_e, m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode());
   }
-  if (!stmt.readRow()) return result;
-  stmt >> director_ >> writer_;
-  std::vector<std::string> directors;
-  stringToVector(directors, director_);
-  for (const auto &director: directors)
-    result.push_back(std::make_unique<cCharacterImp>(eCharacterType::director, director));
-  std::vector<std::string> writers;
-  stringToVector(writers, writer_);
-  for (const auto &writer: writers)
-    result.push_back(std::make_unique<cCharacterImp>(eCharacterType::writer, writer));
+  const char *director_ = NULL;
+  const char *writer_ = NULL;
+  if (!stmt.readRow(director_, writer_)) return result;
+  for (const auto director: cSplit(director_, '|'))
+    result.push_back(std::make_unique<cCharacterImp>(eCharacterType::director, std::string(director)));
+  for (const auto &writer: cSplit(writer_, '|'))
+    result.push_back(std::make_unique<cCharacterImp>(eCharacterType::writer, std::string(writer)));
   return result;
 }
 
@@ -191,11 +186,8 @@ bool cScraperVideoImp::getMovieOrTv(std::string *title, std::string *originalTit
       "movie_budget, movie_revenue, movie_genres, movie_homepage, " \
       "movie_release_date, movie_runtime, movie_popularity, movie_vote_average, movie_vote_count, " \
       "movie_production_countries, movie_IMDB_ID from movies3 where movie_id = ?";
-    stmt.prepare(sql_m, m_movieOrTv->dbID());
-    if (!stmt.readRow() ) return false;
-    stmt >> title >> originalTitle >> tagline >> overview >> adult >> m_collectionId >> collectionName;
-    stmt >> budget >> revenue >> genres_ >> homepage >> releaseDate >> m_runtime;
-    stmt >> popularity >> voteAverage >> voteCount >> productionCountries_ >> imdbId;
+    stmt.prepareBindStep(sql_m, m_movieOrTv->dbID());
+    if (!stmt.readRow(title, originalTitle, tagline, overview, adult, m_collectionId, collectionName, budget, revenue, genres_, homepage, releaseDate, m_runtime, popularity, voteAverage, voteCount, productionCountries_, imdbId) ) return false;
     m_movieOrTv->m_collectionId = m_collectionId;
     if (status) *status = "";
     if (lastSeason) *lastSeason = 0;
@@ -205,10 +197,8 @@ bool cScraperVideoImp::getMovieOrTv(std::string *title, std::string *originalTit
         "tv_networks, tv_genres, tv_popularity, tv_vote_average, tv_vote_count, " \
         "tv_IMDB_ID, tv_status, tv_last_season " \
         "from tv2 where tv_id = ?";
-      stmt.prepare(sql_s, m_movieOrTv->dbID());
-      if (!stmt.readRow() ) return false;
-      stmt >> title >> originalTitle >> overview >> releaseDate >> networks_ >> genres_;
-      stmt >> popularity >> voteAverage >> voteCount >> imdbId >> status >> lastSeason;
+      stmt.prepareBindStep(sql_s, m_movieOrTv->dbID());
+      if (!stmt.readRow(title, originalTitle, overview, releaseDate, networks_, genres_, popularity, voteAverage, voteCount, imdbId, status, lastSeason) ) return false;
       if (tagline) *tagline = "";
       if (homepage) *homepage = "";
       if (adult) *adult = false;
@@ -251,8 +241,7 @@ bool cScraperVideoImp::getEpisode(std::string *name, std::string *overview, int 
     "episode_IMDB_ID " \
     "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
   cSql stmt(m_db, sql_e, m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode());
-  if (!stmt.readRow() ) return false;
-  stmt >> absoluteNumber >> name >> firstAired >> runtime >> voteAverage >> voteCount >> overview >> imdbId;
+  if (!stmt.readRow(absoluteNumber, name, firstAired, runtime, voteAverage, voteCount, overview, imdbId) ) return false;
   if (runtime && *runtime <= 0) *runtime = m_runtime_guess;
   return true;
 }

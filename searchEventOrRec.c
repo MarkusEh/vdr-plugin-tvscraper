@@ -340,6 +340,7 @@ int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
   if (!stmt.readRow() ) {
     if (tvID>0) m_moviedbScraper->UpdateTvRuntimes(tvID);
     else m_tvdbScraper->UpdateTvRuntimes(tvID * -1);
+    stmt.resetStep();
   }
 // Done / checked: also write episode runtimes to episode_run_time, for each episode
   int n_col = 0;
@@ -434,7 +435,8 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
       int min_distance = 2000;
       sMovieOrTv movieOrTv_best;
       const cLanguage *lang = m_sEventOrRecording->GetLanguage();
-      for (const int &id: m_db->getSimilarTvShows(movieOrTv.id) ) {
+      for (int id: cSqlGetSimilarTvShows(m_db, movieOrTv.id))
+      {
         sMovieOrTv movieOrTv2 = movieOrTv;
         movieOrTv2.id = id;
         if (id != movieOrTv.id) {
@@ -595,10 +597,10 @@ void cSearchEventOrRec::getActorMatches(searchResultTvMovie &sR, cSql &actors) {
   if (debug) esyslog("tvscraper: getActorMatches, id: %i", sR.id() );
   for(cSql &actor: actors) {
 // first col: actor_name
-    getActorMatches(actor.getCharS(), numMatchesAll, numMatchesFirst, numMatchesSureName, alreadyFound);
+    getActorMatches(actor.getCharS(0), numMatchesAll, numMatchesFirst, numMatchesSureName, alreadyFound);
 //    if (debug) esyslog("tvscraper: getActorMatches, Actor: %s, numMatchesAll %i, numMatchesFirst %i, numMatchesSureRole %i, numMatchesSureName %i", actor[1].c_str(), numMatchesAll, numMatchesFirst, numMatchesSureRole, numMatchesSureName);
 // second col: actor_role
-    getActorMatches(actor.getCharS(), numMatchesAll, numMatchesFirst, numMatchesSureRole, alreadyFound);
+    getActorMatches(actor.getCharS(1), numMatchesAll, numMatchesFirst, numMatchesSureRole, alreadyFound);
 //    if (debug) esyslog("tvscraper: getActorMatches, Actor: %s, numMatchesAll %i, numMatchesFirst %i, numMatchesSureRole %i, numMatchesSureName %i", actor[2].c_str(), numMatchesAll, numMatchesFirst, numMatchesSureRole, numMatchesSureName);
   }
   int sum = numMatchesFirst + numMatchesSureRole + 4*numMatchesSureName + 16*numMatchesAll;
@@ -680,7 +682,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
 // movie
     sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(searchEventOrRec.m_moviedbScraper->GetMovieRuntime(sR.id() )) );
     sR.updateMatchText(sentence_distance(searchEventOrRec.m_db->GetMovieTagline(sR.id() ), searchEventOrRec.m_movieSearchString));
-    actors.prepare("select actor_name, actor_role from actors, actor_movie where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?", sR.id());
+    actors.prepareBindStep("select actor_name, actor_role from actors, actor_movie where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?", sR.id());
     const char *sql = "select movie_director, movie_writer from movie_runtime2 where movie_id = ?";
     cSql sqlI(searchEventOrRec.m_db, sql, sR.id());
     if (sqlI.readRow()) {
@@ -703,12 +705,12 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
       sR.setScore(score);
       if (debug) esyslog("tvscraper: enhance1 (4)" );
       if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
-      actors.prepare("SELECT actor_name, actor_role FROM series_actors WHERE actor_series_id = ?", sR.id() * (-1));
+      actors.prepareBindStep("SELECT actor_name, actor_role FROM series_actors WHERE actor_series_id = ?", sR.id() * (-1));
       if (debug) esyslog("tvscraper: enhance1 (5)" );
       if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
     } else {
 // tv show from themoviedb
-      actors.prepare("select actor_name, actor_role from actors, actor_tv where actor_tv.actor_id = actors.actor_id and actor_tv.tv_id = ?", sR.id());
+      actors.prepareBindStep("select actor_name, actor_role from actors, actor_tv where actor_tv.actor_id = actors.actor_id and actor_tv.tv_id = ?", sR.id());
     }
   }
   if (debug) esyslog("tvscraper: enhance1 (6)" );

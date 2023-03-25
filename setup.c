@@ -381,9 +381,9 @@ cTVScraperTV_ShowsSetup::cTVScraperTV_ShowsSetup(vector<int> &listSelections, co
   int currentItem = Current();
   Clear();
   int i = 0;
-  cSql statement(&db, sql);
+  cSql statement(&db);
   for (const int &TV_show: TV_Shows) {
-    statement.resetBindParameters(TV_show);
+    statement.prepareBindStep(sql, TV_show);
     const char *name = NULL;
     if (statement.readRow(name) && name && *name)
       Add(new cMenuEditBoolItem(name, &(listSelections[i]) ));

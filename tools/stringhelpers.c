@@ -545,6 +545,7 @@ class cYears {
     cYears() { m_years[0] = 0; }
     cYears(const cYears&) = delete;
     cYears &operator= (const cYears &) = delete;
+// note: iterate first over exact matches, then near matches
     class iterator: public std::iterator<std::forward_iterator_tag, int, int, const int*, int> {
         const char *m_years;
       public:
@@ -553,8 +554,7 @@ class cYears {
           if (*m_years) m_years++;
           return *this;
         }
-        bool operator==(iterator other) const { return m_years == other.m_years; }
-        bool operator!=(iterator other) const { return !(*this == other); }
+        bool operator!=(iterator other) const { return m_years != other.m_years; }
         reference operator*() const {
           return (*m_years) + 1900;
         }
