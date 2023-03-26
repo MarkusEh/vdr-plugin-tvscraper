@@ -706,7 +706,7 @@ int cTVScraperDB::InsertRecording2(csEventOrRecording *sEventOrRecording, int mo
 
 // movieTv was not yet assigned to the recording, assign it now
   int runtime = GetRuntime(sEventOrRecording, movie_tv_id, season_number, episode_number);
-  exec("INSERT INTO recordings2 (event_id, event_start_time, channel_id, runtime, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  exec("INSERT or REPLACE INTO recordings2 (event_id, event_start_time, channel_id, runtime, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?, ?)",
     eventID, eventStartTime, channelIDs, runtime, movie_tv_id, season_number, episode_number);
 
   WriteRecordingInfo(sEventOrRecording->Recording(), movie_tv_id, season_number, episode_number);
@@ -717,8 +717,7 @@ int cTVScraperDB::InsertRecording2(csEventOrRecording *sEventOrRecording, int mo
 
 void cTVScraperDB::WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number) {
 if (!recording || !recording->FileName() ) return;  // no place to write the information
-string filename = recording->FileName();
-filename.append("/tvscrapper.json");
+string filename = concatenate(recording->FileName(), "/tvscrapper.json");
 // get "root" json (this is *jInfo)
 json_t *jInfo;
 if (std::filesystem::exists(filename) ) {

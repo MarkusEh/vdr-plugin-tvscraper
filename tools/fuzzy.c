@@ -29,6 +29,7 @@ int minDistanceNormedStrings(int distance, const std::vector<cNormedString> &nor
   if (len == -1) sv = string;
   else sv = std::string_view(string, len);
   CONVERT(normedString, sv, normStringC);
+//  std::cout << "minDistanceNormedStrings, sv: " << sv << " normedString: " << normedString << " end\n";
 
   for (const cNormedString &i_normedString: normedStrings)
     distance = i_normedString.minDistanceNormedString(distance, normedString);
@@ -170,6 +171,7 @@ int normStringC(char *to, std::string_view from) {
       wordStart = cChar == ' ';
     }
   }
+  if (to) *to = 0;
   return numChars;
 }
 std::string normString(const char *s, int len) {
