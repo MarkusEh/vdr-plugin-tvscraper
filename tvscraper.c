@@ -456,8 +456,15 @@ const char **cPluginTvscraper::SVDRPHelpPages(void) {
 
 cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, int &ReplyCode) {
   if ((strcasecmp(Command, "SCRE") == 0) || (strcasecmp(Command, "ScrapRecordings") == 0)) {
-    workerThread->InitVideoDirScan();
-    return cString("Scraping Video Directory started");
+    if (Option) {
+      LOCK_RECORDINGS_READ;
+      const cRecording *rec = Recordings->GetByName(Option);
+      if (!rec) return cString::sprintf("Recording %s not found, use full path name to the recording directory, including the video directory and the actual '*.rec'", Option);
+    }
+
+    workerThread->InitVideoDirScan(Option);
+    if (Option && *Option) return cString::sprintf("Scraping %s started", Option);
+    else return cString("Scraping Video Directory started");
   }
   if ((strcasecmp(Command, "SCEP") == 0) || (strcasecmp(Command, "ScrapEPG") == 0)) {
     workerThread->InitManualScan();

@@ -31,7 +31,8 @@ void cTVScraperWorker::Stop(void) {
 //    db->BackupToDisc();
 }
 
-void cTVScraperWorker::InitVideoDirScan(void) {
+void cTVScraperWorker::InitVideoDirScan(const char *recording) {
+    m_recording = charPointerToString(recording);
     scanVideoDir = true;
     waitCondition.Broadcast();
 }
@@ -203,28 +204,25 @@ bool cTVScraperWorker::ScrapEPG(void) {
 
 void cTVScraperWorker::ScrapRecordings(void) {
   if (config.GetReadOnlyClient() ) return;
-  db->ClearRecordings2();
+  if (m_recording.empty() ) db->ClearRecordings2();
 
   cMovieOrTv *movieOrTv = NULL;
-#if APIVERSNUM < 20301
-  for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec)) {
-    if (overrides->IgnorePath(rec->FileName())) continue;
-    {
-#else
   vector<string> recordingFileNames;
-  {
-    LOCK_RECORDINGS_READ;
-    for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
-      if (overrides->IgnorePath(rec->FileName())) continue;
-      if (rec->FileName()) recordingFileNames.push_back(rec->FileName());
+  if (m_recording.empty() ) {
+    {
+      LOCK_RECORDINGS_READ;
+      for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
+        if (overrides->IgnorePath(rec->FileName())) continue;
+        if (rec->FileName()) recordingFileNames.push_back(rec->FileName());
+      }
     }
   }
+  else recordingFileNames.push_back(m_recording);
   for (const string &filename: recordingFileNames) {
     {
       LOCK_RECORDINGS_READ;
       const cRecording *rec = Recordings->GetByName(filename.c_str() );
       if (!rec) continue;
-#endif
       if (config.enableDebug) esyslog("tvscraper: Scrap recording \"%s\"", rec->FileName() );
 
       csRecording csRecording(rec);
@@ -416,10 +414,11 @@ void cTVScraperWorker::Action(void) {
 
   while (Running()) {
     if (scanVideoDir) {
-      scanVideoDir = false;
       dsyslog("tvscraper: scanning video dir");
       if (ConnectScrapers()) {
         ScrapRecordings();
+        scanVideoDir = false;
+        m_recording.clear();
         dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
         TouchFile(config.GetRecordingsUpdateFileName().c_str());
 //      db->BackupToDisc();

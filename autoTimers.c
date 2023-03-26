@@ -627,14 +627,13 @@ bool timersForEvents(const cTVScraperDB &db) {
   std::set<cTimerMovieOrTv, std::less<>> otherTimers;
   std::set<cTimerMovieOrTv, std::less<>> myTimers;
   getAllTimers(db, otherTimers, myTimers);
-  esyslog("tvscraper: timersForEvents 5");
+//  esyslog("tvscraper: timersForEvents 5");
 
   for (const cEventMovieOrTv &scraperEvent: getAllEvents(db) ) {
     auto found = otherTimers.find(scraperEvent);
     if (found != otherTimers.end() && scraperEvent.m_hd <= found->m_hd ) continue;
     timerForEvent(db, scraperEvent, myTimers, recordings, collections);
   }
-  esyslog("tvscraper: timersForEvents 6");
 // delete obsolete timers
   for (const cTimerMovieOrTv &timerToDelete: myTimers) if (!timerToDelete.m_needed) {
 #if VDRVERSNUM >= 20301

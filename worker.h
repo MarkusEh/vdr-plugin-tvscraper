@@ -8,6 +8,7 @@ class cTVScraperWorker : public cThread {
 private:
     bool startLoop;
     bool scanVideoDir;
+    std::string m_recording;
     bool manualScan;
     cOverRides *overrides;
     int initSleep;
@@ -34,7 +35,7 @@ public:
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cTVScraperWorker(void);
     void SetDirectories(void);
-    void InitVideoDirScan(void);
+    void InitVideoDirScan(const char *recording = nullptr);
     void InitManualScan(void);
     virtual void Action(void);
     void Stop(void);
