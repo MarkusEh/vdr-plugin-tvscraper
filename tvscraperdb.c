@@ -1012,7 +1012,7 @@ int cTVScraperDB::findUnusedActorNumber (int seriesID) {
 
 void cTVScraperDB::AddActorDownload (int tvID, bool movie, int actorId, const string &actorPath) {
   if (actorPath.empty() ) return;
-  exec("INSERT INTO actor_download (movie_id, is_movie, actor_id, actor_path) VALUES (?, ?, ?, ?);",
+  exec("INSERT OR REPLACE INTO actor_download (movie_id, is_movie, actor_id, actor_path) VALUES (?, ?, ?, ?);",
     tvID, movie, actorId, actorPath);
 }
 
