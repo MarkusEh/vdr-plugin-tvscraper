@@ -49,7 +49,6 @@ class cScraperVideoImp: public cScraperVideo {
     int m_runtime_guess = 0; // runtime of thetvdb, which does best match to runtime of recording. Ignore if <=0
     int m_runtime = -2;  // runtime of episode / movie. Most reliable. -2: not checked. -1, 0: checked, but not available
     int m_collectionId = -2; // collection ID. -2: not checked
-    csEventOrRecording *m_sEventOrRecording = NULL;
     cMovieOrTv *m_movieOrTv = NULL;
     bool isEpisodeIdentified();
 };
@@ -62,12 +61,9 @@ cScraperVideoImp::cScraperVideoImp(const cEvent *event, const cRecording *record
   m_event = event;
   m_recording = recording;
   m_db = db;
-  m_sEventOrRecording = GetsEventOrRecording(event, recording);
-  if (!m_sEventOrRecording) return;
-  m_movieOrTv = cMovieOrTv::getMovieOrTv(db, m_sEventOrRecording, &m_runtime_guess);
+  m_movieOrTv = cMovieOrTv::getMovieOrTv(db, event, recording, &m_runtime_guess);
 }
 cScraperVideoImp::~cScraperVideoImp() {
-  if (m_sEventOrRecording) delete m_sEventOrRecording;
   if (m_movieOrTv) delete m_movieOrTv;
 }
 
@@ -93,14 +89,15 @@ bool cScraperVideoImp::getOverview(std::string *title, std::string *episodeName,
 }
 
 int cScraperVideoImp::getDurationDeviation() {
-  if (!m_sEventOrRecording) return 0;
+  if (!m_recording) return 0;
   if (m_runtime == -2 && m_movieOrTv) {
     m_runtime = 0;
     m_collectionId = 0;
     m_movieOrTv->getOverview(NULL, NULL, NULL, &m_runtime, NULL, &m_collectionId);
   }
-// note: m_runtime <=0 is considered as no runtime information by m_sEventOrRecording->durationDeviation(m_runtime)
-  return m_sEventOrRecording->durationDeviation(m_runtime);
+  csRecording sRecording(m_recording);
+// note: m_runtime <=0 is considered as no runtime information by sRecording->durationDeviation(m_runtime)
+  return sRecording.durationDeviation(m_runtime);
 }
 
 bool orientationsIncludesLandscape(cOrientationsInt imageOrientations) {
@@ -134,12 +131,14 @@ std::vector<cTvMedia> cScraperVideoImp::getImages(eOrientation orientation, int 
 }
 
 int cScraperVideoImp::getHD() {
-  if (!m_sEventOrRecording) return -1;
-  return config.ChannelHD(m_sEventOrRecording->ChannelID() );
+  if (m_event) return config.ChannelHD(m_event->ChannelID() );
+  if (m_recording && m_recording->Info()) return config.ChannelHD(m_recording->Info()->ChannelID() );
+  return -1;
 }
 int cScraperVideoImp::getLanguage() {
-  if (!m_sEventOrRecording) return -1;
-  return config.GetLanguage_n(m_sEventOrRecording->ChannelID() );
+  if (m_event) return config.GetLanguage_n(m_event->ChannelID() );
+  if (m_recording && m_recording->Info()) return config.GetLanguage_n(m_recording->Info()->ChannelID() );
+  return -1;
 }
 
 std::vector<std::unique_ptr<cCharacter>> cScraperVideoImp::getCharacters(bool fullPath) {

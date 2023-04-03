@@ -809,36 +809,33 @@ bool cTVScraperDB::CheckStartScrapping(int minimumDistance) {
   return startScrapping;
 }
 
-bool cTVScraperDB::GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime) const {
-  int runtime_ = 0;
-  cSql sql(this);
-  if (!sEventOrRecording->Recording() ) {
-    const char *sql_e = "select runtime, movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?";
-    sql.prepareBindStep(sql_e, sEventOrRecording->EventID(), sEventOrRecording->ChannelIDs() );
-  } else {
-    const char *sql_r = "select runtime, movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?";
-    sql.prepareBindStep(sql_r, sEventOrRecording->EventID(), sEventOrRecording->StartTime(), sEventOrRecording->ChannelIDs() );
-  }
-  bool res = sql.readRow(runtime_, movie_tv_id, season_number, episode_number);
-  if (runtime) *runtime = runtime_;
-  return res;
-}
-
-bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number) const {
+bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime) const {
   if (!recording || !recording->Info() || !recording->Info()->GetEvent()) return false;
   csRecording sRecording(recording);
-  const char *sql = "select movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?";
-  cSql sqlI(this, sql, sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
-  return sqlI.readRow(movie_tv_id, season_number, episode_number);
+  if (runtime) {
+    const char *sql = "select runtime, movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?";
+    cSql sqlI(this, sql, sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
+    return sqlI.readRow(*runtime, movie_tv_id, season_number, episode_number);
+  } else {
+    const char *sql = "select movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?";
+    cSql sqlI(this, sql, sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
+    return sqlI.readRow(movie_tv_id, season_number, episode_number);
+  }
 }
 
-bool cTVScraperDB::GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number) const {
+bool cTVScraperDB::GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number, int *runtime) const {
   if (!event) return false;
-  cString channelIDs = event->ChannelID().ToString();
-  if (!(const char *)channelIDs) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID (event), !channelIDs");
-  const char *sql = "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?";
-  cSql sqlI(this, sql, event->EventID(), (const char *)channelIDs);
-  return sqlI.readRow(movie_tv_id, season_number, episode_number);
+  std::string channelIDs = channelToString(event->ChannelID() );
+  if (channelIDs.empty() ) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID (event), !channelIDs");
+  if (runtime) {
+    const char *sql = "select runtime, movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?";
+    cSql sqlI(this, sql, event->EventID(), channelIDs);
+    return sqlI.readRow(*runtime, movie_tv_id, season_number, episode_number);
+  } else {
+    const char *sql = "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?";
+    cSql sqlI(this, sql, event->EventID(), channelIDs);
+    return sqlI.readRow(movie_tv_id, season_number, episode_number);
+  }
 }
 
 std::string cTVScraperDB::GetEpisodeName(int tvID, int seasonNumber, int episodeNumber) const {

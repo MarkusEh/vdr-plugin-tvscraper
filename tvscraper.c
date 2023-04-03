@@ -46,6 +46,7 @@ enum eMediaType {
 
 #include <getopt.h>
 #include "tools/largeString.h"
+#include "extEpgPlugin.h"
 #include "config.h"
 cTVScraperConfig config;
 #include "tools/stringhelpers.c"
@@ -55,7 +56,7 @@ cTVScraperConfig config;
 #include "eventOrRec.h"
 #include "tvscraperdb.h"
 #include "autoTimers.h"
-#include "extEpg.h"
+// #include "PLUGINS/example/extEpg.h"
 #include "config.c"
 #include "tools/jsonHelpers.c"
 #include "tools/curlfuncs.cpp"
@@ -78,11 +79,37 @@ cTVScraperConfig config;
 #include "setup.c"
 #include "images.c"
 #include "autoTimers.c"
-#include "extEpg.c"
+// #include "PLUGINS/example/extEpg.c"
 #include "services.c"
 
 static const char *VERSION        = "1.1.12";
 static const char *DESCRIPTION    = "Scraping movie and series info";
+
+//***************************************************************************
+// cExtEpgHandler
+//***************************************************************************
+
+class cExtEpgHandler : public cEpgHandler
+{
+  public:
+    cExtEpgHandler() : cEpgHandler() { }
+    ~cExtEpgHandler() { }
+
+    virtual bool SetDescription(cEvent *Event, const char *Description) {
+// return true if we want to prevent a change of Event->Description()
+      if (!Event->Description() ) return false;
+      return config.myDescription(Event->Description() );
+    }
+    virtual bool SetShortText(cEvent *Event, const char *ShortText) {
+// return true if we want to prevent a change of Event->ShortText()
+      if (!ShortText || !*ShortText) return true;  // prevent deletion of an existing short text.
+      return false;
+    }
+};
+
+//***************************************************************************
+// cPluginTvscraper
+//***************************************************************************
 
 class cPluginTvscraper : public cPlugin {
 private:
@@ -229,12 +256,7 @@ cMovieOrTv *cPluginTvscraper::GetMovieOrTv(const cEvent *event, const cRecording
     esyslog("tvscraper: ERROR calling vdr service interface, call->event && call->recording are provided. Please set one of these parameters to NULL");
     return NULL;
   }
-  csEventOrRecording *sEventOrRecording = GetsEventOrRecording(event, recording);
-  if (!sEventOrRecording) return NULL;
-
-  cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, sEventOrRecording, runtime);
-  delete sEventOrRecording;
-  return movieOrTv;
+  return cMovieOrTv::getMovieOrTv(db, event, recording, runtime);
 }
 
 bool cPluginTvscraper::Service(const char *Id, void *Data) {
@@ -439,8 +461,11 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 
 const char **cPluginTvscraper::SVDRPHelpPages(void) {
  static const char *HelpPages[] = {
+    "SCRE <recording>\n"
+    "    Scrap one recording.\n"
+    "    Use full path name to the recording directory, including the video directory and the actual '*.rec'.\n"
     "SCRE\n"
-    "    Scrap recordings.\n"
+    "    Scrap all recordings.\n"
     "    Before that, delete all existing scrap results for recordings.\n"
     "    Note: Cache is not deleted, and will be used.\n"
     "    Alternate command: ScrapRecordings",

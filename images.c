@@ -120,39 +120,30 @@ eOrientation cOrientationsInt::pop() {
   return (eOrientation)((m_orientations >> (m_pop++ * 3)) & 7);
 }
 
-std::string getRecordingImagePath(tEventID eventID, time_t eventStartTime, const tChannelID &channelID) {
-  std::string path = config.GetBaseDirRecordings();
-  path.append(to_string(eventStartTime));
-  path.append("_");
-  path.append((const char *)channelID.ToString() );
-  path.append("_");
-  path.append(to_string(eventID));
-  path.append(".jpg");
-  return path;
-}
 std::string getRecordingImagePath(const cRecording *recording) {
   if (!recording || !recording->Info()) return "";
   const cEvent *event = recording->Info()->GetEvent();
   if (!event) return "";
-  return getRecordingImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID());
+  return concatenate(config.GetBaseDirRecordings(), event->StartTime(), "_", recording->Info()->ChannelID(), "_", event->EventID(), ".jpg");
 }
-
-std::string getEpgImagePath(tEventID eventID, time_t eventStartTime, const tChannelID &channelID, bool createPaths) {
-  std::string path = config.GetBaseDirEpg();
-  path.append(to_string(eventStartTime));
-  if (createPaths) CreateDirectory(path);
-  path.append("/");
-  path.append((const char *)channelID.ToString() );
-  if (createPaths) CreateDirectory(path);
-  path.append("/");
-  path.append(to_string(eventID));
-  path.append(".jpg");
-  return path;
+inline std::string getExistingEpgImagePath(tEventID eventID, time_t eventStartTime, const tChannelID &channelID) {
+  return concatenate(config.GetBaseDirEpg(), eventStartTime, "/", channelID, "/", eventID, ".jpg");
 }
 
 std::string getEpgImagePath(const cEvent *event, bool createPaths) {
-  if (event) return getEpgImagePath(event->EventID(), event->StartTime(), event->ChannelID(), createPaths);
-  return "";
+  if (!event) return "";
+  if (!createPaths) return getExistingEpgImagePath(event->EventID(), event->StartTime(), event->ChannelID() );
+  std::string path;
+  path.reserve(200);
+  stringAppend(path, config.GetBaseDirEpg(), event->StartTime());
+  CreateDirectory(path);
+  stringAppend(path, "/", event->ChannelID());
+  CreateDirectory(path);
+  stringAppend(path, "/", event->EventID(), ".jpg");
+  return path;
+}
+extern "C" std::string getCreateEpgImagePath(const cEvent *event) {
+  return getEpgImagePath(event, true);
 }
 
 cTvMedia getEpgImage(const cEvent *event, const cRecording *recording, bool fullPath) {

@@ -463,9 +463,8 @@ public:
     int SetRecording(csEventOrRecording *sEventOrRecording);
     void ClearRecordings2(void);
     bool CheckStartScrapping(int minimumDistance);
-    bool GetMovieTvID(csEventOrRecording *sEventOrRecording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = NULL) const;
-    bool GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number) const;
-    bool GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number) const;
+    bool GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr) const;
+    bool GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr) const;
     int GetMovieCollectionID(int movieID) const;
     std::string GetEpisodeName(int tvID, int seasonNumber, int episodeNumber) const;
     string GetDescriptionTv(int tvID);

@@ -7,7 +7,7 @@ void removeChars(std::string& str, const char* ignore);
 // Load Channelmap
 //***************************************************************************
 
-int loadChannelmap(vector<sChannelMapEpg> &channelMap) {
+int loadChannelmap(vector<sChannelMapEpg> &channelMap, const vector<std::shared_ptr<iExtEpg>> &extEpgs) {
   std::ifstream cmfile;
   std::string s;
   size_t p;
@@ -100,23 +100,34 @@ int loadChannelmap(vector<sChannelMapEpg> &channelMap) {
       break;
     }
 
-    // read channels separated by commas
     sChannelMapEpg channelMapEpg;
-    channelMapEpg.extid = extid;   // channel ID of external EPG provider
-    channelMapEpg.source = source; // id of external EPG provider
-    channelMapEpg.merge = merge;
-    channelMapEpg.vps = vps;
-
-    for (index = 0, pc = strtok(right, ","); pc; pc = strtok(0, ","), index++)
-    {
-      channelMapEpg.channelID = tChannelID::FromString(pc);  // VDR channel ID
-      if (!channelMapEpg.channelID.Valid() ) {
-        esyslog("tvscraper: ERROR parsing '%s' at line %d, channel %s not valid", path, line, pc);
-      } else {
-        channelMap.push_back(channelMapEpg);
-        count++;
-      }
+// find plugin that can handle source
+    for (auto &extEpg: extEpgs) {
+      if (!extEpg->getSource() ) continue;
+      if (strcmp(extEpg->getSource(), source) != 0) continue;
+      channelMapEpg.extEpg = extEpg;
+      break;
     }
+    if (!channelMapEpg.extEpg) {
+      esyslog("tvscraper: ERROR parsing '%s' at line %d, no plugin for source %s found", path, line, source);
+    } else {
+      channelMapEpg.extid = extid;   // channel ID of external EPG provider
+      channelMapEpg.source = source; // id of external EPG provider
+      channelMapEpg.merge = merge;
+      channelMapEpg.vps = vps;
+
+  // read channels separated by commas
+      for (index = 0, pc = strtok(right, ","); pc; pc = strtok(0, ","), index++)
+      {
+        channelMapEpg.channelID = tChannelID::FromString(pc);  // VDR channel ID
+        if (!channelMapEpg.channelID.Valid() ) {
+          esyslog("tvscraper: ERROR parsing '%s' at line %d, channel %s not valid", path, line, pc);
+        } else {
+          channelMap.push_back(channelMapEpg);
+          count++;
+        }
+      } // for read channels separated by commas
+    } // plugin for source is available
 
     free(right);
     free(source);

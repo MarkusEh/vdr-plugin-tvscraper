@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <fstream>
+#include <dlfcn.h>
 #include "config.h"
 
 using namespace std;
@@ -72,6 +73,43 @@ void cTVScraperConfig::SetBaseDir(const string &dir) {
   }
 }
 
+bool cTVScraperConfig::loadPlugins()
+{
+   DIR* dir;
+   dirent* dp;
+
+   if (!(dir = opendir(PLGDIR)))
+   {
+      esyslog("tvscraper: cTVScraperConfig::loadPlugins cannot open plugin dir %s", PLGDIR);
+      return false;
+   }
+
+   while ((dp = readdir(dir)))
+   {
+      if (strncmp(dp->d_name, "libtvscraper-", 13) == 0 && strstr(dp->d_name, ".so"))
+      {
+         std::string path = concatenate(PLGDIR, "/", dp->d_name);
+         void *handle = dlopen(path.c_str(), RTLD_NOW || RTLD_GLOBAL);
+         const char* error = dlerror();
+
+         if (!error)
+         {
+            iExtEpg *(*creator)(bool debug);
+            *(void**)(&creator) = dlsym(handle, "extEpgPluginCreator");
+            error = dlerror();
+            if (!error) {
+              iExtEpg* plugin = creator(enableDebug);
+              std::shared_ptr<iExtEpg> sp_plugin(plugin);
+              m_extEpgs.push_back(sp_plugin);
+            }
+         }
+         if (error)
+            esyslog("tvscraper: ERROR cTVScraperConfig::loadPlugins file %s, error %s", path.c_str(), error);
+      }
+   }
+   closedir(dir);
+   return true;
+}
 void cTVScraperConfig::Initialize() {
 // we don't lock here. This is called during plugin initialize, and there are no other threads at this point in time
 
@@ -79,8 +117,11 @@ void cTVScraperConfig::Initialize() {
   if (m_HD_Channels.empty() ) {m_HD_Channels = getDefaultHD_Channels(); m_HD_ChannelsModified = false; }
   if (   m_channels.empty() )     m_channels = getDefaultChannels();
   if (m_defaultLanguage == 0) setDefaultLanguage();
+// load plugins from ext. epgs
+  loadPlugins();
+//  m_extEpgs.push_back(std::make_shared<cExtEpgTvsp>());
 // read from /var/lib/vdr/plugins/tvscraper/channelmap.conf
-  loadChannelmap(m_channelMap);
+  loadChannelmap(m_channelMap, m_extEpgs);
 }
 void cTVScraperConfig::SetAutoTimersPath(const string &option) {
   m_autoTimersPathSet = true;
@@ -192,15 +233,18 @@ void cTVScraperConfig::setDefaultLanguage() {
   else m_defaultLanguage = li;
   esyslog("tvscraper: set default language to %s", m_languages.find(m_defaultLanguage)->getNames().c_str() );
 }
-const sChannelMapEpg *cTVScraperConfig::GetChannelMapEpg(const tChannelID &channelID) const {
+std::shared_ptr<iExtEpgForChannel> cTVScraperConfig::GetExtEpgIf(const tChannelID &channelID) const {
   vector<sChannelMapEpg>::const_iterator channelMapEpg_it = std::lower_bound(m_channelMap.begin(), m_channelMap.end(), channelID,
      [](const sChannelMapEpg &cm, const tChannelID &c)
             {
                 return cm.channelID < c;
             });
-  if (channelMapEpg_it == m_channelMap.end() ) return NULL;
-  if (channelMapEpg_it->channelID == channelID) return &(*channelMapEpg_it);
-  return NULL;
+  std::shared_ptr<iExtEpgForChannel> extEpg;
+  if (channelMapEpg_it == m_channelMap.end() ) return extEpg;
+  if (!(channelMapEpg_it->channelID == channelID)) return extEpg;
+  if (channelMapEpg_it->extEpg)
+    extEpg = channelMapEpg_it->extEpg->getHandlerForChannel(channelMapEpg_it->extid);
+  return extEpg;
 }
 
 set<tChannelID> cTVScraperConfig::GetScrapeAndEpgChannels() const {

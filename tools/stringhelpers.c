@@ -103,8 +103,6 @@ char result[result##concatenate_lvls + 1]; \
 SELECT( CONCATENATE_END, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
 *result##concatenate_buf = 0;
 
-using namespace std;
-
 // UTF8 string utilities ****************
 int AppendUtfCodepoint(char *&target, wint_t codepoint){
   if (codepoint <= 0x7F) {
@@ -259,6 +257,35 @@ bool stringEqual(const char *s1, const char *s2) {
   return false;
 }
 
+// some performance improvemnt, to get string presentation for channel ===========
+// you can also use channelID.ToString()
+
+void sourceToBuf(char *buffer, int Code) {
+//char buffer[16];
+  int st_Mask = 0xFF000000;
+  char *q = buffer;
+  *q++ = (Code & st_Mask) >> 24;
+  if (int n = cSource::Position(Code)) {
+     q += snprintf(q, 14, "%u.%u", abs(n) / 10, abs(n) % 10); // can't simply use "%g" here since the silly 'locale' messes up the decimal point
+     *q++ = (n < 0) ? 'W' : 'E';
+     }
+  *q = 0;
+}
+void channelToBuf(char *buffer, const tChannelID &channelID) {
+// char buffer[256];
+  char buffer_src[16];
+  sourceToBuf(buffer_src, channelID.Source());
+  snprintf(buffer, 256, channelID.Rid() ? "%s-%d-%d-%d-%d" : "%s-%d-%d-%d",
+     buffer_src, channelID.Nid(), channelID.Tid(), channelID.Sid(), channelID.Rid() );
+}
+std::string channelToString(const tChannelID &channelID) {
+  char buffer[256];
+  channelToBuf(buffer, channelID);
+  return buffer;
+}
+
+// =========== concatenate ===========================================
+
 std::string concatenate(const char *s1, const char *s2) {
   if (!s1 && !s2) return "";
   if (!s1) return s2;
@@ -323,41 +350,63 @@ namespace concat {
   inline void addChars(char *b, int l, const char *s) {
     memcpy(b, s, l);
   }
-// methods to append to std::strings
-  inline void concatenate_intU(std::string &str, unsigned int i) {
-    char buf[21]; // unsingen int 64: max. 20. (18446744073709551615) signed int64: max. 19 (+ sign)
+
+// methods to append to std::strings ========================
+
+  template<class T>
+  inline void concatenate_intU(std::string &str, T i) {
+// intended for unsigned integer types T. i must be >= 0 !!!! This is not checked
+    char buf[21]; // unsigned int 64: max. 20. (18446744073709551615) signed int64: max. 19 (+ sign)
     char *bufferEnd = buf+20;
     *bufferEnd = 0;
     if (i < 10) *(--bufferEnd) = '0' + i;
     else for (; i; i /= 10) *(--bufferEnd) = '0' + (i%10);
     str.append(bufferEnd);
   }
-  inline void concatenate_int(std::string &str, unsigned int i) {
-    concatenate_intU(str, i);
-  }
-  inline void concatenate_int(std::string &str, int i) {
-    if (i >= 0) concatenate_intU(str, i);
-    else {
-      str.append("-");
-      concatenate_intU(str, -1*i);
-    }
-  }
+}
+inline void stringAppend(std::string &str, unsigned int i) { concat::concatenate_intU(str, i); }
+inline void stringAppend(std::string &str, unsigned long int i) { concat::concatenate_intU(str, i); }
+inline void stringAppend(std::string &str, unsigned long long  int i) { concat::concatenate_intU(str, i); }
+inline void stringAppend(std::string &str, int i) {
+  if (i >= 0) concat::concatenate_intU(str, i);
+  else { str.append("-"); concat::concatenate_intU(str, -1*i); }
+}
+inline void stringAppend(std::string &str, long int i) {
+  if (i >= 0) concat::concatenate_intU(str, i);
+  else { str.append("-"); concat::concatenate_intU(str, -1*i); }
+}
+inline void stringAppend(std::string &str, long long int i) {
+  if (i >= 0) concat::concatenate_intU(str, i);
+  else { str.append("-"); concat::concatenate_intU(str, -1*i); }
+}
 // strings
-  inline void concatenate_int(std::string &str, const char *s) {
-    str.append(s);
-  }
-  inline void concatenate_int(std::string &str, const std::string &s) {
-    str.append(s);
-  }
-  inline void concatenate_int(std::string &str, const std::string_view &s) {
-    str.append(s);
-  }
+inline void stringAppend(std::string &str, const char *s) {
+  str.append(s);
+}
+inline void stringAppend(std::string &str, const std::string &s) {
+  str.append(s);
+}
+inline void stringAppend(std::string &str, const std::string_view &s) {
+  str.append(s);
+}
+inline void stringAppend(std::string &str, const tChannelID &channelID) {
+  char buffer[256];
+  channelToBuf(buffer, channelID);
+  str.append(buffer);
+}
 
-  template<typename T, typename... Args>
-  void concatenate_int(std::string &str, const T &n, const Args&... args) {
-    concatenate_int(str, n);
-    concatenate_int(str, args...);
-  }
+template<typename T, typename... Args>
+void stringAppend(std::string &str, const T &n, const Args&... args) {
+  stringAppend(str, n);
+  stringAppend(str, args...);
+}
+template<typename... Args>
+std::string concatenate(const Args&... args) {
+  std::string result;
+  result.reserve(200);
+//stringAppend(result, std::forward<Args>(args)...);
+  stringAppend(result, args...);
+  return result;
 }
 class cConcatenate
 {
@@ -368,26 +417,14 @@ class cConcatenate
     cConcatenate & operator<<(const char *s) { m_data.append(s); return *this; }
     cConcatenate & operator<<(const std::string_view &sv) { m_data.append(sv); return *this; }
     cConcatenate & operator<<(const std::string &st) { m_data.append(st); return *this; }
-    cConcatenate & operator<<(int i) {
-      concat::concatenate_int(m_data, i);
-      return *this;
-    }
+    cConcatenate & operator<<(int i) { stringAppend(m_data, i); return *this; }
     std::string str() { return std::move(m_data); }
   private:
     std::string m_data;
 };
 
-template<typename... Args>
-std::string concatenate(const Args&... args) {
-  std::string result;
-  result.reserve(200);
-//  concat::concatenate_int(result, std::forward<Args>(args)...);
-  concat::concatenate_int(result, args...);
-  return result;
-}
-
 // whitespace ================================================================
-void StringRemoveTrailingWhitespace(string &str) {
+void StringRemoveTrailingWhitespace(std::string &str) {
   std::string whitespaces (" \t\f\v\n\r");
 
   std::size_t found = str.find_last_not_of(whitespaces);
@@ -465,6 +502,7 @@ bool splitString(std::string_view str, std::string_view delim, size_t minLengh, 
 }
 
 bool splitString(std::string_view str, char delimiter, size_t minLengh, std::string_view &first, std::string_view &second) {
+  using namespace std::literals::string_view_literals;
   if (delimiter == '-') return splitString(str, " - "sv, minLengh, first, second);
   if (delimiter == ':') return splitString(str, ": "sv, minLengh, first, second);
   std::string delim(1, delimiter);
@@ -507,7 +545,7 @@ int StringRemoveLastPartWithP(const char *str, int len) {
   return -1;
 }
 
-bool StringRemoveLastPartWithP(string &str) {
+bool StringRemoveLastPartWithP(std::string &str) {
 // remove part with (...)
   int len = StringRemoveLastPartWithP(str.c_str(), str.length() );
   if (len < 0) return false;
@@ -680,32 +718,6 @@ std::string vectorToString(const std::vector<std::string> &vec) {
   return result;
 }
 
-void sourceToBuf(char *buffer, int Code) {
-//char buffer[16];
-  int st_Mask = 0xFF000000;
-  char *q = buffer;
-  *q++ = (Code & st_Mask) >> 24;
-  if (int n = cSource::Position(Code)) {
-     q += snprintf(q, 14, "%u.%u", abs(n) / 10, abs(n) % 10); // can't simply use "%g" here since the silly 'locale' messes up the decimal point
-     *q++ = (n < 0) ? 'W' : 'E';
-     }
-  *q = 0;
-}
-
-void channelToBuf(char *buffer, const tChannelID &channelID) {
-// char buffer[256];
-  char buffer_src[16];
-  sourceToBuf(buffer_src, channelID.Source());
-  snprintf(buffer, 256, channelID.Rid() ? "%s-%d-%d-%d-%d" : "%s-%d-%d-%d",
-     buffer_src, channelID.Nid(), channelID.Tid(), channelID.Sid(), channelID.Rid() );
-}
-
-std::string channelToString(const tChannelID &channelID) {
-  char buffer[256];
-  channelToBuf(buffer, channelID);
-  return buffer;
-}
-
 std::string objToString(const int &i) { return std::to_string(i); }
 std::string objToString(const std::string &i) { return i; }
 std::string objToString(const tChannelID &i) { return channelToString(i); }
@@ -729,11 +741,11 @@ template<> int stringToObj<int>(const char *s, size_t len) { return atoi(s); }
 template<> std::string stringToObj<std::string>(const char *s, size_t len) { return std::string(s, len); }
 template<> std::string_view stringToObj<std::string_view>(const char *s, size_t len) { return std::string_view(s, len); }
 template<> tChannelID stringToObj<tChannelID>(const char *s, size_t len) {
-  return tChannelID::FromString(string(s, len).c_str());
+  return tChannelID::FromString(std::string(s, len).c_str());
 }
 
-template<class T> void insertObject(vector<T> &cont, const T &obj) { cont.push_back(obj); }
-template<class T> void insertObject(set<T> &cont, const T &obj) { cont.insert(obj); }
+template<class T> void insertObject(std::vector<T> &cont, const T &obj) { cont.push_back(obj); }
+template<class T> void insertObject(std::set<T> &cont, const T &obj) { cont.insert(obj); }
 
 template<class T, class C=std::set<T>>
 C getSetFromString(const char *str, char delim = ';') {
@@ -839,8 +851,8 @@ const char* removePrefix(const char *s, const char *prefix) {
 
 class cSplit {
   public:
-    cSplit(std::string_view sv, char delim): m_sv(sv), m_delim(delim), m_end(string_view(), m_delim) {}
-    cSplit(const char *s, char delim): m_sv(charPointerToStringView(s)), m_delim(delim), m_end(string_view(), m_delim) {}
+    cSplit(std::string_view sv, char delim): m_sv(sv), m_delim(delim), m_end(std::string_view(), m_delim) {}
+    cSplit(const char *s, char delim): m_sv(charPointerToStringView(s)), m_delim(delim), m_end(std::string_view(), m_delim) {}
     cSplit(const cSplit&) = delete;
     cSplit &operator= (const cSplit &) = delete;
     class iterator: public std::iterator<std::forward_iterator_tag, std::string_view, int, const std::string_view*, std::string_view> {

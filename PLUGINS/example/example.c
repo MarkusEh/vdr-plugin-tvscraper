@@ -1,3 +1,11 @@
+#include "example.h"
+#include "../../tools/jsonHelpers.c"
+#include "../../tools/curlfuncs.h"
+#include "../../tools/stringhelpers.c"
+#include "../../tools/fuzzy.c"
+#include "../../tools/largeString.cpp"
+#include "../../tools/curlfuncs.cpp"
+
 // cTvspEvent ***********************************************
 
 cTvspEvent::cTvspEvent(const rapidjson::Value& tvspEvent, rapidjson::SizeType line):
@@ -9,17 +17,16 @@ cTvspEvent::cTvspEvent(const rapidjson::Value& tvspEvent, rapidjson::SizeType li
 
 // cTvspEpgOneDay ***********************************************
 
-cTvspEpgOneDay::cTvspEpgOneDay(const sChannelMapEpg *channelMapEpg, time_t startTime):
-  m_channelMapEpg(channelMapEpg),
+cTvspEpgOneDay::cTvspEpgOneDay(const std::string &extChannelId, time_t startTime):
   m_json(std::make_shared<cLargeString>("cTvspEpgOneDay", 20000)),
   m_document(std::make_shared<rapidjson::Document>() ),
   m_events(std::make_shared<std::vector<cTvspEvent>>() )
   {
-    initJson(startTime);
+    initJson(extChannelId, startTime);
   }
 
 
-void cTvspEpgOneDay::initJson(time_t startTime) {
+void cTvspEpgOneDay::initJson(const std::string &extChannelId, time_t startTime) {
   const int hourDayBegin = 5; // the day beginns at 5:00 (from tvsp point of view ...)
   struct tm tm_r;
   struct tm *time = localtime_r(&startTime, &tm_r);
@@ -30,12 +37,12 @@ void cTvspEpgOneDay::initJson(time_t startTime) {
   }
   std::stringstream date;
   date << "http://live.tvspielfilm.de/static/broadcast/list/";
-  date << m_channelMapEpg->extid << "/";
+  date << extChannelId << "/";
   date << (time->tm_year + 1900) << '-'
   << std::setfill('0') << std::setw(2) << (time->tm_mon + 1)
   << '-' << std::setfill('0') << std::setw(2) << time->tm_mday;
   std::string url = date.str();
-// if (m_channelMapEpg->extid[0] == 'A') esyslog("tvscraper epg about to download %s", url.c_str() );
+// if (extChannelId[0] == 'A') esyslog("tvscraper epg about to download %s", url.c_str() );
 // calculate m_start: today 5 am
   time->tm_sec = 0;
   time->tm_min = 0;
@@ -70,7 +77,7 @@ void cTvspEpgOneDay::initJson(time_t startTime) {
   if (m_events->size() != 0) std::sort(m_events->begin(), m_events->end());
 }
 
-int cTvspEpgOneDay::eventMatch(vector<cTvspEvent>::const_iterator event_it, const cEvent *event) const {
+int cTvspEpgOneDay::eventMatch(std::vector<cTvspEvent>::const_iterator event_it, const cEvent *event) const {
   int deviationStart = std::abs(event_it->m_startTime - event->StartTime() );
   int deviationEnd   = std::abs(event_it->m_endTime - event->EndTime() );
   int deviation = deviationStart + deviationEnd;
@@ -84,7 +91,7 @@ int cTvspEpgOneDay::eventMatch(vector<cTvspEvent>::const_iterator event_it, cons
   if (sd > 600) return c_never_accepted_deviation;
   return c_always_accepted_deviation + (deviation - c_always_accepted_deviation) * sd / 600;
 }
-bool cTvspEpgOneDay::findTvspEvent(vector<cTvspEvent>::const_iterator &event_it, const cEvent *event) const {
+bool cTvspEpgOneDay::findTvspEvent(std::vector<cTvspEvent>::const_iterator &event_it, const cEvent *event) const {
 // return true if event was found
   if (m_events->size() == 0) return false;
 //  esyslog("tvscraper: cTvspEpgOneDay::findTvspEvent, event->StartTime() %d", (int)event->StartTime() );
@@ -104,13 +111,13 @@ bool cTvspEpgOneDay::findTvspEvent(vector<cTvspEvent>::const_iterator &event_it,
   return dl < c_never_accepted_deviation;
 }
 
-bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
+bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgImages) {
 // return true if the event is in "my" time frame (one day )
   if (event->StartTime() <  m_start) return false;
   if (event->StartTime() >= m_end) return false;
 // note: from here on, we always return true, because the event is in our time frame
 
-  vector<cTvspEvent>::const_iterator event_it;
+  std::vector<cTvspEvent>::const_iterator event_it;
   if (!findTvspEvent(event_it, event)) {
 //    esyslog("tvscraper: cTvspEpgOneDay::enhanceEvent, not found, event->StartTime() %d", (int)event->StartTime() );
     return true;
@@ -126,7 +133,7 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
 // Fazit / conclusion
   if (getValue(tvspEvent_j, "conclusion", s) ) { appendRemoveControlCharacters(descr, s); descr += "\n"; }
 // block: Genre, Kategorie, Land, Jahr
-  if (getValue(tvspEvent_j, "genre", s) ) { descr += "Genre: "; descr += s; descr += "\n"; }
+  if (getValue(tvspEvent_j, "genre", s) ) stringAppend(descr, "Genre: ", s, "\n");
   if (getValue(tvspEvent_j, "sart_id", s) ) {
     if (strcmp(s, "SP") == 0) descr += "Kategorie: Spielfilm\n";
     if (strcmp(s, "SE") == 0) descr += "Kategorie: Serie\n";
@@ -134,10 +141,10 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
     if (strcmp(s, "KIN") == 0) descr += "Kategorie: Kinder\n";
     if (strcmp(s, "U") == 0) descr += "Kategorie: Show\n";
   }
-  if (getValue(tvspEvent_j, "country", s) ) { descr += "Land: "; descr += s; descr += "\n"; }
-  if (getValue(tvspEvent_j, "year", i) ) { descr += "Jahr: "; descr += to_string(i); descr += "\n"; }
-  if (getValue(tvspEvent_j, "originalTitle", s) ) { descr += "Originaltitel: "; descr += s; descr += "\n"; }
-  if (getValue(tvspEvent_j, "fsk", i) ) { descr += "FSK: "; descr += to_string(i); descr += "\n"; }
+  if (getValue(tvspEvent_j, "country", s) ) stringAppend(descr, "Land: ", s, "\n");
+  if (getValue(tvspEvent_j, "year", i) ) stringAppend(descr, "Jahr: ", i, "\n");
+  if (getValue(tvspEvent_j, "originalTitle", s) ) stringAppend(descr, "Originaltitel: ", s, "\n");
+  if (getValue(tvspEvent_j, "fsk", i) ) stringAppend(descr, "FSK: ", i, "\n");
   descr += "\n";
 
 // serie: episode, ...
@@ -146,8 +153,8 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
     descr += "Episode: ";
     appendRemoveControlCharacters(descr, s);
     descr += "\n";
-    if (getValue(tvspEvent_j, "seasonNumber", s) ) { descr += "Staffel tvsp: "; descr += s; descr += "\n"; }
-    if (getValue(tvspEvent_j, "episodeNumber", s) ) { descr += "Folge tvsp: "; descr += s; descr += "\n"; }
+    if (getValue(tvspEvent_j, "seasonNumber", s) ) stringAppend(descr, "Staffel tvsp: ", s, "\n");
+    if (getValue(tvspEvent_j, "episodeNumber", s) ) stringAppend(descr, "Folge tvsp: ", s, "\n");
     descr += "\n";
   }
 // rating
@@ -191,7 +198,7 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
     }
   }
   if (!first) descr += "\n";
-  if (getValue(tvspEvent_j, "director", s) ) { descr += "\nRegisseur: "; descr += s; descr += "\n"; }
+  if (getValue(tvspEvent_j, "director", s) ) stringAppend(descr, "\nRegisseur: ", s, "\n");
   descr += "\nQuelle: tvsp";
   event->SetDescription(descr.c_str());
   if (!event->ShortText() || !*event->ShortText() ) {
@@ -202,7 +209,7 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
       std::string shortText;
       if (getValue(tvspEvent_j, "genre", s) ) shortText += s;
       if (getValue(tvspEvent_j, "country", s) ) { if (!shortText.empty()) shortText += " / "; shortText += s; }
-      if (getValue(tvspEvent_j, "year", i) )    { if (!shortText.empty()) shortText += " / "; shortText += to_string(i); }
+      if (getValue(tvspEvent_j, "year", i) )    { if (!shortText.empty()) shortText += " / "; stringAppend(shortText, i); }
       event->SetShortText(shortText.c_str());
     }
   }
@@ -212,8 +219,25 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event) {
   if (images_it != tvspEvent_j.MemberEnd() && images_it->value.IsArray() && images_it->value.Size() > 0) {
 // there is an images array. Download first image
     if (getValue(images_it->value[0], "size4", s) ) {
-      Download(s, getEpgImagePath(event, true));
+      cTvMedia tvMedia;
+      tvMedia.width = 952;
+      tvMedia.height = 714;
+      tvMedia.path = s; // note: s is the URL
+      extEpgImages.push_back(tvMedia);
+// size1: 130x101
+// size2: 320x250
+// size3: 476x357
+// size4: 952x714
     }
   }
   return true;
+}
+
+
+//***************************************************************************
+
+extern "C" iExtEpg* extEpgPluginCreator(bool debug) {
+// debug is currently not used
+// debug indicates to write more messages to syslog
+  return new cExtEpgTvsp();
 }

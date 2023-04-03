@@ -34,7 +34,7 @@ inline void InitCurlLibraryIfNeeded()
     curl_global_init(CURL_GLOBAL_ALL);
     curlfuncs::curl = curl_easy_init();
     if (!curlfuncs::curl)
-      throw string("Could not create new curl instance");
+      throw std::string("Could not create new curl instance");
     curl_easy_setopt(curlfuncs::curl, CURLOPT_NOPROGRESS, 1L);      // Do not show progress
     curl_easy_setopt(curlfuncs::curl, CURLOPT_TIMEOUT, 60L);       // Timeout 60 Secs. This is required. Otherwise, the thread might hang forever, if router is reset (once a day ...)
     curl_easy_setopt(curlfuncs::curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -56,7 +56,7 @@ bool CurlGetUrl_int(const char *url, void *sOutput, struct curl_slist *headers, 
   curl_easy_setopt(curlfuncs::curl, CURLOPT_ACCEPT_ENCODING, "");
   return curl_easy_perform(curlfuncs::curl) == 0;
 }
-bool CurlGetUrl_int(const char *url, string &sOutput, struct curl_slist *headers) {
+bool CurlGetUrl_int(const char *url, std::string &sOutput, struct curl_slist *headers) {
   return CurlGetUrl_int(url, &sOutput, headers, curl_collect_data_string);
 }
 bool CurlGetUrl_int(const char *url, cLargeString &sOutput, struct curl_slist *headers) {
@@ -109,7 +109,7 @@ int CurlGetUrlFile(const char *url, const char *filename)
   return nRet;
 }
 
-bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, string &error)
+bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, std::string &error)
 {
   CURLcode res;
   err_code = 0;
@@ -137,7 +137,7 @@ bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, strin
   return false;
 }
 
-bool CurlPostUrl(const char *url, const string &sPost, string &sOutput, struct curl_slist *headers) {
+bool CurlPostUrl(const char *url, const std::string &sPost, std::string &sOutput, struct curl_slist *headers) {
   InitCurlLibraryIfNeeded();
   curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_URL, url);
@@ -174,7 +174,7 @@ std::string CurlEscape(const char *url) {
   curl_free(output);
   return result;
 }
-std::string CurlEscape(string_view url) {
+std::string CurlEscape(std::string_view url) {
   InitCurlLibraryIfNeeded();
   char *output = curl_easy_escape(curlfuncs::curl, url.data(), url.length());
   std::string result(output);

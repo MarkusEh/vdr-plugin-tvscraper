@@ -134,6 +134,8 @@ bool cTVScraperWorker::ScrapEPG(void) {
 // note: as a result, elso information from external EPG providers is only collected for these channels
   map<tChannelID, set<tEventID>*> currentEvents;
   set<tChannelID> channels;
+  vector<cTvMedia> extEpgImages;
+  string extEpgImage;
   int msg_cnt = 0;
   int i_channel_num = 0;
   for (const tChannelID &channelID: config.GetScrapeAndEpgChannels() ) { // GetScrapeAndEpgChannels creates a copy, thread save
@@ -141,7 +143,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
       esyslog("tvscraper: ERROR: don't scrape more than 1000 channels");
       break;
     }
-    cTvspEpg tvspEpg(config.GetChannelMapEpg(channelID));
+    std::shared_ptr<iExtEpgForChannel> extEpg = config.GetExtEpgIf(channelID);
     bool channelActive = config.ChannelActive(channelID);
 
     map<tChannelID, set<tEventID>*>::iterator currentEventsCurrentChannelIT = currentEvents.find(channelID);
@@ -164,6 +166,9 @@ bool cTVScraperWorker::ScrapEPG(void) {
       if (lastEventsCurrentChannelIT == lastEvents.end() ||
           lastEventsCurrentChannelIT->second->find(eventID) == lastEventsCurrentChannelIT->second->end() ) {
 // this event was not yet scraped, scrape it now
+//  vector<cTvMedia> extEpgImages;
+        extEpgImages.clear();
+        extEpgImage.clear();
         cMovieOrTv *movieOrTv = NULL;
         { // start locks
 #if VDRVERSNUM >= 20301
@@ -171,7 +176,10 @@ bool cTVScraperWorker::ScrapEPG(void) {
 #endif
           cEvent *event = getEvent(eventID, channelID);
           if (!event) continue;
-					tvspEpg.enhanceEvent(event);
+					if (extEpg) {
+            extEpg->enhanceEvent(event, extEpgImages);
+            if (!extEpgImages.empty() ) extEpgImage = getEpgImagePath(event, true);
+          }
 					if (!channelActive) continue;
           newEvent = true;
           if (!newEventSchedule) {
@@ -182,6 +190,9 @@ bool cTVScraperWorker::ScrapEPG(void) {
           cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);
           movieOrTv = SearchEventOrRec.Scrape();
         } // end of locks
+        if (!extEpgImages.empty() ) {
+          Download(extEpgImages[0].path, extEpgImage);
+        }
         if (movieOrTv) {
           movieOrTv->DownloadImages(moviedbScraper, tvdbScraper, "");
           delete movieOrTv;
@@ -335,14 +346,14 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         continue;
       }
       const cEvent *event = (recording->Info())?recording->Info()->GetEvent():NULL;
-      epgImagePath = event?getEpgImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID(), false):"";
+      epgImagePath = event?getExistingEpgImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID()):"";
       recordingImagePath = getRecordingImagePath(recording);
 
       csRecording sRecording(recording);
       int r = db->SetRecording(&sRecording);
       if (r == 2) {
         newRecData = true;
-        movieOrTv = cMovieOrTv::getMovieOrTv(db, &sRecording);
+        movieOrTv = cMovieOrTv::getMovieOrTv(db, recording);
         if (movieOrTv) {
           movieOrTv->copyImagesToRecordingFolder(recording->FileName() );
           delete movieOrTv;

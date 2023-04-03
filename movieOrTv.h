@@ -44,9 +44,9 @@ public:
 // static methods
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, int id, ecMovieOrTvType type);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const sMovieOrTv &movieOrTv);
-  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, csEventOrRecording *sEventOrRecording, int *runtime=NULL);
-  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event);
-  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cRecording *recording);
+  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event, const cRecording *recording, int *runtime=nullptr);
+  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event, int *runtime=nullptr);
+  static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cRecording *recording, int *runtime=nullptr);
   static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang);
   static void CleanupTv_media(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const cTVScraperDB *db);

@@ -2,40 +2,7 @@
 # Makefile for a Video Disk Recorder plugin
 #
 # $Id$
-
-# The official name of this plugin.
-# This name will be used in the '-P...' option of VDR to load the plugin.
-# By default the main source file also carries this name.
-
-PLUGIN = tvscraper
-
-### The version number of this plugin (taken from the main source file):
-
-VERSION = $(shell grep 'static const char \*VERSION *=' $(PLUGIN).c | awk '{ print $$6 }' | sed -e 's/[";]//g')
-
-### The directory environment:
-
-# Use package data if installed...otherwise assume we're under the VDR source directory:
-PKGCFG = $(if $(VDRDIR),$(shell pkg-config --variable=$(1) $(VDRDIR)/vdr.pc),$(shell pkg-config --variable=$(1) vdr || pkg-config --variable=$(1) ../../../vdr.pc))
-LIBDIR = $(call PKGCFG,libdir)
-LOCDIR = $(call PKGCFG,locdir)
-PLGCFG = $(call PKGCFG,plgcfg)
-PLGCONFDIR = $(call PKGCFG,configdir)/plugins/$(PLUGIN)
-#
-TMPDIR ?= /tmp
-
-### The compiler options:
-
-export CFLAGS   = $(call PKGCFG,cflags)
-export CXXFLAGS = $(call PKGCFG,cxxflags) -std=c++17
-
-### The version number of VDR's plugin API:
-
-APIVERSION = $(call PKGCFG,apiversion)
-
-### Allow user defined options to overwrite defaults:
-
--include $(PLGCFG)
+include Make.config
 
 ### The name of the distribution archive:
 
@@ -68,7 +35,7 @@ all: $(SOFILE) i18n
 ### Implicit rules:
 
 %.o: %.c
-	$(CXX) $(CXXFLAGS) -c $(DEFINES) $(INCLUDES) -o $@ $<
+	$(CXX) $(CXXFLAGS) -rdynamic -c $(DEFINES) $(INCLUDES) -o $@ $<
 
 ### Dependencies:
 
@@ -108,7 +75,11 @@ install-i18n: $(I18Nmsgs)
 ### Targets:
 
 $(SOFILE): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared $(OBJS) $(LIBS) -o $@
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -rdynamic -shared $(OBJS) $(LIBS) -o $@
+
+plugins:
+	@find $(PLGSRCDIR) -maxdepth 1 -type d -name "[a-z0-9]*" -exec \
+      $(MAKE) \-\-no-print-directory -C {} \;
 
 install-lib: $(SOFILE)
 	install -D $^ $(DESTDIR)$(LIBDIR)/$^.$(APIVERSION)
@@ -116,6 +87,14 @@ install-lib: $(SOFILE)
 install-conf:
 	@mkdir -p $(DESTDIR)$(PLGCONFDIR)
 	@if [ ! -f $(DESTDIR)$(PLGCONFDIR)/override.conf ]; then cp conf/override.conf $(DESTDIR)$(PLGCONFDIR); fi;
+
+install-plugins: plugins
+	mkdir -p "$(_PLGDEST)"
+	for i in ${PLGSRCDIR}/*/Makefile; do\
+      grep -q "PLUGIN.*=" "$$i" || continue;\
+      i=`dirname $$i`;\
+      (cd "$$i" && $(MAKE) install);\
+  done;
 
 install: install-lib install-i18n install-conf
 

@@ -627,30 +627,29 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const sMovieOrTv &m
   return NULL;
 }
 
-cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, csEventOrRecording *sEventOrRecording, int *runtime) {
-  if (sEventOrRecording == NULL) return NULL;
-  int movie_tv_id, season_number, episode_number;
-  if(!db->GetMovieTvID(sEventOrRecording, movie_tv_id, season_number, episode_number, runtime)) return NULL;
-
-  if(season_number == -100) return new cMovieMoviedb(db, movie_tv_id);
-  if ( movie_tv_id > 0) return new cTvMoviedb(db, movie_tv_id, season_number, episode_number);
-        else            return new cTvTvdb(db, -1*movie_tv_id, season_number, episode_number);
+cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cEvent *event, const cRecording *recording, int *runtime) {
+  if (event && recording) {
+    esyslog("tvscraper: ERROR cMovieOrTv::getMovieOrTv, event && recording are provided. Please set one of these parameters to NULL");
+    return nullptr;
+  }
+  if (event) return getMovieOrTv(db, event, runtime);
+  else return getMovieOrTv(db, recording, runtime);
 }
 
-cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cEvent *event) {
+cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cEvent *event, int *runtime) {
   if (!event) return NULL;
   int movie_tv_id, season_number, episode_number;
-  if(!db->GetMovieTvID(event, movie_tv_id, season_number, episode_number)) return NULL;
+  if(!db->GetMovieTvID(event, movie_tv_id, season_number, episode_number, runtime)) return NULL;
 
   if(season_number == -100) return new cMovieMoviedb(db, movie_tv_id);
   if ( movie_tv_id > 0) return new cTvMoviedb(db, movie_tv_id, season_number, episode_number);
         else            return new cTvTvdb(db, -1*movie_tv_id, season_number, episode_number);
 }
 
-cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *recording) {
+cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *recording, int *runtime) {
   if (!recording) return NULL;
   int movie_tv_id, season_number, episode_number;
-  if(!db->GetMovieTvID(recording, movie_tv_id, season_number, episode_number)) return NULL;
+  if(!db->GetMovieTvID(recording, movie_tv_id, season_number, episode_number, runtime)) return NULL;
 
   if(season_number == -100) return new cMovieMoviedb(db, movie_tv_id);
   if ( movie_tv_id > 0) return new cTvMoviedb(db, movie_tv_id, season_number, episode_number);

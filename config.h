@@ -8,6 +8,7 @@
 #include <vdr/thread.h>
 
 using namespace std;
+class iExtEpg;
 
 enum scrapType {
     scrapSeries,
@@ -42,6 +43,7 @@ struct sChannelMapEpg {
       tChannelID channelID; // VDR channel ID
       int vps;
       int merge;
+      std::shared_ptr<iExtEpg> extEpg;
 };
 
 inline bool operator< (const tChannelID &c1, const tChannelID &c2) {
@@ -79,6 +81,7 @@ class cTVScraperConfig {
         bool m_autoTimersPathSet = false; // if true, all autoTimers will use m_autoTimersPath
         std::string m_autoTimersPath;
         string baseDir;       // /var/cache/vdr/plugins/tvscraper/
+        vector<std::shared_ptr<iExtEpg>> m_extEpgs;
         vector<sChannelMapEpg> m_channelMap;
 // "calculated" parameters, from command line paramters
         int baseDirLen = 0;
@@ -171,7 +174,12 @@ class cTVScraperConfig {
         const cLanguage *GetLanguage(const tChannelID &channelID) const;  // this will ALLWAYS return a valid pointer to cLanguage
         bool isDefaultLanguage(const cLanguage *l) const { if (!l) return true; cTVScraperConfigLock ll; bool r = l->m_id == m_defaultLanguage; return r; }
         int GetLanguage_n(const tChannelID &channelID) const;
-        const sChannelMapEpg *GetChannelMapEpg(const tChannelID &channelID) const;
+        bool loadPlugins();
+        std::shared_ptr<iExtEpgForChannel> GetExtEpgIf(const tChannelID &channelID) const;
+        bool myDescription(const char *description) {
+          for (auto &extEpg: m_extEpgs) if (extEpg->myDescription(description)) return true;
+          return false;
+        }
 };
 
 #endif //__TVSCRAPER_CONFIG_H
