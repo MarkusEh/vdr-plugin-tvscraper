@@ -122,6 +122,22 @@ int getBool(const rapidjson::Value &json, const char *tag, bool *b=NULL) {
   return res->value.GetBool()?1:0;
 }
 
+class cJsonArrayIterator {
+  public:
+    cJsonArrayIterator(const rapidjson::Value &json, const char *tag) {
+      m_array = nullptr;
+      rapidjson::Value::ConstMemberIterator res = json.FindMember(tag);
+      if (res == json.MemberEnd() ) return;
+      if (!res->value.IsArray() ) return;
+      m_array = &res->value;
+    }
+    rapidjson::Value::ConstValueIterator begin() { return m_array?m_array->Begin():&m_dummy; }
+    rapidjson::Value::ConstValueIterator end() { return m_array?m_array->End():&m_dummy; }
+  private:
+    const rapidjson::Value* m_array;
+    const rapidjson::Value m_dummy;
+};
+
 cLargeString jsonReadFile(rapidjson::Document &document, const char *filename) {
 // if file does not exist: return 0, and an empty (valid!) document
 // if file does     exist: return 0, read the file and return document with parsed content

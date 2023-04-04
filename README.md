@@ -40,6 +40,10 @@ Additional documentation is available in the
 [wiki](https://github.com/MarkusEh/vdr-plugin-tvscraper/wiki)
 and it's sub-pages.
 
+It is also possible to enhance the EPG provided by stations with information
+from external EPG providers.
+
+
 Requirements
 ------------
 
@@ -55,7 +59,6 @@ Note: if your version of GCC does not support -std=c++17, you can use -std=c++1z
     - https://stackoverflow.com/questions/60336940/g-error-unrecognized-std-c17-what-is-g-version-and-how-to-install#60340063
     - https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517
     - https://www.vdr-portal.de/forum/index.php?thread/135453-kann-tvscraper-auf-opensuse-leap-15-4-nicht-%C3%BCbersetzen/&postID=1355981#post1355981
-
 
 - If you use TVGuide: Version 1.3.6+ is required
 - If you use SkinNopacity: Version 1.1.12+ is required
@@ -119,24 +122,33 @@ To ensure the complete VDR functionality relying on EIT (including VPS),
 another approach can be used: Leave VDR as is in almost all aspects,
 and only replace the description of the EPG events with infomation
 from an external EPG provider.
-This is implemented as proof of concept in extEpg.c
+For this, tvscraper has a plugin interface. These plugins can
+add the description for events, from external EPG providers.
 
-To try it out,
-- Note: This is only a proof of concept and not intended for productive use.
-For this feature, only information which is publicly available
-on the internet is used.
-Make sure to use this feature only if this is allowed by the laws and
-regulations applicable to you.
+To enable this feature:
 - Disable all other plugins providing external epg, like vdr-plugin-epg2vdr.
 - Copy the channelmap.conf file in the format
 defined by [epgd](https://github.com/horchi/vdr-epg-daemon) to \<PLGCFGDIR\>
 - Note: even if the format of channelmap.conf is identical, this does not
 mean that all [epgd](https://github.com/horchi/vdr-epg-daemon) features
-are available. For example, this proof of concept is only available
-for tvsp. All lines in channelmap.conf not starting with "tvsp:" are ignored.
+are available.
+- Install one or more plugins for external EPG providers (see below).
+A plugin is required for each external EPG provider configured in channelmap.conf
 - Restart vdr. That should be all.
+
+The example plugin:
+- As proof of concept, an example plugin comes with tvscraper.
+This example plugin provides external EPG information from tvsp.
+- Note: This example plugin is only a proof of concept and not intended for productive use.
+This example plugin uses only information which is publicly available on the internet.
+Make sure to use it only if this is allowed by the laws and
+regulations applicable to you.
+- create the example plugin with "make plugins" in the tvscraper source directory
+- install the example plugin with "sudo make install-plugins" in the tvscraper source directory
+- restart vdr
 - To disable this feature, remove channelmap.conf from \<PLGCFGDIR\>
 directoy and restart vdr
+- To write another plugin, for another external EPG provider: use the "example" plugin as template
 
 Directories
 -----------

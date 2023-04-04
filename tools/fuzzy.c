@@ -196,7 +196,7 @@ std::string normString(const char *s, int len) {
       }
     }
     wint_t cChar = getNextUtfCodepoint(s);  // this also increases s
-    if (std::iswalnum(cChar) ) AppendUtfCodepoint(out, towlower(cChar));
+    if (std::iswalnum(cChar) ) stringAppendUtfCodepoint(out, towlower(cChar));
     else {
       if (!out.empty() && out.back() != ' ') out.append(" ");
     }

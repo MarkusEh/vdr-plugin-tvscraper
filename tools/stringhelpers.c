@@ -139,7 +139,7 @@ int AppendUtfCodepoint(char *&target, wint_t codepoint){
   return 4;
 }
 
-void AppendUtfCodepoint(std::string &target, wint_t codepoint){
+void stringAppendUtfCodepoint(std::string &target, wint_t codepoint){
   if (codepoint <= 0x7F){
      target.push_back( (char) (codepoint) );
      return;
@@ -200,22 +200,31 @@ wint_t getNextUtfCodepoint(const char *&p){
   if( l == 0 ) { p++; return '?'; }
   return Utf8ToUtf32(p, l);
 }
-void appendRemoveControlCharacters(std::string &target, const char *str) {
+inline int stringAppendAllASCIICharacters(std::string &target, const char *str) {
+// append all characters > 31 (signed !!!!). Unsigned: 31 < character < 128
+// return number of appended characters
+  int i = 0;
+  for (const signed char *strs = reinterpret_cast<const signed char *>(str); strs[i] > 31; i++);
+  target.append(str, i);
+  return i;
+}
+void stringAppendRemoveControlCharacters(std::string &target, const char *str) {
   for(;;) {
+    str += stringAppendAllASCIICharacters(target, str);
     wint_t cp = getNextUtfCodepoint(str);
     if (cp == 0) return;
-    if (cp > 31) AppendUtfCodepoint(target, cp);
+    if (cp > 31) stringAppendUtfCodepoint(target, cp);
     else target.append(" ");
   }
 }
-void appendRemoveControlCharactersKeepNl(std::string &target, const char *str) {
+void stringAppendRemoveControlCharactersKeepNl(std::string &target, const char *str) {
   for(;;) {
+    str += stringAppendAllASCIICharacters(target, str);
     wint_t cp = getNextUtfCodepoint(str);
     if (cp == 0) return;
     if (cp == ' ' && str[1] == '\n') target.append("\n");
-    else if (cp > 31 || cp == '\n') AppendUtfCodepoint(target, cp);
+    else if (cp > 31 || cp == '\n') stringAppendUtfCodepoint(target, cp);
     else target.append(" ");
-//     else { target.append("#"); target.append(to_string(cp)); target.append(";"); AppendUtfCodepoint(target, cp); }
   }
 }
 
@@ -247,10 +256,7 @@ std::string charPointerToString(const char *s) {
 
 bool stringEqual(const char *s1, const char *s2) {
 // return true if texts are identical (or both texts are NULL)
-  if (s1 && s2) {
-    if (strcmp(s1, s2) == 0) return true;
-    else return false;
-  }
+  if (s1 && s2) return strcmp(s1, s2) == 0;
   if (!s1 && !s2 ) return true;
   if (!s1 && !*s2 ) return true;
   if (!*s1 && !s2 ) return true;
@@ -352,10 +358,9 @@ namespace concat {
   }
 
 // methods to append to std::strings ========================
-
-  template<class T>
-  inline void concatenate_intU(std::string &str, T i) {
-// intended for unsigned integer types T. i must be >= 0 !!!! This is not checked
+  template<typename T>
+  inline void stringAppendU(std::string &str, T i) {
+// for integer types i >= 0 !!!! This is not checked !!!!!
     char buf[21]; // unsigned int 64: max. 20. (18446744073709551615) signed int64: max. 19 (+ sign)
     char *bufferEnd = buf+20;
     *bufferEnd = 0;
@@ -363,32 +368,27 @@ namespace concat {
     else for (; i; i /= 10) *(--bufferEnd) = '0' + (i%10);
     str.append(bufferEnd);
   }
+  template<typename T>
+  inline void stringAppendI(std::string &str, T i) {
+// for integer types i
+    if (i >= 0) stringAppendU(str, i);
+    else { str.append("-"); stringAppendU(str, -1*i); }
+  }
 }
-inline void stringAppend(std::string &str, unsigned int i) { concat::concatenate_intU(str, i); }
-inline void stringAppend(std::string &str, unsigned long int i) { concat::concatenate_intU(str, i); }
-inline void stringAppend(std::string &str, unsigned long long  int i) { concat::concatenate_intU(str, i); }
-inline void stringAppend(std::string &str, int i) {
-  if (i >= 0) concat::concatenate_intU(str, i);
-  else { str.append("-"); concat::concatenate_intU(str, -1*i); }
-}
-inline void stringAppend(std::string &str, long int i) {
-  if (i >= 0) concat::concatenate_intU(str, i);
-  else { str.append("-"); concat::concatenate_intU(str, -1*i); }
-}
-inline void stringAppend(std::string &str, long long int i) {
-  if (i >= 0) concat::concatenate_intU(str, i);
-  else { str.append("-"); concat::concatenate_intU(str, -1*i); }
-}
+inline void stringAppend(std::string &str, unsigned int i) { concat::stringAppendU(str, i); }
+inline void stringAppend(std::string &str, unsigned long int i) { concat::stringAppendU(str, i); }
+inline void stringAppend(std::string &str, unsigned long long  int i) { concat::stringAppendU(str, i); }
+
+inline void stringAppend(std::string &str, int i) { concat::stringAppendI(str, i); }
+inline void stringAppend(std::string &str, long int i) { concat::stringAppendI(str, i); }
+inline void stringAppend(std::string &str, long long int i) { concat::stringAppendI(str, i); }
+
 // strings
-inline void stringAppend(std::string &str, const char *s) {
-  str.append(s);
-}
-inline void stringAppend(std::string &str, const std::string &s) {
-  str.append(s);
-}
-inline void stringAppend(std::string &str, const std::string_view &s) {
-  str.append(s);
-}
+inline void stringAppend(std::string &str, const char *s) { str.append(s); }
+inline void stringAppend(std::string &str, const std::string &s) { str.append(s); }
+inline void stringAppend(std::string &str, const std::string_view &s) { str.append(s); }
+
+// tChannelID
 inline void stringAppend(std::string &str, const tChannelID &channelID) {
   char buffer[256];
   channelToBuf(buffer, channelID);
@@ -414,10 +414,8 @@ class cConcatenate
     cConcatenate(size_t buf_size = 0) { m_data.reserve(buf_size>0?buf_size:200); }
     cConcatenate(const cConcatenate&) = delete;
     cConcatenate &operator= (const cConcatenate &) = delete;
-    cConcatenate & operator<<(const char *s) { m_data.append(s); return *this; }
-    cConcatenate & operator<<(const std::string_view &sv) { m_data.append(sv); return *this; }
-    cConcatenate & operator<<(const std::string &st) { m_data.append(st); return *this; }
-    cConcatenate & operator<<(int i) { stringAppend(m_data, i); return *this; }
+  template<typename T>
+    cConcatenate & operator<<(const T &i) { stringAppend(m_data, i); return *this; }
     std::string str() { return std::move(m_data); }
   private:
     std::string m_data;

@@ -995,7 +995,7 @@ void cTVScraperDB::deleteTvMedia (int tvID, bool movie, bool keepSeasonPoster) c
   sql << "delete from tv_media where tv_id = ? ";
   if (movie) sql << "and media_number <  0";
   else {     sql << "and media_number >= 0";
-    if(keepSeasonPoster) sql << " and media_type != "  << mediaSeason;
+    if(keepSeasonPoster) sql << " and media_type != "  << (int)mediaSeason;
   }
   exec(sql.str().c_str(), tvID);
 }

@@ -131,7 +131,7 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgIm
   const char *s;
   int i;
 // Fazit / conclusion
-  if (getValue(tvspEvent_j, "conclusion", s) ) { appendRemoveControlCharacters(descr, s); descr += "\n"; }
+  if (getValue(tvspEvent_j, "conclusion", s) ) { stringAppendRemoveControlCharacters(descr, s); descr += "\n"; }
 // block: Genre, Kategorie, Land, Jahr
   if (getValue(tvspEvent_j, "genre", s) ) stringAppend(descr, "Genre: ", s, "\n");
   if (getValue(tvspEvent_j, "sart_id", s) ) {
@@ -151,7 +151,7 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgIm
   bool ra = false;
   if (getValue(tvspEvent_j, "episodeTitle", s) ) {
     descr += "Episode: ";
-    appendRemoveControlCharacters(descr, s);
+    stringAppendRemoveControlCharacters(descr, s);
     descr += "\n";
     if (getValue(tvspEvent_j, "seasonNumber", s) ) stringAppend(descr, "Staffel tvsp: ", s, "\n");
     if (getValue(tvspEvent_j, "episodeNumber", s) ) stringAppend(descr, "Folge tvsp: ", s, "\n");
@@ -173,8 +173,8 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgIm
 
 
 // preview & text
-  if (getValue(tvspEvent_j, "preview", s) ) { descr += "\n"; appendRemoveControlCharacters(descr, s); descr += "\n";}
-  if (getValue(tvspEvent_j, "text", s) ) { descr += "\n"; appendRemoveControlCharactersKeepNl(descr, s); descr += "\n";}
+  if (getValue(tvspEvent_j, "preview", s) ) { descr += "\n"; stringAppendRemoveControlCharacters(descr, s); descr += "\n";}
+  if (getValue(tvspEvent_j, "text", s) ) { descr += "\n"; stringAppendRemoveControlCharactersKeepNl(descr, s); descr += "\n";}
 // actors
   bool first = true;
   rapidjson::Value::ConstMemberIterator actors_it = tvspEvent_j.FindMember("actors");
@@ -186,11 +186,11 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgIm
         if (itr->value.IsString()) {
           descr += first?"\nDarsteller: ":", ";
           first = false;
-          appendRemoveControlCharacters(descr, itr->value.GetString());
+          stringAppendRemoveControlCharacters(descr, itr->value.GetString());
           const char *name = itr->name.GetString();
           if (name && *name) {
             descr += " (";
-            appendRemoveControlCharacters(descr, name);
+            stringAppendRemoveControlCharacters(descr, name);
             descr += ")";
           }
         }
@@ -215,6 +215,21 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgIm
   }
 
 // image from external EPG provider
+  for (auto &val: cJsonArrayIterator(tvspEvent_j, "images") ) {
+    if (getValue(val, "size4", s) ) {
+      cTvMedia tvMedia;
+      tvMedia.width = 952;
+      tvMedia.height = 714;
+      tvMedia.path = s; // note: s is the URL
+      extEpgImages.push_back(tvMedia);
+      break;
+// size1: 130x101
+// size2: 320x250
+// size3: 476x357
+// size4: 952x714
+    }
+  }
+/*
   rapidjson::Value::ConstMemberIterator images_it = tvspEvent_j.FindMember("images");
   if (images_it != tvspEvent_j.MemberEnd() && images_it->value.IsArray() && images_it->value.Size() > 0) {
 // there is an images array. Download first image
@@ -230,6 +245,7 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgIm
 // size4: 952x714
     }
   }
+*/
   return true;
 }
 
