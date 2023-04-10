@@ -12,7 +12,7 @@ include $(TVSCRAPER_SRC)/Make.config
 PLUGIN = example
 
 LIBS += $(shell pkg-config --libs libcurl)
-LIBS += $(shell pkg-config --cflags --libs jansson)
+LIBS += $(shell pkg-config --cflags)
 
 
 SOFILE = libtvscraper-example.so

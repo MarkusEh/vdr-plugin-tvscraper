@@ -8,22 +8,20 @@ using namespace std;
 class cTVDBScraper {
     friend class cTVDBSeries;
 private:
-    string baseURL4;
-    string baseURL4Search;
-    string tokenHeader;
+    const char *baseURL4 = "https://api4.thetvdb.com/v4/";
+    const char *baseURL4Search = "https://api4.thetvdb.com/v4/search?type=series&query=";
+    std::string tokenHeader;
     time_t tokenHeaderCreated = 0;
-    string baseDir;
     cTVScraperDB *db;
-    json_t *CallRestJson(const char *url, cLargeString &buffer, int *error = NULL, bool disableLog = false);
-    bool GetToken(const std::string &jsonResponse);
+    int CallRestJson(rapidjson::Document &document, const rapidjson::Value *&data, cLargeString &buffer, const char *url, bool disableLog = false);
+    bool GetToken(std::string &jsonResponse);
     bool AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);
-    bool ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);
-    void ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);
+    void ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);
 
     static const char *prefixImageURL1;
     static const char *prefixImageURL2;
 public:
-    cTVDBScraper(string baseDir, cTVScraperDB *db);
+    cTVDBScraper(cTVScraperDB *db);
     virtual ~cTVDBScraper(void);
     bool Connect(void);
     bool GetToken();

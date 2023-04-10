@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <math.h>       /* sqrt */
 
-searchResultTvMovie::searchResultTvMovie(int id, bool movie, const std::string &year):
+searchResultTvMovie::searchResultTvMovie(int id, bool movie, const char *year):
      m_id(id), m_movie(movie) {
   m_year = cYears::yearToInt(year);
 // defaults for m_matches

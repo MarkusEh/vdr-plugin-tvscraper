@@ -371,7 +371,7 @@ bool cSearchEventOrRec::SearchTv(vector<searchResultTvMovie> &resultSet, string_
   size_t oldSize = resultSet.size();
   if (m_tvdbScraper->AddResults4(resultSet, searchString, lang)) return true;
   if (resultSet.size() == oldSize) {
-    m_tv.AddTvResults(resultSet, searchString, searchString, lang);
+    m_moviedbScraper->AddTvResults(resultSet, searchString, lang);
   }
   return false;
 }
@@ -397,9 +397,9 @@ void cSearchEventOrRec::SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet
 void cSearchEventOrRec::SearchMovie(vector<searchResultTvMovie> &resultSet) {
   extDbConnected = true;
   if (m_originalTitle.length() > 0) {
-    m_movie.AddMovieResults(resultSet, m_originalTitle, m_sEventOrRecording->Description(), m_years, NULL);
+    m_moviedbScraper->AddMovieResults(resultSet, m_originalTitle, m_sEventOrRecording->Description(), m_years, NULL);
   } else {
-    m_movie.AddMovieResults(resultSet, m_movieSearchString, m_sEventOrRecording->Description(), m_years, m_sEventOrRecording->GetLanguage() );
+    m_moviedbScraper->AddMovieResults(resultSet, m_movieSearchString, m_sEventOrRecording->Description(), m_years, m_sEventOrRecording->GetLanguage() );
   }
 }
 

@@ -44,6 +44,16 @@ inline void InitCurlLibraryIfNeeded()
   }
 }
 
+struct curl_slist *curl_slistAppend1(struct curl_slist *slist, const char *string) {
+  if (!string) return slist;
+  struct curl_slist *temp = curl_slist_append(slist, string);
+  if (temp == NULL) {
+    if (slist) curl_slist_free_all(slist);
+    esyslog("tvscraper, ERROR in curl_slistAppend: cannot append %s", string?string:"NULL");
+  }
+  return temp;
+}
+
 bool CurlGetUrl_int(const char *url, void *sOutput, struct curl_slist *headers, size_t (*func)(void *data, size_t size, size_t nmemb, void *userp) )
 {
   InitCurlLibraryIfNeeded();
@@ -181,3 +191,16 @@ std::string CurlEscape(std::string_view url) {
   curl_free(output);
   return result;
 }
+void stringAppendCurlEscape(std::string &str, const char *url) {
+  InitCurlLibraryIfNeeded();
+  char *output = curl_easy_escape(curlfuncs::curl, url, strlen(url));
+  str.append(output);
+  curl_free(output);
+}
+void stringAppendCurlEscape(std::string &str, std::string_view url) {
+  InitCurlLibraryIfNeeded();
+  char *output = curl_easy_escape(curlfuncs::curl, url.data(), url.length());
+  str.append(output);
+  curl_free(output);
+}
+

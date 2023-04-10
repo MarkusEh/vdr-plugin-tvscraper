@@ -301,7 +301,7 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
     int distance;
     if (!isDefaultLang) distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeName);
     else {
-      CONVERT(episodeNameNorm, to_sv(episodeName), normStringC);
+      CONVERT(episodeNameNorm, charPointerToStringView(episodeName), normStringC);
       distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeNameNorm);
     }
     if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString, episodeName, season, episode, dbID(), distance);

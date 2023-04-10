@@ -8,7 +8,7 @@ struct sMatchWeight {
 class searchResultTvMovie {
 
 public:
-  searchResultTvMovie(int id, bool movie, const std::string &year);
+  searchResultTvMovie(int id, bool movie, const char *year);
   ~searchResultTvMovie();
   void log(std::string_view title) const;
   static float normMatch(float x);

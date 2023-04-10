@@ -51,19 +51,7 @@ void cTvspEpgOneDay::initJson(const std::string &extChannelId, time_t startTime)
   m_end = m_start + 24*60*60;
 
 // download json file
-  curl_slist *headerList = NULL;
-  headerList = curl_slist_append(headerList, "Accept: application/json");
-//headerList = curl_slist_append(headerList, "If-None-Match: " + etag);
-
-  if (!CurlGetUrl(url.c_str(), *m_json, headerList)) {
-    esyslog("tvscraper: ERROR cTvspEpgOneDay::initJson, download %s failed", url.c_str() );
-    return; // no data
-  }
-  m_document->ParseInsitu(m_json->data() );
-  if (m_document->HasParseError() ) {
-    esyslog("tvscraper: ERROR cTvspEpgOneDay::initJson, parse %s failed, error code %d", url.c_str(), (int)m_document->GetParseError () );
-    return; // no data
-  }
+  if (!jsonCallRest(*m_document, *m_json, url.c_str(), false) ) return; // no data
   if (!m_document->IsArray() ) {
     esyslog("tvscraper: ERROR cTvspEpgOneDay::initJson, parse %s failed, document is not an array", url.c_str() );
     return; // no data

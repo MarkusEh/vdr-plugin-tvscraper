@@ -24,6 +24,7 @@ class cNormedString {
 };
 
 int minDistanceNormedStrings(int distance, const std::vector<cNormedString> &normedStrings, const char *string, std::string *r_normedString = NULL) {
+  if (!string) return distance;
   int len = StringRemoveLastPartWithP(string, strlen(string));
   std::string_view sv;
   if (len == -1) sv = string;

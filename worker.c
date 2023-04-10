@@ -66,7 +66,7 @@ void cTVScraperWorker::SetDirectories(void) {
 
 bool cTVScraperWorker::ConnectScrapers(void) {
   if (!moviedbScraper) {
-    moviedbScraper = new cMovieDBScraper(config.GetBaseDirMovies(), db, overrides);
+    moviedbScraper = new cMovieDBScraper(db, overrides);
     if (!moviedbScraper->Connect()) {
 	esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
 	delete moviedbScraper;
@@ -75,7 +75,7 @@ bool cTVScraperWorker::ConnectScrapers(void) {
     }
   }
   if (!tvdbScraper) {
-    tvdbScraper = new cTVDBScraper(config.GetBaseDirSeries(), db);
+    tvdbScraper = new cTVDBScraper(db);
     if (!tvdbScraper->Connect()) {
 	esyslog("tvscraper: ERROR, connection to TheTVDB failed");
 	delete tvdbScraper;
@@ -190,6 +190,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
           cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);
           movieOrTv = SearchEventOrRec.Scrape();
         } // end of locks
+        waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
         if (!extEpgImages.empty() ) {
           Download(extEpgImages[0].path, extEpgImage);
         }
@@ -202,7 +203,6 @@ bool cTVScraperWorker::ScrapEPG(void) {
           for (auto &event: currentEvents) delete event.second;
           return newEvent;
         }
-        waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
         bool newRec = CheckRunningTimers();
         if (newRec) db->BackupToDisc();
       }
@@ -246,13 +246,12 @@ void cTVScraperWorker::ScrapRecordings(void) {
       }
     }
 // here, the read lock is released, so wait a short time, in case someone needs a write lock
+    waitCondition.TimedWait(mutex, 100);
     if (movieOrTv) {
       movieOrTv->DownloadImages(moviedbScraper, tvdbScraper, filename);
       delete movieOrTv;
       movieOrTv = NULL;
     }
-    if (!Running() ) break;
-    waitCondition.TimedWait(mutex, 100);
     if (!Running() ) break;
     bool newRec = CheckRunningTimers();
     if (!Running() ) break;
@@ -306,7 +305,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
   if (lastTimerRecordingCheck + 2 * 60 > time(0) ) return false;  // no need to check more often
   lastTimerRecordingCheck = time(0);
   bool newRecData = false;
-  vector<string> recordingFileNames; // filenames of recordings with running timers
+  std::vector<std::string> recordingFileNames; // filenames of recordings with running timers
   struct stat buffer;
   { // in this block, we lock the timers
 #if APIVERSNUM < 20301
@@ -371,12 +370,13 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         }
       }
     } // the locks are released
+    waitCondition.TimedWait(mutex, 1);  // allow others to get the locks
     if (movieOrTv) {
       movieOrTv->DownloadImages(moviedbScraper, tvdbScraper, filename);
       delete movieOrTv;
       movieOrTv = NULL;
     }
-    std::string fanartImg = filename + "/fanart.jpg";
+    std::string fanartImg = concatenate(filename, "/fanart.jpg");
     if (!FileExists(fanartImg) && !epgImagePath.empty() ) {
 //    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), fanartImg.c_str() );
       CopyFile(epgImagePath, fanartImg);

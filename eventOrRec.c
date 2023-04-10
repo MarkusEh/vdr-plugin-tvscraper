@@ -251,10 +251,10 @@ bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
   rapidjson::Value::ConstMemberIterator timer_j = document.FindMember("timer");
   if (timer_j == document.MemberEnd() ) return false;  // timer information not available
 
-  if (!assertGetValue(timer_j->value, "vps", vps, filename ) ) return false;
+  if (!getValue(timer_j->value, "vps", vps, filename ) ) return false;
   time_t start, stop;
-  if (!assertGetValue(timer_j->value, "start_time", start, filename ) ) return false;
-  if (!assertGetValue(timer_j->value, "stop_time", stop, filename ) ) return false;
+  if (!getValue(timer_j->value, "start_time", start, filename ) ) return false;
+  if (!getValue(timer_j->value, "stop_time", stop, filename ) ) return false;
   lengthInSeconds = stop - start;
   return true;
 }

@@ -13,33 +13,31 @@ private:
     cTVScraperDB *m_db;
     cTVDBScraper *m_TVDBScraper;
     int m_seriesID;
-    string name = "";
-    string originalName = "";
-    string overview = "";
-    string firstAired = "";
-    string genres = "";
-    string networks = "";
+    const char *name = NULL;
+    const char *originalName = NULL;
+    const char *overview = NULL;
+    const char *firstAired = NULL;
+    std::string genres;
+    const char *networks = NULL;
     float popularity = 0.0; // this is the score;
     float rating = 0.0;
     int ratingCount = 0;
-    string IMDB_ID = "";
-    string status = "";
-    set<int> episodeRunTimes;
-    string banner = "";
-    string fanart = "";
-    string poster = "";
-    std::string translation(json_t *jTranslations, const char *arrayAttributeName, const char *textAttributeName);
+    const char *IMDB_ID = NULL;
+    const char *status = NULL;
+    std::set<int> episodeRunTimes;
+    const char *fanart = NULL;
+    const char *poster = NULL;
+    const char *translation(const rapidjson::Value &jTranslations, const char *arrayAttributeName, const char *textAttributeName);
 public:
     cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper, int seriesID);
-    string m_language; // this is the default language, if name translations are available in the default language. Otherwise, the original language
+    std::string m_language; // this is the default language, if name translations are available in the default language. Otherwise, the original language
     virtual ~cTVDBSeries(void);
-    bool ParseJson_all(json_t *data);
-    bool ParseJson_Series(json_t *jSeries);
-    int ParseJson_Episode(json_t *jEpisode);
-    bool ParseJson_Episode(json_t *jEpisode, const cLanguage *lang);
+    bool ParseJson_Series(const rapidjson::Value &series);
+    int ParseJson_Episode(const rapidjson::Value &episode);
+    bool ParseJson_Episode(const rapidjson::Value &episode, const cLanguage *lang);
     void StoreDB();
-    bool ParseJson_Character(json_t *jCharacter);
-    bool ParseJson_Artwork(json_t *jSeries);
+    bool ParseJson_Character(const rapidjson::Value &character);
+    bool ParseJson_Artwork(const rapidjson::Value &series);
 };
 
 #endif //__TVSCRAPER_TVDBSERIES_H

@@ -22,7 +22,7 @@ DEFINES += -DPLUGIN_NAME_I18N='"$(PLUGIN)"'
 LIBS += -lstdc++fs
 LIBS += $(shell pkg-config --libs libcurl)
 LIBS += $(shell pkg-config --libs sqlite3)
-LIBS += $(shell pkg-config --cflags --libs jansson)
+LIBS += $(shell pkg-config --cflags)
 
 ### The object files (add further files here):
 

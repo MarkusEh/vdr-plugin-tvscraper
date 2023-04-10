@@ -6,11 +6,8 @@
 
 using namespace std;
 
-cTVDBScraper::cTVDBScraper(string baseDir, cTVScraperDB *db) {
-    baseURL4 = "https://api4.thetvdb.com/v4/";
-    baseURL4Search = "https://api4.thetvdb.com/v4/search?type=series&query=";
-    this->baseDir = baseDir;
-    this->db = db;
+cTVDBScraper::cTVDBScraper(cTVScraperDB *db) {
+  this->db = db;
 }
 
 cTVDBScraper::~cTVDBScraper() {
@@ -38,38 +35,43 @@ bool cTVDBScraper::GetToken(void) {
   }
 // now read the tocken
   if (!GetToken(buffer)) {
-    esyslog("tvscraper: ERROR cTVDBScraper::GetToken, parsing json result %s", buffer.erase(40).c_str() );
+    esyslog("tvscraper: ERROR cTVDBScraper::GetToken, url %s, parsing json result %s", url, buffer.erase(40).c_str() );
     return false;
   }
   return true;
 }
 
-bool cTVDBScraper::GetToken(const std::string &jsonResponse) {
-  json_t *root = json_loads(jsonResponse.c_str(), 0, NULL);
-  if (!root) return false;
-  if (!json_is_object(root)) { json_decref(root); return false; }
-  if (json_string_value_validated(root, "status").compare("success") != 0) {
-    esyslog("tvscraper: ERROR getting thetvdb token, status = %s", json_string_value_validated(root, "status").c_str() );
-    json_decref(root);
+bool cTVDBScraper::GetToken(std::string &jsonResponse) {
+  rapidjson::Document document;
+  document.ParseInsitu(jsonResponse.data() );
+  if (document.HasParseError() ) {
+    esyslog("tvscraper: ERROR cTVDBScraper::GetToken, parse failed, error code %d", (int)document.GetParseError () );
+    return false; // no data
+  }
+  if (!document.IsObject() ) return false;
+
+  const char *status;
+  if (!getValue(document, "status", status) || !status) {
+    esyslog("tvscraper: cTVDBScraper::GetToken, tag status missing");
     return false;
   }
-  json_t *jData = json_object_get(root, "data");
-  if(!json_is_object(jData)) { json_decref(root); return false; }
+  if (strcmp(status, "success") != 0) {
+    esyslog("tvscraper: ERROR getting thetvdb token, status = %s", status);
+    return false;
+  }
+  rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::GetToken");
+  if (data_it == document.MemberEnd() || !data_it->value.IsObject() ) return false;
+  const char *tocken = getValueCharS(data_it->value, "token", "cTVDBScraper::GetToken");
+  if (!tocken) return false;
   tokenHeader = "Authorization: Bearer ";
-  tokenHeader.append(json_string_value_validated(jData, "token") );
+  tokenHeader.append(tocken);
   tokenHeaderCreated = time(0);
-  json_decref(root);
   return true;
 }
 
-void getCharacters(json_t *jData, cTVDBSeries &series) {
-  json_t *jCharacters = json_object_get(jData, "characters");
-  if (json_is_array(jCharacters)) {
-    size_t index;
-    json_t *jCharacter;
-    json_array_foreach(jCharacters, index, jCharacter) {
-      series.ParseJson_Character(jCharacter);
-    }
+void getCharacters(const rapidjson::Value &characters, cTVDBSeries &series) {
+  for (const rapidjson::Value &character: cJsonArrayIterator(characters, "characters") ) {
+    series.ParseJson_Character(character);
   }
 }
 
@@ -91,58 +93,42 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
 // Episode Guest stars, writer, ... NOT available in https://api4.thetvdb.com/v4/seasons/1978231/extended
 //
   CONCATENATE(url, baseURL4, "series/", seriesID, "/extended?meta=translations&short=false");
-  int error;
   cLargeString buffer("cTVDBScraper::StoreSeriesJson", 15000);
-  json_t *jSeries = CallRestJson(url, buffer, &error);
-  if (!jSeries) {
+  rapidjson::Document document;
+  const rapidjson::Value *data;
+  int error = CallRestJson(document, data, buffer, url);
+  if (error != 0) {
     if (error == -1) return -1; // object does not exist
     return 0;
   }
-  json_t *jSeriesData = json_object_get(jSeries, "data");
-  if (!jSeriesData) { json_decref(jSeries); return 0;}
-  series.ParseJson_Series(jSeriesData);
+  series.ParseJson_Series(*data);
 // episodes
+  cLargeString bufferE("cTVDBScraper::StoreSeriesJson Episodes", 15000);
   string urlE = concatenate(baseURL4, "series/", seriesID, "/episodes/default/", series.m_language, "?page=0");
   while (!urlE.empty() ) {
-    json_t *jEpisodes = CallRestJson(urlE.c_str(), buffer);
-    urlE = "";
-    if (!jEpisodes) break;
-    json_t *jEpisodesData = json_object_get(jEpisodes, "data");
-    if (jEpisodesData) {
+    rapidjson::Document episodes;
+    const rapidjson::Value *data_episodes;
+    if (CallRestJson(episodes, data_episodes, bufferE, urlE.c_str() ) != 0) break;
 // parse episodes
-      json_t *jEpisodesDataEpisodes = json_object_get(jEpisodesData, "episodes");
-      if (json_is_array(jEpisodesDataEpisodes)) {
-        size_t index;
-        json_t *jEpisode;
-        json_array_foreach(jEpisodesDataEpisodes, index, jEpisode) {
-          series.ParseJson_Episode(jEpisode);
-/*
+    for (const rapidjson::Value &episode: cJsonArrayIterator(*data_episodes, "episodes") ) {
+      series.ParseJson_Episode(episode);
 // dont't read episode character data here, this is too often called just to figure out if we have the right series
-          int epidodeID = series.ParseJson_Episode(jEpisode);
-          if (epidodeID != 0) {
-            string urlEp = baseURL4 + "episodes/" + std::to_string(epidodeID) + "/extended";
-            json_t *jEpisode = CallRestJson(urlEp, buffer, NULL, true);
-            json_t *jEpisodeData = json_object_get(jEpisode, "data");
-            getCharacters(jEpisodeData, series);
-            json_decref(jEpisode);
-          }
-*/
-        }
-      }
     }
-    json_t *jLinks = json_object_get(jEpisodes, "links");
-    if (json_is_object(jLinks)) urlE = json_string_value_validated(jLinks, "next");
-    json_decref(jEpisodes);
+    rapidjson::Value::ConstMemberIterator links_it = getTag(episodes, "links", "cTVDBScraper::StoreSeriesJson");
+    if (links_it == episodes.MemberEnd() || !links_it->value.IsObject() ) break;
+    urlE = charPointerToString(getValueCharS(links_it->value, "next"));
   }
 // characters / actors
 // we also add characters to episodes. Therefore, we do this after parsing the episodes
-  getCharacters(jSeriesData, series);
+  for (const rapidjson::Value &character: cJsonArrayIterator(*data, "characters") ) {
+    series.ParseJson_Character(character);
+  }
+
 // we also add season images. Therefore, we do this after parsing the episodes
-  series.ParseJson_Artwork(jSeriesData);
+  series.ParseJson_Artwork(*data);
 // store series here, as here information (incl. episode runtimes, poster URL, ...) is complete
   series.StoreDB();
   db->TvSetEpisodesUpdated(seriesID * (-1) );
-  if (jSeries) json_decref(jSeries);
   return seriesID;
 }
 
@@ -154,71 +140,47 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, const cLanguage *lang) {
 
   cTVDBSeries series(db, this, seriesID);
 // episodes
-  cLargeString buffer("cTVDBScraper::StoreSeriesJson lang", 10000);
+  cLargeString bufferE("cTVDBScraper::StoreSeriesJson lang", 10000);
   string urlE = concatenate(baseURL4, "series/", seriesID, "/episodes/default/", lang->m_thetvdb, "?page=0");
   while (!urlE.empty() ) {
-    json_t *jEpisodes = CallRestJson(urlE.c_str(), buffer);
-    urlE = "";
-    if (!jEpisodes) break;
-    json_t *jEpisodesData = json_object_get(jEpisodes, "data");
-    if (jEpisodesData) {
+    rapidjson::Document episodes;
+    const rapidjson::Value *data_episodes;
+    if (CallRestJson(episodes, data_episodes, bufferE, urlE.c_str() ) != 0) break;
 // parse episodes
-      json_t *jEpisodesDataEpisodes = json_object_get(jEpisodesData, "episodes");
-      if (json_is_array(jEpisodesDataEpisodes)) {
-        size_t index;
-        json_t *jEpisode;
-        json_array_foreach(jEpisodesDataEpisodes, index, jEpisode) {
-          series.ParseJson_Episode(jEpisode, lang);
-        }
-      }
+    for (const rapidjson::Value &episode: cJsonArrayIterator(*data_episodes, "episodes") ) {
+      series.ParseJson_Episode(episode, lang);
     }
-    json_t *jLinks = json_object_get(jEpisodes, "links");
-    if (json_is_object(jLinks)) urlE = json_string_value_validated(jLinks, "next");
-    json_decref(jEpisodes);
+    rapidjson::Value::ConstMemberIterator links_it = getTag(episodes, "links", "cTVDBScraper::StoreSeriesJson_lang");
+    if (links_it == episodes.MemberEnd() || !links_it->value.IsObject() ) break;
+    urlE = charPointerToString(getValueCharS(links_it->value, "next"));
   }
   return seriesID;
 }
 
-json_t *cTVDBScraper::CallRestJson(const char *url, cLargeString &buffer, int *error, bool disableLog) {
-// return NULL in case of errors
-// if error is given, it will be set to -1 if an object is requested which does not exist
-// otherwise, the caller must ensure to call json_decref(...); on the returned reference
-  if (error) *error = 0;
-  if (!GetToken() ) return NULL;
+int cTVDBScraper::CallRestJson(rapidjson::Document &document, const rapidjson::Value *&data, cLargeString &buffer, const char *url, bool disableLog) {
+// return 0 on success. In this case, "data" exists, and can be accessed with document["data"].
+//  1: error
+// -1: "Not Found" (no message in syslog, just the reqested object does not exist)
+  if (!GetToken() ) return 1;
   buffer.clear();
-  struct curl_slist *headers = NULL;
-  headers = curl_slist_append(headers, "accept: application/json");
-  headers = curl_slist_append(headers, tokenHeader.c_str() );
-  headers = curl_slist_append(headers, "charset: utf-8");
-  if (config.enableDebug && !disableLog) esyslog("tvscraper: calling %s", url);
-  bool result = CurlGetUrl(url, buffer, headers);
-  curl_slist_free_all(headers);
-  if (!result) {
-    esyslog("tvscraper: ERROR calling %s", url);
-    return NULL;
+  jsonCallRest(document, buffer, url, config.enableDebug && !disableLog, tokenHeader.c_str(), "charset: utf-8");
+  const char *status;
+  if (!getValue(document, "status", status) || !status) {
+    esyslog("tvscraper: cTVDBScraper::CallRestJson, url %s, buffer %s, no status", url, buffer.erase(50).c_str() );
+    return 1;
   }
-  json_t *jRoot = json_loads(buffer.c_str(), 0, NULL);
-  if (!jRoot) {
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, buffer %s", url, buffer.erase(50).c_str());
-    return NULL;
-  }
-  std::string status = json_string_value_validated(jRoot, "status");
-  if (status != "success") {
-    if (status == "failure" && json_string_value_validated(jRoot, "message") == "Not Found") {
-      if (error) *error = -1;
+  if (strcmp(status, "success") != 0) {
+    if (strcmp(status, "failure") == 0) {
+      const char *message;
+      if (getValue(document, "message", message) && message && strcmp(message, "Not Found") == 0) return -1;
     }
-    json_decref(jRoot);
-// note: if "error" is provided, the program will handle this situation. No need to report an error in syslog
-    if (error) esyslog("tvscraper: cTVDBScraper::CallRestJson, url %s, buffer %s, status = %s", url, buffer.erase(50).c_str(), status.c_str() );
-    else esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, buffer %s, status = %s", url, buffer.erase(50).c_str(), status.c_str() );
-    return NULL;
+    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, buffer %s, status = %s", url, buffer.erase(50).c_str(), status);
+    return 1;
   }
-  if (!json_object_get(jRoot, "data")) {
-    json_decref(jRoot);
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, data is NULL, url %s, buffer %s", url, buffer.erase(50).c_str());
-    return NULL;
-  }
-  return jRoot;
+  rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::CallRestJson");
+  if (data_it == document.MemberEnd() ) return 1; 
+  data = &data_it->value;
+  return 0;
 }
 
 // methods to download / store media
@@ -248,7 +210,7 @@ void cTVDBScraper::Download4(const char *url, const std::string &localPath) {
 }
 
 void cTVDBScraper::StoreActors(int seriesID) {
-  std::string destDir = concatenate(baseDir, "/", seriesID);
+  std::string destDir = concatenate(config.GetBaseDirSeries(), seriesID);
 //  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreActors, seriesID %i destDir %s", seriesID, destDir.c_str());
   if (!CreateDirectory(destDir)) return;
   destDir += "/actor_";
@@ -262,7 +224,7 @@ void cTVDBScraper::StoreActors(int seriesID) {
 }
 void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename) {
     if (episodeFilename.empty() ) return;
-    std::string destDir = concatenate(baseDir, "/", seriesID, "/");
+    std::string destDir = concatenate(config.GetBaseDirSeries(), seriesID, "/");
     bool ok = CreateDirectory(destDir);
     if (!ok) return;
     std::string destDir2 = concatenate(destDir, seasonNumber, "/");
@@ -286,9 +248,7 @@ int cTVDBScraper::GetTvScore(int seriesID) {
 }
 
 void cTVDBScraper::DownloadMedia (int tvID) {
-//stringstream destDir;
-//destDir << baseDir << "/" << tvID << "/";
-  std::string destDir = concatenate(baseDir, "/", tvID, "/");
+  std::string destDir = concatenate(config.GetBaseDirSeries(), tvID, "/");
   if (!CreateDirectory(destDir)) return;
 
   DownloadMedia (tvID, mediaPoster, destDir + "poster_");
@@ -346,7 +306,6 @@ bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, std::stri
 }
 
 bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {
-//  string SearchString_rom = removeRomanNum(SearchString.data(), SearchString.length());
   CONVERT(SearchString_rom, SearchString, removeRomanNumC);
   if (*SearchString_rom == 0) {
     esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, SearchString_rom == empty");
@@ -354,88 +313,53 @@ bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie>
   }
   CURLESCAPE(url_e, SearchString_rom);
   CONCATENATE(url, baseURL4Search, url_e);
-  json_t *root = CallRestJson(url, buffer);
-  if (!root) return false;
-  int seriesID = 0;
-  bool result = ParseJson_search(root, resultSet, normedStrings, lang);
-  json_decref(root);
-  if (!result) {
-    esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, !result, url %s", url);
+  rapidjson::Document root;
+  const rapidjson::Value *data;
+  if (CallRestJson(root, data, buffer, url) != 0) return false;
+  if (!data || !data->IsArray() ) {
+    esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, data is %s", data?"not an array":"NULL");
     return false;
   }
-  if(seriesID == 0) return false;
-  return true;
-}
-
-bool cTVDBScraper::ParseJson_search(json_t *root, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {
-  if (root == NULL) return false;
-  json_t *jData = json_object_get(root, "data");
-  if(!json_is_array(jData))  {
-    esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_search, parsing thetvdb search result, jData is not an array");
-    return false;
-  }
-  size_t index;
-  json_t *jElement;
-  json_array_foreach(jData, index, jElement) {
-    ParseJson_searchSeries(jElement, resultSet, normedStrings, lang);
+  for (const rapidjson::Value &result: data->GetArray() ){
+    ParseJson_searchSeries(result, resultSet, normedStrings, lang);
   }
   return true;
 }
 
-int minDist(int dist, const json_t *jString, const string &SearchStringStripExtraUTF8, std::string *normedName = NULL) {
-// compare string in jString with SearchStringStripExtraUTF8
-// make sanity checks first
-  if (!jString || !json_is_string(jString)) return dist;
-  const char *name = json_string_value(jString);
-  if (!name || !*name) return dist;
-
-  if (normedName) {
-    *normedName = normString(name);
-    dist = std::min(dist, sentence_distance_normed_strings(*normedName, SearchStringStripExtraUTF8) );
-  } else
-    dist = std::min(dist, sentence_distance_normed_strings(normString(name), SearchStringStripExtraUTF8) );
-  int len = StringRemoveLastPartWithP(name, (int)strlen(name) );
-  if (len != -1) {
-    if (normedName) *normedName = normString(name, len);
-    dist = std::min(dist, sentence_distance_normed_strings(normString(name, len), SearchStringStripExtraUTF8) );
-  }
-  return dist;
-}
-
-void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {// add search results to resultSet
-  if (!data) return;
-  std::string objectID = json_string_value_validated(data, "objectID");
-  if (objectID.length() < 8) {
-    esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, objectID.length() < 8, %s", objectID.c_str() );
+void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {// add search results to resultSet
+  if (!data.IsObject() ) {
+    esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, data is not an object");
     return;
   }
-  if (objectID.compare(0, 7, "series-") != 0) {
-    esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, objectID does not start with series-, %s", objectID.c_str() );
+  const char *objectID = getValueCharS(data, "objectID", "cTVDBScraper::ParseJson_searchSeries");
+  if (!objectID) return; // syslog entry already created by getValueCharS
+  if (strlen(objectID) < 8) {
+    esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, objectID.length() < 8, %s", objectID);
     return;
   }
-  int seriesID = atoi(objectID.c_str() + 7);
+  if (strncmp(objectID, "series-", 7) != 0) {
+    esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, objectID does not start with series-, %s", objectID);
+    return;
+  }
+  int seriesID = atoi(objectID + 7);
   if (seriesID == 0) {
-    esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, seriesID = 0, %s", objectID.c_str() );
+    esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, seriesID = 0, %s", objectID);
     return;
   }
 // is this series already in the list?
-  for (const searchResultTvMovie &sRes: resultSet ) if (sRes.id() == seriesID * (-1) ) return;
+  for (const searchResultTvMovie &sRes: resultSet) if (sRes.id() == seriesID * (-1) ) return;
 
 // create new result object sRes
-  searchResultTvMovie sRes(seriesID * (-1), false, json_string_value_validated(data, "year"));
+  searchResultTvMovie sRes(seriesID * (-1), false, getValueCharS(data, "year"));
   sRes.setPositionInExternalResult(resultSet.size() );
 
 // distance == deviation from search text
   int dist_a = 1000;
 // if search string is not in original language, consider name (== original name) same as alias
-  if (lang) dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value_validated_c(data, "name") );
-  json_t *jAliases = json_object_get(data, "aliases");
-  if (json_is_array(jAliases) ) {
-    size_t index;
-    json_t *jElement;
-    json_array_foreach(jAliases, index, jElement) {
-      dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value(jElement) );
-    }
+  if (lang) dist_a = minDistanceNormedStrings(dist_a, normedStrings, getValueCharS(data, "name") );
+  for (const rapidjson::Value &alias: cJsonArrayIterator(data, "aliases")) {
+    if (alias.IsString() )
+    dist_a = minDistanceNormedStrings(dist_a, normedStrings, alias.GetString() );
   }
 // in search results, aliases don't have language information
 // in series/<id>/extended, language information for aliases IS available
@@ -444,17 +368,17 @@ void cTVDBScraper::ParseJson_searchSeries(json_t *data, vector<searchResultTvMov
   dist_a = std::min(dist_a + 50, 1000);
   int requiredDistance = 600; // "standard" require same text similarity as we required for episode matching
   if (lang) {
-    json_t *jTranslations = json_object_get(data, "translations");
-    if (json_is_object(jTranslations) ) {
-      json_t *langVal = json_object_get(jTranslations, lang->m_thetvdb);
+    rapidjson::Value::ConstMemberIterator translationsIt = data.FindMember("translations");
+    if (translationsIt != data.MemberEnd() && translationsIt->value.IsObject() ) {
+      const char *langVal = getValueCharS(translationsIt->value, lang->m_thetvdb);
       if (langVal) {
-        dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value(langVal), &sRes.normedName);
+        dist_a = minDistanceNormedStrings(dist_a, normedStrings, langVal, &sRes.normedName);
         requiredDistance = 700;  // translation in EPG language is available. Reduce requirement somewhat
       }
     }
   } else {
 // name is the name in original / primary language
-    dist_a = minDistanceNormedStrings(dist_a, normedStrings, json_string_value_validated_c(data, "name") );
+    dist_a = minDistanceNormedStrings(dist_a, normedStrings, getValueCharS(data, "name") );
   }
   if (dist_a < requiredDistance) {
     sRes.setMatchText(dist_a);

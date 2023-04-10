@@ -199,10 +199,10 @@ class cSql {
     void bind(int col, unsigned long int i) { sqlite3_bind_int64(m_statement, col, static_cast<sqlite3_int64>(i)); }
     void bind(int col, unsigned int i) { sqlite3_bind_int64(m_statement, col, static_cast<sqlite3_int64>(i)); }
     void bind(int col, double f) { sqlite3_bind_double(m_statement, col, f); }
-    void bind(int col, const char* const&s) { m_lval = true; sqlite3_bind_text(m_statement, col, s, -1, SQLITE_STATIC); }
+    void bind(int col, const char* const&s) { m_lval = true; if(s) sqlite3_bind_text(m_statement, col, s, -1, SQLITE_STATIC); else sqlite3_bind_null(m_statement, col); }
     void bind(int col, const std::string_view &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const std::string &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
-    void bind(int col, const char* const&&s) { m_rval = true; sqlite3_bind_text(m_statement, col, s, -1, SQLITE_STATIC); }
+    void bind(int col, const char* const&&s) { m_rval = true; if(s) sqlite3_bind_text(m_statement, col, s, -1, SQLITE_STATIC); else sqlite3_bind_null(m_statement, col); }
     void bind(int col, const std::string_view &&str) { m_rval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const std::string &&str) { m_rval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void assertRvalLval();
@@ -439,21 +439,18 @@ public:
     int DeleteMovie(int movieID) const;
     void DeleteSeries(int seriesID, const string &movieDir, const string &seriesDir) const;
     int DeleteSeries(int seriesID) const;
-    void InsertTv(int tvID, const string &name, const string &originalName, const string &overview, const string &firstAired, const string &networks, const string &genres, float popularity, float vote_average, int vote_count, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID, const string &status, const set<int> &EpisodeRunTimes, const string &createdBy);
+    void InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy);
     void InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes);
-    void InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_absolute_number, int episode_id, const string &episode_name, const string &airDate, float vote_average, int vote_count, const string &episode_overview, const string &episode_guest_stars, const string &episode_director, const string &episode_writer, const string &episode_IMDB_ID, const string &episode_still_path, int episode_run_time);
+    void InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_absolute_number, int episode_id, const char *episode_name, const char *airDate, float vote_average, int vote_count, const char *episode_overview, const char *episode_guest_stars, const string &episode_director, const string &episode_writer, const char *episode_IMDB_ID, const char *episode_still_path, int episode_run_time);
     string GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber) const;
     void TvSetEpisodesUpdated(int tvID);
     void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);
     bool TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes);
     void InsertEvent(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
     void DeleteEventOrRec(csEventOrRecording *sEventOrRecording);
-    void InsertActor(int seriesID, const string &name, const string &role, const string &path);
-    void InsertMovie(int movieID, const string &title, const string &original_title, const string &tagline, const string &overview, bool adult, int collection_id, const string &collection_name, int budget, int revenue, const string &genres, const string &homepage, const string &release_date, int runtime, float popularity, float vote_average, int vote_count, const string &productionCountries, const string &posterUrl, const string &fanartUrl, const string &IMDB_ID);
-    void InsertMovieDirectorWriter(int movieID, const string &director, const string &writer);
-
-    void InsertMovieActor(int movieID, int actorID, const string &name, const string &role, bool hasImage);
-    void InsertTvActor(int tvID, int actorID, const string &name, const string &role, bool hasImage);
+    void InsertActor(int seriesID, const char *name, const char *role, const char *path);
+    void InsertMovie(int movieID, const char *title, const char *original_title, const char *tagline, const char *overview, bool adult, int collection_id, const char *collection_name, int budget, int revenue, const char *genres, const char *homepage, const char *release_date, int runtime, float popularity, float vote_average, int vote_count, const char *productionCountries, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID);
+    void InsertTvActor(int tvID, int actorID, const char *name, const char *role, bool hasImage);
     void InsertTvEpisodeActor(int episodeID, int actorID, const string &name, const string &role, bool hasImage);
     bool MovieExists(int movieID);
     bool TvExists(int tvID);
@@ -482,11 +479,12 @@ public:
     void InsertCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
     void DeleteOutdatedCache() const;
     int DeleteFromCache(const char *movieNameCache); // return number of deleted entries
-    void insertTvMedia (int tvID, const string &path, eMediaType mediaType);
-    void insertTvMediaSeasonPoster (int tvID, const string &path, eMediaType mediaType, int season);
-    bool existsTvMedia (int tvID, const string &path);
+    void insertTvMedia (int tvID, const char *path, eMediaType mediaType);
+    void insertTvMediaSeasonPoster (int tvID, const char *path, eMediaType mediaType, int season);
+    bool existsTvMedia (int tvID, const char *path);
     void deleteTvMedia (int tvID, bool movie = false, bool keepSeasonPoster = true) const;
-    void AddActorDownload (int tvID, bool movie, int actorId, const string &actorPath);
+    void AddActorDownload (int tvID, bool movie, int actorId, const char *actorPath);
+    void AddActorDownload (cSql &stmt, int tvID, bool movie, int actorId, const char *actorPath);
     int findUnusedActorNumber (int seriesID);
     void DeleteActorDownload (int tvID, bool movie) const;
     int GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);

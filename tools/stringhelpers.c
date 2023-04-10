@@ -1,3 +1,6 @@
+#ifndef __STRINGHELPERS_H
+#define __STRINGHELPERS_H
+
 #include <cstdarg>
 #include <string>
 #include <string.h>
@@ -103,7 +106,10 @@ char result[result##concatenate_lvls + 1]; \
 SELECT( CONCATENATE_END, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
 *result##concatenate_buf = 0;
 
+// =========================================================
 // UTF8 string utilities ****************
+// =========================================================
+
 int AppendUtfCodepoint(char *&target, wint_t codepoint){
   if (codepoint <= 0x7F) {
     if (target) {
@@ -162,7 +168,7 @@ void stringAppendUtfCodepoint(std::string &target, wint_t codepoint){
      return;
 }
 
-int utf8CodepointIsValid(const char *p){
+inline int utf8CodepointIsValid(const char *p){
 // In case of invalid UTF8, return 0
 // otherwise, return number of characters for this UTF codepoint
   static const uint8_t LEN[] = {2,2,2,2,3,3,4,0};
@@ -172,7 +178,7 @@ int utf8CodepointIsValid(const char *p){
   return len;
 }
 
-wint_t Utf8ToUtf32(const char *&p, int len) {
+inline wint_t Utf8ToUtf32(const char *&p, int len) {
 // assumes, that uft8 validity checks have already been done. len must be provided. call utf8CodepointIsValid first
 // change p to position of next codepoint (p = p + len)
   static const uint8_t FF_MSK[] = {0xFF >>0, 0xFF >>0, 0xFF >>3, 0xFF >>4, 0xFF >>5, 0xFF >>0, 0xFF >>0, 0xFF >>0};
@@ -182,7 +188,7 @@ wint_t Utf8ToUtf32(const char *&p, int len) {
   return val;
 }
 
-wint_t getUtfCodepoint(const char *p) {
+inline wint_t getUtfCodepoint(const char *p) {
 // get next codepoint
 // 0 is returned at end of string
   if(!p || !*p) return 0;
@@ -192,7 +198,7 @@ wint_t getUtfCodepoint(const char *p) {
   return Utf8ToUtf32(s, l);
 }
 
-wint_t getNextUtfCodepoint(const char *&p){
+inline wint_t getNextUtfCodepoint(const char *&p){
 // get next codepoint, and increment p
 // 0 is returned at end of string, and p will point to the end of the string (0)
   if(!p || !*p) return 0;
@@ -228,29 +234,19 @@ void stringAppendRemoveControlCharactersKeepNl(std::string &target, const char *
   }
 }
 
-// std::string_view to_sv : increase type safety in ... methods  ================
-inline std::string_view to_sv(const char *s) {
-  if (s) return std::string_view(s);
-  return std::string_view();
-}
-inline std::string_view to_sv(const std::string &S) {
-  return S;
-}
-inline std::string_view to_sv(const std::string_view &V) {
-  return V;
-}
-
+// =========================================================
 // methods for char *s, make sure that s==NULL is just an empty string ========
-std::string charPointerToString(const unsigned char *s) {
+// =========================================================
+inline std::string charPointerToString(const unsigned char *s) {
   return s?reinterpret_cast<const char *>(s):"";
 }
-std::string_view charPointerToStringView(const unsigned char *s) {
+inline std::string_view charPointerToStringView(const unsigned char *s) {
   return s?reinterpret_cast<const char *>(s):std::string_view();
 }
-std::string_view charPointerToStringView(const char *s) {
+inline std::string_view charPointerToStringView(const char *s) {
   return s?s:std::string_view();
 }
-std::string charPointerToString(const char *s) {
+inline std::string charPointerToString(const char *s) {
   return s?s:"";
 }
 
@@ -263,8 +259,10 @@ bool stringEqual(const char *s1, const char *s2) {
   return false;
 }
 
+// =========================================================
 // some performance improvemnt, to get string presentation for channel ===========
 // you can also use channelID.ToString()
+// =========================================================
 
 void sourceToBuf(char *buffer, int Code) {
 //char buffer[16];
@@ -290,7 +288,9 @@ std::string channelToString(const tChannelID &channelID) {
   return buffer;
 }
 
+// =========================================================
 // =========== concatenate ===========================================
+// =========================================================
 
 std::string concatenate(const char *s1, const char *s2) {
   if (!s1 && !s2) return "";
@@ -918,7 +918,13 @@ class cContainer {
       m_buffer.append(1, m_delim);
       return false;
     }
+    bool insert(const char *s) {
+      if (!s) return true;
+      return insert(std::string_view(s));
+    }
+    std::string getBuffer() { return std::move(m_buffer); }
   private:
     char m_delim;
     std::string m_buffer;
 };
+#endif // __STRINGHELPERS_H

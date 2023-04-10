@@ -50,7 +50,6 @@ Requirements
 - vdr 2.4.0 or later. Recommended: vdr 2.6.0 or later
 - libsqlite3
 - libcurl
-- libjansson
 - gcc v8 or later. gcc must support -std=c++17.
 Note: if your version of GCC does not support -std=c++17, you can use -std=c++1z instead of -std=c++17. But:
   - If you use -std=c++1z and see errors indicating a missing include (filesystem), you can change #include \<filesystem\> to #include \<experimental/filesystem\>
@@ -138,14 +137,14 @@ A plugin is required for each external EPG provider configured in channelmap.con
 
 The example plugin:
 - As proof of concept, an example plugin comes with tvscraper.
-This example plugin provides external EPG information from tvsp.
+It provides external EPG information from tvsp.
 - Note: This example plugin is only a proof of concept and not intended for productive use.
-This example plugin uses only information which is publicly available on the internet.
+It uses only information which is publicly available on the internet.
 Make sure to use it only if this is allowed by the laws and
 regulations applicable to you.
-- create the example plugin with "make plugins" in the tvscraper source directory
-- install the example plugin with "sudo make install-plugins" in the tvscraper source directory
-- restart vdr
+- Create the example plugin with "make plugins" in the tvscraper source directory
+- Install the example plugin with "sudo make install-plugins" in the tvscraper source directory
+- Restart vdr
 - To disable this feature, remove channelmap.conf from \<PLGCFGDIR\>
 directoy and restart vdr
 - To write another plugin, for another external EPG provider: use the "example" plugin as template
