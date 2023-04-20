@@ -35,7 +35,7 @@ bool FileExists(const char *filename) {
 // test: moviedb; smallest picture: 1103 bytes. Wrong files: 0 bytes or 150 bytes
   return buffer.st_size > 500;
 }
-bool FileExists(const string &filename) {
+bool FileExists(const std::string &filename) {
   return FileExists(filename.c_str());
 }
 
@@ -69,20 +69,26 @@ void DeleteAll(const string &dirname) {
   else if (config.enableDebug) esyslog("tvscraper: deleted  \"%s\", %ju files", dirname.c_str(), n);
 }
 
-bool Download(const std::string &url, const std::string &localPath) {
+bool Download(const char *url, const char *localPath) {
   if (FileExists(localPath)) return true;
-  string error;
+  std::string error;
   int err_code;
-  if (config.enableDebug) esyslog("tvscraper: download file, url: \"%s\" local path: \"%s\"", url.c_str(), localPath.c_str() );
+  if (config.enableDebug) esyslog("tvscraper: download file, url: \"%s\" local path: \"%s\"", url, localPath);
   for(int i=0; i < 11; i++) {
     if (i !=  0) sleep(i);
     if (i == 10) sleep(i); // extra long sleep before last try
-    if (CurlGetUrlFile2(url.c_str(), localPath.c_str(), err_code, error) && FileExists(localPath) ) return true;
+    if (CurlGetUrlFile2(url, localPath, err_code, error) && FileExists(localPath) ) return true;
   }
-  esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url.c_str(), localPath.c_str(), error.c_str(), err_code );
-  DeleteFile(localPath);
+  esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url, localPath, error.c_str(), err_code );
+  remove(localPath);
   return false;
 }
+bool Download(const std::string &url, const std::string &localPath) {
+  return Download(url.c_str(), localPath.c_str() ); }
+bool Download(const std::string &url, const char *localPath) {
+  return Download(url.c_str(), localPath); }
+bool Download(const char *url, const std::string &localPath) {
+  return Download(url, localPath.c_str() ); }
 
 bool CopyFile(const std::string &from, const std::string &to) {
   if (!FileExists(from)) return false;

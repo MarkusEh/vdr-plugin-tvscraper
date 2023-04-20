@@ -27,7 +27,7 @@ public:
     bool GetToken();
     int StoreSeriesJson(int seriesID, bool onlyEpisodes);
     int StoreSeriesJson(int seriesID, const cLanguage *lang);
-    void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename);
+    void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const char *episodeFilename);
     void StoreActors(int seriesID);
     void UpdateTvRuntimes(int seriesID);
 //    void GetTvVote(int seriesID, float &vote_average, int &vote_count);
@@ -37,7 +37,6 @@ public:
     void DownloadMediaBanner (int tvID, const string &destPath);
     bool AddResults4(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cLanguage *lang);
     static const char *getDbUrl(const char *url);
-    static std::string getFullDownloadUrl(const char *url);
     void Download4(const char *url, const std::string &localPath);
 };
 #endif //__TVSCRAPER_TVDBSCRAPER_H

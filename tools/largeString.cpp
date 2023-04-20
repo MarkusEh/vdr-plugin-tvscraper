@@ -6,28 +6,26 @@
 #include <sys/stat.h>
 #include "largeString.h"
 
-cLargeString::cLargeString(const char *name, size_t initialSize, size_t increaseSize, bool debugBufferSize) {
-  if (name) m_name = name;
+void cLargeString::init(size_t initialSize, size_t increaseSize, bool debugBufferSize) {
   m_debugBufferSize = debugBufferSize;
   if (initialSize <= 0) {
-    esyslog("cLargeString::cLargeString, ERROR name = %s, initialSize = %zu", m_name.c_str(), initialSize);
+    esyslog("cLargeString::cLargeString, ERROR name = %.*s, initialSize = %zu", nameLen(), nameData(), initialSize);
     initialSize = 100;
   }
   if (increaseSize > 0) m_increaseSize = increaseSize;
   else m_increaseSize = std::max((size_t)10, initialSize / 2);
   m_s = (char *) malloc(initialSize * sizeof(char));
   if (!m_s) {
-    esyslog("cLargeString::cLargeString, ERROR out of memory, name = %s, initialSize = %zu", m_name.c_str(), initialSize);
+    esyslog("cLargeString::init, ERROR out of memory, name = %.*s, initialSize = %zu", nameLen(), nameData(), initialSize);
 //  throw std::runtime_error("cLargeString::cLargeString, ERROR out of memory");
     return;
   }
   m_buffer_end = m_s + initialSize;
   m_string_end = m_s;
 }
-cLargeString::cLargeString(const char *filename, bool *exists) {
+void cLargeString::loadFile(const char *filename, bool *exists) {
   if (exists) *exists = false;
   if (!filename) return;
-  m_name = filename;
   struct stat buffer;                                                                                                                       
   if (stat(filename, &buffer) != 0) return;
 
@@ -60,7 +58,7 @@ cLargeString::~cLargeString() {
   free (m_s);
   setMaxSize();
   size_t buffer_len = m_buffer_end - m_s;
-  if (m_debugBufferSize && buffer_len > m_maxSize * 2) esyslog("cLargeString::cLargeString WARNING too large buffer, name = %s, buffer %zu, len %zu", m_name.c_str(), buffer_len, m_maxSize);
+  if (m_debugBufferSize && buffer_len > m_maxSize * 2) esyslog("cLargeString::cLargeString WARNING too large buffer, name = %.*s, buffer %zu, len %zu", nameLen(), nameData(), buffer_len, m_maxSize);
 }
 
 bool cLargeString::clear() {
@@ -82,7 +80,7 @@ bool cLargeString::finishBorrow(size_t len) {
   if (!m_endBorrowed) return true;
   m_endBorrowed = false;
   if (m_string_end + len >= m_buffer_end) {
-    esyslog("cLargeString::finishBorrow(size_t len), ERROR name = %s, len %zu too large, available %zu", m_name.c_str(), len, m_buffer_end - m_string_end - 1);
+    esyslog("cLargeString::finishBorrow(size_t len), ERROR name = %.*s, len %zu too large, available %zu", nameLen(), nameData(), len, m_buffer_end - m_string_end - 1);
     m_string_end = m_buffer_end - 1;
     return false;
   }
@@ -97,7 +95,7 @@ bool cLargeString::finishBorrow() {
   char *end = strchr(m_string_end, 0);
   if (!end) return false;
   if (end >= m_buffer_end) {
-    esyslog("cLargeString::finishBorrow(), ERROR name = %s, end >= m_buffer_end, available %zu", m_name.c_str(), m_buffer_end - m_string_end - 1);
+    esyslog("cLargeString::finishBorrow(), ERROR name = %.*s, end >= m_buffer_end, available %zu", nameLen(), nameData(), m_buffer_end - m_string_end - 1);
     m_string_end = m_buffer_end - 1;
     return false;
   }
@@ -162,10 +160,10 @@ bool cLargeString::enlarge(size_t increaseSize) {
   increaseSize = std::max(increaseSize, (size_t)((m_buffer_end - m_s)/2) );
   size_t stringLength = m_string_end - m_s;
   size_t newSize = m_buffer_end - m_s + increaseSize;
-  if (m_debugBufferSize) esyslog("cLargeString::cLargeString, WARNING realloc required!!!, name = %s, new Size = %zu", m_name.c_str(), newSize);
+  if (m_debugBufferSize) esyslog("cLargeString::cLargeString, WARNING realloc required!!!, name = %.*s, new Size = %zu", nameLen(), nameData(), newSize);
   char *tmp = (char *)realloc(m_s, newSize * sizeof(char));
   if (!tmp) {
-    esyslog("cLargeString::cLargeString, ERROR out of memory, name = %s, new Size = %zu", m_name.c_str(), newSize);
+    esyslog("cLargeString::cLargeString, ERROR out of memory, name = %.*s, new Size = %zu", nameLen(), nameData(), newSize);
     throw std::runtime_error("cLargeString::cLargeString, ERROR out of memory (enlarge)");
     return false;
   }

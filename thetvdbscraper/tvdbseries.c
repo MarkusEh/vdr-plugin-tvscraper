@@ -148,12 +148,14 @@ int cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode) {
 
 bool cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, const cLanguage *lang) {
 // read data (episode name) from json, for one episode, and write this data to db with additional languages
-//read the episode
   int episodeID = getValueInt(jEpisode, "id");
-  if (episodeID == 0) return false;
   const char *episodeName = getValueCharS(jEpisode, "name");
+  if (episodeID == 0 || !episodeName || !*episodeName) return false;
+//    don't save normed strings in database.
+//      doesn't help for performance (norming one string only takes 5% of sentence_distance time
+//      makes changes to the norm algorithm almost impossible
   m_db->exec("INSERT OR REPLACE INTO tv_s_e_name (episode_id, language_id, episode_name) VALUES (?, ?, ?);",
-    episodeID, lang->m_id, normString(episodeName) );
+    episodeID, lang->m_id, episodeName);
   return true;
 }
 
@@ -293,9 +295,12 @@ bool cTVDBSeries::ParseJson_Artwork(const rapidjson::Value &jSeries) {
     m_db->insertTvMedia (m_seriesID *-1, cTVDBScraper::getDbUrl(imageScore.image), mediaFanart);
     if (++num > 3) break; // download up to 3 backgrounds
   }
-// season poster
-  for (const auto &sPoster: bestSeasonPoster)
-    m_db->insertTvMediaSeasonPoster (m_seriesID *-1, cTVDBScraper::getDbUrl(sPoster.second.image), mediaSeason, sPoster.first);
+// season poster (max. 1 poster per season)
+  cSql stmt(m_db, "INSERT OR REPLACE INTO tv_media (tv_id, media_path, media_type, media_number) VALUES (?, ?, ?, ?);");
+  for (const auto &sPoster: bestSeasonPoster) {
+    const char *url = cTVDBScraper::getDbUrl(sPoster.second.image);
+    if (url && *url) stmt.resetBindStep(m_seriesID *-1, url, mediaSeason, sPoster.first);
+  }
   return true;
 }
 

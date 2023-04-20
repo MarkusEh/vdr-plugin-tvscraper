@@ -27,7 +27,7 @@ cTVScraperDB::~cTVScraperDB() {
     sqlite3_close(db);
 }
 
-int cTVScraperDB::printSqlite3Errmsg(const char *query) const{
+int cTVScraperDB::printSqlite3Errmsg(std::string_view query) const {
 // return 0 if there was no error
 // otherwise, return error code
   int errCode = sqlite3_errcode(db);
@@ -37,10 +37,10 @@ int cTVScraperDB::printSqlite3Errmsg(const char *query) const{
   const char *err = sqlite3_errmsg(db);
   if(err) {
     if (strcmp(err, "not an error") != 0)
-      esyslog("tvscraper: ERROR query failed: %s , error: %s, error code %i extendedErrCode %i", query, err, errCode, extendedErrCode);
+      esyslog("tvscraper: ERROR query failed: %.*s, error: %s, error code %i extendedErrCode %i", static_cast<int>(query.length()), query.data(), err, errCode, extendedErrCode);
     else return 0;
   } else 
-    esyslog("tvscraper: ERROR query failed: %s , no error text, error code %i extendedErrCode %i", query, errCode, extendedErrCode);
+    esyslog("tvscraper: ERROR query failed: %.*s, no error text, error code %i extendedErrCode %i", static_cast<int>(query.length()), query.data(), errCode, extendedErrCode);
   return errCode;
 }
 // helpers for updates, if db changes =======================================
@@ -482,9 +482,9 @@ void cTVScraperDB::InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunT
     esyslog("tvscraper: ERROR in InsertTvEpisodeRunTimes, EpisodeRunTimes.size() == 0, tvID = %d", tvID);
     return;
   }
-  cSql stmt(this);
+  cSql stmt(this, "INSERT OR REPLACE INTO tv_episode_run_time (tv_id, episode_run_time) VALUES (?, ?);");
   for (const int &episodeRunTime: EpisodeRunTimes)
-    stmt.prepareBindStep("INSERT OR REPLACE INTO tv_episode_run_time (tv_id, episode_run_time) VALUES (?, ?);", tvID, episodeRunTime);
+    stmt.resetBindStep(tvID, episodeRunTime);
 }
 
 void cTVScraperDB::TvSetEpisodesUpdated(int tvID) {
@@ -499,25 +499,6 @@ void cTVScraperDB::TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfE
 bool cTVScraperDB::TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes) {
   cSql sql(this, "select tv_last_season, tv_number_of_episodes from tv2 where tv_id = ?", tvID);
   return sql.readRow(LastSeason, NumberOfEpisodes);
-}
-
-bool cTVScraperDB::SearchTvEpisode(int tvID, const string &episode_search_name, int &season_number, int &episode_number) {
-// return true if an episode match like episode_search_name was found
-  cSql sql(this, "select season_number, episode_number from tv_s_e where tv_id = ? and episode_name like ?", tvID, episode_search_name);
-  return sql.readRow(season_number, episode_number);
-}
-
-void cTVScraperDB::InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_absolute_number, int episode_id, const char *episode_name, const char *airDate, float vote_average, int vote_count, const char *episode_overview, const char *episode_guest_stars, const string &episode_director, const string &episode_writer, const char *episode_IMDB_ID, const char *episode_still_path, int episode_run_time) {
-
-  exec("INSERT OR REPLACE INTO tv_s_e (tv_id, season_number, episode_number, episode_absolute_number, episode_id, episode_name, episode_air_date, episode_vote_average, episode_vote_count, episode_overview, episode_guest_stars, episode_director, episode_writer, episode_IMDB_ID, episode_still_path, episode_run_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
-     tvID, season_number, episode_number, episode_absolute_number, episode_id,
-     episode_name, airDate, vote_average, vote_count,
-     episode_overview, episode_guest_stars, episode_director, episode_writer,
-     episode_IMDB_ID, episode_still_path, episode_run_time);
-}
-
-string cTVScraperDB::GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber) const {
-  return queryString("select episode_still_path from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", tvID, seasonNumber, episodeNumber);
 }
 
 bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {
@@ -576,48 +557,26 @@ int cTVScraperDB::GetMovieRuntime(int movieID) const {
     return queryInt("select movie_runtime from movie_runtime2 where movie_id = ?", movieID);
 }
 
-void cTVScraperDB::InsertTvActor(int tvID, int actorID, const char *name, const char *role, bool hasImage) {
-  exec("INSERT OR REPLACE INTO actors (actor_id, actor_name, actor_has_image) VALUES (?, ?, ?);",
-    actorID, name, (int)hasImage );
-
-  exec("INSERT OR REPLACE INTO actor_tv (tv_id, actor_id, actor_role) VALUES (?, ?, ?);",
-    tvID, actorID, role);
-}
-
-void cTVScraperDB::InsertTvEpisodeActor(int episodeID, int actorID, const string &name, const string &role, bool hasImage) {
-  if (!hasImage) {
-    int hImage = queryInt("select actor_has_image from actors where actor_id = ?", actorID);
-// hImage == -1 => information unknown
-// hImage == 0  => no image
-// hImage == 1  => image
-    if (hImage > 0) hasImage = true;
-  }
-  exec("INSERT OR REPLACE INTO actors (actor_id, actor_name, actor_has_image) VALUES (?, ?, ?)",
-    actorID, name, (int)hasImage );
-
-  exec("INSERT OR REPLACE INTO actor_tv_episode (episode_id, actor_id, actor_role) VALUES (?, ?, ?);",
-    episodeID, actorID, role);
-}
-
 void cTVScraperDB::InsertActor(int seriesID, const char *name, const char *role, const char *path) {
   bool debug = seriesID == 78804;
   debug = false;
   int actorNumber = -1;
-  const char *sql_an = "select actor_number from series_actors where actor_series_id = ? and actor_name = ? and actor_role = ?";
-  cSql sql(this, sql_an, seriesID, name, role);
-  if (sql.readRow(actorNumber) ) {
+  cSql sql(this, "SELECT actor_number FROM series_actors WHERE actor_series_id = ? AND actor_name = ? AND actor_role = ?");
+  if (sql.resetBindStep(seriesID, name, role).readRow(actorNumber) ) {
 // entry already in db
     if (actorNumber >= 0 && path && *path) {
-      cConcatenate actorPath;
-      actorPath << config.GetBaseDirSeries() << seriesID << "/actor_" << actorNumber << ".jpg";
-      if (!FileExists(actorPath.str() )) AddActorDownload(seriesID * -1, false, actorNumber, path);
+// we don't check here if the file already exists. This is checked during download,
+// existing files are not overwritten or downloaded again
+      addActorDownload(seriesID * -1, false, actorNumber, path);
     }
     if (actorNumber == -1 && path && *path) {
+// entry in db, with explicit actorNumber == -1. This is set if there was no path, last time this actor was found
+// note: for entry in db, with actor_number not written: 0 will be returned
       actorNumber = findUnusedActorNumber(seriesID);
       if (debug) esyslog("tvscraper: InsertActor, update, actorNumber = %i, actor_name = %s, actor_role = %s", actorNumber, name, role);
-      const char *sql_un = "update series_actors set actor_number = ? where actor_series_id = ? and actor_name = ? and actor_role = ?";
+      const char *sql_un = "UPDATE series_actors SET actor_number = ? WHERE actor_series_id = ? AND actor_name = ? AND actor_role = ?";
       exec(sql_un, actorNumber, seriesID, name, role);
-      AddActorDownload(seriesID * -1, false, actorNumber, path);
+      addActorDownload(seriesID * -1, false, actorNumber, path);
     }
   } else {
 // no entry in db
@@ -626,7 +585,7 @@ void cTVScraperDB::InsertActor(int seriesID, const char *name, const char *role,
   if (debug) esyslog("tvscraper: InsertActor, new, actorNumber = %i, actor_name = %s, actor_role = %s", actorNumber, name, role);
   exec("INSERT INTO series_actors (actor_series_id, actor_name, actor_role, actor_number) VALUES (?, ?, ?, ?);",
     seriesID, name, role, actorNumber);
-  if (actorNumber != -1) AddActorDownload(seriesID * -1, false, actorNumber, path);
+  if (actorNumber != -1) addActorDownload(seriesID * -1, false, actorNumber, path);
   }
 }
 
@@ -652,7 +611,7 @@ int cTVScraperDB::GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv
   if (!sEventOrRecording->DurationRange(durationInMinLow, durationInMinHigh) ) {
 // no information allowing us to check best fit is available
     int n_rtimes = 0;
-    for (int runtime2: cSqlInt(this, sql, movie_tv_id)) {
+    for (int runtime2: cSqlInt(this, cStringRef(sql), movie_tv_id)) {
 //      runtime = statement.getInt(0);
       if (runtime2 > 0) { n_rtimes++; best_runtime = runtime2; }
     }
@@ -661,7 +620,7 @@ int cTVScraperDB::GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv
   }
 // tv show, more than one runtime is available. Select the best fitting one
   int runtime_distance = 20000;
-  for (cSql &statement: cSql(this, sql, movie_tv_id)) {
+  for (cSql &statement: cSql(this, cStringRef(sql), movie_tv_id)) {
     runtime = statement.getInt(0);
     if (runtime <= 0) continue;
     int dist = 0;
@@ -717,7 +676,7 @@ jTvscraper.SetObject();
 const char *sql_tv = "select tv_name, tv_first_air_date from tv2 where tv_id = ?";
 const char *sql_mv = "select movie_title, movie_release_date from movies3 where movie_id = ?";
 const char *sql;
-cSql stmtEpisodeName(this); // must exist until fson is written
+cSql stmtEpisodeName(this, "select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?"); // must exist until json is written
 if (season_number != -100) {
 // TV Show
   jTvscraper.AddMember("type", rapidjson::Value().SetString("tv show"), jInfo.GetAllocator() );
@@ -726,7 +685,7 @@ if (season_number != -100) {
     jTvscraper.AddMember("season_number", rapidjson::Value().SetInt(season_number), jInfo.GetAllocator() );
     jTvscraper.AddMember("episode_number", rapidjson::Value().SetInt(episode_number), jInfo.GetAllocator() );
 // get episode name
-    stmtEpisodeName.prepareBindStep("select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", movie_tv_id, season_number, episode_number);
+    stmtEpisodeName.resetBindStep(movie_tv_id, season_number, episode_number);
     const char *episode_name;
     if (stmtEpisodeName.readRow(episode_name) && episode_name) 
       jTvscraper.AddMember("episode_name", rapidjson::Value().SetString(rapidjson::StringRef(episode_name) ), jInfo.GetAllocator() );
@@ -735,7 +694,7 @@ if (season_number != -100) {
   jTvscraper.AddMember("type", rapidjson::Value().SetString("movie"), jInfo.GetAllocator() );
   sql = sql_mv;
 }
-cSql sqlI(this, sql, movie_tv_id);
+cSql sqlI(this, cStringRef(sql), movie_tv_id);
 if (sqlI.readRow() ) {
   const char *title = sqlI.getCharS(0);
   const char *date = sqlI.getCharS(1);
@@ -760,9 +719,9 @@ int cTVScraperDB::SetRecording(csEventOrRecording *sEventOrRecording) {
 
 // sEventOrRecording used to be an event, is now a recording
 // only called in workers, if a timer is recording
-  const char *sql = "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?";
   int movieTvId = 0, seasonNumber = 0, episodeNumber = 0;
-  cSql sqlI(this, sql, sEventOrRecording->EventID(), sEventOrRecording->ChannelIDs());
+  cSql sqlI(this, "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?");
+  sqlI.resetBindStep(sEventOrRecording->EventID(), sEventOrRecording->ChannelIDs());
   if (!sqlI.readRow(movieTvId, seasonNumber, episodeNumber)) return 0;
   return InsertRecording2(sEventOrRecording, movieTvId, seasonNumber, episodeNumber);
 }
@@ -794,12 +753,12 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
   if (!recording || !recording->Info() || !recording->Info()->GetEvent()) return false;
   csRecording sRecording(recording);
   if (runtime) {
-    const char *sql = "select runtime, movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?";
-    cSql sqlI(this, sql, sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
+    cSql sqlI(this, "select runtime, movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?");
+    sqlI.resetBindStep(sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
     return sqlI.readRow(*runtime, movie_tv_id, season_number, episode_number);
   } else {
-    const char *sql = "select movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?";
-    cSql sqlI(this, sql, sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
+    cSql sqlI(this, "select movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?");
+    sqlI.resetBindStep(sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
     return sqlI.readRow(movie_tv_id, season_number, episode_number);
   }
 }
@@ -809,12 +768,12 @@ bool cTVScraperDB::GetMovieTvID(const cEvent *event, int &movie_tv_id, int &seas
   std::string channelIDs = channelToString(event->ChannelID() );
   if (channelIDs.empty() ) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID (event), !channelIDs");
   if (runtime) {
-    const char *sql = "select runtime, movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?";
-    cSql sqlI(this, sql, event->EventID(), channelIDs);
+    cSql sqlI(this, "select runtime, movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?");
+    sqlI.resetBindStep(event->EventID(), channelIDs);
     return sqlI.readRow(*runtime, movie_tv_id, season_number, episode_number);
   } else {
-    const char *sql = "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?";
-    cSql sqlI(this, sql, event->EventID(), channelIDs);
+    cSql sqlI(this, "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?");
+    sqlI.resetBindStep(event->EventID(), channelIDs);
     return sqlI.readRow(movie_tv_id, season_number, episode_number);
   }
 }
@@ -874,10 +833,10 @@ bool cTVScraperDB::GetFromCache(const string &movieNameCache, csEventOrRecording
     }
     int durationInSec = sEventOrRecording->DurationInSec();
     int durationInSecLow = std::max(0, durationInSec - 300);
-    const char *sql = "select year, episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
-                       "from cache WHERE movie_name_cache = ? AND recording = ? and duration BETWEEN ? and ? " \
-                       "and year != ?";
-    for (auto &stmt: cSqlTemporariesChecked(this, sql, movieNameCache, recording, durationInSecLow, durationInSec + 300, 0)) {
+    cSql sql(this, "SELECT year, episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
+                   "FROM cache WHERE movie_name_cache = ? AND recording = ? AND duration BETWEEN ? and ? " \
+                   "AND year != ?");
+    for (auto &stmt: sql.resetBindStep(cStringRef(movieNameCache), recording, durationInSecLow, durationInSec + 300, 0)) {
       stmt.readRow(movieOrTv.year, movieOrTv.episodeSearchWithShorttext,
                    movieOrTv.id, movieOrTv.season, movieOrTv.episode);
 // there was a year match. Check: do we have a year match?
@@ -896,10 +855,10 @@ bool cTVScraperDB::GetFromCache(const string &movieNameCache, csEventOrRecording
       }
     }
 // search for cache entry without year match
-    const char *sql1 = "select episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
-                        "from cache WHERE movie_name_cache = ? AND recording = ? and duration BETWEEN ? and ? " \
-                        "and year = ?";
-    cSql sqlI(this, sql1, movieNameCache, recording, durationInSecLow, durationInSec + 300, 0);
+    cSql sqlI(this, "select episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
+                    "from cache WHERE movie_name_cache = ? AND recording = ? and duration BETWEEN ? and ? " \
+                    "and year = ?");
+    sqlI.resetBindStep(movieNameCache, recording, durationInSecLow, durationInSec + 300, 0);
     if (sqlI.readRow(movieOrTv.episodeSearchWithShorttext, movieOrTv.id, movieOrTv.season, movieOrTv.episode)) {
         movieOrTv.year = 0;
         if      (movieOrTv.id     == 0)    movieOrTv.type = scrapNone;
@@ -962,15 +921,13 @@ void cTVScraperDB::insertTvMedia(int tvID, const char *path, eMediaType mediaTyp
 void cTVScraperDB::insertTvMediaSeasonPoster (int tvID, const char *path, eMediaType mediaType, int season) {
 // only for poster || fanart || banner
   if (!path || !*path) return;
-  if (existsTvMedia (tvID, path) ) return;
-  
-  exec("INSERT INTO tv_media (tv_id, media_path, media_type, media_number) VALUES (?, ?, ?, ?);",
+//  if (existsTvMedia (tvID, path) ) return;
+  exec("INSERT OR REPLACE INTO tv_media (tv_id, media_path, media_type, media_number) VALUES (?, ?, ?, ?);",
     tvID, path, (int)mediaType, season);
 }
 
 bool cTVScraperDB::existsTvMedia (int tvID, const char *path) {
-  return queryInt("select count(tv_id) as found from tv_media where tv_id = ? and media_path = ?",
-    tvID, path) > 0;
+  return cSql(this, "SELECT 1 FROM tv_media WHERE tv_id = ? AND media_path = ? LIMIT 1", tvID, path).readRow();
 }
 
 void cTVScraperDB::deleteTvMedia (int tvID, bool movie, bool keepSeasonPoster) const {
@@ -980,37 +937,36 @@ void cTVScraperDB::deleteTvMedia (int tvID, bool movie, bool keepSeasonPoster) c
   else {     sql << "and media_number >= 0";
     if(keepSeasonPoster) sql << " and media_type != "  << (int)mediaSeason;
   }
-  exec(sql.str().c_str(), tvID);
+  exec(sql.getCharS(), tvID);
 }
 
 int cTVScraperDB::findUnusedActorNumber (int seriesID) {
-  const char *sql = "select actor_number from series_actors where actor_series_id = ?";
+/*
+  cSql sql(this, "SELECT actor_number FROM series_actors WHERE actor_series_id = ?");
   int highestActorNumber = -1;
-  for (cSql &statement: cSql(this, sql, seriesID)) highestActorNumber = std::max(highestActorNumber, statement.getInt(0));
+  for (cSql &statement: sql.resetBindStep(seriesID)) highestActorNumber = std::max(highestActorNumber, statement.getInt(0));
   return highestActorNumber + 1;
+*/
+  cSql max(this, "SELECT MAX(actor_number) FROM series_actors WHERE actor_series_id = ?", seriesID);
+  if (!max.readRow() ) return 0;
+  return max.getInt(0) + 1;
 }
 
-void cTVScraperDB::AddActorDownload (int tvID, bool movie, int actorId, const char *actorPath) {
-  cSql stmt(this);
-  AddActorDownload(stmt, tvID, movie, actorId, actorPath);
-}
-
-void cTVScraperDB::AddActorDownload (cSql &stmt, int tvID, bool movie, int actorId, const char *actorPath) {
+void cTVScraperDB::addActorDownload (int tvID, bool movie, int actorId, const char *actorPath, cSql *stmt) {
   if (!actorPath || !*actorPath) return;
-  stmt.prepareBindStep("INSERT OR REPLACE INTO actor_download (movie_id, is_movie, actor_id, actor_path) VALUES (?, ?, ?, ?);",
-    tvID, movie, actorId, actorPath);
+  if (stmt) stmt->resetBindStep(tvID, movie, actorId, actorPath);
+  else addActorDownload().resetBindStep(tvID, movie, actorId, actorPath);
 }
 
 void cTVScraperDB::DeleteActorDownload (int tvID, bool movie) const {
-  exec("delete from actor_download where movie_id = ? and is_movie = ?", tvID, movie);
+  exec("DELETE FROM actor_download WHERE movie_id = ? AND is_movie = ?", tvID, movie);
 }
 
-cSqlGetSimilarTvShows::cSqlGetSimilarTvShows(const cTVScraperDB *db, int tv_id): m_sql(db) {
-  const char *sql = "select equal_id from tv_similar where tv_id = ?";
-  int equalId = db->queryInt(sql, tv_id);
-  const char *sql2 = "select tv_id from tv_similar where equal_id = ?";
-  if (equalId == 0) m_ints.push_back(tv_id);
-  else m_sql.prepareBindStep(sql2, equalId);
+cSqlGetSimilarTvShows::cSqlGetSimilarTvShows(const cTVScraperDB *db, int tv_id):
+    m_sql(db, "SELECT tv_id FROM tv_similar WHERE equal_id = ?") {
+  cSql sql(db, "SELECT equal_id FROM tv_similar WHERE tv_id = ?", tv_id);
+  if (sql.readRow() ) m_sql.resetBindStep(sql.getInt(0));
+  else m_ints.push_back(tv_id);
 }
 void cTVScraperDB::setSimilar(int tv_id1, int tv_id2) {
   const char *sqlInList = "select equal_id from tv_similar where tv_id = ?";
@@ -1032,28 +988,20 @@ void cTVScraperDB::setSimilar(int tv_id1, int tv_id2) {
   exec("UPDATE tv_similar set equal_id = ? WHERE equal_id = ?", equalId1, equalId2);
 }
 // cSql =========================================================
-void te_sql(cTVScraperDB *db) {
-  stringstream q, p;
-  q << "aefpj !";
-  p << "paraa";
-  cSql abc(db, q.str().c_str() , p.str().c_str() );
-  std::string str;
-  abc.readRow(&str);
-}
-bool cSql::prepareInt(const char *query) {
+bool cSql::prepareInt() {
 // true: successfull, m_statement is available
 // false: error, and called setFailed()
   m_cur_row = -1;
   m_last_step_result = -10;
   m_num_cols = 0;
   int i = 0;
-  for (m_num_q = 0; query[i]; i++) if (query[i] == '?') m_num_q++;
+  for (m_num_q = 0; i < static_cast<int>(m_query.length()); i++) if (m_query[i] == '?') m_num_q++;
 
-  int result = sqlite3_prepare_v2(m_db->db, query, -1, &m_statement, 0); // If there is an error, m_statement is set to NULL.
-  m_db->printSqlite3Errmsg(query);
+  int result = sqlite3_prepare_v2(m_db->db, m_query.data(), m_query.length(), &m_statement, 0); // If there is an error, m_statement is set to NULL.
+  m_db->printSqlite3Errmsg(m_query);
   if (result != SQLITE_OK) { setFailed(); return false; }
   if (m_num_q != sqlite3_bind_parameter_count(m_statement)) {
-    esyslog("tvscraper: ERROR in cSql::prepare, query %s, num_q %i, bind_parameter_count %i", query, m_num_q, sqlite3_bind_parameter_count(m_statement) );
+    esyslog("tvscraper: ERROR in cSql::prepare, query %.*s, num_q %i, bind_parameter_count %i", static_cast<int>(m_query.length()), m_query.data(), m_num_q, sqlite3_bind_parameter_count(m_statement) );
     setFailed();
     return false;
   }
@@ -1075,7 +1023,7 @@ void cSql::assertRvalLval() {
     const char *query = sqlite3_sql(m_statement);
     esyslog("tvscraper: ERROR in cSql::assertRvalLval, m_rval == true query %s", query?query:"NULL");
   }
-  if (m_lval && !m_temporariesChecked) {
+  if (m_lval) {
     const char *query = sqlite3_sql(m_statement);
     esyslog("tvscraper: WARNING in cSql::assertRvalLval, m_lval == true query %s", query?query:"NULL");
   }

@@ -2,13 +2,31 @@
 #define __TVSCRAPER_TVSCRAPERDB_H
 #include <sqlite3.h>
 
-using namespace std; 
-
-// --- cTVScraperDB --------------------------------------------------------
+// make sure that the lifetime of any string object you use to create cStringRef is long enough!
+// for details (what is long enough), see cSql comment
+class cStringRef {
+  friend class cSql;
+  public:
+// The C++ Standard does guarantee that the lifetime of string literals is the lifetime of the program.
+// -> implicit conversion of string literals is save
+    template<std::size_t N>
+    cStringRef(const char (&s)[N]): m_sv(s, N-1) {}
+    explicit cStringRef(const char* s): m_sv(charPointerToStringView(s)) {}
+    explicit cStringRef(const std::string_view &sv): m_sv(sv) {}
+    explicit cStringRef(const std::string &s): m_sv(s) {}
+  private:
+    std::string_view m_sv;
+};
 
 class cTVScraperDB;
-typedef const char* cCharS;
+//typedef const char* cCharS;
 class cSql {
+// note for the query parameter: ============================================
+//   the parameter type is cStringRef
+//   string literals will implicitly converted to cStringRef, so you can just use string literals
+//   for others: use cStringRef(.) to explicitly convert to cSringRef, after you checked that
+//   the lifetime is long enough (should be longer than lifetime of the cSql instance)
+
 //  execute sql statement   ==================================================
 // for that, just create an instance and provide the paramters.
 // the statement will be executed, as soon as all parameters are available
@@ -16,8 +34,8 @@ class cSql {
 // cSql stmt(db, "delete movies where movie_id = ?", movieId);
 //   example 2
 // cSql stmt(db);
-// stmt.prepareBindStep("delete movies where movie_id = ?", movieId);
-// stmt.prepareBindStep("delete series where series = ?", seriesId);
+// stmt.finalizePrepareBindStep("delete movies where movie_id = ?", movieId);
+// stmt.finalizePrepareBindStep("delete series where series = ?", seriesId);
 
 //  execute sql statement, and read one row ==================================
 // start as described in "execute sql statement"
@@ -38,7 +56,7 @@ class cSql {
 // else cout << "movie name: " << stmt.getCharS(0) << "\n";
 //  RESTRICTIONS / BE CAREFULL!!!
 // char* and string_view in result values:
-//   invalidated by the next call to prepareBindStep, reset, or destruction of the cSql instance
+//   invalidated by the next call to finalizePrepareBindStep, resetBindStep,resetBindStep,  resetStep, or destruction of the cSql instance
 
 //  execute sql statement, and read several rows ==================================
 // cSql has a forward iterator, and can be used in for loops
@@ -55,16 +73,13 @@ class cSql {
 // for the parameters, since C++23: no restriction
 
 //  execute sql statement, and write several rows =================================
-// if prepareBindStep() is called several times, and the query of a call is identical to the
-// query of the last call, the sql statment is just reset, and not finalized
-// in this way, we avoid to compile the sql statment several times
 //  example 1
-// cSql stmt(db);
+// cSql stmt(db, "INSERT OR REPLACE INTO tv_episode_run_time (tv_id, episode_run_time) VALUES (?, ?);");
 // for (const int &episodeRunTime: EpisodeRunTimes)
-//   stmt.prepareBindStep("INSERT OR REPLACE INTO tv_episode_run_time (tv_id, episode_run_time) VALUES (?, ?);", tvID, episodeRunTime);
+//   stmt.resetBindStep(tvID, episodeRunTime);
 //  example 2
-// cSql stmt(db);
-// for (int i: <vector<int>>{4,2}) stmt.prepareBindStep("INSERT INTO best_numbers (number) VALUES (?);", i);
+// cSql stmt(db"INSERT INTO best_numbers (number) VALUES (?);");
+// for (int i: <vector<int>>{4,2}) stmt.resetBindStep(i);
 
 //  RESTRICTIONS / BE CAREFULL!!!  :   Details for the parameters:
 // char*, strings and string_view provided: the refernces must be valid until the object is destroyed.
@@ -89,8 +104,11 @@ class cSql {
     cSql &operator= (const cSql &) = delete;
     cSql(const cTVScraperDB *db): m_db(db) {}
     template<typename... Args>
-    cSql(const cTVScraperDB *db, const char *query, Args&&... args): m_db(db) {
-      prepareBindStep(query, std::forward<Args>(args)...); }
+    cSql(const cTVScraperDB *db, cStringRef query, Args&&... args): m_db(db), m_query(query.m_sv) {
+      if (!m_db || m_query.empty() )
+        esyslog("tvscraper: ERROR in cSql::cSql, m_db %s, query %.*s", m_db?"Avaliable":"Null", static_cast<int>(m_query.length()), m_query.data() );
+      else prepareBindStep(std::forward<Args>(args)...);
+    }
     class iterator: public std::iterator<std::forward_iterator_tag, cSql, int, cSql*, cSql &> {
         cSql *m_sql = nullptr;
       public:
@@ -133,34 +151,70 @@ class cSql {
     }
     iterator end() { return iterator(); }
 
-// prepare, bind parameters and step. All parameters must be provided
+// =======================================================================
+//   resetBindStep:
+//     pre-requisite:
+//       - query was provided, e.g. during creation of the instance
+//       - All bind parameters must be provided in this call
+//     what it does:
+//       - if there is already a prepared statment: reset statement
+//       - otherwise, create statment
+//       - bind parameters and step.
+// =======================================================================
+
     template<typename... Args>
-    cSql & prepareBindStep(const char *query, Args&&... args) {
-      if (!m_db || !query || !*query) {
-        esyslog("tvscraper: ERROR in cSql::prepareBindStep, m_db %s, query %s", m_db?"Avaliable":"Null", query?query:"Null");
+    cSql & resetBindStep(Args&&... args) {
+      if (!m_db || m_query.empty() ) {
+        esyslog("tvscraper: ERROR in cSql::resetBindStep, m_db %s, query %.*s", m_db?"Avaliable":"Null", static_cast<int>(m_query.length()), m_query.data());
         setFailed();
         return *this;
       }
       if (m_statement) {
-        const char *old_query = sqlite3_sql(m_statement);
-        if (!old_query || strcmp(old_query, query) != 0) {
-          if (config.enableDebug) esyslog("tvscraper: INFO in cSql::prepareBindStep, finalize old query %s, new query %s", old_query?old_query:"null", query);
-          finalize();  // if this cSql was used, close anything still open. Reset m_statement to NULL
-          if (!prepareInt(query)) return *this;
-        } else {
-//        if (config.enableDebug) esyslog("tvscraper: INFO in cSql::prepareBindStep, reset query %s", query);
-          sqlite3_reset(m_statement);
-          sqlite3_clear_bindings(m_statement);
-        }
+        sqlite3_reset(m_statement);
+        sqlite3_clear_bindings(m_statement);
       } else {
 // no "old" m_statement
-        if (!prepareInt(query)) return *this;
+        if (!prepareInt()) return *this;
       }
       if (bind0(std::forward<Args>(args)...)) stepFirstRow();
       return *this;
     }
+
+// =======================================================================
+//   finalizePrepareBindStep:
+//     - if query differs from old query, finalize old query.
+//     - if query is same as old query, reset statement (better performance then finalize)
+//     - if all bind parameters are provided, set bind parameters and step.
+// =======================================================================
+
+    template<typename... Args>
+    cSql & finalizePrepareBindStep(cStringRef query, Args&&... args) {
+      m_query = query.m_sv;
+      if (!m_db || m_query.empty() ) {
+        esyslog("tvscraper: ERROR in cSql::finalizePrepareBindStep, m_db %s, query %.*s", m_db?"Avaliable":"Null", static_cast<int>(m_query.length()), m_query.data() );
+        setFailed();
+        return *this;
+      }
+      if (!m_statement) return prepareBindStep(std::forward<Args>(args)...);
+      const char *old_query = sqlite3_sql(m_statement);
+      if (!old_query || m_query.compare(old_query) != 0) {
+        finalize();  // if this cSql was used, close anything still open. Reset m_statement to NULL
+        return prepareBindStep(std::forward<Args>(args)...);
+      }
+      if (config.enableDebug) esyslog("tvscraper: INFO in cSql::finalizePrepareBindStep, reset query %.*s", static_cast<int>(m_query.length()), m_query.data());
+      return resetBindStep(std::forward<Args>(args)...);
+    }
   private:
-    bool prepareInt(const char *query);
+    template<typename... Args>
+    cSql & prepareBindStep(Args&&... args) {
+// check m_db != nullptr && m_query != empty() before calling this!
+// also, there must be no m_statement
+      if (sizeof...(Args) == 0 && m_query.find("?") != std::string_view::npos) return *this; // missing bind values -> delayed prepare
+      if (!prepareInt()) return *this;
+      if (bind0(std::forward<Args>(args)...)) stepFirstRow();
+      return *this;
+    }
+    bool prepareInt();
 // bind parameters. Note: All parameters must be available, this is checked
     template<typename... Args>
     bool bind0(Args&&... args) {
@@ -200,6 +254,7 @@ class cSql {
     void bind(int col, unsigned int i) { sqlite3_bind_int64(m_statement, col, static_cast<sqlite3_int64>(i)); }
     void bind(int col, double f) { sqlite3_bind_double(m_statement, col, f); }
     void bind(int col, const char* const&s) { m_lval = true; if(s) sqlite3_bind_text(m_statement, col, s, -1, SQLITE_STATIC); else sqlite3_bind_null(m_statement, col); }
+    void bind(int col, const cStringRef &sref) { sqlite3_bind_text(m_statement, col, sref.m_sv.data(), sref.m_sv.length(), SQLITE_STATIC); }
     void bind(int col, const std::string_view &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const std::string &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const char* const&&s) { m_rval = true; if(s) sqlite3_bind_text(m_statement, col, s, -1, SQLITE_STATIC); else sqlite3_bind_null(m_statement, col); }
@@ -207,20 +262,36 @@ class cSql {
     void bind(int col, const std::string &&str) { m_rval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void assertRvalLval();
   public:
+
+// =======================================================================
+//   resetStep:
+//     pre-requisite:
+//       - query and all bind parameters were provided, e.g. during creation of the instance
+//       - the char* and string_view bind parameter values must still be valid !!!!
+//     what it does:
+//       - reset statement and and step.
+// =======================================================================
+
     bool resetStep() {
-// evaluate the query again (read changed data from database). Go back to the first row
-// note: the char* and string_view bind parameter values must still be valid !!!!
       if (!assertStatement("reset")) return false;
       sqlite3_reset(m_statement);
       assertRvalLval(); // this needs to be checked in case of second call to step()
       stepFirstRow();
       return true;
     }
-// read result: one complete row, with readRow()
-//    bool readRow(...) ======================================================
-// returns true if a row was found
-// you can call this without parameters to check if a row was found
-// if parameters are provided, and a row was found, the parameters are filled with the content of the row
+
+// =======================================================================
+//   readRow:
+//     pre-requisite:
+//       - query and all bind parameters were provided, e.g. during creation of the instance
+//     what it does:
+//       - return true if a row was found in last step
+//       - return false, otherwise
+//       - if called with parameters, and a row was found in last step:
+//           one parameter for each col must be provided
+//           the parameters are filled with the content of the row
+// =======================================================================
+
     template<typename... Args>
     bool readRow(Args&&... args) {
       if (m_last_step_result == SQLITE_ROW) {
@@ -288,7 +359,7 @@ class cSql {
       return preCheckRead(col)?charPointerToStringView(sqlite3_column_text(m_statement, col)):string_view();
     }
 // The pointers returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
-      ///< s (char *) results will be valit until prepareBindStep or reset is called on this cSql,
+      ///< s (char *) results will be valit until finalizePrepareBindStep or reset is called on this cSql,
       ///<            or this cSql is destroyed
     int getInt(int col) {
       return preCheckRead(col)?static_cast<int>(sqlite3_column_int64(m_statement, col)):0;
@@ -335,30 +406,23 @@ class cSql {
       m_last_step_result = -10;
       m_statement = nullptr;
     }
+    cSql(cSql &&) = default;
+    cSql &operator= (cSql &&) = default;
     const cTVScraperDB *m_db;  // will be provided in constructor (mandatory, no constructur without DB)
     sqlite3_stmt *m_statement = NULL;
+    std::string_view m_query;
     int m_last_step_result = -10;
     int m_cur_row = -1; // +1 each time step is called
     int m_num_q;
     int m_num_cols;
     bool m_rval = false;
     bool m_lval = false;
-  protected:
-    bool m_temporariesChecked = false;
-};
-class cSqlTemporariesChecked: public cSql {
-  public:
-    template<typename... Args>
-    cSqlTemporariesChecked(const cTVScraperDB *db, const char *query, Args&&... args):
-      cSql(db, query, std::forward<Args>(args)...) {
-      m_temporariesChecked = true;
-    };
 };
 class cSqlInt {
 // only an integer is requested. Simplify loops
   public:
     template<typename... Args>
-    cSqlInt(const cTVScraperDB *db, const char *query, Args&&... args):
+    cSqlInt(const cTVScraperDB *db, cStringRef query, Args&&... args):
       m_sql(db, query, std::forward<Args>(args)...) { }
     cSql::int_iterator begin() { return cSql::int_iterator(m_sql.begin() ); }
     const cSql::int_iterator end() { return cSql::int_iterator(m_sql.end() ); }
@@ -379,6 +443,10 @@ class cSqlGetSimilarTvShows {
     std::vector<int> m_ints;
 };
 
+using namespace std; 
+
+// --- cTVScraperDB --------------------------------------------------------
+
 class cTVScraperDB {
   friend class cSql;
 private:
@@ -387,7 +455,7 @@ private:
     string dbPathMem;
     bool inMem;
 // low level methods for sql
-    int printSqlite3Errmsg(const char *query) const;
+    int printSqlite3Errmsg(std::string_view query) const;
 // manipulate tables
     bool TableExists(const char *table);
     bool TableColumnExists(const char *table, const char *column);
@@ -408,13 +476,13 @@ public:
     template<typename... Args>
     void exec(const char *query, Args&&... args) const {
 // just execute the sql statement, with the given parameters
-      cSql sql(this, query, std::forward<Args>(args)...);
+      cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
     }
     template<typename... Args>
     int queryInt(const char *query, Args&&... args) const {
 // return 0 if the requested entry does not exist in database
 // if the requested entry exists in database, but no value was written to the cell: return -1
-      cSql sql(this, query, std::forward<Args>(args)...);
+      cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
       if (!sql.readRow() ) return 0;
       if ( sql.valueInitial(0) ) return -1;
       return sql.getInt(0);
@@ -422,13 +490,13 @@ public:
     template<typename... Args>
     sqlite3_int64 queryInt64(const char *query, Args&&... args) const {
 // return 0 if the requested entry does not exist in database or no value was written to the cell
-      cSql sql(this, query, std::forward<Args>(args)...);
+      cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
       return sql.readRow()?sql.getInt64(0):0;
     }
     template<typename... Args>
     std::string queryString(const char *query, Args&&... args) const {
 // return "" if the requested entry does not exist in database
-      cSql sql(this, query, std::forward<Args>(args)...);
+      cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
       return sql.readRow()?std::string(sql.getStringView(0)):"";
     }
 // methods to make specific db changes
@@ -441,8 +509,6 @@ public:
     int DeleteSeries(int seriesID) const;
     void InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy);
     void InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes);
-    void InsertTv_s_e(int tvID, int season_number, int episode_number, int episode_absolute_number, int episode_id, const char *episode_name, const char *airDate, float vote_average, int vote_count, const char *episode_overview, const char *episode_guest_stars, const string &episode_director, const string &episode_writer, const char *episode_IMDB_ID, const char *episode_still_path, int episode_run_time);
-    string GetEpisodeStillPath(int tvID, int seasonNumber, int episodeNumber) const;
     void TvSetEpisodesUpdated(int tvID);
     void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);
     bool TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes);
@@ -450,12 +516,8 @@ public:
     void DeleteEventOrRec(csEventOrRecording *sEventOrRecording);
     void InsertActor(int seriesID, const char *name, const char *role, const char *path);
     void InsertMovie(int movieID, const char *title, const char *original_title, const char *tagline, const char *overview, bool adult, int collection_id, const char *collection_name, int budget, int revenue, const char *genres, const char *homepage, const char *release_date, int runtime, float popularity, float vote_average, int vote_count, const char *productionCountries, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID);
-    void InsertTvActor(int tvID, int actorID, const char *name, const char *role, bool hasImage);
-    void InsertTvEpisodeActor(int episodeID, int actorID, const string &name, const string &role, bool hasImage);
     bool MovieExists(int movieID);
     bool TvExists(int tvID);
-    bool SearchTvEpisode(int tvID, const string &episode_search_name, int &season_number, int &episode_number);
-    string GetStillPathTvEpisode(int tvID, int season_number, int episode_number);
     int InsertRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
     int SetRecording(csEventOrRecording *sEventOrRecording);
     void ClearRecordings2(void);
@@ -483,8 +545,8 @@ public:
     void insertTvMediaSeasonPoster (int tvID, const char *path, eMediaType mediaType, int season);
     bool existsTvMedia (int tvID, const char *path);
     void deleteTvMedia (int tvID, bool movie = false, bool keepSeasonPoster = true) const;
-    void AddActorDownload (int tvID, bool movie, int actorId, const char *actorPath);
-    void AddActorDownload (cSql &stmt, int tvID, bool movie, int actorId, const char *actorPath);
+    cSql addActorDownload () const { return cSql(this, "INSERT OR REPLACE INTO actor_download (movie_id, is_movie, actor_id, actor_path) VALUES (?, ?, ?, ?);");}
+    void addActorDownload (int tvID, bool movie, int actorId, const char *actorPath, cSql *stmt = NULL);
     int findUnusedActorNumber (int seriesID);
     void DeleteActorDownload (int tvID, bool movie) const;
     int GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);

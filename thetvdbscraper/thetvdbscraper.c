@@ -197,16 +197,17 @@ const char *cTVDBScraper::getDbUrl(const char *url) {
   return url;
 }
 
-std::string cTVDBScraper::getFullDownloadUrl(const char *url) {
-// return std::string("https://thetvdb.com/banners/") + imageUrl;
-  if (!url || !*url) return "";
-  if (strncmp(url, cTVDBScraper::prefixImageURL2, strlen(cTVDBScraper::prefixImageURL2) ) == 0) return url;
-  if (url[0] == '/') return concatenate(cTVDBScraper::prefixImageURL2, url);
-  return concatenate(cTVDBScraper::prefixImageURL1, url);  // for URLs returned by APIv3
-}
-
 void cTVDBScraper::Download4(const char *url, const std::string &localPath) {
-  Download(cTVDBScraper::getFullDownloadUrl(url), localPath);
+// create full download url fron given url, and download to local path
+  if (!url || !*url) return;
+  if (strncmp(url, cTVDBScraper::prefixImageURL2, strlen(cTVDBScraper::prefixImageURL2) ) == 0) {
+    Download(url, localPath);
+    return;
+  }
+  std::string fullUrl;
+  if (url[0] == '/') fullUrl = concatenate(cTVDBScraper::prefixImageURL2, url);
+  fullUrl = concatenate(cTVDBScraper::prefixImageURL1, url);  // for URLs returned by APIv3
+  Download(fullUrl, localPath);
 }
 
 void cTVDBScraper::StoreActors(int seriesID) {
@@ -214,24 +215,26 @@ void cTVDBScraper::StoreActors(int seriesID) {
 //  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreActors, seriesID %i destDir %s", seriesID, destDir.c_str());
   if (!CreateDirectory(destDir)) return;
   destDir += "/actor_";
-  const char *sql = "select actor_id, actor_path from actor_download where movie_id = ? and is_movie = ?";
-  for (cSql &stmt: cSql(db, sql, seriesID * -1, false)) {
+  int destDirLen = destDir.length();
+  cSql stmt0(db, "SELECT actor_id, actor_path FROM actor_download WHERE movie_id = ? AND is_movie = ?");
+  for (cSql &stmt: stmt0.resetBindStep(seriesID * -1, false)) {
     const char *actor_path = stmt.getCharS(1);
     if (!actor_path || !*actor_path) continue;
-    Download4(actor_path, concatenate(destDir, stmt.getInt(0), ".jpg"));
+    destDir.erase(destDirLen);
+    stringAppend(destDir, stmt.getInt(0), ".jpg");
+    Download4(actor_path, destDir);
   }
   db->DeleteActorDownload (seriesID * -1, false);
 }
-void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber, const string &episodeFilename) {
-    if (episodeFilename.empty() ) return;
-    std::string destDir = concatenate(config.GetBaseDirSeries(), seriesID, "/");
-    bool ok = CreateDirectory(destDir);
-    if (!ok) return;
-    std::string destDir2 = concatenate(destDir, seasonNumber, "/");
-    ok = CreateDirectory(destDir2);
-    if (!ok) return;
-    std::string pathStill = concatenate(destDir2, "still_", episodeNumber, ".jpg");
-    Download4(episodeFilename.c_str(), pathStill);
+void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber, const char *episodeFilename) {
+    if (!episodeFilename || !*episodeFilename) return;
+    std::string destDir; destDir.reserve(200);
+    stringAppend(destDir, config.GetBaseDirSeries(), seriesID, "/");
+    if (!CreateDirectory(destDir) ) return;
+    stringAppend(destDir, seasonNumber, "/");
+    if (!CreateDirectory(destDir) ) return;
+    stringAppend(destDir, "still_", episodeNumber, ".jpg");
+    Download4(episodeFilename, destDir);
 }
 void cTVDBScraper::UpdateTvRuntimes(int seriesID) {
   StoreSeriesJson(seriesID, true);
@@ -260,8 +263,8 @@ void cTVDBScraper::DownloadMedia (int tvID) {
 
 void cTVDBScraper::DownloadMedia (int tvID, eMediaType mediaType, const string &destDir) {
 //  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::DownloadMedia, tvID %i mediaType %i destDir %s", tvID, mediaType, destDir.c_str());
-  const char *sql = "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0";
-  for (cSql &stmt: cSql(db, sql, tvID * -1, (int)mediaType)) {
+  cSql sql(db, "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
+  for (cSql &stmt: sql.resetBindStep(tvID * -1, (int)mediaType)) {
 //    if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::DownloadMedia, media[0] %s media[1] %s", media[0].c_str(), media[1].c_str() );
     const char *media_path = stmt.getCharS(0);
     if (!media_path || !*media_path ) continue;
@@ -270,8 +273,8 @@ void cTVDBScraper::DownloadMedia (int tvID, eMediaType mediaType, const string &
 }
 
 void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
-  const char *sql = "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0";
-  for (cSql &stmt: cSql(db, sql, tvID * -1, (int)mediaBanner)) {
+  cSql sql(db,  "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
+  for (cSql &stmt: sql.resetBindStep(tvID * -1, (int)mediaBanner)) {
     const char *media_path = stmt.getCharS(0);
     if (!media_path || !*media_path ) continue;
     Download4(media_path, destPath);

@@ -207,29 +207,25 @@ class cJsonArrayIterator {
 };
 
 std::string getValueArrayConcatenated(const rapidjson::Value &json, const char *arrayName, const char *attributeName) {
-  std::string result;
+  cContainer result;
   for (const rapidjson::Value &elem: cJsonArrayIterator(json, arrayName)) {
-    const char *attribute = getValueCharS(elem, attributeName);
-    if (!attribute || !*attribute) continue;
-    if (result.empty() ) result.append("|");
-    result.append(attribute);
-    result.append("|");
+    result.insert(getValueCharS(elem, attributeName));
   }
-  return result;
+  return result.moveBuffer();
 }
 bool jsonCallRest(rapidjson::Document &document, cLargeString &buffer, const char *url, bool debug, struct curl_slist *headers) {
 // true on success
 // download json file
   buffer.clear();
   headers = curl_slistAppend(headers, "Accept: application/json");
-  if (debug) esyslog("tvscraper: calling %s, buffer %s", url, buffer.getName().c_str() );
+  if (debug) esyslog("tvscraper: calling %s, buffer %.*s", url, buffer.nameLen(), buffer.nameData() );
   if (!CurlGetUrl(url, buffer, headers) ) {
-    esyslog("tvscraper: ERROR jsonCallRest, download %s failed, buffer %s", url, buffer.getName().c_str() );
+    esyslog("tvscraper: ERROR jsonCallRest, download %s failed, buffer %.*s", url, buffer.nameLen(), buffer.nameData() );
     return false; // no data
   }
   document.ParseInsitu(buffer.data() );
   if (document.HasParseError() ) {
-    esyslog("tvscraper: ERROR jsonCallRest, url %s, parse %s failed, parse error %s buffer %s", url, buffer.erase(50).c_str(), rapidjson::GetParseError_En(document.GetParseError()), buffer.getName().c_str() );
+    esyslog("tvscraper: ERROR jsonCallRest, url %s, parse %s failed, parse error %s buffer %.*s", url, buffer.erase(50).c_str(), rapidjson::GetParseError_En(document.GetParseError()), buffer.nameLen(), buffer.nameData() );
     return false; // no data
   }
   return true;
@@ -248,7 +244,7 @@ cLargeString jsonReadFile(rapidjson::Document &document, const char *filename) {
 // if file does     exist: read the file and return document with parsed content
 // if file does     exist, but is not valid json: error in syslog (you can check with document.HasParseError()
 
-  cLargeString jfile(filename);
+  cLargeString jfile("jsonReadFile", filename);
   if (jfile.empty() ) {
     document.SetObject();
     return jfile;

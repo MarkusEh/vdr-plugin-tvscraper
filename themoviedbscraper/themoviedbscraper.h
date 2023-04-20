@@ -1,11 +1,7 @@
 #ifndef __TVSCRAPER_MOVIEDBSCRAPER_H
 #define __TVSCRAPER_MOVIEDBSCRAPER_H
 
-using namespace std;
-class cMovieDbMovie;
-
 struct searchResultTvMovie;
-
 
 // --- cMovieDBScraper -------------------------------------------------------------
 
@@ -23,10 +19,7 @@ class cMovieDBScraper {
     std::string m_actorsBaseUrl;
     cTVScraperDB *db;
     cOverRides *overrides;
-    map<string, int> cache;
-    map<string, int> cacheTv;
     bool parseJSON(const rapidjson::Value &root);
-    bool ReadActors(int movieID);
     bool AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang);
     void AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch);
     int AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch);
@@ -37,17 +30,16 @@ public:
     virtual ~cMovieDBScraper(void);
     bool Connect(void);
     const char* GetApiKey(void) { return apiKey; }
-    void StoreMovie(cMovieDbMovie &movie, bool forceUpdate = false);
+    void StoreMovie(int movieID, bool forceUpdate = false);
     bool DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName, bool movie);
     void DownloadMedia(int movieID);
     void DownloadMediaTv(int tvID);
     void DownloadActors(int tvID, bool movie);
-    void StoreStill(int tvID, int seasonNumber, int episodeNumber, const string &stillPathTvEpisode);
+    void StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode);
     int GetMovieRuntime(int movieID);
     void UpdateTvRuntimes(int tvID);
     bool AddTvResults(vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const cLanguage *lang);
     void AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const cYears &years, const cLanguage *lang);
 };
-
 
 #endif //__TVSCRAPER_MOVIEDBSCRAPER_H

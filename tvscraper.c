@@ -34,7 +34,7 @@ public:
 };
 // END OF deprecated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-enum eMediaType {
+enum eMediaType: int {
     mediaFanartCollection = -2,
     mediaPosterCollection = -1,
     mediaUnknown = 0,

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include "moviedbtv.h"
 #include "themoviedbscraper.h"
+#include "moviedbactors.h"
 
 
 using namespace std;
@@ -51,7 +52,8 @@ bool cMovieDbTv::ReadTv(bool exits_in_db, cLargeString &buffer) {
       m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks.c_str(), m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, nullptr, m_status, m_episodeRunTimes, m_createdBy.c_str() );
 // credits
       rapidjson::Value::ConstMemberIterator jCredits_it = tv.FindMember("credits");
-      if (jCredits_it != tv.MemberEnd() && jCredits_it->value.IsObject() ) AddActorsTv(jCredits_it->value);
+      if (jCredits_it != tv.MemberEnd() && jCredits_it->value.IsObject() )
+        readAndStoreMovieDbActors(m_db, jCredits_it->value, m_tvID, false);
     } else {
       m_db->InsertTvEpisodeRunTimes(m_tvID, m_episodeRunTimes);
     }
@@ -73,9 +75,7 @@ bool cMovieDbTv::ReadTv(const rapidjson::Value &tv) {
   m_tvPosterPath = getValueCharS(tv, "poster_path");
   m_tvNumberOfSeasons = getValueInt(tv, "number_of_seasons");
   m_tvNumberOfEpisodes = getValueInt(tv, "number_of_episodes");
-
-  rapidjson::Value::ConstMemberIterator createdBy_it = tv.FindMember("created_by");
-  if (createdBy_it != tv.MemberEnd() ) m_createdBy = GetCrewMember(createdBy_it->value, NULL, NULL);
+  m_createdBy = getValueArrayConcatenated(tv, "created_by", "name");
 // episode run time
   for (const rapidjson::Value &jElement: cJsonArrayIterator(tv, "episode_run_time") ) {
     if (!jElement.IsInt() ) continue;
@@ -94,19 +94,19 @@ bool cMovieDbTv::AddOneSeason(cLargeString &buffer) {
   const char *lang = config.GetDefaultLanguage()->m_themoviedb;
   url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang;
   rapidjson::Document root;
-  if (!jsonCallRest(root, buffer, url.str().c_str(), config.enableDebug)) return false;
+  if (!jsonCallRest(root, buffer, url.getCharS(), config.enableDebug)) return false;
 // posterPath
   m_db->insertTvMediaSeasonPoster(m_tvID, getValueCharS(root, "poster_path"), mediaSeason, m_seasonNumber);
 // episodes
+  cSql stmtInsertTv_s_e(m_db, "INSERT OR REPLACE INTO tv_s_e (tv_id, season_number, episode_number, episode_id, episode_name, episode_air_date, episode_vote_average, episode_vote_count, episode_overview, episode_director, episode_writer, episode_still_path, episode_run_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);");
   for (const rapidjson::Value &episode: cJsonArrayIterator(root, "episodes")) {
 // episode number
     m_episodeNumber = getValueInt(episode, "episode_number");
     if (m_episodeNumber == 0) continue;
-// episode id
+// episode id / name
     int id = getValueInt(episode, "id", -1);
-// episode name
     const char *episodeName = getValueCharS(episode, "name");
-    if (!episodeName) continue;
+    if (id == -1 || !episodeName) continue;
     const char *airDate = getValueCharS(episode, "air_date");
     float vote_average = getValueDouble(episode, "vote_average");
     int vote_count = getValueInt(episode, "vote_count");
@@ -114,64 +114,12 @@ bool cMovieDbTv::AddOneSeason(cLargeString &buffer) {
     const char *overview = getValueCharS(episode, "overview");
 // stillPath
     const char *episodeStillPath = getValueCharS(episode, "still_path");
-    rapidjson::Value::ConstMemberIterator jCrew_it = episode.FindMember("crew");
-    if (jCrew_it != episode.MemberEnd() ) 
-      m_db->InsertTv_s_e(m_tvID, m_seasonNumber, m_episodeNumber, 0, id, episodeName, airDate, vote_average, vote_count, overview, "", GetCrewMember(jCrew_it->value, "job", "Director"), GetCrewMember(jCrew_it->value, "department", "Writing"), "", episodeStillPath, 0);
-    else
-      m_db->InsertTv_s_e(m_tvID, m_seasonNumber, m_episodeNumber, 0, id, episodeName, airDate, vote_average, vote_count, overview, "", "", "", "", episodeStillPath, 0);
+    std::string director;
+    std::string writer;
+    getDirectorWriter(director, writer, episode);
+    stmtInsertTv_s_e.resetBindStep(m_tvID, m_seasonNumber, m_episodeNumber, id, episodeName, airDate, vote_average, vote_count, overview, director, writer, episodeStillPath);
 //  add actors
-    AddActors(episode, id);
-  }
-  return true;
-}
-std::string cMovieDbTv::GetCrewMember(const rapidjson::Value &jCrew, const char *field, const char *value) {
-  if (!jCrew.IsArray() ) return "";
-  cContainer members;
-  if (field && value) {
-    for (const rapidjson::Value &jCrewMember: jCrew.GetArray()) {
-      const char *fieldValue = getValueCharS(jCrewMember, field);
-      if (fieldValue && strcmp(value, fieldValue) == 0) members.insert(getValueCharS(jCrewMember, "name"));
-    }
-  } else {
-    for (const rapidjson::Value &jCrewMember: jCrew.GetArray())
-      members.insert(getValueCharS(jCrewMember, "name"));
-  }
-  return members.getBuffer();
-}
-
-bool cMovieDbTv::AddActorsTv(const rapidjson::Value &jCredits) {
-// cast
-  for (const rapidjson::Value &jStar: cJsonArrayIterator(jCredits, "cast")) {
-// download actor, and save in db
-    int actor_id = getValueInt(jStar, "id");
-    const char *actor_name = getValueCharS(jStar, "name");
-    if (!actor_id || !actor_name) continue;
-    const char *actor_role = getValueCharS(jStar, "character");
-    const char *actor_path = getValueCharS(jStar, "profile_path");
-    if (!actor_path || !*actor_path) {
-      m_db->InsertTvActor(m_tvID, actor_id, actor_name, actor_role, false);
-    } else {
-      m_db->InsertTvActor(m_tvID, actor_id, actor_name, actor_role, true);
-      m_db->AddActorDownload (m_tvID, false, actor_id, actor_path);
-    }
-  }
-  return true;
-}
-
-bool cMovieDbTv::AddActors(const rapidjson::Value &root, int episode_id) {
-// guest_stars
-  for (const rapidjson::Value &jGuestStar: cJsonArrayIterator(root, "guest_stars")) {
-    int actor_id = getValueInt(jGuestStar, "id");
-    const char *actor_name = getValueCharS(jGuestStar, "name");
-    if (!actor_id || !actor_name) continue;
-    const char *actor_role = getValueCharS(jGuestStar, "character");
-    const char *actor_path = getValueCharS(jGuestStar, "profile_path");
-    if (!actor_path || !*actor_path) {
-      m_db->InsertTvEpisodeActor(episode_id, actor_id, actor_name, actor_role, false);
-    } else {
-      m_db->InsertTvEpisodeActor(episode_id, actor_id, actor_name, actor_role, true);
-      m_db->AddActorDownload (m_tvID, false, actor_id, actor_path);
-    }
+    readAndStoreMovieDbActors(m_db, episode, id, false, true);
   }
   return true;
 }

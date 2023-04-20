@@ -34,11 +34,8 @@ private:
    bool ReadTv(bool exits_in_db, cLargeString &buffer);
    bool ReadTv(const rapidjson::Value &tv);
    bool AddOneSeason(cLargeString &buffer);
-   bool AddActors(const rapidjson::Value &root, int episode_id);
-   bool AddActorsTv(const rapidjson::Value &jCredits);
 public:
    cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
-   static string GetCrewMember(const rapidjson::Value &jCrew, const char *field, const char *value);
    virtual ~cMovieDbTv(void);
    bool UpdateDb(bool updateEpisodes);
    int tvID(void) { return m_tvID; };

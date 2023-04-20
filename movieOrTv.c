@@ -14,7 +14,7 @@ void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id,
   actor.actorThumb.height = height;
   const char *actorId = NULL;
   int hasImage = 0;
-  for (cSql &sql: cSql(m_db, sql, id) ) {
+  for (cSql &sql: cSql(m_db, cStringRef(sql), id) ) {
     sql.readRow(actorId, actor.name, actor.role, hasImage);
     if (hasImage) {
       CONCATENATE(path, config.GetBaseDir(), pathPart, actorId, ".jpg");
@@ -120,8 +120,9 @@ void cMovieMoviedb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper
 void cTvMoviedb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) {
   moviedbScraper->DownloadMediaTv(m_id);
   moviedbScraper->DownloadActors(m_id, false);
-  string episodeStillPath = m_db->GetEpisodeStillPath(m_id, m_seasonNumber, m_episodeNumber);
-  if (!episodeStillPath.empty() )
+  cSql stmt(m_db, "SELECT episode_still_path FROM tv_s_e WHERE tv_id = ? and season_number = ? and episode_number = ?");
+  const char *episodeStillPath = stmt.resetBindStep(dbID(), m_seasonNumber, m_episodeNumber).getCharS(0);
+  if (episodeStillPath && *episodeStillPath)
     moviedbScraper->StoreStill(m_id, m_seasonNumber, m_episodeNumber, episodeStillPath);
   copyImagesToRecordingFolder(recordingFileName);
 }
@@ -129,8 +130,9 @@ void cTvMoviedb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *t
 void cTvTvdb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) {
   tvdbScraper->StoreActors(m_id);
   tvdbScraper->DownloadMedia(m_id);
-  string episodeStillPath = m_db->GetEpisodeStillPath(dbID(), m_seasonNumber, m_episodeNumber);
-  if (!episodeStillPath.empty() )
+  cSql stmt(m_db, "SELECT episode_still_path FROM tv_s_e WHERE tv_id = ? and season_number = ? and episode_number = ?");
+  const char *episodeStillPath = stmt.resetBindStep(dbID(), m_seasonNumber, m_episodeNumber).getCharS(0);
+  if (episodeStillPath && *episodeStillPath)
     tvdbScraper->StoreStill(m_id, m_seasonNumber, m_episodeNumber, episodeStillPath);
   copyImagesToRecordingFolder(recordingFileName);
 }
@@ -152,10 +154,9 @@ bool cTv::getSingleImage(eImageLevel level, eOrientation orientation, string *re
 
 // implementation of cMovieMoviedb  *********************
 void cMovieMoviedb::DeleteMediaAndDb() {
-  cConcatenate base;
-  base << config.GetBaseDirMovies() << m_id;
-  DeleteFile(base.str() + "_backdrop.jpg");
-  DeleteFile(base.str() + "_poster.jpg");
+  std::string base = concatenate(config.GetBaseDirMovies(), m_id);
+  DeleteFile(base + "_backdrop.jpg");
+  DeleteFile(base + "_poster.jpg");
   m_db->DeleteMovie(m_id);
 } 
 
@@ -167,9 +168,8 @@ std::string cMovieMoviedb::getCollectionName() {
 bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
 // return false if no data are available. In this case, paramters will NOT change
   m_collectionId = 0;
-  const char *sql = "select movie_title, movie_collection_id, movie_collection_name, " \
-    "movie_release_date, movie_runtime, movie_IMDB_ID from movies3 where movie_id = ?";
-  cSql stmt(m_db, sql, dbID() );
+  cSql stmt(m_db, "select movie_title, movie_collection_id, movie_collection_name, " \
+    "movie_release_date, movie_runtime, movie_IMDB_ID from movies3 where movie_id = ?", dbID() );
   if (!stmt.readRow(title, m_collectionId, collectionName, releaseDate, runtime, imdbId) ) return false;
   if (collectionId) *collectionId = m_collectionId;
   if (episodeName) *episodeName = "";
@@ -235,7 +235,7 @@ bool cTv::IsUsed() {
     if (m_db->CheckMovieOutdatedEvents(id, m_seasonNumber, m_episodeNumber) ) return true;
     if (m_db->CheckMovieOutdatedRecordings(id, m_seasonNumber, m_episodeNumber)) return true;
   }
-  return false;
+  return config.TV_ShowSelected(dbID());
 }
 
 int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang) {
@@ -246,23 +246,21 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOr
 // no match with episode name found, try episode number as part of title
   int episodeNumber = NumberInLastPartWithPS(baseNameOrTitle);
   if (episodeNumber != 0) {
-    const char *sql    = "select season_number, episode_number from tv_s_e where tv_id = ? and episode_number = ?";
-    const char *sql_a  = "select season_number, episode_number from tv_s_e where tv_id = ? and episode_absolute_number = ?";
-    const char *sql_y  = "select season_number, episode_number from tv_s_e where tv_id = ? and episode_number = ? and episode_air_date like ?";
-    const char *sql_ya = "select season_number, episode_number from tv_s_e where tv_id = ? and episode_absolute_number = ? and episode_air_date like ?";
-    cSql sqlI  (m_db, sql  , dbID(), episodeNumber);
-    cSql sqlI_a(m_db, sql_a, dbID(), episodeNumber);
+    cSql sqlI  (m_db, "select season_number, episode_number from tv_s_e where tv_id = ? and episode_number = ?");
+    cSql sqlI_a(m_db, "select season_number, episode_number from tv_s_e where tv_id = ? and episode_absolute_number = ?");
+    sqlI.resetBindStep  (dbID(), episodeNumber);
+    sqlI_a.resetBindStep(dbID(), episodeNumber);
     if (!sqlI.readRow() && !sqlI_a.readRow() ) return 1000;  // nothing found without years, so there will be nothing with years ...
-    cSql sqlI_y(m_db);
-    cSql sqlI_ya(m_db);
+    cSql sqlI_y (m_db, "select season_number, episode_number from tv_s_e where tv_id = ? and episode_number = ? and episode_air_date like ?");
+    cSql sqlI_ya(m_db, "select season_number, episode_number from tv_s_e where tv_id = ? and episode_absolute_number = ? and episode_air_date like ?");
     for (int year: years) {
       char year_s[] = "    %";
       for (int i = 3; i >= 0; i--) {
         year_s[i] = '0' + year % 10;
         year /= 10;
       }
-      if (sqlI.readRow()   &&  sqlI_y.prepareBindStep(sql_y , dbID(), episodeNumber, year_s).readRow(m_seasonNumber, m_episodeNumber)) return 700;
-      if (sqlI_a.readRow() && sqlI_ya.prepareBindStep(sql_ya, dbID(), episodeNumber, year_s).readRow(m_seasonNumber, m_episodeNumber)) return 700;
+      if (sqlI.readRow()   &&  sqlI_y.resetBindStep(dbID(), episodeNumber, year_s).readRow(m_seasonNumber, m_episodeNumber)) return 700;
+      if (sqlI_a.readRow() && sqlI_ya.resetBindStep(dbID(), episodeNumber, year_s).readRow(m_seasonNumber, m_episodeNumber)) return 700;
     }
 // no match with year found, try without year
 // note: this is a very week indicator that the right TV show was choosen. So, even if there is a match, return a high distance (950)
@@ -289,21 +287,21 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
   const char *sqld = "select episode_name, season_number, episode_number, episode_air_date FROM tv_s_e WHERE tv_id =?";
   const char *sqll = "select tv_s_e_name.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name WHERE tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;";
   cSql statement(m_db);
-  if (!isDefaultLang) statement.prepareBindStep(sqll, dbID(), lang->m_id);
-  else statement.prepareBindStep(sqld, dbID());
+  if (!isDefaultLang) statement.finalizePrepareBindStep(cStringRef(sqll), dbID(), lang->m_id);
+  else statement.finalizePrepareBindStep(cStringRef(sqld), dbID());
   for (cSql &sqli: statement) {
     const char *episodeName = NULL;
     const char *episode_air_date = NULL;
     int episode = 0;
     int season = 0;
     sqli.readRow(episodeName, season, episode, episode_air_date);
-    if (!episodeName) continue;
-    int distance;
-    if (!isDefaultLang) distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeName);
-    else {
-      CONVERT(episodeNameNorm, charPointerToStringView(episodeName), normStringC);
-      distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeNameNorm);
-    }
+    if (!episodeName || !*episodeName) continue;
+//    if (!isDefaultLang) distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeName);
+//    don't save normed strings in database.
+//      doesn't help for performance (norming one string only takes 5% of sentence_distance time
+//      makes changes to the norm algorithm almost impossible
+    CONVERT(episodeNameNorm, std::string_view(episodeName), normStringC);
+    int distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeNameNorm);
     if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString, episodeName, season, episode, dbID(), distance);
     if (season == 0) distance += 10; // avoid season == 0, could be making of, ...
     int f = years.find2(cYears::yearToInt(episode_air_date) );
@@ -334,9 +332,9 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
   bool episodeDataAvailable = false, episodeImdbIdAvailable = false, episodeReleaseDateAvailable = false;
   if ((m_seasonNumber != 0 || m_episodeNumber != 0) &&
     (episodeName != NULL || imdbId != NULL || releaseDate != NULL || runtime != NULL)) {
-    const char *sql_e = "select episode_name, episode_air_date, episode_run_time, episode_IMDB_ID " \
-      "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-    cSql stmt(m_db, sql_e, dbID(), m_seasonNumber, m_episodeNumber);
+    cSql stmt(m_db, "select episode_name, episode_air_date, episode_run_time, episode_IMDB_ID " \
+      "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?");
+    stmt.resetBindStep(dbID(), m_seasonNumber, m_episodeNumber);
     if (stmt.readRow(episodeName, releaseDate, runtime, imdbId) ) {
       episodeDataAvailable = true;
       episodeReleaseDateAvailable = releaseDate && !releaseDate->empty();
@@ -351,8 +349,7 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
     if (collectionName) *collectionName = "";
     return true;
   }
-  const char *sql = "select tv_name, tv_first_air_date, tv_IMDB_ID from tv2 where tv_id = ?";
-  cSql stmt(m_db, sql, dbID() );
+  cSql stmt(m_db, "select tv_name, tv_first_air_date, tv_IMDB_ID from tv2 where tv_id = ?", dbID() );
   if (!stmt.readRow() ) {
     if (!episodeDataAvailable) return false;
     if (title) *title = "";
@@ -404,8 +401,8 @@ void addGuestStars(std::vector<cActor> &result, const char *str) {
 
 void cTvTvdb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
   const char *guestStars = NULL;
-  const char *sql = "select episode_guest_stars from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?";
-  cSql statement(m_db, sql, dbID(), m_seasonNumber, m_episodeNumber);
+  cSql statement(m_db, "select episode_guest_stars from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?");
+  statement.resetBindStep(dbID(), m_seasonNumber, m_episodeNumber);
   if (statement.readRow(guestStars) ) addGuestStars(actors, guestStars);
 }
 
@@ -413,20 +410,20 @@ void cTvTvdb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
 void cTvMoviedb::DeleteMediaAndDb() {
   cConcatenate folder;
   folder << config.GetBaseDirMovieTv() << m_id;
-  DeleteAll(folder.str() );
+  DeleteAll(folder.getStrRef() );
   m_db->DeleteSeries(m_id);
 }
 
 void cTvMoviedb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
 // actors from guest stars
-  const char sql_guests[] = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_tv_episode " \
+  const char *sql_guests = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_tv_episode " \
                             "where actor_tv_episode.actor_id = actors.actor_id and actor_tv_episode.episode_id = ?";
   if (m_seasonNumber != 0 || m_episodeNumber != 0) AddActors(actors, sql_guests,  m_episodeNumber, "movies/actors/actor_", fullPath);
 }
 
 std::vector<cActor> cTvMoviedb::GetActors(bool fullPath) {
   std::vector<cActor> actors;
-  const char sql[] = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_tv " \
+  const char *sql = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_tv " \
                      "where actor_tv.actor_id = actors.actor_id and actor_tv.tv_id = ?";
   AddActors(actors, sql,  dbID(), "movies/actors/actor_", fullPath);
 // actors from guest stars
@@ -506,8 +503,8 @@ std::vector<cActor> cTvTvdb::GetActors(bool fullPath) {
   std::vector<cActor> actors;
   cActor actor;
   const char *actorId = NULL;
-  const char *sql = "SELECT actor_number, actor_name, actor_role FROM series_actors WHERE actor_series_id = ?";
-  for (cSql &stmt: cSql(m_db, sql, m_id) ) {
+  cSql sql(m_db, "SELECT actor_number, actor_name, actor_role FROM series_actors WHERE actor_series_id = ?");
+  for (cSql &stmt: sql.resetBindStep(m_id) ) {
     stmt.readRow(actorId, actor.name, actor.role);
     actor.actorThumb.width = 300;
     actor.actorThumb.height = 450;
@@ -678,9 +675,8 @@ int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, str
 void cMovieOrTv::CleanupTv_media(const cTVScraperDB *db) {
   const char *sql = "delete from tv_media where media_type != ?";
   db->exec(sql, mediaSeason);
-  const char *sql2 = "select tv_id from tv_media";
   std::set<int> tv_ids;
-  for (cSql &statement: cSql(db, sql2) ) tv_ids.insert(statement.getInt(0) );
+  for (cSql &statement: cSql(db, "select tv_id from tv_media") ) tv_ids.insert(statement.getInt(0) );
   for (const int &tv_id2: tv_ids) {
     if (db->CheckMovieOutdatedEvents(tv_id2, 0, 0)) continue;
     if (db->CheckMovieOutdatedRecordings(tv_id2, 0, 0)) continue;

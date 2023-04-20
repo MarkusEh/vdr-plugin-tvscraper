@@ -50,7 +50,6 @@ private:
   cYears m_years;
   bool m_baseNameEquShortText = false;
   cMovieDbTv m_tv;
-  cMovieDbMovie m_movie;
   searchResultTvMovie m_searchResult_Movie;
   bool extDbConnected = false; // true, if request to rate limited internet db was required. Otherwise, false
   bool m_episodeFound = false;

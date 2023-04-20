@@ -46,8 +46,14 @@ size_t seq_distance(const T& seq1, const T& seq2, const C& cost,
   const size_t size1 = seq1.size();
   const size_t size2 = seq2.size();
  
+  size_t col_1[size2 + 1];
+  size_t col_2[size2 + 1];
+  size_t *curr_col = col_1;
+  size_t *prev_col = col_2;
+/*
   std::vector<size_t> curr_col(size2 + 1);
   std::vector<size_t> prev_col(size2 + 1);
+*/
  
   // Prime the previous column for use in the following loop:
   prev_col[0] = 0;
@@ -66,10 +72,42 @@ size_t seq_distance(const T& seq1, const T& seq2, const C& cost,
         prev_col[idx2] + cost(seq1[idx1], seq2[idx2]));
     }
  
-    curr_col.swap(prev_col);
+    std::swap(curr_col, prev_col);
     curr_col[0] = prev_col[0];
   }
  
+  return prev_col[size2];
+}
+
+// optimize for words
+typedef size_t(*ld) (char, char);
+template<>
+size_t seq_distance<std::string_view, ld>(const std::string_view& seq1, const std::string_view& seq2, const ld& cost,
+             const char& empty) {
+  const size_t size1 = seq1.size();
+  const size_t size2 = seq2.size();
+ 
+  size_t col_1[size2 + 1];
+  size_t col_2[size2 + 1];
+  size_t *curr_col = col_1;
+  size_t *prev_col = col_2;
+ 
+  // Prime the previous column for use in the following loop:
+  for (size_t idx2 = 0; idx2 < size2 + 1; ++idx2) {
+    prev_col[idx2] = idx2;
+  }
+ 
+  for (size_t idx1 = 0; idx1 < size1; ++idx1) {
+    curr_col[0] = idx1 + 1;
+ 
+    for (size_t idx2 = 0; idx2 < size2; ++idx2) {
+      const size_t compare = seq1[idx1] == seq2[idx2] ? 0 : 1;
+      curr_col[idx2 + 1] = std::min(std::min(curr_col[idx2] + 1,
+                                             prev_col[idx2 + 1] + 1),
+                                    prev_col[idx2] + compare);
+    }
+    std::swap(curr_col, prev_col);
+  }
   return prev_col[size2];
 }
  
@@ -78,12 +116,12 @@ size_t letter_distance(char letter1, char letter2) {
 }
  
 size_t word_distance(std::string_view word1, std::string_view word2) {
-  return seq_distance(word1, word2, &letter_distance);
+  return seq_distance(word1, word2, &letter_distance, 0);
 }
  
 std::vector<std::string_view> word_list(std::string_view sentence, int &len, int max_len = 0) {
 // return list of words
-// in len, return sum of chars in all words (this is usually shorter then sentence.length()
+// in len, return sum of chars in all words (this is usually shorter than sentence.length()
 //std::cout << "sentence = \"" << sentence << "\" ";
   std::vector<std::string_view> result = getSetFromString<std::string_view, std::vector<std::string_view>>(sentence, ' ', ignoreWords, max_len);
   len = 0;
@@ -175,6 +213,16 @@ int normStringC(char *to, std::string_view from) {
   if (to) *to = 0;
   return numChars;
 }
+inline int stringAppendAllAlphanumericCharacters(std::string &target, const char *str) {
+// append all alphanumeric characters
+// return number of appended characters
+  int i = 0;
+  for (; isalnum(str[i]) && str[i] != ' '; ++i);
+  if (str[i] == ' ') ++i; // also append ' ', but not chars after ' '. So we can check next word.
+  target.append(str, i);
+  return i;
+}
+
 std::string normString(const char *s, int len) {
 // replace invalid UTF8 characters with ' '
 // replace all non-alphanumeric characters with ' '
@@ -192,10 +240,12 @@ std::string normString(const char *s, int len) {
 // At the beginning of a word, check for roman number
       int i = romToArab(s, se); // this also increases s, if a roman number was found.
       if ( i > 0) {
-        out.append(std::to_string(i));
+        stringAppend(out, i);
         continue;
       }
     }
+// too simple: we also need to convert to lower case
+//    s += stringAppendAllAlphanumericCharacters(out, s);
     wint_t cChar = getNextUtfCodepoint(s);  // this also increases s
     if (std::iswalnum(cChar) ) stringAppendUtfCodepoint(out, towlower(cChar));
     else {

@@ -210,7 +210,8 @@ inline int stringAppendAllASCIICharacters(std::string &target, const char *str) 
 // append all characters > 31 (signed !!!!). Unsigned: 31 < character < 128
 // return number of appended characters
   int i = 0;
-  for (const signed char *strs = reinterpret_cast<const signed char *>(str); strs[i] > 31; i++);
+//  for (const signed char *strs = reinterpret_cast<const signed char *>(str); strs[i] > 31; i++);
+  for (; reinterpret_cast<const signed char*>(str)[i] > 31; i++);
   target.append(str, i);
   return i;
 }
@@ -416,7 +417,10 @@ class cConcatenate
     cConcatenate &operator= (const cConcatenate &) = delete;
   template<typename T>
     cConcatenate & operator<<(const T &i) { stringAppend(m_data, i); return *this; }
-    std::string str() { return std::move(m_data); }
+//    std::string str() { return std::move(m_data); }
+    std::string moveStr() { return std::move(m_data); }
+    const std::string &getStrRef() { return m_data; }
+    const char *getCharS() { return m_data.c_str(); }
   private:
     std::string m_data;
 };
@@ -893,10 +897,7 @@ class cSplit {
 
 class cContainer {
   public:
-    cContainer(char delim = '|', int init_buffer_size = 300): m_delim(delim) {
-      m_buffer.reserve(init_buffer_size);
-      m_buffer.append(1, delim);
-    }
+    cContainer(char delim = '|'): m_delim(delim) { }
     cContainer(const cContainer&) = delete;
     cContainer &operator= (const cContainer &) = delete;
     bool find(std::string_view sv) {
@@ -913,7 +914,10 @@ class cContainer {
     bool insert(std::string_view sv) {
 // true, if already in buffer (will not insert again ...)
 // else: false
-      if (find(sv)) return true;
+      if (m_buffer.empty() ) {
+        m_buffer.reserve(300);
+        m_buffer.append(1, m_delim);
+      } else if (find(sv)) return true;
       m_buffer.append(sv);
       m_buffer.append(1, m_delim);
       return false;
@@ -922,7 +926,8 @@ class cContainer {
       if (!s) return true;
       return insert(std::string_view(s));
     }
-    std::string getBuffer() { return std::move(m_buffer); }
+    std::string moveBuffer() { return std::move(m_buffer); }
+    const std::string &getBufferRef() { return m_buffer; }
   private:
     char m_delim;
     std::string m_buffer;

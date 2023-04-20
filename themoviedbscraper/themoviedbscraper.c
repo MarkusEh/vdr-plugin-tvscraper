@@ -18,9 +18,7 @@ int cMovieDBScraper::GetMovieRuntime(int movieID) {
   if (runtime  >  0) return runtime;
   if (runtime == -1) return 0; // no runtime available in themoviedb
 // themoviedb never checked for runtime, check now
-  cMovieDbMovie movie(db, this);
-  movie.SetID(movieID);
-  StoreMovie(movie, true);
+  StoreMovie(movieID, true);
   runtime = db->GetMovieRuntime(movieID);
   if (runtime  >  0) return runtime;
   if (runtime == -1) return 0; // no runtime available in themoviedb
@@ -34,18 +32,12 @@ void cMovieDBScraper::UpdateTvRuntimes(int tvID) {
   tv.UpdateDb(true);
 }
 
-void cMovieDBScraper::StoreMovie(cMovieDbMovie &movie, bool forceUpdate) {
+void cMovieDBScraper::StoreMovie(int movieID, bool forceUpdate) {
 // if movie does not exist in DB, download movie and store it in DB
-  int movieID = movie.ID();
   if (!forceUpdate && db->MovieExists(movieID)) return;
   if (config.enableDebug && !forceUpdate) esyslog("tvscraper: movie \"%i\" does not yet exist in db", movieID);
-  if(!movie.ReadMovie()) {
-    esyslog("tvscraper: ERROR reading movie \"%i\" ", movieID);
-    return;
-  }
-  movie.StoreDB();
-  movie.StoreMedia();
-  ReadActors(movieID);
+  cMovieDbMovie movie(db, this);
+  movie.ReadAndStore(movieID);
 }
 bool cMovieDBScraper::Connect(void) {
   rapidjson::Document document;
@@ -66,17 +58,9 @@ bool cMovieDBScraper::parseJSON(const rapidjson::Value &root) {
   return true;
 }
 
-bool cMovieDBScraper::ReadActors(int movieID) {
-  rapidjson::Document document;
-  cLargeString actorsJSON("cMovieDBScraper::ReadActors", 10000);
-  if (!jsonCallRest(document, actorsJSON, concatenate(baseURL, "/movie/", movieID, "/casts?api_key=", apiKey).c_str(), config.enableDebug)) return false;
-  readAndStoreMovieActors(db, document, movieID);
-  return true;
-}
-
 void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
-  const char *sql = "select actor_id, actor_path from actor_download where movie_id = ? and is_movie = ?";
-  for (cSql &stmt: cSql(db, sql, tvID,  movie)) {
+  cSql stmtDo(db, "SELECT actor_id, actor_path FROM actor_download WHERE movie_id = ? and is_movie = ?");
+  for (cSql &stmt: stmtDo.resetBindStep(tvID,  movie)) {
     const char *actor_path = stmt.getCharS(1);
     if (!actor_path || !*actor_path) continue;
     CONCATENATE(actorsFullUrl, m_actorsBaseUrl, actor_path);
@@ -87,17 +71,17 @@ void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
 }
 
 void cMovieDBScraper::DownloadMediaTv(int tvID) {
-  const char *sql = "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0";
+  cSql sql(db, "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
 // if mediaType == season_poster, media_number is the season
-  for (cSql &statement: cSql(db, sql, tvID, (int)mediaSeason)) {
+  for (cSql &statement: sql.resetBindStep(tvID, (int)mediaSeason)) {
     std::string baseDirDownload = concatenate(config.GetBaseDirMovieTv(), tvID, "/");
     CreateDirectory(baseDirDownload);
     DownloadFile(m_posterBaseUrl, statement.getCharS(0), baseDirDownload, statement.getInt(1), "/poster.jpg", false);
     break;
   }
-  const char *sql2 = "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0";
+  cSql sql2(db, "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
   for (int type = 1; type <= 2; type++) {
-    for (cSql &statement: cSql(db, sql2, tvID, type)) {
+    for (cSql &statement: sql2.resetBindStep(tvID, type)) {
       DownloadFile(m_posterBaseUrl, statement.getCharS(0), config.GetBaseDirMovieTv(), tvID, type==1?"/poster.jpg":"/backdrop.jpg", false);
       break;
     }
@@ -105,10 +89,9 @@ void cMovieDBScraper::DownloadMediaTv(int tvID) {
   db->deleteTvMedia (tvID, false, true);
 }
 void cMovieDBScraper::DownloadMedia(int movieID) {
-  const char *sql = "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number < 0";
-  cSql stmt0(db);
+  cSql stmt0(db, "SELECT media_path, media_number FROM tv_media WHERE tv_id = ? AND media_type = ? AND media_number < 0");
   for (int type = -2; type <= 2; type ++) if (type !=0) {
-    for (cSql &statement: stmt0.prepareBindStep(sql, movieID, type)) {
+    for (cSql &statement: stmt0.resetBindStep(movieID, type)) {
       int media_number = -1 * statement.getInt(1);
       bool isPoster = abs(type)==1;
       DownloadFile(isPoster?m_posterBaseUrl:m_backdropBaseUrl, statement.getCharS(0), (type > 0)?config.GetBaseDirMovies():config.GetBaseDirMovieCollections(), type > 0?movieID:media_number, isPoster?"_poster.jpg":"_backdrop.jpg", true);
@@ -129,8 +112,8 @@ bool cMovieDBScraper::DownloadFile(const string &urlBase, const string &urlFileN
   return Download(concatenate(urlBase, urlFileName), destFullPath);
 }
 
-void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, const string &stillPathTvEpisode) {
-  if (stillPathTvEpisode.empty() ) return;
+void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode) {
+  if (!stillPathTvEpisode || !*stillPathTvEpisode) return;
   std::string pathStill;
   pathStill.reserve(200);
   stringAppend(pathStill, config.GetBaseDirMovieTv(), tvID);
@@ -164,6 +147,7 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, strin
   AddTvResults(buffer, resultSet, searchString4, normedStrings, lang);
   return false;
 }
+// TODO interface for ..., with SearchString_rom bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {
 bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
 // concatenate URL

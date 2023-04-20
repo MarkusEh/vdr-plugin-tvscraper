@@ -7,7 +7,6 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
   m_tvdbScraper(tvdbScraper),
   m_db(db),
   m_tv(db, moviedbScraper),
-  m_movie(db, moviedbScraper),
   m_searchResult_Movie(0, true, "")
   {
     if (m_sEventOrRecording->Recording() && !m_sEventOrRecording->Recording()->Info() ) {
@@ -275,8 +274,7 @@ int cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
 // check if already in internal DB. If not: Download from external db
   switch (movieOrTv.type) {
     case scrapMovie:
-      m_movie.SetID(movieOrTv.id);
-      m_moviedbScraper->StoreMovie(m_movie);
+      m_moviedbScraper->StoreMovie(movieOrTv.id);
       return 0;
     case scrapSeries:
       if (movieOrTv.id > 0) {
@@ -335,8 +333,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
 
 int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
   int finalDurationDistance = -1; // default, no data available
-  const char *sql = "select episode_run_time from tv_episode_run_time where tv_id = ?";
-  cSql stmt(m_db, sql, tvID);
+  cSql stmt(m_db, "select episode_run_time from tv_episode_run_time where tv_id = ?", tvID);
   if (!stmt.readRow() ) {
     if (tvID>0) m_moviedbScraper->UpdateTvRuntimes(tvID);
     else m_tvdbScraper->UpdateTvRuntimes(tvID * -1);
@@ -682,10 +679,10 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
 // movie
     sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(searchEventOrRec.m_moviedbScraper->GetMovieRuntime(sR.id() )) );
     sR.updateMatchText(sentence_distance(searchEventOrRec.m_db->GetMovieTagline(sR.id() ), searchEventOrRec.m_movieSearchString));
-    actors.prepareBindStep("select actor_name, actor_role from actors, actor_movie where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?", sR.id());
-    const char *sql = "select movie_director, movie_writer from movie_runtime2 where movie_id = ?";
-    cSql sqlI(searchEventOrRec.m_db, sql, sR.id());
-    if (sqlI.readRow()) {
+    actors.finalizePrepareBindStep("select actor_name, actor_role from actors, actor_movie where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?", sR.id());
+    cSql sqlI(searchEventOrRec.m_db,
+      "select movie_director, movie_writer from movie_runtime2 where movie_id = ?");
+    if (sqlI.resetBindStep(sR.id() ).readRow()) {
       searchEventOrRec.getDirectorWriterMatches(sR, sqlI.getCharS(0), sqlI.getCharS(1));
     }
   } else {
@@ -705,12 +702,12 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
       sR.setScore(score);
       if (debug) esyslog("tvscraper: enhance1 (4)" );
       if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
-      actors.prepareBindStep("SELECT actor_name, actor_role FROM series_actors WHERE actor_series_id = ?", sR.id() * (-1));
+      actors.finalizePrepareBindStep("SELECT actor_name, actor_role FROM series_actors WHERE actor_series_id = ?", sR.id() * (-1));
       if (debug) esyslog("tvscraper: enhance1 (5)" );
       if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
     } else {
 // tv show from themoviedb
-      actors.prepareBindStep("select actor_name, actor_role from actors, actor_tv where actor_tv.actor_id = actors.actor_id and actor_tv.tv_id = ?", sR.id());
+      actors.finalizePrepareBindStep("select actor_name, actor_role from actors, actor_tv where actor_tv.actor_id = actors.actor_id and actor_tv.tv_id = ?", sR.id());
     }
   }
   if (debug) esyslog("tvscraper: enhance1 (6)" );

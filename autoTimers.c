@@ -255,11 +255,10 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
 // for each movie or tv, only one (the best) event. HD better than SD. Otherwise, the earlier the better
   std::set<cEventMovieOrTv> result;
   const time_t now_m10 = time(0) - 10*60;
-  const char *sql_event = "select event_id, channel_id, movie_tv_id, season_number, episode_number from event";
   cEventMovieOrTv scraperEvent(0);
   tEventID l_event_id = 0;
   const char *l_channel_id = NULL;
-  for (cSql &statement: cSql(&db, sql_event))
+  for (cSql &statement: cSql(&db, "select event_id, channel_id, movie_tv_id, season_number, episode_number from event"))
   {
     statement.readRow(l_event_id, l_channel_id, scraperEvent.m_movie_tv_id, scraperEvent.m_season_number, scraperEvent.m_episode_number);
     if (scraperEvent.m_season_number == 0 && scraperEvent.m_episode_number == 0) continue;
@@ -590,12 +589,11 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
     if (collection_id <= 0) return false;
     if (collections.find(collection_id)  == collections.end() ) return false;
 // find recording with this collection (so new recording will be in same folder)
-    const char *sql = "SELECT movie_id FROM movies3 WHERE movie_collection_id = ?";
     cMovieOrTvAT movieOrTvAT(0);
     movieOrTvAT.m_season_number = -100;
     movieOrTvAT.m_episode_number = 0;
     movieOrTvAT.m_language = 0;
-    for (cSql &statement: cSql(&db, sql, collection_id)) {
+    for (cSql &statement: cSql(&db, "SELECT movie_id FROM movies3 WHERE movie_collection_id = ?", collection_id)) {
       movieOrTvAT.m_movie_tv_id = statement.getInt(0);
       auto found = recordings.lower_bound(movieOrTvAT);
       if (found != recordings.end() && equalWoLanguageMovieOrTvAT(&(*found), &movieOrTvAT) ) {
