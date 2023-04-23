@@ -295,7 +295,7 @@ bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, std::stri
   AddResults4(buffer, resultSet, SearchString, normedStrings, lang);
   if (resultSet.size() > size0) {
     for (size_t i = size0; i < resultSet.size(); i++)
-      if (sentence_distance_normed_strings(normedStrings[0].m_normedString, resultSet[i].normedName) < 600) return true;
+      if (normedStrings[0].sentence_distance(resultSet[i].normedName) < 600) return true;
     return false;
   }
   if (!searchString1.empty() ) AddResults4(buffer, resultSet, searchString1, normedStrings, lang);
@@ -359,10 +359,10 @@ void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<s
 // distance == deviation from search text
   int dist_a = 1000;
 // if search string is not in original language, consider name (== original name) same as alias
-  if (lang) dist_a = minDistanceNormedStrings(dist_a, normedStrings, getValueCharS(data, "name") );
+  if (lang) dist_a = cNormedString(removeLastPartWithP(getValueCharS(data, "name"))).minDistanceNormedStrings(normedStrings, dist_a);
   for (const rapidjson::Value &alias: cJsonArrayIterator(data, "aliases")) {
     if (alias.IsString() )
-    dist_a = minDistanceNormedStrings(dist_a, normedStrings, alias.GetString() );
+    dist_a = cNormedString(removeLastPartWithP(alias.GetString() )).minDistanceNormedStrings(normedStrings, dist_a);
   }
 // in search results, aliases don't have language information
 // in series/<id>/extended, language information for aliases IS available
@@ -375,13 +375,15 @@ void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<s
     if (translationsIt != data.MemberEnd() && translationsIt->value.IsObject() ) {
       const char *langVal = getValueCharS(translationsIt->value, lang->m_thetvdb);
       if (langVal) {
-        dist_a = minDistanceNormedStrings(dist_a, normedStrings, langVal, &sRes.normedName);
+        sRes.normedName.reset(removeLastPartWithP(langVal));
+        dist_a = sRes.normedName.minDistanceNormedStrings(normedStrings, dist_a);
         requiredDistance = 700;  // translation in EPG language is available. Reduce requirement somewhat
       }
     }
   } else {
 // name is the name in original / primary language
-    dist_a = minDistanceNormedStrings(dist_a, normedStrings, getValueCharS(data, "name") );
+    sRes.normedName.reset(removeLastPartWithP(getValueCharS(data, "name")));
+    dist_a = sRes.normedName.minDistanceNormedStrings(normedStrings, dist_a);
   }
   if (dist_a < requiredDistance) {
     sRes.setMatchText(dist_a);

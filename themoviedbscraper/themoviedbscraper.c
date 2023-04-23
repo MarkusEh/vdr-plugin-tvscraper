@@ -135,7 +135,7 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, strin
   AddTvResults(buffer, resultSet, tvSearchString, normedStrings, lang);
   if (resultSet.size() > size0) {
     for (size_t i = size0; i < resultSet.size(); i++)
-      if (sentence_distance_normed_strings(normedStrings[0].m_normedString, resultSet[i].normedName) < 600) return true;
+      if (normedStrings[0].sentence_distance(resultSet[i].normedName) < 600) return true;
     return false;
   }
   if (!searchString1.empty() ) AddTvResults(buffer, resultSet, searchString1, normedStrings, lang);
@@ -178,11 +178,13 @@ bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMo
 
 // distance == deviation from search text
     int dist_a = 1000;
-    dist_a = minDistanceNormedStrings(dist_a, normedStrings, getValueCharS(result, "original_name") );
+    sRes.normedName.reset(removeLastPartWithP(getValueCharS(result, "original_name")));
+    dist_a = sRes.normedName.minDistanceNormedStrings(normedStrings, dist_a);
     if (lang) {
 // search string is not in original language, reduce match to original_name somewhat
       dist_a = std::min(dist_a + 50, 1000);
-      dist_a = minDistanceNormedStrings(dist_a, normedStrings, getValueCharS(result, "name"), &sRes.normedName);
+      sRes.normedName.reset(removeLastPartWithP(getValueCharS(result, "name")));
+      dist_a = sRes.normedName.minDistanceNormedStrings(normedStrings, dist_a);
     }
     dist_a = std::min(dist_a + 10, 1000); // avoid this, prefer TVDB
     sRes.setMatchText(dist_a);
@@ -275,12 +277,12 @@ void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<se
     searchResultTvMovie sRes(id, true, getValueCharS(result, "release_date") );
     sRes.setPositionInExternalResult(resultSet.size() );
 // Title & OriginalTitle
-    int distOrigTitle = minDistanceNormedStrings(1000, normedStrings, getValueCharS(result, "original_title") );
+    int distOrigTitle = cNormedString(removeLastPartWithP(getValueCharS(result, "original_title"))).minDistanceNormedStrings(normedStrings, 1000);
     distOrigTitle = std::min(1000, distOrigTitle + 50);  // increase distance for original title, because it's a less likely match
-    int dist = minDistanceNormedStrings(distOrigTitle, normedStrings, getValueCharS(result, "title"));
+    int dist = cNormedString(removeLastPartWithP(getValueCharS(result, "title"))).minDistanceNormedStrings(normedStrings, distOrigTitle);
     if (dist > 300 && description && strlen(description) > 25) {
       const char *overview = getValueCharS(result, "overview");
-      if (overview && *overview) dist = std::min(sentence_distance(description, overview), dist);
+      if (overview && *overview) dist = cNormedString(description).sentence_distance(overview, dist);
     }
     if (setMinTextMatch && res == 0) dist = std::min(dist, 500); // api.themoviedb.org has some alias names, which are used in the search but not displayed. Set the text match to a "minimum" of 500 -> 0.5 , because it was found by api.themoviedb.org
     sRes.setMatchText(dist);

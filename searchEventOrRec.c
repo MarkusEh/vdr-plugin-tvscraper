@@ -31,7 +31,7 @@ void cSearchEventOrRec::initOriginalTitle() {
 }
 
 bool cSearchEventOrRec::isTitlePartOfPathName(size_t baseNameLen) {
-  return minDistanceStrings(m_sEventOrRecording->Recording()->Name(), m_sEventOrRecording->Recording()->Info()->Title() ) < 600;
+  return cNormedString(m_sEventOrRecording->Recording()->Info()->Title()).minDistanceStrings(m_sEventOrRecording->Recording()->Name()) < 600;
 }
 
 void cSearchEventOrRec::initSearchString3dots(std::string &searchString) {
@@ -98,8 +98,9 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
   const char *shortText = recording->Info()->ShortText();
   if (!shortText || ! *shortText) shortText = recording->Info()->Description();
   if (!shortText || ! *shortText) return; // no short text, no description -> go ahead with base name
-  int distTitle     = sentence_distance(recording->Info()->Title(), m_baseNameOrTitle);
-  int distShortText = sentence_distance(shortText, m_baseNameOrTitle);
+  cNormedString nsBaseNameOrTitle(m_baseNameOrTitle);
+  int distTitle     = nsBaseNameOrTitle.sentence_distance(recording->Info()->Title() );
+  int distShortText = nsBaseNameOrTitle.sentence_distance(shortText);
   if (debug) esyslog("tvscraper: distTitle %i, distShortText %i", distTitle, distShortText);
   if (distTitle > 600 && distShortText > 600) {
 // neither title nor shortText match the filename
@@ -242,7 +243,7 @@ void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
             if ((searchResult.id()^searchResults[0].id()) < 0) continue; // we look for IDs in same database-> same sign
             if (searchResult.movie()) continue;  // we only look for TV shows
             if (abs(bestMatchText - searchResult.getMatchText()) > 0.001) continue;   // we only look for matches similar near
-            if (sentence_distance_normed_strings(searchResults[0].normedName, searchResult.normedName) > 200) continue;
+            if (searchResult.normedName.sentence_distance(searchResults[0].normedName) > 200) continue;
             m_db->setSimilar(searchResults[0].id(), searchResult.id() );
             if (config.enableDebug) esyslog("tvscraper: setSimilar %i and %i", searchResults[0].id(), searchResult.id());
           }
@@ -678,7 +679,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
   if (sR.movie() ) {
 // movie
     sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(searchEventOrRec.m_moviedbScraper->GetMovieRuntime(sR.id() )) );
-    sR.updateMatchText(sentence_distance(searchEventOrRec.m_db->GetMovieTagline(sR.id() ), searchEventOrRec.m_movieSearchString));
+    sR.updateMatchText(cNormedString(searchEventOrRec.m_movieSearchString).sentence_distance(searchEventOrRec.m_db->GetMovieTagline(sR.id() )));
     actors.finalizePrepareBindStep("select actor_name, actor_role from actors, actor_movie where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?", sR.id());
     cSql sqlI(searchEventOrRec.m_db,
       "select movie_director, movie_writer from movie_runtime2 where movie_id = ?");

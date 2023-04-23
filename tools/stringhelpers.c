@@ -554,6 +554,11 @@ bool StringRemoveLastPartWithP(std::string &str) {
   str.erase(len);
   return true;
 }
+std::string_view removeLastPartWithP(std::string_view str) {
+  int l = StringRemoveLastPartWithP(str.data(), str.length() );
+  if (l < 0) return str;
+  return std::string_view(str.data(), l);
+}
 
 int NumberInLastPartWithPS(std::string_view str) {
 // return number in last part with (./.), 0 if not found / invalid

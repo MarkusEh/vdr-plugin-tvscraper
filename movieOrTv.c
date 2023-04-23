@@ -278,8 +278,8 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
   debug = debug || (tvSearchEpisodeString_i.length() > 1 && tvSearchEpisodeString_i[1] == 0);
   debug = false;
   if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string_i length %zu, \"%.*s\", dbid %i", tvSearchEpisodeString_i.length(), std::min(100, static_cast<int>(tvSearchEpisodeString_i.length())), tvSearchEpisodeString_i.data(), dbID());
-  CONVERT(tvSearchEpisodeString, tvSearchEpisodeString_i, normStringC);
-  if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\", dbid %i", tvSearchEpisodeString, dbID());
+  cNormedString tvSearchEpisodeString(tvSearchEpisodeString_i);
+  if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\", dbid %i", tvSearchEpisodeString.m_normedString.c_str(), dbID());
   int best_distance = 1000;
   int best_season = 0;
   int best_episode = 0;
@@ -296,13 +296,11 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
     int season = 0;
     sqli.readRow(episodeName, season, episode, episode_air_date);
     if (!episodeName || !*episodeName) continue;
-//    if (!isDefaultLang) distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeName);
 //    don't save normed strings in database.
 //      doesn't help for performance (norming one string only takes 5% of sentence_distance time
 //      makes changes to the norm algorithm almost impossible
-    CONVERT(episodeNameNorm, std::string_view(episodeName), normStringC);
-    int distance = sentence_distance_normed_strings(tvSearchEpisodeString, episodeNameNorm);
-    if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString, episodeName, season, episode, dbID(), distance);
+    int distance = tvSearchEpisodeString.sentence_distance(episodeName);
+    if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.m_normedString.c_str(), episodeName, season, episode, dbID(), distance);
     if (season == 0) distance += 10; // avoid season == 0, could be making of, ...
     int f = years.find2(cYears::yearToInt(episode_air_date) );
     if (f == 2) distance = std::max(0, distance-100);
@@ -313,7 +311,7 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
       best_episode = episode;
     }
   }
-  if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" best_season %i best_episode %i dbid %i, best_distance %i", tvSearchEpisodeString, best_season, best_episode, dbID(), best_distance);
+  if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" best_season %i best_episode %i dbid %i, best_distance %i", tvSearchEpisodeString.m_normedString.c_str(), best_season, best_episode, dbID(), best_distance);
   if (best_distance > 700) {  // accept a rather high distance here. We return the distance, so the caller can finally decide to take this episode or not
     m_seasonNumber = 0;
     m_episodeNumber = 0;
