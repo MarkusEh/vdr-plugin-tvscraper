@@ -40,8 +40,6 @@ public:
    bool UpdateDb(bool updateEpisodes);
    int tvID(void) { return m_tvID; };
    void SetTvID(int tvID) { m_tvID = tvID; };
-   int GetSeason() { return m_seasonNumber; }
-   int GetEpisode() { return m_episodeNumber; }
 };
 
 

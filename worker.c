@@ -11,6 +11,7 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
     this->db = db;
     this->overrides = overrides;
     moviedbScraper = NULL;
+    movieDbMovieScraper = NULL;
     tvdbScraper = NULL;
 //    initSleep = 2 * 60 * 1000;
     initSleep =     60 * 1000;
@@ -19,6 +20,8 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
 }
 
 cTVScraperWorker::~cTVScraperWorker() {
+    if (movieDbMovieScraper)
+        delete movieDbMovieScraper;
     if (moviedbScraper)
         delete moviedbScraper;
     if (tvdbScraper)
@@ -68,19 +71,20 @@ bool cTVScraperWorker::ConnectScrapers(void) {
   if (!moviedbScraper) {
     moviedbScraper = new cMovieDBScraper(db, overrides);
     if (!moviedbScraper->Connect()) {
-	esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
-	delete moviedbScraper;
-	moviedbScraper = NULL;
-	return false;
+      esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
+      delete moviedbScraper;
+      moviedbScraper = NULL;
+      return false;
     }
   }
+  if (!movieDbMovieScraper) movieDbMovieScraper = new cMovieDbMovieScraper(moviedbScraper);
   if (!tvdbScraper) {
     tvdbScraper = new cTVDBScraper(db);
     if (!tvdbScraper->Connect()) {
-	esyslog("tvscraper: ERROR, connection to TheTVDB failed");
-	delete tvdbScraper;
-	tvdbScraper = NULL;
-	return false;
+      esyslog("tvscraper: ERROR, connection to TheTVDB failed");
+      delete tvdbScraper;
+      tvdbScraper = NULL;
+      return false;
     }
   }
   return true;
@@ -187,7 +191,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
             newEventSchedule = true;
           }
           csEventOrRecording sEvent(event);
-          cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, moviedbScraper, tvdbScraper, db);
+          cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, movieDbMovieScraper, moviedbScraper, tvdbScraper, db);
           movieOrTv = SearchEventOrRec.Scrape();
         } // end of locks
         waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
@@ -236,13 +240,11 @@ void cTVScraperWorker::ScrapRecordings(void) {
       if (!rec) continue;
       if (config.enableDebug) esyslog("tvscraper: Scrap recording \"%s\"", rec->FileName() );
 
-      csRecording csRecording(rec);
       const cRecordingInfo *recInfo = rec->Info();
-      const cEvent *recEvent = recInfo->GetEvent();
-
-      if (recEvent) {
-          cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, moviedbScraper, tvdbScraper, db);  
-          movieOrTv = SearchEventOrRec.Scrape();
+      if (recInfo && recInfo->GetEvent() ) {
+        csRecording csRecording(rec);
+        cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, movieDbMovieScraper, moviedbScraper, tvdbScraper, db);
+        movieOrTv = SearchEventOrRec.Scrape();
       }
     }
 // here, the read lock is released, so wait a short time, in case someone needs a write lock
@@ -364,7 +366,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         std::string channelIDs = sRecording.ChannelIDs();
         esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
         if (ConnectScrapers() ) { 
-          cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, moviedbScraper, tvdbScraper, db);  
+          cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, movieDbMovieScraper, moviedbScraper, tvdbScraper, db);
           movieOrTv = SearchEventOrRec.Scrape();
           if (movieOrTv) newRecData = true;
         }

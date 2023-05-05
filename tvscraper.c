@@ -480,7 +480,7 @@ const char **cPluginTvscraper::SVDRPHelpPages(void) {
 
 cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, int &ReplyCode) {
   if ((strcasecmp(Command, "SCRE") == 0) || (strcasecmp(Command, "ScrapRecordings") == 0)) {
-    if (Option) {
+    if (Option && *Option) {
       LOCK_RECORDINGS_READ;
       const cRecording *rec = Recordings->GetByName(Option);
       if (!rec) return cString::sprintf("Recording %s not found, use full path name to the recording directory, including the video directory and the actual '*.rec'", Option);

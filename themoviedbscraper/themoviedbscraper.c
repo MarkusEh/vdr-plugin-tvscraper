@@ -129,13 +129,13 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, strin
 // otherwise, return false. Note: also in this case some results might have been added
 
   string_view searchString1, searchString2, searchString3, searchString4;
-  std::vector<cNormedString> normedStrings = getNormedStrings(tvSearchString, searchString1, searchString2, searchString3, searchString4);
+  std::vector<std::optional<cNormedString>> normedStrings = getNormedStrings(tvSearchString, searchString1, searchString2, searchString3, searchString4);
   cLargeString buffer("cMovieDbTv::AddTvResults", 10000);
   size_t size0 = resultSet.size();
   AddTvResults(buffer, resultSet, tvSearchString, normedStrings, lang);
   if (resultSet.size() > size0) {
     for (size_t i = size0; i < resultSet.size(); i++)
-      if (normedStrings[0].sentence_distance(resultSet[i].normedName) < 600) return true;
+      if (normedStrings[0].value().sentence_distance(resultSet[i].normedName) < 600) return true;
     return false;
   }
   if (!searchString1.empty() ) AddTvResults(buffer, resultSet, searchString1, normedStrings, lang);
@@ -147,8 +147,7 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, strin
   AddTvResults(buffer, resultSet, searchString4, normedStrings, lang);
   return false;
 }
-// TODO interface for ..., with SearchString_rom bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {
-bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {
+bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
 // concatenate URL
   CONVERT(SearchString_rom, tvSearchString, removeRomanNumC);
@@ -189,14 +188,14 @@ bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMo
     dist_a = std::min(dist_a + 10, 1000); // avoid this, prefer TVDB
     sRes.setMatchText(dist_a);
     sRes.setPopularity(getValueDouble(result, "popularity"), getValueDouble(result, "vote_average"), getValueInt(result, "vote_count") );
-    resultSet.push_back(sRes);
+    resultSet.push_back(std::move(sRes));
   }
   return true;
 }
 
 void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const cYears &years, const cLanguage *lang) {
   string_view searchString1, searchString2, searchString3, searchString4;
-  std::vector<cNormedString> normedStrings = getNormedStrings(SearchString, searchString1, searchString2, searchString3, searchString4);
+  std::vector<std::optional<cNormedString>> normedStrings = getNormedStrings(SearchString, searchString1, searchString2, searchString3, searchString4);
 
   cLargeString buffer("cMovieDbMovie::AddMovieResults", 10000);
   size_t size0 = resultSet.size();
@@ -211,7 +210,7 @@ void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, st
     AddMovieResults(buffer, resultSet, searchString4, normedStrings, description, false, years, lang);
 }
 
-void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
+void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
   if (SearchString.empty() ) {
     esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
     return;
@@ -252,7 +251,7 @@ void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultT
   }
 }
 
-int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch) {
+int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch) {
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
   rapidjson::Document root;
@@ -261,7 +260,7 @@ int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url
   AddMovieResults(root, resultSet, normedStrings, description, setMinTextMatch);
   return getValueInt(root, "total_pages", 0, "cMovieDbMovie::AddMovieResultsForUrl");
 }
-void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const char *description, bool setMinTextMatch) {
+void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch) {
   int res = -1;
   for (const rapidjson::Value &result: cJsonArrayIterator(root, "results")) {
     if (!result.IsObject() ) continue;
@@ -287,7 +286,7 @@ void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<se
     if (setMinTextMatch && res == 0) dist = std::min(dist, 500); // api.themoviedb.org has some alias names, which are used in the search but not displayed. Set the text match to a "minimum" of 500 -> 0.5 , because it was found by api.themoviedb.org
     sRes.setMatchText(dist);
     sRes.setPopularity(getValueDouble(result, "popularity"), getValueDouble(result, "vote_average"), getValueInt(result, "vote_count") );
-    resultSet.push_back(sRes);
+    resultSet.push_back(std::move(sRes));
   }
 }
 

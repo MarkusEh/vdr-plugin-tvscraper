@@ -10,6 +10,10 @@ class searchResultTvMovie {
 public:
   searchResultTvMovie(int id, bool movie, const char *year);
   ~searchResultTvMovie();
+  searchResultTvMovie(const searchResultTvMovie&) = delete;
+  searchResultTvMovie &operator= (const searchResultTvMovie &) = delete;
+  searchResultTvMovie(searchResultTvMovie &&) = default;
+  searchResultTvMovie &operator= (searchResultTvMovie &&) = default;
   void log(std::string_view title) const;
   static float normMatch(float x);
   float getMatch() const;

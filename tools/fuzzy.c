@@ -147,7 +147,7 @@ int normMatch(int i, int n) {
   return normMatch((float)i / (float)n) * 1000;
 }
 
-std::set<std::string_view> m_ignoreWords = {"der", "die", "das", "the", "I", "-"};
+std::set<std::string_view> const_ignoreWords = {"der", "die", "das", "the", "I", "-"};
 // =====================================================================================================
 // class cNormedString  ================================================================================
 // =====================================================================================================
@@ -155,12 +155,27 @@ std::set<std::string_view> m_ignoreWords = {"der", "die", "das", "the", "I", "-"
 class cNormedString {
   public:
     cNormedString(int malus = 0): m_malus(malus) {}
-//    cNormedString(int malus, const std::string &normedString): m_malus(malus), m_normedString(normedString) {}
     cNormedString(const char *s, int malus = 0): m_malus(malus) { reset(charPointerToStringView(s)); }
-    cNormedString(const std::string_view &s, int malus = 0): m_malus(malus) { reset(s); }
-    cNormedString(const std::string      &s, int malus = 0): m_malus(malus) { reset(s); }
+    cNormedString(      std::string_view s, int malus = 0): m_malus(malus) { reset(s); }
+    cNormedString(const std::string     &s, int malus = 0): m_malus(malus) { reset(s); }
+    cNormedString(const cNormedString&) = delete;
+    cNormedString &operator= (const cNormedString &) = delete;
+    cNormedString(cNormedString &&other) {
+      m_malus = other.m_malus;
+      m_normedString = std::move(other.m_normedString);
+      m_wordList = std::move(other.m_wordList);
+      m_wordList.clear();
+    }
+    cNormedString &operator= (cNormedString &&other) {
+      m_malus = other.m_malus;
+      m_normedString = std::move(other.m_normedString);
+      m_wordList = std::move(other.m_wordList);
+      m_wordList.clear();
+      return *this;
+    }
+
     cNormedString &reset(std::string_view str) {
-// if there was any "old" noremed string: remove
+// if there was any "old" normed string: remove
 // replace invalid UTF8 characters with ' '
 // replace all non-alphanumeric characters with ' '
 // replace roman numbers with arabic numbers
@@ -168,7 +183,6 @@ class cNormedString {
       m_normedString.clear();
       m_normedString.reserve(str.length() );
       m_wordList.clear();
-      m_wordList.reserve(20);
       size_t wordStart = 0;
       for (std::string_view word: cSplit(str, ' ')) {
         if (word.empty() ) continue;
@@ -181,8 +195,19 @@ class cNormedString {
           for (s = word.data(); s < word.data() + word.length(); ) {
             wint_t cChar = getNextUtfCodepoint(s);  // this also increases s
             if (std::iswalnum(cChar) ) stringAppendUtfCodepoint(m_normedString, towlower(cChar));
-            else if (cChar == '&') m_normedString.append(1, cChar);
+            else switch (cChar) {
+              case '&':
+                m_normedString.append(1, cChar);
+                break;
+              case '-':
+                m_normedString.append(1, ' ');
+                break;
+              default:
+                break;
+            }
           }
+// remove spaces at end
+          while (!m_normedString.empty() && m_normedString.back() == ' ') m_normedString.pop_back();
         }
         if (wordStart < m_normedString.length() ) {
 // something was appended
@@ -190,7 +215,6 @@ class cNormedString {
           if (lWord == "und" || lWord == "and") {
             m_normedString.erase(wordStart);
             m_normedString.append(1, '&');
-//          lWord = std::string_view(m_normedString.data() + wordStart, 1);
           }
           m_normedString.append(1, ' ');
           wordStart = m_normedString.length();
@@ -198,34 +222,38 @@ class cNormedString {
       }
 // remove spaces at end
       while (!m_normedString.empty() && m_normedString.back() == ' ') m_normedString.pop_back();
-// create list of words
-// must be one here, there must be no change to m_normedString after this
-// any change to m_normedString can result in changed buffer location, invaldating the string_view word list
-      for (std::string_view lWord: cSplit(m_normedString, ' ')) {
-        if (m_ignoreWords.find(lWord) == m_ignoreWords.end() ) m_wordList.push_back(lWord);
-      }
 //      std::cout << str << " -> \"" << m_normedString << "\"\n";
 //      std::cout << str << " -> \"" << m_normedString << "\" -> \"" << normString(str) << "\"\n";
-//      std::cout << "words m_normedString:";
-//      for (std::string_view sv:m_wordList) std::cout << " \"" << sv << "\"";
-//      std::cout << "\n";
       return *this;
     }
   private:
-    size_t numWords(const std::vector<std::string_view> &wordList, size_t &len, size_t maxChars) const {
+    void createWordList() const {
+// create list of words
+// must be one here, there must be no change to m_normedString after this
+// also std::move invalidates this list, as the string address might change
+// any change to m_normedString can result in changed buffer location, invaldating the string_view word list
+      if (m_wordList.size() > 0) return;
+      m_wordList.reserve(20);
+      for (std::string_view lWord: cSplit(m_normedString, ' ')) {
+        if (const_ignoreWords.find(lWord) == const_ignoreWords.end() ) m_wordList.push_back(lWord);
+      }
+//      std::cout << "words m_normedString: " << getWords() << "\n";
+    }
+    size_t numWords(size_t &len, size_t maxChars) const {
 // return number of words
 // in len, return number of characters in the words
+      createWordList ();
       len = 0;
-      for (size_t size = 0; size < wordList.size(); ++size) {
-        len += wordList[size].length();
+      for (size_t size = 0; size < m_wordList.size(); ++size) {
+        len += m_wordList[size].length();
         if (len + size + 1 >= maxChars) return size+1;
       }
-      return wordList.size();
+      return m_wordList.size();
     }
     size_t sentence_distance_int(const cNormedString &other, size_t &len1, size_t &len2, size_t maxChars) const {
 // how many words should we take into account?
-      const size_t size1 = numWords(m_wordList, len1, maxChars);
-      const size_t size2 = numWords(other.m_wordList, len2, maxChars);
+      const size_t size1 =       numWords(len1, maxChars);
+      const size_t size2 = other.numWords(len2, maxChars);
       size_t col_1[size2 + 1];
       size_t col_2[size2 + 1];
       size_t *curr_col = col_1;
@@ -263,7 +291,6 @@ class cNormedString {
       return 1000 * dist / max_dist;
     }
 
-
   public:
     int sentence_distance(const cNormedString &other, int curDistance = 1000) const {
 // return 0-1000, or 0-curDistance
@@ -271,14 +298,14 @@ class cNormedString {
 // 0: Strings are equal
 //  std::cout << "str1 = " << str1 << " str2 = " << str2 << std::endl;
       if (m_normedString == other.m_normedString) {
-        if (m_normedString.empty() ) return 1000;
-        return 0;
+        if (m_normedString.empty() ) return std::min(curDistance, 1000);
+        return std::min(curDistance, m_malus + other.m_malus);
       }
       int s1l = m_normedString.length();
       int s2l = other.m_normedString.length();
       int minLen = std::min(s1l, s2l);
       int maxLen = std::max(s1l, s2l);
-      if (minLen == 0) return 1000;
+      if (minLen == 0) return std::min(curDistance, 1000);
 
       int slengt = lcsubstr(m_normedString, other.m_normedString);
       int upper = 9; // match of more than upper characters: good
@@ -295,14 +322,13 @@ class cNormedString {
     //  std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
       return std::min(curDistance, dist_norm / 2 + dist_lcsubstr_norm / 2 + m_malus + other.m_malus);
     }
-    int minDistanceNormedStrings(const std::vector<cNormedString> &normedStrings, int curDistance, std::string *r_normedString = NULL) const {
-      for (const cNormedString &i_normedString: normedStrings)
-        curDistance = sentence_distance(i_normedString, curDistance);
+    int minDistanceNormedStrings(const std::vector<std::optional<cNormedString>> &normedStrings, int curDistance) const {
+      for (const std::optional<cNormedString> &i_normedString: normedStrings)
+        if (i_normedString.has_value()) curDistance = sentence_distance(i_normedString.value(), curDistance);
 
-      if (r_normedString) *r_normedString = m_normedString;
       return curDistance;
     }
-    int minDistanceStrings(const char *str, char delim = '~') {
+    int minDistanceStrings(const char *str, char delim = '~') const {
     // split str at ~, and compare all parts with this
     // ignore last part after last ~ (in other words: ignore name of recording)
       int minDist = 1000;
@@ -313,24 +339,32 @@ class cNormedString {
       }
       return minDist;
     }
+    std::string getWords() const {
+      if (m_wordList.size() == 0) return "no words";
+      std::string result;
+      for (const auto &w: m_wordList)
+        stringAppend(result, "\"", w, "\" ");
+      return result;
+    }
     int m_malus = 0;
     std::string m_normedString;
-    std::vector<std::string_view> m_wordList;
+    mutable std::vector<std::string_view> m_wordList;
 };
 
-std::vector<cNormedString> getNormedStrings(std::string_view searchString, std::string_view &searchString1, std::string_view &searchString2, std::string_view &searchString3, std::string_view &searchString4) {
+std::vector<std::optional<cNormedString>> getNormedStrings(std::string_view searchString, std::string_view &searchString1, std::string_view &searchString2, std::string_view &searchString3, std::string_view &searchString4) {
 // input: searchString: string to search for
 // return list of normed strings
-  std::vector<cNormedString> normedStrings;
-  normedStrings.push_back(cNormedString(searchString));
+  std::vector<std::optional<cNormedString>> normedStrings(5);
+  normedStrings[0].emplace(searchString);
   searchString1 = SecondPart(searchString, ": ", 4);
   searchString2 = SecondPart(searchString, "'s ", 4);
-  if (!searchString1.empty() ) normedStrings.push_back(cNormedString(searchString1, 50));
-  if (!searchString2.empty() ) normedStrings.push_back(cNormedString(searchString2, 50));
+  int i = 0;
+  if (!searchString1.empty() ) normedStrings[++i].emplace(searchString1, 50);
+  if (!searchString2.empty() ) normedStrings[++i].emplace(searchString2, 50);
   bool split = splitString(searchString, " - ", 4, searchString3, searchString4);
   if (split) {
-    normedStrings.push_back(cNormedString(searchString3, 70));
-    normedStrings.push_back(cNormedString(searchString4, 70));
+    normedStrings[++i].emplace(searchString3, 70);
+    normedStrings[++i].emplace(searchString4, 70);
   } else {
     searchString3 = "";
     searchString4 = "";

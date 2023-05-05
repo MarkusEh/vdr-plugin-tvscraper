@@ -1,8 +1,9 @@
 #include "searchEventOrRec.h"
 
-cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, cTVScraperDB *db):
+cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, iExtMovieTvDb *movieDbMovieScraper, cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, cTVScraperDB *db):
   m_sEventOrRecording(sEventOrRecording),
   m_overrides(overrides),
+  m_movieDbMovieScraper(movieDbMovieScraper),
   m_moviedbScraper(moviedbScraper),
   m_tvdbScraper(tvdbScraper),
   m_db(db),
@@ -199,10 +200,10 @@ cMovieOrTv *cSearchEventOrRec::Scrape(void) {
 
 void cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
   if (CheckCache(movieOrTv) ) return;
-  if (config.enableDebug) esyslog("tvscraper: scraping movie \"%s\", TV \"%s\"", m_movieSearchString.c_str(), m_TVshowSearchString.c_str());
+  if (config.enableDebug) esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", orig. title \"%.*s\"", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data() );
   vector<searchResultTvMovie> searchResults;
-  string_view episodeSearchString;
-  string_view foundName;
+  std::string_view episodeSearchString;
+  std::string_view foundName;
   scrapType sType = ScrapFind(searchResults, foundName, episodeSearchString);
   if (searchResults.size() == 0) sType = scrapNone;
   movieOrTv.type = sType;
@@ -275,8 +276,7 @@ int cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
 // check if already in internal DB. If not: Download from external db
   switch (movieOrTv.type) {
     case scrapMovie:
-      m_moviedbScraper->StoreMovie(movieOrTv.id);
-      return 0;
+      return m_movieDbMovieScraper->download(movieOrTv.id);
     case scrapSeries:
       if (movieOrTv.id > 0) {
         m_tv.SetTvID(movieOrTv.id);
@@ -291,9 +291,16 @@ int cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
 }
 
 // required for older vdr versions, to make swap used by sort unambigous
-inline void swap(searchResultTvMovie &a, searchResultTvMovie &b) { std::swap(a, b); }
+inline void swap(searchResultTvMovie &a, searchResultTvMovie &b) {
+/*
+ searchResultTvMovie h = std::move(a);
+ a = std::move(b);
+ b = std::move(h);
+*/
+ std::swap(a, b);
+ }
 
-scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResults, string_view &foundName, string_view &episodeSearchString) {
+scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResults, std::string_view foundName, std::string_view episodeSearchString) {
 //  bool debug = m_TVshowSearchString == "james cameron's dark angel";
   bool debug = false;
   foundName = "";
@@ -361,7 +368,7 @@ void cSearchEventOrRec::SearchTvAll(vector<searchResultTvMovie> &searchResults) 
   SearchTvEpisTitle(searchResults, '-');
 }
 
-bool cSearchEventOrRec::SearchTv(vector<searchResultTvMovie> &resultSet, string_view searchString, bool originalTitle) {
+bool cSearchEventOrRec::SearchTv(vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool originalTitle) {
 // return true if a result matching searchString was found, and no splitting of searchString was required
 // otherwise, return false. Note: also in this case some results might have been added
   extDbConnected = true;
@@ -375,8 +382,8 @@ bool cSearchEventOrRec::SearchTv(vector<searchResultTvMovie> &resultSet, string_
 }
 
 void cSearchEventOrRec::SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet, char delimiter) {
-  string_view TVshowName;
-  string_view episodeSearchString;
+  std::string_view TVshowName;
+  std::string_view episodeSearchString;
   if (!splitString(m_movieSearchString, delimiter, 4, TVshowName, episodeSearchString) ) return;
 //  bool debug = TVshowName == "rose" && delimiter == '-';
   bool debug = false;
@@ -394,11 +401,22 @@ void cSearchEventOrRec::SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet
 
 void cSearchEventOrRec::SearchMovie(vector<searchResultTvMovie> &resultSet) {
   extDbConnected = true;
-  if (m_originalTitle.length() > 0) {
-    m_moviedbScraper->AddMovieResults(resultSet, m_originalTitle, m_sEventOrRecording->Description(), m_years, NULL);
-  } else {
-    m_moviedbScraper->AddMovieResults(resultSet, m_movieSearchString, m_sEventOrRecording->Description(), m_years, m_sEventOrRecording->GetLanguage() );
-  }
+  cLargeString buffer("movie add search results", 10000);
+  std::string_view searchString = m_originalTitle.length() > 0?m_originalTitle:m_movieSearchString;
+  std::string_view searchString1, searchString2, searchString3, searchString4;
+  std::vector<std::optional<cNormedString>> normedStrings = getNormedStrings(searchString, searchString1, searchString2, searchString3, searchString4);
+  const cLanguage *lang = m_originalTitle.length() > 0?nullptr:m_sEventOrRecording->GetLanguage();
+
+  size_t size0 = resultSet.size();
+  m_movieDbMovieScraper->addSearchResults(buffer, resultSet, searchString, true, normedStrings, m_sEventOrRecording->Description(), m_years, lang);
+  if (searchString1.length() > 6  || (!searchString1.empty() && resultSet.size() == size0) )
+    m_movieDbMovieScraper->addSearchResults(buffer, resultSet, searchString1, false, normedStrings, m_sEventOrRecording->Description(), m_years, lang);
+  if (searchString2.length() > 6  || (!searchString2.empty() && resultSet.size() == size0) )
+    m_movieDbMovieScraper->addSearchResults(buffer, resultSet, searchString2, false, normedStrings, m_sEventOrRecording->Description(), m_years, lang);
+  if (searchString3.length() > 6  || (!searchString3.empty() && resultSet.size() == size0) )
+    m_movieDbMovieScraper->addSearchResults(buffer, resultSet, searchString3, false, normedStrings, m_sEventOrRecording->Description(), m_years, lang);
+  if (searchString4.length() > 6  || (!searchString4.empty() && resultSet.size() == size0) )
+    m_movieDbMovieScraper->addSearchResults(buffer, resultSet, searchString4, false, normedStrings, m_sEventOrRecording->Description(), m_years, lang);
 }
 
 bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
@@ -539,18 +557,18 @@ void cSearchEventOrRec::getActorMatches(const char* actor, int &numMatchesAll, i
   const char *description = m_sEventOrRecording->Description();
   if (!description || !actor) return;
   const char *pos_blank = strrchr(actor, ' ');
-  if ( pos_blank && addActor(description, actor, 0, numMatchesAll,  alreadyFound)) return;
-  if (!pos_blank && addActor(description, actor, 0, numMatchesSure, alreadyFound)) return;
+  if ( pos_blank && addActor(description, actor, numMatchesAll,  alreadyFound)) return;
+  if (!pos_blank && addActor(description, actor, numMatchesSure, alreadyFound)) return;
   if (!pos_blank || pos_blank == actor) return;
 
 // look for matches of part of the actor
   const char *lPos = actor;
   for (const char *rDelimPos; (rDelimPos = strchr(lPos, ' ')); lPos = rDelimPos + 1)
-    addActor(description, lPos, rDelimPos - lPos, numMatchesFirst, alreadyFound);
-  addActor(description, lPos, 0, numMatchesSure, alreadyFound);
+    addActor(description, std::string_view(lPos, rDelimPos - lPos), numMatchesFirst, alreadyFound);
+  addActor(description, lPos, numMatchesSure, alreadyFound);
 }
 
-void cSearchEventOrRec::getDirectorWriterMatches(const std::string_view &directorWriter, int &numMatchesAll, int &numMatchesSure, cContainer &alreadyFound) {
+void cSearchEventOrRec::getDirectorWriterMatches(std::string_view directorWriter, int &numMatchesAll, int &numMatchesSure, cContainer &alreadyFound) {
   if (directorWriter.length() < 3) return;
   const char *description = m_sEventOrRecording->Description();
   if (!description) return;
@@ -561,19 +579,11 @@ void cSearchEventOrRec::getDirectorWriterMatches(const std::string_view &directo
   addActor(description, directorWriter.substr(pos_blank + 1), numMatchesSure, alreadyFound);
 }
 
-bool cSearchEventOrRec::addActor(const char *description, const char *name, size_t len, int &numMatches, cContainer &alreadyFound) {
-// search name in description, if found, increase numMatches. But only once for each name found
-// return true if found. Always. Even if numMatches is not increased
-  size_t len2 = (len == 0)?strlen(name):len;
-  if (len2 < 3) return false; // ignore if name is too short
-  if (strstr_word(description, name, len) == NULL) return false;   // name not found in description
-  if (!alreadyFound.insert(string_view(name, len2))) numMatches++;
-  return true;
-}
-bool cSearchEventOrRec::addActor(const char *description, const string_view &name, int &numMatches, cContainer &alreadyFound) {
+bool cSearchEventOrRec::addActor(const char *description, std::string_view name, int &numMatches, cContainer &alreadyFound) {
 // search name in description, if found, increase numMatches. But only once for each name found
 // return true if found. Always. Even if numMatches is not increased
   if (name.length() < 3) return false; // ignore if name is too short
+  if (const_ignoreWords.find(name) != const_ignoreWords.end() ) return false;
   if (strstr_word(description, name.data(), name.length() ) == NULL) return false;   // name not found in description
   if (!alreadyFound.insert(name)) numMatches++;
   return true;
@@ -585,21 +595,18 @@ void cSearchEventOrRec::getActorMatches(searchResultTvMovie &sR, cSql &actors) {
   int numMatchesSureRole = 0;
   int numMatchesSureName = 0;
   cContainer alreadyFound;
-// note: alreadyFound contains data from actors. So, actors must not change during this method
-// also, avoid sql loop to get actors (as this will result in a change for the actors strings)
   bool debug = false;
 //  debug = (sR.id() == 557) || (sR.id() == 558) || (sR.id() == 559);
 //  debug = debug || (sR.id() == 5548) || (sR.id() == 5549) || (sR.id() == 5550); // RoboCop / Officer Alex J. Murphy or just RoboCop ...)
-//  debug = debug || (sR.id() == -77973) || (sR.id() == 60293);
-//  debug = false;
+//  debug = debug || (sR.id() == 682) || (sR.id() == 37412);
   if (debug) esyslog("tvscraper: getActorMatches, id: %i", sR.id() );
   for(cSql &actor: actors) {
 // first col: actor_name
     getActorMatches(actor.getCharS(0), numMatchesAll, numMatchesFirst, numMatchesSureName, alreadyFound);
-//    if (debug) esyslog("tvscraper: getActorMatches, Actor: %s, numMatchesAll %i, numMatchesFirst %i, numMatchesSureRole %i, numMatchesSureName %i", actor[1].c_str(), numMatchesAll, numMatchesFirst, numMatchesSureRole, numMatchesSureName);
+    if (debug) esyslog("tvscraper: getActorMatches name, Actor: %s, numMatchesAll %i, numMatchesFirst %i, numMatchesSureRole %i, numMatchesSureName %i", actor.getCharS(0), numMatchesAll, numMatchesFirst, numMatchesSureRole, numMatchesSureName);
 // second col: actor_role
     getActorMatches(actor.getCharS(1), numMatchesAll, numMatchesFirst, numMatchesSureRole, alreadyFound);
-//    if (debug) esyslog("tvscraper: getActorMatches, Actor: %s, numMatchesAll %i, numMatchesFirst %i, numMatchesSureRole %i, numMatchesSureName %i", actor[2].c_str(), numMatchesAll, numMatchesFirst, numMatchesSureRole, numMatchesSureName);
+    if (debug) esyslog("tvscraper: getActorMatches role, Actor: %s, numMatchesAll %i, numMatchesFirst %i, numMatchesSureRole %i, numMatchesSureName %i", actor.getCharS(1), numMatchesAll, numMatchesFirst, numMatchesSureRole, numMatchesSureName);
   }
   int sum = numMatchesFirst + numMatchesSureRole + 4*numMatchesSureName + 16*numMatchesAll;
   sR.setActors(sum);
@@ -678,7 +685,8 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
   cSql actors(searchEventOrRec.m_db);
   if (sR.movie() ) {
 // movie
-    sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(searchEventOrRec.m_moviedbScraper->GetMovieRuntime(sR.id() )) );
+    searchEventOrRec.m_movieDbMovieScraper->enhance1(sR.id() );
+    sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(searchEventOrRec.m_db->GetMovieRuntime(sR.id() )) );
     sR.updateMatchText(cNormedString(searchEventOrRec.m_movieSearchString).sentence_distance(searchEventOrRec.m_db->GetMovieTagline(sR.id() )));
     actors.finalizePrepareBindStep("select actor_name, actor_role from actors, actor_movie where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?", sR.id());
     cSql sqlI(searchEventOrRec.m_db,
@@ -724,8 +732,8 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   if (searchResult.movie() ) return;
 //  if (searchResult.movie() ) { searchResult.setMatchEpisode(1000); return; }
 //  Transporter - The Mission: Is a movie, and we should not give negative point for having no episode match
-  string_view foundName;
-  string_view episodeSearchString;
+  std::string_view foundName;
+  std::string_view episodeSearchString;
   sMovieOrTv movieOrTv;
   movieOrTv.id = searchResult.id();
   movieOrTv.type = scrapSeries;

@@ -31,7 +31,6 @@ string_view csEventOrRecording::EpisodeSearchString() const {
   if(Description() ) {
     if (strlen(Description() ) <= 100) return Description();
     else return string_view(Description(), 100);                                                                             
-//    else return Description();
   }
   return "";
 }

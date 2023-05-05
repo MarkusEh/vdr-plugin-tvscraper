@@ -80,7 +80,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
 // return -1 if the object does not exist in external db
 // otherwise, return seriesID > 0
 // only update if not yet in db
-// we ignore onlyEpisodes, there is no real performance improvement, as episode related information like gouest stars is in "main" series
+// we ignore onlyEpisodes, there is no real performance improvement, as episode related information like guest stars is in "main" series
 // except for the check if we need to update: if onlyEpisodes == true, we update, even if we have aready data
   if (seriesID == 0) return 0;
   int ns, ne;
@@ -197,9 +197,9 @@ const char *cTVDBScraper::getDbUrl(const char *url) {
   return url;
 }
 
-void cTVDBScraper::Download4(const char *url, const std::string &localPath) {
+void cTVDBScraper::download(const char *url, const char *localPath) {
 // create full download url fron given url, and download to local path
-  if (!url || !*url) return;
+  if (!url || !*url || !localPath || !*localPath) return;
   if (strncmp(url, cTVDBScraper::prefixImageURL2, strlen(cTVDBScraper::prefixImageURL2) ) == 0) {
     Download(url, localPath);
     return;
@@ -208,6 +208,10 @@ void cTVDBScraper::Download4(const char *url, const std::string &localPath) {
   if (url[0] == '/') fullUrl = concatenate(cTVDBScraper::prefixImageURL2, url);
   fullUrl = concatenate(cTVDBScraper::prefixImageURL1, url);  // for URLs returned by APIv3
   Download(fullUrl, localPath);
+}
+void cTVDBScraper::Download4(const char *url, const std::string &localPath) {
+// create full download url fron given url, and download to local path
+  download(url, localPath.c_str() );
 }
 
 void cTVDBScraper::StoreActors(int seriesID) {
@@ -289,13 +293,13 @@ bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, std::stri
 // otherwise, return false. Note: also in this case some results might have been added
 
   string_view searchString1, searchString2, searchString3, searchString4;
-  std::vector<cNormedString> normedStrings = getNormedStrings(SearchString, searchString1, searchString2, searchString3, searchString4);
+  std::vector<std::optional<cNormedString>> normedStrings = getNormedStrings(SearchString, searchString1, searchString2, searchString3, searchString4);
   cLargeString buffer("cTVDBScraper::AddResults4", 500, 5000);
   size_t size0 = resultSet.size();
   AddResults4(buffer, resultSet, SearchString, normedStrings, lang);
   if (resultSet.size() > size0) {
     for (size_t i = size0; i < resultSet.size(); i++)
-      if (normedStrings[0].sentence_distance(resultSet[i].normedName) < 600) return true;
+      if (normedStrings[0].value().sentence_distance(resultSet[i].normedName) < 600) return true;
     return false;
   }
   if (!searchString1.empty() ) AddResults4(buffer, resultSet, searchString1, normedStrings, lang);
@@ -308,7 +312,7 @@ bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, std::stri
   return false;
 }
 
-bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {
+bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang) {
   CONVERT(SearchString_rom, SearchString, removeRomanNumC);
   if (*SearchString_rom == 0) {
     esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, SearchString_rom == empty");
@@ -329,7 +333,7 @@ bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie>
   return true;
 }
 
-void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const std::vector<cNormedString> &normedStrings, const cLanguage *lang) {// add search results to resultSet
+void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang) {// add search results to resultSet
   if (!data.IsObject() ) {
     esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, data is not an object");
     return;
@@ -387,6 +391,6 @@ void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<s
   }
   if (dist_a < requiredDistance) {
     sRes.setMatchText(dist_a);
-    resultSet.push_back(sRes);
+    resultSet.push_back(std::move(sRes));
   }
 }

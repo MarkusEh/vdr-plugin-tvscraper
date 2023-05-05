@@ -387,7 +387,7 @@ inline void stringAppend(std::string &str, long long int i) { concat::stringAppe
 // strings
 inline void stringAppend(std::string &str, const char *s) { str.append(s); }
 inline void stringAppend(std::string &str, const std::string &s) { str.append(s); }
-inline void stringAppend(std::string &str, const std::string_view &s) { str.append(s); }
+inline void stringAppend(std::string &str,       std::string_view s) { str.append(s); }
 
 // tChannelID
 inline void stringAppend(std::string &str, const tChannelID &channelID) {
