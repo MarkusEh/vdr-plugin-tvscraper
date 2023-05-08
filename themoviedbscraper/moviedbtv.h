@@ -37,7 +37,7 @@ private:
 public:
    cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
    virtual ~cMovieDbTv(void);
-   bool UpdateDb(bool updateEpisodes);
+   bool UpdateDb(bool forceUpdate);
    int tvID(void) { return m_tvID; };
    void SetTvID(int tvID) { m_tvID = tvID; };
 };

@@ -12,26 +12,6 @@ cMovieDBScraper::cMovieDBScraper(cTVScraperDB *db, cOverRides *overrides) {
 cMovieDBScraper::~cMovieDBScraper() {
 }
 
-int cMovieDBScraper::GetMovieRuntime(int movieID) {
-// return 0 if no runtime is available in themovied
-  int runtime = db->GetMovieRuntime(movieID);
-  if (runtime  >  0) return runtime;
-  if (runtime == -1) return 0; // no runtime available in themoviedb
-// themoviedb never checked for runtime, check now
-  StoreMovie(movieID, true);
-  runtime = db->GetMovieRuntime(movieID);
-  if (runtime  >  0) return runtime;
-  if (runtime == -1) return 0; // no runtime available in themoviedb
-  esyslog("tvscraper: ERROR, no runtime in cMovieDBScraper::GetMovieRuntime movieID = %d", movieID);
-  return runtime;
-}
-
-void cMovieDBScraper::UpdateTvRuntimes(int tvID) {
-  cMovieDbTv tv(db, this);
-  tv.SetTvID(tvID);
-  tv.UpdateDb(true);
-}
-
 void cMovieDBScraper::StoreMovie(int movieID, bool forceUpdate) {
 // if movie does not exist in DB, download movie and store it in DB
   if (!forceUpdate && db->MovieExists(movieID)) return;
@@ -123,30 +103,7 @@ void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, 
   stringAppend(pathStill, "/still_", episodeNumber, ".jpg");
   Download(concatenate(m_stillBaseUrl, stillPathTvEpisode), pathStill);
 }
-bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const cLanguage *lang) {
-// search for tv series, add search results to resultSet
-// return true if a result matching searchString was found, and no splitting of searchString was required
-// otherwise, return false. Note: also in this case some results might have been added
 
-  string_view searchString1, searchString2, searchString3, searchString4;
-  std::vector<std::optional<cNormedString>> normedStrings = getNormedStrings(tvSearchString, searchString1, searchString2, searchString3, searchString4);
-  cLargeString buffer("cMovieDbTv::AddTvResults", 10000);
-  size_t size0 = resultSet.size();
-  AddTvResults(buffer, resultSet, tvSearchString, normedStrings, lang);
-  if (resultSet.size() > size0) {
-    for (size_t i = size0; i < resultSet.size(); i++)
-      if (normedStrings[0].value().sentence_distance(resultSet[i].normedName) < 600) return true;
-    return false;
-  }
-  if (!searchString1.empty() ) AddTvResults(buffer, resultSet, searchString1, normedStrings, lang);
-  if (resultSet.size() > size0) return false;
-  if (!searchString2.empty() ) AddTvResults(buffer, resultSet, searchString2, normedStrings, lang);
-  if (resultSet.size() > size0) return false;
-  if (searchString4.empty() ) return false;
-// searchString3 is the string before ' - '. We will search for this later, as part of the <title> - <episode> pattern
-  AddTvResults(buffer, resultSet, searchString4, normedStrings, lang);
-  return false;
-}
 bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
 // concatenate URL
@@ -163,7 +120,10 @@ bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMo
 
   rapidjson::Document root;
 // call api, get json
-  if (!jsonCallRest(root, buffer, url.c_str(), config.enableDebug)) return false;
+  apiCalls.start();
+  bool success = jsonCallRest(root, buffer, url.c_str(), config.enableDebug);
+  apiCalls.stop();
+  if (!success) return false;
   for (const rapidjson::Value &result: cJsonArrayIterator(root, "results")) {
     int id = getValueInt(result, "id");
     if (id == 0) continue;
@@ -191,23 +151,6 @@ bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMo
     resultSet.push_back(std::move(sRes));
   }
   return true;
-}
-
-void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const cYears &years, const cLanguage *lang) {
-  string_view searchString1, searchString2, searchString3, searchString4;
-  std::vector<std::optional<cNormedString>> normedStrings = getNormedStrings(SearchString, searchString1, searchString2, searchString3, searchString4);
-
-  cLargeString buffer("cMovieDbMovie::AddMovieResults", 10000);
-  size_t size0 = resultSet.size();
-  AddMovieResults(buffer, resultSet, SearchString, normedStrings, description, true, years, lang);
-  if (searchString1.length() > 6  || (!searchString1.empty() && resultSet.size() == size0) )
-    AddMovieResults(buffer, resultSet, searchString1, normedStrings, description, false, years, lang);
-  if (searchString2.length() > 6  || (!searchString2.empty() && resultSet.size() == size0) )
-    AddMovieResults(buffer, resultSet, searchString2, normedStrings, description, false, years, lang);
-  if (searchString3.length() > 6  || (!searchString3.empty() && resultSet.size() == size0) )
-    AddMovieResults(buffer, resultSet, searchString3, normedStrings, description, false, years, lang);
-  if (searchString4.length() > 6  || (!searchString4.empty() && resultSet.size() == size0) )
-    AddMovieResults(buffer, resultSet, searchString4, normedStrings, description, false, years, lang);
 }
 
 void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
@@ -255,7 +198,10 @@ int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
   rapidjson::Document root;
-  if (!jsonCallRest(root, buffer, url, config.enableDebug)) return 0;
+  apiCalls.start();
+  bool success = jsonCallRest(root, buffer, url, config.enableDebug);
+  apiCalls.stop();
+  if (!success) return false;
   if (getValueInt(root, "total_results", 0, "cMovieDbMovie::AddMovieResultsForUrl") == 0) return 0;
   AddMovieResults(root, resultSet, normedStrings, description, setMinTextMatch);
   return getValueInt(root, "total_pages", 0, "cMovieDbMovie::AddMovieResultsForUrl");

@@ -322,6 +322,9 @@ class cSql {
     void readRow_int(int col, std::string &str) {
       str = charPointerToString(sqlite3_column_text(m_statement, col));
     }
+    void readRow_int(int col, std::string_view &str) {
+      str = charPointerToStringView(sqlite3_column_text(m_statement, col));
+    }
 // The pointers returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
     void readRow_int(int col, const char* &s) {
       s = reinterpret_cast<const char*>(sqlite3_column_text(m_statement, col));
@@ -465,6 +468,13 @@ private:
     bool CreateTables(void);
     void WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number);
 public:
+    cMeasureTime m_cache_time;
+    cMeasureTime m_cache_episode_search_time;
+    cMeasureTime m_cache_update_episode_time;
+    cMeasureTime m_cache_update_similar_time;
+    cSql m_stmt_cache1;
+    cSql m_stmt_cache2;
+
     cTVScraperDB(const cTVScraperDB &) = delete;
     cTVScraperDB &operator= (const cTVScraperDB &) = delete;
     cTVScraperDB(void);

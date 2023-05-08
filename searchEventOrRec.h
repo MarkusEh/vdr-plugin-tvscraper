@@ -2,14 +2,16 @@
 
 class cSearchEventOrRec {
 public:
-  cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, iExtMovieTvDb *movieDbMovieScraper, cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, cTVScraperDB *db);
-  cMovieOrTv *Scrape(void); // note: if nothing is found, NULL is returned. Otherwise, the images must be downloaded, and the returned cMovieOrTv must be deleted
+  cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDbMovieScraper *movieDbMovieScraper, cMovieDbTvScraper *movieDbTvScraper, cTvDbTvScraper *tvDbTvScraper, cTVScraperDB *db);
+  cMovieOrTv *Scrape(int &statistics); // note: if nothing is found, NULL is returned. Otherwise, the images must be downloaded, and the returned cMovieOrTv must be deleted
 private:
-  scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, std::string_view movieName, std::string_view episodeSearchString);
+  scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, std::string_view &movieName, std::string_view &episodeSearchString);
   int Store(const sMovieOrTv &movieOrTv);
   bool SearchTv(vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool originalTitle = false);
+  bool SearchTv_i(cLargeString &buffer, iExtMovieTvDb *extMovieTvDb, vector<searchResultTvMovie> &resultSet, std::string_view searchString, const cLanguage *lang);
   void SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet, char delimiter); // Title: name of TV series, and episode name (with : or - between them)
   void SearchMovie(vector<searchResultTvMovie> &searchResults); // 0: no match; return movie ID, search result in m_searchResult_Movie
+  void SearchMovie_0(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, const cLanguage *lang);
   void SearchTvAll(vector<searchResultTvMovie> &searchResults);
   void initOriginalTitle();
   bool isTitlePartOfPathName(size_t baseNameLen);
@@ -20,7 +22,7 @@ private:
   void initSearchString(std::string &searchString);
   void setFastMatch(searchResultTvMovie &searchResult);
   int GetTvDurationDistance(int tvID);
-  void ScrapFindAndStore(sMovieOrTv &movieOrTv);
+  int ScrapFindAndStore(sMovieOrTv &movieOrTv);
   bool CheckCache(sMovieOrTv &movieOrTv);
   void ScrapAssign(const sMovieOrTv &movieOrTv);
   int UpdateEpisodeListIfRequired(int tvID, const cLanguage *lang);
@@ -33,12 +35,15 @@ private:
   bool selectBestAndEnhanceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));
   static void enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
   static void enhance2(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
+  iExtMovieTvDb *getExtMovieTvDb(const searchResultTvMovie &sR) const;
+  iExtMovieTvDb *getExtMovieTvDb(const sMovieOrTv &movieOrTv) const;
+
 // passed from constructor
   csEventOrRecording *m_sEventOrRecording;
   cOverRides *m_overrides;
   iExtMovieTvDb *m_movieDbMovieScraper;
-  cMovieDBScraper *m_moviedbScraper;
-  cTVDBScraper *m_tvdbScraper;
+  iExtMovieTvDb *m_movieDbTvScraper;
+  iExtMovieTvDb *m_tvDbTvScraper;
   cTVScraperDB *m_db; 
 // "calculated"
   cString m_baseName;
@@ -49,7 +54,6 @@ private:
   std::string_view m_originalTitle;
   cYears m_years;
   bool m_baseNameEquShortText = false;
-  cMovieDbTv m_tv;
   searchResultTvMovie m_searchResult_Movie;
   bool extDbConnected = false; // true, if request to rate limited internet db was required. Otherwise, false
   bool m_episodeFound = false;

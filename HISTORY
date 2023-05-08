@@ -89,3 +89,5 @@ Version 1.1.6
 - Remove libXML2 dependency
 - Drop support for vdr 2.2.* or earlier
 - Backup in memory database only once a day
+Version 1.1.13
+- change of database content of tv_s_e_name. Might result in wrong identificatiens of opisodes. To avoid, you should delete this table while vdr is not running. The system will fill it again automatically. Note: This table is only used for episode names in non-default language.

@@ -18,8 +18,10 @@ private:
     cMutex mutex;
     cTVScraperDB *db;
     cMovieDBScraper *moviedbScraper;
-    cMovieDbMovieScraper *movieDbMovieScraper;
     cTVDBScraper *tvdbScraper;
+    cMovieDbMovieScraper *m_movieDbMovieScraper;
+    cMovieDbTvScraper *m_movieDbTvScraper;
+    cTvDbTvScraper *m_tvDbTvScraper;
 #if APIVERSNUM >= 20301
     cStateKey schedulesStateKey;
 #endif

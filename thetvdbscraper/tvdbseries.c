@@ -115,7 +115,7 @@ bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries) {
   return true;
 }
 
-int cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode) {
+int cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, cSql &insertEpisode) {
 // return episode ID
 // read data from json, for one episode, and write this data to db
   if (m_seriesID == 0) return 0;  // seriesID must be set, before calling
@@ -129,10 +129,16 @@ int cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode) {
   if (episodeRunTime != 0) episodeRunTimes.insert(episodeRunTime);
   else episodeRunTime = -1; // -1: no data available in external db; 0: data in external db not requested
 
+  insertEpisode.resetBindStep(
+     -1 * m_seriesID, getValueInt(jEpisode, "seasonNumber"), getValueInt(jEpisode, "number"), episodeID,
+     getValueCharS(jEpisode, "name"), getValueCharS(jEpisode, "aired"),
+     getValueCharS(jEpisode, "overview"), getValueCharS(jEpisode, "image"), episodeRunTime);
+/*
   m_db->exec("INSERT OR REPLACE INTO tv_s_e (tv_id, season_number, episode_number, episode_id, episode_name, episode_air_date, episode_overview, episode_still_path, episode_run_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
      -1 * m_seriesID, getValueInt(jEpisode, "seasonNumber"), getValueInt(jEpisode, "number"), episodeID,
      getValueCharS(jEpisode, "name"), getValueCharS(jEpisode, "aired"),
      getValueCharS(jEpisode, "overview"), getValueCharS(jEpisode, "image"), episodeRunTime);
+*/
 
 /*
   int episodeAbsoluteNumber = 0; // not available
@@ -146,7 +152,7 @@ int cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode) {
   return episodeID;
 }
 
-bool cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, const cLanguage *lang) {
+bool cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, const cLanguage *lang, cSql &insertEpisodeLang) {
 // read data (episode name) from json, for one episode, and write this data to db with additional languages
   int episodeID = getValueInt(jEpisode, "id");
   const char *episodeName = getValueCharS(jEpisode, "name");
@@ -154,8 +160,9 @@ bool cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, const cLan
 //    don't save normed strings in database.
 //      doesn't help for performance (norming one string only takes 5% of sentence_distance time
 //      makes changes to the norm algorithm almost impossible
-  m_db->exec("INSERT OR REPLACE INTO tv_s_e_name (episode_id, language_id, episode_name) VALUES (?, ?, ?);",
-    episodeID, lang->m_id, episodeName);
+  insertEpisodeLang.resetBindStep(episodeID, lang->m_id, episodeName);
+//  m_db->exec("INSERT OR REPLACE INTO tv_s_e_name2 (episode_id, language_id, episode_name) VALUES (?, ?, ?);",
+//    episodeID, lang->m_id, episodeName);
   return true;
 }
 

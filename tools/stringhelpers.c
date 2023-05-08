@@ -9,6 +9,7 @@
 #include <set>
 #include <iostream>
 #include <charconv>
+#include <chrono>
 
 #define CONVERT(result, from, fn) \
 char result[fn(NULL, from) + 1]; \
@@ -417,7 +418,6 @@ class cConcatenate
     cConcatenate &operator= (const cConcatenate &) = delete;
   template<typename T>
     cConcatenate & operator<<(const T &i) { stringAppend(m_data, i); return *this; }
-//    std::string str() { return std::move(m_data); }
     std::string moveStr() { return std::move(m_data); }
     const std::string &getStrRef() { return m_data; }
     const char *getCharS() { return m_data.c_str(); }
@@ -427,7 +427,7 @@ class cConcatenate
 
 // whitespace ================================================================
 void StringRemoveTrailingWhitespace(std::string &str) {
-  std::string whitespaces (" \t\f\v\n\r");
+  const char*  whitespaces = " \t\f\v\n\r";
 
   std::size_t found = str.find_last_not_of(whitespaces);
   if (found!=std::string::npos)
@@ -937,4 +937,37 @@ class cContainer {
     char m_delim;
     std::string m_buffer;
 };
+
+class cMeasureTime {
+  public:
+    void start() { begin = std::chrono::high_resolution_clock::now(); }
+    void stop()  {
+      std::chrono::duration<double> timeNeeded = std::chrono::high_resolution_clock::now() - begin;
+      maxT = std::max(maxT, timeNeeded);
+      sumT += timeNeeded;
+      ++numCalls;
+    }
+    void reset() {
+      sumT = std::chrono::duration<double>(0);
+      maxT = std::chrono::duration<double>(0);
+      numCalls = 0;
+    }
+    void add(const cMeasureTime &other) {
+      maxT = std::max(maxT, other.maxT);
+      sumT += other.sumT;
+      numCalls += other.numCalls;
+    }
+    void print(const char *context) const {
+      if (numCalls == 0) return;
+      if (!context) context = "cMeasureTime";
+      esyslog("tvscraper: %s num = %5i, time = %9.5f, average %f, max = %f", context, numCalls, sumT.count(), sumT.count()/numCalls, maxT.count());
+    }
+
+  private:
+    int numCalls = 0;
+    std::chrono::duration<double> sumT = std::chrono::duration<double>(0.);
+    std::chrono::duration<double> maxT = std::chrono::duration<double>(0.);
+    std::chrono::time_point<std::chrono::high_resolution_clock> begin;
+};
+
 #endif // __STRINGHELPERS_H

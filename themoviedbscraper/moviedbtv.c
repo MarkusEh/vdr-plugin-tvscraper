@@ -17,23 +17,28 @@ cMovieDbTv::cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper):
 
 cMovieDbTv::~cMovieDbTv() {
 }
-bool cMovieDbTv::UpdateDb(bool updateEpisodes){
+bool cMovieDbTv::UpdateDb(bool forceUpdate) {
 // read tv data from themoviedb, update this object
-// only update if not yet in db. In this case, also episodes will be updated
-// if updateEpisodes == true: force always update of episodes
+// only update if not yet in db or forceUpdate == true. In this case, also episodes will be updated
+  if (m_tvID == 0) return false;
+  time_t tv_last_updated = 0;
+  cSql stmtLastUpdate(m_db, "SELECT tv_last_updated FROM tv2 WHERE tv_id = ?", m_tvID);
+  bool exists = stmtLastUpdate.readRow(tv_last_updated);
+  if (exists && !forceUpdate) return true; // already in db
   int numberOfEpisodes = 0;
   int lastSeason = 0;
-  bool exits_in_db = m_db->TvGetNumberOfEpisodes(m_tvID, lastSeason, numberOfEpisodes);
-  if (exits_in_db && !updateEpisodes) return true;
+  if (exists) m_db->TvGetNumberOfEpisodes(m_tvID, lastSeason, numberOfEpisodes);
+
   cLargeString buffer("cMovieDbTv::UpdateDb", 5000);
-  if(!ReadTv(exits_in_db, buffer)) return false;
-  if(!exits_in_db || m_tvNumberOfEpisodes > numberOfEpisodes) {
-//   if this is new (not yet in db), always search seasons. "number_of_episodes" is sometimes wrong :(
-//   there exist new episodes, update db with new episodes
-     for(m_seasonNumber = lastSeason; m_seasonNumber <= m_tvNumberOfSeasons; m_seasonNumber++) AddOneSeason(buffer);
+  if(!ReadTv(exists, buffer)) return false;
+  if(!exists || m_tvNumberOfEpisodes > numberOfEpisodes) {
+//  if this is new (not yet in db), always search seasons. "number_of_episodes" is sometimes wrong :(
+//  there exist new episodes, update db with new episodes
+    for(m_seasonNumber = lastSeason; m_seasonNumber <= m_tvNumberOfSeasons; m_seasonNumber++) AddOneSeason(buffer);
+    m_db->exec("UPDATE tv2 SET tv_last_changed = ? WHERE tv_id= ?", time(0), m_tvID);
   }
   m_db->TvSetNumberOfEpisodes(m_tvID, m_tvNumberOfSeasons, m_tvNumberOfEpisodes);
-  m_db->TvSetEpisodesUpdated(m_tvID);
+  m_db->exec("UPDATE tv2 SET tv_last_updated = ? WHERE tv_id= ?", time(0), m_tvID);
   return true;
 }
 

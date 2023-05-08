@@ -29,21 +29,20 @@ class cMovieDBScraper {
     int AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch);
     void AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
 
-public:
-    cMovieDBScraper(cTVScraperDB *db, cOverRides *overrides);
-    virtual ~cMovieDBScraper(void);
-    bool Connect(void);
-    const char* GetApiKey(void) { return apiKey; }
     void StoreMovie(int movieID, bool forceUpdate = false);
     bool DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName, bool movie);
     void DownloadMedia(int movieID);
     void DownloadMediaTv(int tvID);
     void DownloadActors(int tvID, bool movie);
     void StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode);
-    int GetMovieRuntime(int movieID);
-    void UpdateTvRuntimes(int tvID);
-    bool AddTvResults(vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const cLanguage *lang);
-    void AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const cYears &years, const cLanguage *lang);
+//    bool AddTvResults(vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const cLanguage *lang);
+//    void AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const cYears &years, const cLanguage *lang);
+public:
+    cMovieDBScraper(cTVScraperDB *db, cOverRides *overrides);
+    virtual ~cMovieDBScraper(void);
+    bool Connect(void);
+    const char* GetApiKey(void) { return apiKey; }
+    cMeasureTime apiCalls;
 };
 
 class cMovieDbMovieScraper: public iExtMovieTvDb {

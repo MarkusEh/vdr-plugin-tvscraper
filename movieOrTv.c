@@ -58,10 +58,15 @@ std::vector<cTvMedia> cMovieOrTv::getBanners() {
   return banners;
 }
 
+void cMovieOrTv::DownloadImages(cMovieDbMovieScraper *movieDbMovieScraper, cMovieDbTvScraper *movieDbTvScraper, cTvDbTvScraper *tvDbTvScraper, const std::string &recordingFileName) {
+  getExtMovieTvDb(movieDbMovieScraper, movieDbTvScraper, tvDbTvScraper)->downloadImages(std::abs(m_id), m_seasonNumber, m_episodeNumber);
+  copyImagesToRecordingFolder(recordingFileName);
+}
+
 bool cMovieOrTv::copyImagesToRecordingFolder(const std::string &recordingFileName) {
 // return true if a fanart was copied
   if (recordingFileName.empty() ) return true;
-  string path;
+  std::string path;
   cImageLevelsInt level(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection);
   if (getSingleImageBestL(level, eOrientation::portrait, NULL, &path) != eImageLevel::none)
     CopyFile(path, recordingFileName + "/poster.jpg" );
@@ -109,32 +114,6 @@ bool cMovieMoviedb::getSingleImage(eImageLevel level, eOrientation orientation, 
     case eImageLevel::anySeasonCollection: return getSingleImageCollection(orientation, relPath, fullPath, width, height);
     default: return false;
   }
-}
-
-void cMovieMoviedb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) {
-  moviedbScraper->DownloadMedia(m_id);
-  moviedbScraper->DownloadActors(m_id, true);
-  copyImagesToRecordingFolder(recordingFileName);
-}
-
-void cTvMoviedb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) {
-  moviedbScraper->DownloadMediaTv(m_id);
-  moviedbScraper->DownloadActors(m_id, false);
-  cSql stmt(m_db, "SELECT episode_still_path FROM tv_s_e WHERE tv_id = ? and season_number = ? and episode_number = ?");
-  const char *episodeStillPath = stmt.resetBindStep(dbID(), m_seasonNumber, m_episodeNumber).getCharS(0);
-  if (episodeStillPath && *episodeStillPath)
-    moviedbScraper->StoreStill(m_id, m_seasonNumber, m_episodeNumber, episodeStillPath);
-  copyImagesToRecordingFolder(recordingFileName);
-}
-
-void cTvTvdb::DownloadImages(cMovieDBScraper *moviedbScraper, cTVDBScraper *tvdbScraper, const std::string &recordingFileName) {
-  tvdbScraper->StoreActors(m_id);
-  tvdbScraper->DownloadMedia(m_id);
-  cSql stmt(m_db, "SELECT episode_still_path FROM tv_s_e WHERE tv_id = ? and season_number = ? and episode_number = ?");
-  const char *episodeStillPath = stmt.resetBindStep(dbID(), m_seasonNumber, m_episodeNumber).getCharS(0);
-  if (episodeStillPath && *episodeStillPath)
-    tvdbScraper->StoreStill(m_id, m_seasonNumber, m_episodeNumber, episodeStillPath);
-  copyImagesToRecordingFolder(recordingFileName);
 }
 
 bool cTv::getSingleImage(eImageLevel level, eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
@@ -285,7 +264,7 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
   int best_episode = 0;
   bool isDefaultLang = config.isDefaultLanguage(lang);
   const char *sqld = "select episode_name, season_number, episode_number, episode_air_date FROM tv_s_e WHERE tv_id =?";
-  const char *sqll = "select tv_s_e_name.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name WHERE tv_s_e_name.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name.language_id = ?;";
+  const char *sqll = "select tv_s_e_name2.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name2 WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name2.language_id = ?;";
   cSql statement(m_db);
   if (!isDefaultLang) statement.finalizePrepareBindStep(cStringRef(sqll), dbID(), lang->m_id);
   else statement.finalizePrepareBindStep(cStringRef(sqld), dbID());
@@ -312,7 +291,7 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
     }
   }
   if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" best_season %i best_episode %i dbid %i, best_distance %i", tvSearchEpisodeString.m_normedString.c_str(), best_season, best_episode, dbID(), best_distance);
-  if (best_distance > 700) {  // accept a rather high distance here. We return the distance, so the caller can finally decide to take this episode or not
+  if (best_distance > 650) {  // accept a rather high distance here. We return the distance, so the caller can finally decide to take this episode or not
     m_seasonNumber = 0;
     m_episodeNumber = 0;
     return 1000;

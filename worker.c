@@ -11,8 +11,10 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
     this->db = db;
     this->overrides = overrides;
     moviedbScraper = NULL;
-    movieDbMovieScraper = NULL;
     tvdbScraper = NULL;
+    m_movieDbMovieScraper = NULL;
+    m_movieDbTvScraper = NULL;
+    m_tvDbTvScraper = NULL;
 //    initSleep = 2 * 60 * 1000;
     initSleep =     60 * 1000;
     loopSleep = 5 * 60 * 1000;
@@ -20,12 +22,11 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
 }
 
 cTVScraperWorker::~cTVScraperWorker() {
-    if (movieDbMovieScraper)
-        delete movieDbMovieScraper;
-    if (moviedbScraper)
-        delete moviedbScraper;
-    if (tvdbScraper)
-        delete tvdbScraper;
+    if (m_movieDbMovieScraper) delete m_movieDbMovieScraper;
+    if (m_movieDbTvScraper) delete m_movieDbTvScraper;
+    if (m_tvDbTvScraper) delete m_tvDbTvScraper;
+    if (moviedbScraper) delete moviedbScraper;
+    if (tvdbScraper) delete tvdbScraper;
 }
 
 void cTVScraperWorker::Stop(void) {
@@ -77,7 +78,6 @@ bool cTVScraperWorker::ConnectScrapers(void) {
       return false;
     }
   }
-  if (!movieDbMovieScraper) movieDbMovieScraper = new cMovieDbMovieScraper(moviedbScraper);
   if (!tvdbScraper) {
     tvdbScraper = new cTVDBScraper(db);
     if (!tvdbScraper->Connect()) {
@@ -87,6 +87,9 @@ bool cTVScraperWorker::ConnectScrapers(void) {
       return false;
     }
   }
+  if (!m_movieDbMovieScraper) m_movieDbMovieScraper = new cMovieDbMovieScraper(moviedbScraper);
+  if (!m_movieDbTvScraper) m_movieDbTvScraper = new cMovieDbTvScraper(moviedbScraper);
+  if (!m_tvDbTvScraper) m_tvDbTvScraper = new cTvDbTvScraper(tvdbScraper);
   return true;
 }
 
@@ -136,6 +139,24 @@ bool cTVScraperWorker::ScrapEPG(void) {
 #endif
 // loop over all channels configured for scraping, and create map to enable check for new events
 // note: as a result, elso information from external EPG providers is only collected for these channels
+
+// to provide statistics:
+  int num0  = 0;
+  int num1  = 0;
+  int num11 = 0;
+  std::chrono::duration<double> time0(0);
+  std::chrono::duration<double> time1(0);
+  std::chrono::duration<double> time11(0);
+  std::chrono::duration<double> time0_max(0);
+  std::chrono::duration<double> time1_max(0);
+  std::chrono::duration<double> time11_max(0);
+  moviedbScraper->apiCalls.reset();
+  tvdbScraper->apiCalls.reset();
+  db->m_cache_time.reset();
+  db->m_cache_episode_search_time.reset();
+  db->m_cache_update_episode_time.reset();
+  db->m_cache_update_similar_time.reset();
+
   map<tChannelID, set<tEventID>*> currentEvents;
   set<tChannelID> channels;
   vector<cTvMedia> extEpgImages;
@@ -174,6 +195,8 @@ bool cTVScraperWorker::ScrapEPG(void) {
         extEpgImages.clear();
         extEpgImage.clear();
         cMovieOrTv *movieOrTv = NULL;
+        int statistics;
+        std::chrono::duration<double> timeNeeded;
         { // start locks
 #if VDRVERSNUM >= 20301
           LOCK_SCHEDULES_READ;
@@ -191,15 +214,36 @@ bool cTVScraperWorker::ScrapEPG(void) {
             newEventSchedule = true;
           }
           csEventOrRecording sEvent(event);
-          cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, movieDbMovieScraper, moviedbScraper, tvdbScraper, db);
-          movieOrTv = SearchEventOrRec.Scrape();
+          cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db);
+          auto begin = std::chrono::high_resolution_clock::now();
+          movieOrTv = SearchEventOrRec.Scrape(statistics);
+          auto end = std::chrono::high_resolution_clock::now();
+          timeNeeded = end - begin;
+
         } // end of locks
+        switch (statistics) {
+          case 0:
+            ++num0;
+            time0 += timeNeeded;
+            time0_max = std::max(timeNeeded, time0_max);
+            break;
+          case 1:
+            ++num1;
+            time1 += timeNeeded;
+            time1_max = std::max(timeNeeded, time1_max);
+            break;
+          case 11:
+            ++num11;
+            time11 += timeNeeded;
+            time11_max = std::max(timeNeeded, time11_max);
+            break;
+        }
         waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
         if (!extEpgImages.empty() ) {
           Download(extEpgImages[0].path, extEpgImage);
         }
         if (movieOrTv) {
-          movieOrTv->DownloadImages(moviedbScraper, tvdbScraper, "");
+          movieOrTv->DownloadImages(m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, "");
           delete movieOrTv;
           movieOrTv = NULL;
         }
@@ -214,6 +258,21 @@ bool cTVScraperWorker::ScrapEPG(void) {
   } // end loop over all channels
   currentEvents.swap(lastEvents);
   for (auto &event: currentEvents) delete event.second;
+  if (num0+num1+num11 > 0) {
+// write statistics
+    esyslog("tvscraper: statistics, over all, num = %5i, time = %9.5f, average %f, max = %f", num0+num1+num11, (time0+time1+time11).count(), (time0+time1+time11).count()/(num0+num1+num11), std::max(std::max(time0_max, time1_max), time11_max).count());
+    if (config.enableDebug) {
+    esyslog("tvscraper: skip due to override, num = %5i, time = %9.5f, average %f, max = %f", num0, time0.count(), time0.count()/num0, time0_max.count());
+    esyslog("tvscraper: cache hit           , num = %5i, time = %9.5f, average %f, max = %f", num1, time1.count(), time1.count()/num1, time1_max.count());
+    esyslog("tvscraper: external database   , num = %5i, time = %9.5f, average %f, max = %f", num11, time11.count(), time11.count()/num11, time11_max.count());
+    moviedbScraper->apiCalls.print("moviedbScraper, api calls");
+       tvdbScraper->apiCalls.print("tvdbScraper   , api calls");
+    db->m_cache_time.print("select from cache        ");
+    db->m_cache_episode_search_time.print("cache_episode_search_time");
+    db->m_cache_update_episode_time.print("cache_update_episode_time");
+    db->m_cache_update_similar_time.print("cache_update_similar_time");
+    }
+  }
   return newEvent;
 }
 
@@ -243,14 +302,15 @@ void cTVScraperWorker::ScrapRecordings(void) {
       const cRecordingInfo *recInfo = rec->Info();
       if (recInfo && recInfo->GetEvent() ) {
         csRecording csRecording(rec);
-        cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, movieDbMovieScraper, moviedbScraper, tvdbScraper, db);
-        movieOrTv = SearchEventOrRec.Scrape();
+        cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db);
+        int statistics;
+        movieOrTv = SearchEventOrRec.Scrape(statistics);
       }
     }
 // here, the read lock is released, so wait a short time, in case someone needs a write lock
     waitCondition.TimedWait(mutex, 100);
     if (movieOrTv) {
-      movieOrTv->DownloadImages(moviedbScraper, tvdbScraper, filename);
+      movieOrTv->DownloadImages(m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, filename);
       delete movieOrTv;
       movieOrTv = NULL;
     }
@@ -366,15 +426,16 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         std::string channelIDs = sRecording.ChannelIDs();
         esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
         if (ConnectScrapers() ) { 
-          cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, movieDbMovieScraper, moviedbScraper, tvdbScraper, db);
-          movieOrTv = SearchEventOrRec.Scrape();
+          cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db);
+          int statistics;
+          movieOrTv = SearchEventOrRec.Scrape(statistics);
           if (movieOrTv) newRecData = true;
         }
       }
     } // the locks are released
     waitCondition.TimedWait(mutex, 1);  // allow others to get the locks
     if (movieOrTv) {
-      movieOrTv->DownloadImages(moviedbScraper, tvdbScraper, filename);
+      movieOrTv->DownloadImages(m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, filename);
       delete movieOrTv;
       movieOrTv = NULL;
     }

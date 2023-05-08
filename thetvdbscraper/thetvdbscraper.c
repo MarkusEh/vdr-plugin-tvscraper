@@ -75,16 +75,19 @@ void getCharacters(const rapidjson::Value &characters, cTVDBSeries &series) {
   }
 }
 
-int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
+int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
 // return 0 in case of error
 // return -1 if the object does not exist in external db
 // otherwise, return seriesID > 0
 // only update if not yet in db
-// we ignore onlyEpisodes, there is no real performance improvement, as episode related information like guest stars is in "main" series
-// except for the check if we need to update: if onlyEpisodes == true, we update, even if we have aready data
   if (seriesID == 0) return 0;
-  int ns, ne;
-  if (!onlyEpisodes && db->TvGetNumberOfEpisodes(seriesID * (-1), ns, ne)) return seriesID; // already in db
+  time_t tv_last_updated = 0;
+  int numEpisodes = 0;
+  cSql stmtLastUpdate(db, "SELECT tv_last_updated FROM tv2 WHERE tv_id = ?", -1*seriesID);
+  bool exists = stmtLastUpdate.readRow(tv_last_updated);
+  if (exists && !forceUpdate) return seriesID; // already in db
+  cSql stmtNumEpisodes(db, "SELECT COUNT(episode_id) FROM tv_s_e WHERE tv_id = ?;");
+  if (exists) numEpisodes = stmtNumEpisodes.resetBindStep(-1*seriesID).getInt(0);
 
   cTVDBSeries series(db, this, seriesID);
 // this call gives also episode related information like actors, images, ...
@@ -103,6 +106,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   }
   series.ParseJson_Series(*data);
 // episodes
+  cSql insertEpisode(db, "INSERT OR REPLACE INTO tv_s_e (tv_id, season_number, episode_number, episode_id, episode_name, episode_air_date, episode_overview, episode_still_path, episode_run_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);");
   cLargeString bufferE("cTVDBScraper::StoreSeriesJson Episodes", 15000);
   string urlE = concatenate(baseURL4, "series/", seriesID, "/episodes/default/", series.m_language, "?page=0");
   while (!urlE.empty() ) {
@@ -111,7 +115,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
     if (CallRestJson(episodes, data_episodes, bufferE, urlE.c_str() ) != 0) break;
 // parse episodes
     for (const rapidjson::Value &episode: cJsonArrayIterator(*data_episodes, "episodes") ) {
-      series.ParseJson_Episode(episode);
+      series.ParseJson_Episode(episode, insertEpisode);
 // dont't read episode character data here, this is too often called just to figure out if we have the right series
     }
     rapidjson::Value::ConstMemberIterator links_it = getTag(episodes, "links", "cTVDBScraper::StoreSeriesJson");
@@ -128,7 +132,9 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool onlyEpisodes) {
   series.ParseJson_Artwork(*data);
 // store series here, as here information (incl. episode runtimes, poster URL, ...) is complete
   series.StoreDB();
-  db->TvSetEpisodesUpdated(seriesID * (-1) );
+  db->exec("UPDATE tv2 SET tv_last_updated = ? WHERE tv_id= ?", time(0), -1*seriesID);
+  if (!exists || numEpisodes < stmtNumEpisodes.resetBindStep(-1*seriesID).getInt(0))
+    db->exec("UPDATE tv2 SET tv_last_changed = ? WHERE tv_id= ?", time(0), -1*seriesID);
   return seriesID;
 }
 
@@ -137,6 +143,9 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, const cLanguage *lang) {
 // only update if required (there are less episodes in this language than episodes in default language
   if (seriesID == 0) return 0;
   if (!db->episodeNameUpdateRequired(seriesID * (-1), lang->m_id)) return seriesID;
+  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreSeriesJson lang %s, seriesID %i", lang->getNames().c_str(), seriesID);
+
+  cSql insertEpisodeLang(db, "INSERT OR REPLACE INTO tv_s_e_name2 (episode_id, language_id, episode_name) VALUES (?, ?, ?);");
 
   cTVDBSeries series(db, this, seriesID);
 // episodes
@@ -148,12 +157,13 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, const cLanguage *lang) {
     if (CallRestJson(episodes, data_episodes, bufferE, urlE.c_str() ) != 0) break;
 // parse episodes
     for (const rapidjson::Value &episode: cJsonArrayIterator(*data_episodes, "episodes") ) {
-      series.ParseJson_Episode(episode, lang);
+      series.ParseJson_Episode(episode, lang, insertEpisodeLang);
     }
     rapidjson::Value::ConstMemberIterator links_it = getTag(episodes, "links", "cTVDBScraper::StoreSeriesJson_lang");
     if (links_it == episodes.MemberEnd() || !links_it->value.IsObject() ) break;
     urlE = charPointerToString(getValueCharS(links_it->value, "next"));
   }
+  db->exec("INSERT OR REPLACE INTO tv_name (tv_id, language_id, tv_last_updated) VALUES (?, ?, ?)", -1*seriesID, lang->m_id, time(0));
   return seriesID;
 }
 
@@ -163,7 +173,10 @@ int cTVDBScraper::CallRestJson(rapidjson::Document &document, const rapidjson::V
 // -1: "Not Found" (no message in syslog, just the reqested object does not exist)
   if (!GetToken() ) return 1;
   buffer.clear();
-  jsonCallRest(document, buffer, url, config.enableDebug && !disableLog, tokenHeader.c_str(), "charset: utf-8");
+  apiCalls.start();
+  bool success = jsonCallRest(document, buffer, url, config.enableDebug && !disableLog, tokenHeader.c_str(), "charset: utf-8");
+  apiCalls.stop();
+  if (!success) return 1;
   const char *status;
   if (!getValue(document, "status", status) || !status) {
     esyslog("tvscraper: cTVDBScraper::CallRestJson, url %s, buffer %s, no status", url, buffer.erase(50).c_str() );
@@ -209,10 +222,6 @@ void cTVDBScraper::download(const char *url, const char *localPath) {
   fullUrl = concatenate(cTVDBScraper::prefixImageURL1, url);  // for URLs returned by APIv3
   Download(fullUrl, localPath);
 }
-void cTVDBScraper::Download4(const char *url, const std::string &localPath) {
-// create full download url fron given url, and download to local path
-  download(url, localPath.c_str() );
-}
 
 void cTVDBScraper::StoreActors(int seriesID) {
   std::string destDir = concatenate(config.GetBaseDirSeries(), seriesID);
@@ -226,7 +235,7 @@ void cTVDBScraper::StoreActors(int seriesID) {
     if (!actor_path || !*actor_path) continue;
     destDir.erase(destDirLen);
     stringAppend(destDir, stmt.getInt(0), ".jpg");
-    Download4(actor_path, destDir);
+    download(actor_path, destDir.c_str() );
   }
   db->DeleteActorDownload (seriesID * -1, false);
 }
@@ -238,22 +247,8 @@ void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber,
     stringAppend(destDir, seasonNumber, "/");
     if (!CreateDirectory(destDir) ) return;
     stringAppend(destDir, "still_", episodeNumber, ".jpg");
-    Download4(episodeFilename, destDir);
+    download(episodeFilename, destDir.c_str() );
 }
-void cTVDBScraper::UpdateTvRuntimes(int seriesID) {
-  StoreSeriesJson(seriesID, true);
-}
-int cTVDBScraper::GetTvScore(int seriesID) {
-  const char *sql = "select tv_score from tv_score where tv_id = ?";
-  int score = db->queryInt(sql, seriesID * -1);
-  if (score != 0) return score;
-  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::GetTvScore, score %i, seriesID %i", score, seriesID);
-  StoreSeriesJson(seriesID, true);
-  score = db->queryInt(sql, seriesID * -1);
-  if (score == 0) esyslog("tvscraper: ERROR cTVDBScraper::GetTvScore, score %i, seriesID %i", score, seriesID);
-  return score;
-}
-
 void cTVDBScraper::DownloadMedia (int tvID) {
   std::string destDir = concatenate(config.GetBaseDirSeries(), tvID, "/");
   if (!CreateDirectory(destDir)) return;
@@ -272,7 +267,7 @@ void cTVDBScraper::DownloadMedia (int tvID, eMediaType mediaType, const string &
 //    if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::DownloadMedia, media[0] %s media[1] %s", media[0].c_str(), media[1].c_str() );
     const char *media_path = stmt.getCharS(0);
     if (!media_path || !*media_path ) continue;
-    Download4(media_path, concatenate(destDir, stmt.getInt(1), ".jpg"));
+    download(media_path, concatenate(destDir, stmt.getInt(1), ".jpg").c_str() );
   }
 }
 
@@ -281,37 +276,12 @@ void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
   for (cSql &stmt: sql.resetBindStep(tvID * -1, (int)mediaBanner)) {
     const char *media_path = stmt.getCharS(0);
     if (!media_path || !*media_path ) continue;
-    Download4(media_path, destPath);
+    download(media_path, destPath.c_str() );
     return;
   }
 }
 
 // Search series
-bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cLanguage *lang) {
-// search for tv series, add search results to resultSet
-// return true if a result matching searchString was found, and no splitting of searchString was required
-// otherwise, return false. Note: also in this case some results might have been added
-
-  string_view searchString1, searchString2, searchString3, searchString4;
-  std::vector<std::optional<cNormedString>> normedStrings = getNormedStrings(SearchString, searchString1, searchString2, searchString3, searchString4);
-  cLargeString buffer("cTVDBScraper::AddResults4", 500, 5000);
-  size_t size0 = resultSet.size();
-  AddResults4(buffer, resultSet, SearchString, normedStrings, lang);
-  if (resultSet.size() > size0) {
-    for (size_t i = size0; i < resultSet.size(); i++)
-      if (normedStrings[0].value().sentence_distance(resultSet[i].normedName) < 600) return true;
-    return false;
-  }
-  if (!searchString1.empty() ) AddResults4(buffer, resultSet, searchString1, normedStrings, lang);
-  if (resultSet.size() > size0) return false;
-  if (!searchString2.empty() ) AddResults4(buffer, resultSet, searchString2, normedStrings, lang);
-  if (resultSet.size() > size0) return false;
-  if (searchString4.empty() ) return false;
-// searchString3 is the string before ' - '. We will search for this later, as part of the <title> - <episode> pattern
-  AddResults4(buffer, resultSet, searchString4, normedStrings, lang);
-  return false;
-}
-
 bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang) {
   CONVERT(SearchString_rom, SearchString, removeRomanNumC);
   if (*SearchString_rom == 0) {

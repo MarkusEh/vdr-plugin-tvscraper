@@ -66,14 +66,13 @@ void cOverRides::ReadConfigLine(const char *line) {
 }
 
 bool cOverRides::Ignore(string_view title) {
-    for (const string &pos: ignores) {
-        if (title == pos) {
-            if (config.enableDebug)
-                esyslog("tvscraper: ignoring \"%.*s\" because of override.conf", (int)title.length(), title.data());
-            return true;
-        }
+  for (const string &pos: ignores) {
+    if (title == pos) {
+//      if (config.enableDebug) esyslog("tvscraper: ignoring \"%.*s\" because of override.conf", (int)title.length(), title.data());
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 bool cOverRides::Substitute(string &title) {

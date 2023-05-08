@@ -33,8 +33,8 @@ public:
     std::string m_language; // this is the default language, if name translations are available in the default language. Otherwise, the original language
     virtual ~cTVDBSeries(void);
     bool ParseJson_Series(const rapidjson::Value &series);
-    int ParseJson_Episode(const rapidjson::Value &episode);
-    bool ParseJson_Episode(const rapidjson::Value &episode, const cLanguage *lang);
+    int ParseJson_Episode(const rapidjson::Value &episode, cSql &insertEpisode);
+    bool ParseJson_Episode(const rapidjson::Value &episode, const cLanguage *lang, cSql &insertEpisodeLang);
     void StoreDB();
     bool ParseJson_Character(const rapidjson::Value &character);
     bool ParseJson_Artwork(const rapidjson::Value &series);
