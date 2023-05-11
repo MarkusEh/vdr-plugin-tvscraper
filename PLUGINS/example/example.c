@@ -75,7 +75,7 @@ int cTvspEpgOneDay::eventMatch(std::vector<cTvspEvent>::const_iterator event_it,
   const char *tvsp_title;
   if (!getValue(tvspEvent_j, "title", tvsp_title) ) return deviation;
   if (!tvsp_title || !event->Title() ) return deviation;
-  int sd = sentence_distance(tvsp_title, event->Title() );  // sd == 0 if titles are identical
+  int sd = cNormedString(event->Title() ).sentence_distance(tvsp_title);  // sd == 0 if titles are identical
   if (sd > 600) return c_never_accepted_deviation;
   return c_always_accepted_deviation + (deviation - c_always_accepted_deviation) * sd / 600;
 }

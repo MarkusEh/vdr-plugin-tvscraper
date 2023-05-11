@@ -183,11 +183,12 @@ int cTVDBScraper::CallRestJson(rapidjson::Document &document, const rapidjson::V
     return 1;
   }
   if (strcmp(status, "success") != 0) {
+    const char *message = getValueCharS(document, "message");
     if (strcmp(status, "failure") == 0) {
-      const char *message;
-      if (getValue(document, "message", message) && message && strcmp(message, "Not Found") == 0) return -1;
+      if (message && strcmp(message, "Not Found") == 0) return -1;
+      if (message && strncmp(message, "NotFoundException", 17) == 0) return -1;
     }
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, buffer %s, status = %s", url, buffer.erase(50).c_str(), status);
+    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, status = %s, message = %s, buffer %s", url, status, message?message:"no message", buffer.erase(50).c_str());
     return 1;
   }
   rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::CallRestJson");

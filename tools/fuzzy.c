@@ -101,6 +101,7 @@ int removeRomanNumC(char *to, std::string_view from) {
     numChars += AppendUtfCodepoint(to, cChar); // also increases to
     wordStart = cChar == ' ';
   }
+  if (to) *to = 0;
   return numChars;
 }
 

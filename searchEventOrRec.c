@@ -483,7 +483,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
       movieOrTv.episode = 0;
       
       episodeSearchString = m_baseNameEquShortText?m_episodeName:m_sEventOrRecording->EpisodeSearchString();
-      int min_distance = 2000;
+      int min_distance = 1000;
       sMovieOrTv movieOrTv_best;
       const cLanguage *lang = m_sEventOrRecording->GetLanguage();
       for (int id: cSqlGetSimilarTvShows(m_db, movieOrTv.id))
@@ -519,7 +519,12 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
       m_db->m_cache_episode_search_time.stop();
       if (movieOrTv.episodeSearchWithShorttext == 3 && min_distance > 650) return false;
 // episode match required for cache, but not found (ignore coincidence matches with distance > 650)
-      if (min_distance < 900) movieOrTv = movieOrTv_best; // otherwise, there was no significant episode match
+
+      if (min_distance < 1000) movieOrTv = movieOrTv_best; // otherwise, there was no episode match
+// was (min_distance < 950). But, this results in episode = 0 and season = 0.
+// so, better to use the episode / season found, even if it is a very weak match.
+// also, we must do it here the same way we do it in ScrapFindAndStore(),
+// where we also have no min_distance for episode match
     }
   }
 

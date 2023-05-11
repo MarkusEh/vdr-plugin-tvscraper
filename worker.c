@@ -144,6 +144,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
   int num0  = 0;
   int num1  = 0;
   int num11 = 0;
+  int movieOrTvIdMaxTime = 0;
   std::chrono::duration<double> time0(0);
   std::chrono::duration<double> time1(0);
   std::chrono::duration<double> time11(0);
@@ -221,6 +222,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
           timeNeeded = end - begin;
 
         } // end of locks
+        if (timeNeeded > std::max(std::max(time0_max, time1_max), time11_max)) movieOrTvIdMaxTime = movieOrTv?movieOrTv->dbID():0;
         switch (statistics) {
           case 0:
             ++num0;
@@ -260,7 +262,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
   for (auto &event: currentEvents) delete event.second;
   if (num0+num1+num11 > 0) {
 // write statistics
-    esyslog("tvscraper: statistics, over all, num = %5i, time = %9.5f, average %f, max = %f", num0+num1+num11, (time0+time1+time11).count(), (time0+time1+time11).count()/(num0+num1+num11), std::max(std::max(time0_max, time1_max), time11_max).count());
+    esyslog("tvscraper: statistics, over all, num = %5i, time = %9.5f, average %f, max = %f, movIdMax %i", num0+num1+num11, (time0+time1+time11).count(), (time0+time1+time11).count()/(num0+num1+num11), std::max(std::max(time0_max, time1_max), time11_max).count(), movieOrTvIdMaxTime);
     if (config.enableDebug) {
     esyslog("tvscraper: skip due to override, num = %5i, time = %9.5f, average %f, max = %f", num0, time0.count(), time0.count()/num0, time0_max.count());
     esyslog("tvscraper: cache hit           , num = %5i, time = %9.5f, average %f, max = %f", num1, time1.count(), time1.count()/num1, time1_max.count());

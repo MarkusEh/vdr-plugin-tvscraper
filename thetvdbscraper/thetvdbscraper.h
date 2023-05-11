@@ -56,7 +56,10 @@ class cTvDbTvScraper: public iExtMovieTvDb {
 // note: we assume, that during the time tv_score was written, also tv_episode_run_time
 //       was written. So no extra check for tv_episode_run_time
 //       same for series_actors
-// TODO: check series_actors: not deleted during delete of series. Aster that: series is again loaded. What happens?
+// done / checked: series_actors: not deleted during delete of series. After that: series is again loaded. What happens?
+//   cTVScraperDB::InsertActor(seriesID, name, role, path)
+//   checks if seriesID, name, role already exists in db.
+//   If yes, it will just download path (if the file is not available)
       cSql stmt(m_TVDBScraper->db, "select 1 from tv_score where tv_id = ?", -1*id);
       if (stmt.readRow() ) return;
       download(id, true);

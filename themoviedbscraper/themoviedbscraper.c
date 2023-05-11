@@ -107,16 +107,17 @@ void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, 
 bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
 // concatenate URL
-  CONVERT(SearchString_rom, tvSearchString, removeRomanNumC);
-  if (*SearchString_rom == 0) {
-    esyslog("tvscraper: ERROR cMovieDbTv::AddTvResults, SearchString_rom == empty");
+  if (tvSearchString.empty() ) {
+    esyslog("tvscraper: ERROR cMovieDbTv::AddTvResults, tvSearchString == empty");
     return false;
   }
+  CONVERT(SearchString_rom, tvSearchString, removeRomanNumC);
   std::string url; url.reserve(300);
   stringAppend(url, baseURL, "/search/tv?api_key=", apiKey);
   if (lang) stringAppend(url, "&language=", lang->m_themoviedb);
   stringAppend(url, "&query=");
-  stringAppendCurlEscape(url, SearchString_rom);
+  if (strlen(SearchString_rom) > 6) stringAppendCurlEscape(url, SearchString_rom);
+  else stringAppendCurlEscape(url, tvSearchString);
 
   rapidjson::Document root;
 // call api, get json
@@ -124,6 +125,13 @@ bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMo
   bool success = jsonCallRest(root, buffer, url.c_str(), config.enableDebug);
   apiCalls.stop();
   if (!success) return false;
+  if (getValueInt(root, "status_code", -1) == 50) {
+    const char *status_message = getValueCharS(root, "status_message");
+    if (status_message) {
+      esyslog("tvscraper: cMovieDBScraper::AddTvResults, status_message = %s", status_message);
+      return false;
+    }
+  }
   for (const rapidjson::Value &result: cJsonArrayIterator(root, "results")) {
     int id = getValueInt(result, "id");
     if (id == 0) continue;
@@ -158,38 +166,32 @@ void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultT
     esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
     return;
   }
-  const char *t = config.GetThemoviedbSearchOption().c_str();
-  CONVERT(SearchString_ext_rom, SearchString, removeRomanNumC);
-  if (*SearchString_ext_rom == 0) {
-    esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString_ext_rom == empty");
-    return;
-  }
-  CURLESCAPE(query, SearchString_ext_rom);
-  int numLa1 = lang?concat::numChars("&language="):0;
-  int numLa2 = lang?concat::numChars(lang->m_themoviedb):0;
-  char lang_u[numLa1 + numLa2 + 1];
-  if (lang) {
-    concat::addChars(lang_u, numLa1, "&language=");
-    concat::addChars(lang_u + numLa1, numLa2, lang->m_themoviedb);
-  }
-  lang_u[numLa1 + numLa2] = 0;
+  std::string url = concatenate(baseURL, "/search/movie?api_key=", GetApiKey());
+  if (lang) stringAppend(url, "&language=", lang->m_themoviedb);
 
-  CONCATENATE(url, baseURL, "/search/movie?api_key=", GetApiKey(), lang_u, t, "&query=", query);
-  int num_pages = AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch);
+  CONVERT(SearchString_ext_rom, SearchString, removeRomanNumC);
+  stringAppend(url, config.GetThemoviedbSearchOption(), "&query=");
+  if (strlen(SearchString_ext_rom) > 6) stringAppendCurlEscape(url, SearchString_ext_rom);
+  else stringAppendCurlEscape(url, SearchString);
+  size_t lenUrl0 = url.length();
+
+  int num_pages = AddMovieResultsForUrl(buffer, url.c_str(), resultSet, normedStrings, description, setMinTextMatch);
   bool found = false;
   if (num_pages > 3 && years.size() + 1 < num_pages) {
 // several pages, restrict with years
     for (int year: years) {
-      CONCATENATE(url, baseURL, "/search/movie?api_key=", GetApiKey(), lang_u, t, "&year=", (unsigned int)year, "&query=", query);
-      if (AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch) > 0) found = true;
+      url.erase(lenUrl0);
+      stringAppend(url, "&year=", (unsigned int)year);
+      if (AddMovieResultsForUrl(buffer, url.c_str(), resultSet, normedStrings, description, setMinTextMatch) > 0) found = true;
     }
   }
   if (!found) {
 // no years avilable, or not found with the available year. Check all results in all pages
     if (num_pages > 10) num_pages = 10;
     for (int page = 2; page <= num_pages; page ++) {
-      CONCATENATE(url, baseURL, "/search/movie?api_key=", GetApiKey(), lang_u, t, "&page=", (unsigned int)page, "&query=", query);
-      AddMovieResultsForUrl(buffer, url, resultSet, normedStrings, description, setMinTextMatch);
+      url.erase(lenUrl0);
+      stringAppend(url, "&page=", (unsigned int)page);
+      AddMovieResultsForUrl(buffer, url.c_str(), resultSet, normedStrings, description, setMinTextMatch);
     }
   }
 }
@@ -201,7 +203,14 @@ int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url
   apiCalls.start();
   bool success = jsonCallRest(root, buffer, url, config.enableDebug);
   apiCalls.stop();
-  if (!success) return false;
+  if (!success) return 0;
+  if (getValueInt(root, "status_code", -1) == 50) {
+    const char *status_message = getValueCharS(root, "status_message");
+    if (status_message) {
+      esyslog("tvscraper: cMovieDBScraper::AddMovieResultsForUrl, status_message = %s", status_message);
+      return 0;
+    }
+  }
   if (getValueInt(root, "total_results", 0, "cMovieDbMovie::AddMovieResultsForUrl") == 0) return 0;
   AddMovieResults(root, resultSet, normedStrings, description, setMinTextMatch);
   return getValueInt(root, "total_pages", 0, "cMovieDbMovie::AddMovieResultsForUrl");
