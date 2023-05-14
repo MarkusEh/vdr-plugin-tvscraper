@@ -7,6 +7,7 @@
 #include <iostream>
 #include <math.h>
 #include <set>
+#include <optional>
  
 // see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
 size_t word_distance(std::string_view seq1, std::string_view seq2) {
@@ -148,7 +149,7 @@ int normMatch(int i, int n) {
   return normMatch((float)i / (float)n) * 1000;
 }
 
-std::set<std::string_view> const_ignoreWords = {"der", "die", "das", "the", "I", "-"};
+std::set<std::string_view> const_ignoreWords = {"der", "die", "das", "the", "I", "-", "in"};
 // =====================================================================================================
 // class cNormedString  ================================================================================
 // =====================================================================================================

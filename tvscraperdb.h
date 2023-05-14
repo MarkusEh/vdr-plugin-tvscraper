@@ -109,7 +109,8 @@ class cSql {
         esyslog("tvscraper: ERROR in cSql::cSql, m_db %s, query %.*s", m_db?"Avaliable":"Null", static_cast<int>(m_query.length()), m_query.data() );
       else prepareBindStep(std::forward<Args>(args)...);
     }
-    class iterator: public std::iterator<std::forward_iterator_tag, cSql, int, cSql*, cSql &> {
+//  class iterator: public std::iterator<std::forward_iterator_tag, cSql, int, cSql*, cSql &>
+    class iterator {
         cSql *m_sql = nullptr;
       public:
         explicit iterator(cSql *sql = nullptr): m_sql(sql) {}
@@ -121,9 +122,10 @@ class cSql {
           return *this;
         }
         bool operator!=(iterator other) const { return m_sql != other.m_sql; }
-        reference operator*() const { return *m_sql; }
+        cSql &operator*() const { return *m_sql; }
       };
-    class int_iterator: public std::iterator<std::forward_iterator_tag, int, int, int*, int> {
+//  class int_iterator: public std::iterator<std::forward_iterator_tag, int, int, int*, int>
+    class int_iterator {
         cSql::iterator m_sql_iterator;
         std::vector<int>::const_iterator m_ints;
         bool m_sql;
@@ -139,7 +141,7 @@ class cSql {
           if (m_sql) return m_sql_iterator != other.m_sql_iterator;
           else return m_ints != other.m_ints;
         }
-        reference operator*() const {
+        int operator*() const {
           if (m_sql) return (*m_sql_iterator).getInt(0);
           else return *m_ints;
         }
@@ -517,6 +519,7 @@ public:
     int DeleteMovie(int movieID) const;
     void DeleteSeries(int seriesID, const string &movieDir, const string &seriesDir) const;
     int DeleteSeries(int seriesID) const;
+    void DeleteSeriesCache(int seriesID) const;
     void InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy);
     void InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes);
     void TvSetEpisodesUpdated(int tvID);

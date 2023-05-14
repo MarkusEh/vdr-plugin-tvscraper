@@ -591,16 +591,18 @@ class cYears {
     cYears(const cYears&) = delete;
     cYears &operator= (const cYears &) = delete;
 // note: iterate first over exact matches, then near matches
-    class iterator: public std::iterator<std::forward_iterator_tag, int, int, const int*, int> {
+//    class iterator: public std::iterator<std::forward_iterator_tag, int, int, const int*, int>
+    class iterator {
         const char *m_years;
       public:
+//      using iterator_category = std::forward_iterator_tag;
         explicit iterator(const char *years): m_years(years) { }
         iterator& operator++() {
           if (*m_years) m_years++;
           return *this;
         }
         bool operator!=(iterator other) const { return m_years != other.m_years; }
-        reference operator*() const {
+        int operator*() const {
           return (*m_years) + 1900;
         }
       };
@@ -862,11 +864,17 @@ class cSplit {
     cSplit(const char *s, char delim): m_sv(charPointerToStringView(s)), m_delim(delim), m_end(std::string_view(), m_delim) {}
     cSplit(const cSplit&) = delete;
     cSplit &operator= (const cSplit &) = delete;
-    class iterator: public std::iterator<std::forward_iterator_tag, std::string_view, int, const std::string_view*, std::string_view> {
+    class iterator {
         std::string_view m_remainingParts;
         char m_delim;
         size_t m_next_delim;
       public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = std::string_view;
+        using difference_type = int;
+        using pointer = const std::string_view*;
+        using reference = std::string_view;
+
         explicit iterator(std::string_view r, char delim): m_delim(delim) {
           if (!r.empty() && r[0] == delim) m_remainingParts = r.substr(1);
           else m_remainingParts = r;
@@ -881,9 +889,8 @@ class cSplit {
           }
           return *this;
         }
-        bool operator==(iterator other) const { return m_remainingParts == other.m_remainingParts; }
-        bool operator!=(iterator other) const { return !(*this == other); }
-        reference operator*() const {
+        bool operator!=(iterator other) const { return m_remainingParts != other.m_remainingParts; }
+        std::string_view operator*() const {
           if (m_next_delim == std::string_view::npos) return m_remainingParts;
           else return m_remainingParts.substr(0, m_next_delim);
         }

@@ -160,22 +160,32 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "tv_last_season integer, ";
     sql << "tv_number_of_episodes integer, ";
     sql << "tv_last_updated integer"; // time stamp: external DB was contacted, and checked for changes
-    sql << "tv_last_changed integer"; // time stamp: last time when new episodes were added
+    sql << "tv_last_changed integer"; // time stamp: last time when new episodes were added to tv_s_e
     sql << ");";
 
+// each TV show can have several episode run times
+// entries in this table are not deletet, so it is a cache
+// better: use individual run times in tv_s_e
     sql << "CREATE TABLE IF NOT EXISTS tv_episode_run_time (";
     sql << "tv_id integer, ";
     sql << "episode_run_time integer);";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_episode_run_time on tv_episode_run_time (tv_id, episode_run_time);";
 
+// entries in this table are not deletet, so it is a cache
     sql << "CREATE TABLE IF NOT EXISTS tv_vote (";
     sql << "tv_id integer primary key, ";
     sql << "tv_vote_average real, ";
     sql << "tv_vote_count integer);";
 
+// TheTvdb now provides a TV score, instead of vote_average / vote_count
+// entries in this table are not deletet, so it is a cache
     sql << "CREATE TABLE IF NOT EXISTS tv_score (";
     sql << "tv_id integer primary key, ";
     sql << "tv_score real);";
+//    sql << "tv_languages nvarchar);";  TODO
+// oder : neue tabelle, für jede sprache eine zeile? Ober: wie herausfinden, ob es die Sprache nicht gibt oder für diese Serie noch nie etwas geschrieben wurde?
+// TODO: purgeTvShaow: Alles löschen, auch cache, der sonst nicht gelöscht wird (objekt gibt es in der ext. db nicht mehr.
+//       Check: Was machen wir, wenn noch verwendet, z.B. in Aufzeichnung?
 
     sql << "CREATE TABLE IF NOT EXISTS tv_media (";
     sql << "tv_id integer, ";
@@ -251,6 +261,8 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_actor_tv on actor_tv_episode (episode_id, actor_id); ";
 
 // actors for tv shows from thetvdb
+// note: actor_series_id > 0, as this is always from thetvdb
+// so here, as an exception, we have positive actor_series_id for data from thetvdb
     sql << "CREATE TABLE IF NOT EXISTS series_actors (";
     sql << "actor_series_id integer, ";
     sql << "actor_name nvarchar(255), ";
@@ -460,23 +472,44 @@ bool cTVScraperDB::CheckMovieOutdatedRecordings(int movieID, int season_number, 
                         else return queryInt(sql_t, -100, movieID) > 0;
 }
 
+void cTVScraperDB::DeleteSeriesCache(int seriesID) const {
+// seriesID > 0 => moviedb
+// seriesID < 0 => tvdb
+// this should be called if a series does not exist in external database any more
+// delete all cache entries in this local db (in other words: everything which is not deleted with DeleteSeries.
+// Note: DeleteSeries is not called. If the series ID is still used in event/recordings2,
+//   some data for display are still available. We accept that some data (which where in the cache tables)
+//   are missing
+  exec("DELETE FROM tv_episode_run_time WHERE tv_id = ?", seriesID);
+  exec("DELETE FROM tv_vote             WHERE tv_id = ?", seriesID);
+  exec("DELETE FROM tv_score            WHERE tv_id = ?", seriesID);
+  if (seriesID > 0)
+    exec("DELETE FROM actor_tv          WHERE tv_id = ?", seriesID);
+  if (seriesID < 0)
+    exec("DELETE FROM series_actors     WHERE actor_series_id = ?", -seriesID);
+  exec("DELETE FROM tv_similar          WHERE tv_id = ?", seriesID);
+  exec("DELETE FROM cache               WHERE movie_tv_id = ? and season_number != -100", seriesID);
+}
 int cTVScraperDB::DeleteSeries(int seriesID) const {
 // seriesID > 0 => moviedb
 // seriesID < 0 => tvdb
 // this one only deletes the entry in tv database. No images, ... are deleted
+// also, no entries in cache tables are deleted. See DeleteSeriesCache
   if (seriesID > 0) {
 // delete actor_tv_episode, data are only for moviedb
-    exec("delete from actor_tv_episode where episode_id in ( select episode_id from tv_s_e where tv_s_e.tv_id = ? );",
+    exec("DELETE FROM actor_tv_episode WHERE episode_id in ( select episode_id from tv_s_e where tv_s_e.tv_id = ? );",
       seriesID);
   };
 // delete tv_s_e_name2
-  exec("delete from tv_s_e_name2 where episode_id in ( select episode_id from tv_s_e where tv_s_e.tv_id = ? );", seriesID);
+  exec("DELETE FROM tv_s_e_name2 WHERE episode_id in ( select episode_id from tv_s_e where tv_s_e.tv_id = ? );", seriesID);
+// delete tv_name
+  exec("DELETE FROM tv_name WHERE tv_id = ?", seriesID);
 // delete tv_s_e
   exec("DELETE FROM tv_s_e WHERE tv_id = ?", seriesID);
 // delete tv
   exec("DELETE FROM tv2    WHERE tv_id = ?", seriesID);
   int num_del = sqlite3_changes(db);
-// don't delete from tv_episode_runtime, very small, but very usefull
+// don't delete from cach BDs, see DeleteSeriesCache
   deleteTvMedia (seriesID, false, false);  // deletes entries in table tv_media
   DeleteActorDownload (seriesID, false); // deletes entries in table actor_download
   return num_del;
@@ -511,7 +544,7 @@ void cTVScraperDB::InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunT
     return;
   }
   cSql stmt(this, "INSERT OR REPLACE INTO tv_episode_run_time (tv_id, episode_run_time) VALUES (?, ?);");
-  for (const int &episodeRunTime: EpisodeRunTimes)
+  for (const int episodeRunTime: EpisodeRunTimes)
     stmt.resetBindStep(tvID, episodeRunTime);
 }
 
@@ -640,7 +673,6 @@ int cTVScraperDB::GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv
 // no information allowing us to check best fit is available
     int n_rtimes = 0;
     for (int runtime2: cSqlInt(this, cStringRef(sql), movie_tv_id)) {
-//      runtime = statement.getInt(0);
       if (runtime2 > 0) { n_rtimes++; best_runtime = runtime2; }
     }
     if (n_rtimes == 1) return best_runtime;  // there is exactly one meaningfull runtime
@@ -985,12 +1017,6 @@ void cTVScraperDB::deleteTvMedia (int tvID, bool movie, bool keepSeasonPoster) c
 }
 
 int cTVScraperDB::findUnusedActorNumber (int seriesID) {
-/*
-  cSql sql(this, "SELECT actor_number FROM series_actors WHERE actor_series_id = ?");
-  int highestActorNumber = -1;
-  for (cSql &statement: sql.resetBindStep(seriesID)) highestActorNumber = std::max(highestActorNumber, statement.getInt(0));
-  return highestActorNumber + 1;
-*/
   cSql max(this, "SELECT MAX(actor_number) FROM series_actors WHERE actor_series_id = ?", seriesID);
   if (!max.readRow() ) return 0;
   return max.getInt(0) + 1;

@@ -68,7 +68,7 @@ bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries) {
   // translation in default language m_language is not available
   // check: translation in an additional language available?
       auto f = config.m_languages.find(l);
-      if (f == config.m_languages.end() ) continue;   // ignore default language, as this was laready checked
+      if (f == config.m_languages.end() ) continue;   // ignore default language, as this was already checked
       if (!f->m_thetvdb || !*f->m_thetvdb) continue;
       for (const rapidjson::Value &translation: nameTranslations_it->value.GetArray() ) {
         if (translation.IsString() && translation.GetString() && strcmp(translation.GetString(), f->m_thetvdb) == 0) {

@@ -497,7 +497,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
 // note: if the TV show is in tv2, > 0 will be returned, even if it does not exist in external db
             if (config.enableDebug)
               esyslog("tvscraper: ERROR, movieOrTv.id == %i, does not exist, will be deleted from tv_similar. m_TVshowSearchString %s", movieOrTv2.id, m_TVshowSearchString.c_str() );
-            m_db->exec("DELETE FROM tv_similar where tv_id = ?", movieOrTv2.id);
+            m_db->m_cache_update_similar_time.stop();
             continue;
           }
           m_db->m_cache_update_similar_time.stop();
@@ -506,9 +506,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
         int uel = UpdateEpisodeListIfRequired(id, lang);
         m_db->m_cache_update_episode_time.stop();
         if (uel == -1) {
-          if (id == movieOrTv.id) m_db->exec("DELETE FROM cache where movie_tv_id = ?", id);
-          else m_db->exec("DELETE FROM tv_similar where tv_id = ?", id);
-          continue;
+          continue; // object does not exist in external db any more
         }
         int distance = cMovieOrTv::searchEpisode(m_db, movieOrTv2, episodeSearchString, m_baseNameOrTitle, m_years, lang);
         if (distance < min_distance) {

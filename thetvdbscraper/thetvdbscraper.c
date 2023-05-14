@@ -101,7 +101,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
   const rapidjson::Value *data;
   int error = CallRestJson(document, data, buffer, url);
   if (error != 0) {
-    if (error == -1) return -1; // object does not exist
+    if (error == -1) { db->DeleteSeriesCache(-seriesID); return -1; } // object does not exist
     return 0;
   }
   series.ParseJson_Series(*data);
