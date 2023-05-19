@@ -104,20 +104,18 @@ void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, 
   Download(concatenate(m_stillBaseUrl, stillPathTvEpisode), pathStill);
 }
 
-bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang) {
+bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
 // concatenate URL
   if (tvSearchString.empty() ) {
     esyslog("tvscraper: ERROR cMovieDbTv::AddTvResults, tvSearchString == empty");
     return false;
   }
-  CONVERT(SearchString_rom, tvSearchString, removeRomanNumC);
   std::string url; url.reserve(300);
   stringAppend(url, baseURL, "/search/tv?api_key=", apiKey);
   if (lang) stringAppend(url, "&language=", lang->m_themoviedb);
   stringAppend(url, "&query=");
-  if (strlen(SearchString_rom) > 6) stringAppendCurlEscape(url, SearchString_rom);
-  else stringAppendCurlEscape(url, tvSearchString);
+  stringAppendCurlEscape(url, tvSearchString);
 
   rapidjson::Document root;
 // call api, get json
@@ -135,33 +133,39 @@ bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMo
   for (const rapidjson::Value &result: cJsonArrayIterator(root, "results")) {
     int id = getValueInt(result, "id");
     if (id == 0) continue;
-    bool alreadyInList = false;
-    for (const searchResultTvMovie &sRes: resultSet) if (sRes.id() == id) { alreadyInList = true; break; }
-    if (alreadyInList) continue;
-
-// create new result object sRes
-    searchResultTvMovie sRes(id, false, getValueCharS(result, "first_air_date") );
-    sRes.setPositionInExternalResult(resultSet.size() );
-
+    cNormedString normedOriginalName(removeLastPartWithP(getValueCharS(result, "original_name")));
+    cNormedString normedName(removeLastPartWithP(getValueCharS(result, "name")));
+    for (char delim: compareStrings) {
 // distance == deviation from search text
-    int dist_a = 1000;
-    sRes.normedName.reset(removeLastPartWithP(getValueCharS(result, "original_name")));
-    dist_a = sRes.normedName.minDistanceNormedStrings(normedStrings, dist_a);
-    if (lang) {
+//      sRes.normedName.reset(removeLastPartWithP(getValueCharS(result, "original_name")));
+      int dist_a = compareStrings.minDistance(delim, normedOriginalName, 1000);
+      if (lang) {
 // search string is not in original language, reduce match to original_name somewhat
-      dist_a = std::min(dist_a + 50, 1000);
-      sRes.normedName.reset(removeLastPartWithP(getValueCharS(result, "name")));
-      dist_a = sRes.normedName.minDistanceNormedStrings(normedStrings, dist_a);
+        dist_a = std::min(dist_a + 50, 1000);
+        dist_a = compareStrings.minDistance(delim, normedName, dist_a);
+      }
+      dist_a = std::min(dist_a + 10, 1000); // avoid this, prefer TVDB
+
+      auto sResIt = find_if(resultSet.begin(), resultSet.end(), [id](const searchResultTvMovie& x) { return x.id() == id;});
+      if (sResIt != resultSet.end() ) {
+        sResIt->setMatchTextMin(dist_a, lang?normedName:normedOriginalName);
+      } else {
+// create new result object sRes
+        searchResultTvMovie sRes(id, false, getValueCharS(result, "first_air_date") );
+        sRes.setPositionInExternalResult(resultSet.size() );
+        sRes.setDelim(delim);
+        sRes.m_normedName = lang?normedName:normedOriginalName;
+
+        sRes.setMatchText(dist_a);
+        sRes.setPopularity(getValueDouble(result, "popularity"), getValueDouble(result, "vote_average"), getValueInt(result, "vote_count") );
+        resultSet.push_back(std::move(sRes));
+      }
     }
-    dist_a = std::min(dist_a + 10, 1000); // avoid this, prefer TVDB
-    sRes.setMatchText(dist_a);
-    sRes.setPopularity(getValueDouble(result, "popularity"), getValueDouble(result, "vote_average"), getValueInt(result, "vote_count") );
-    resultSet.push_back(std::move(sRes));
   }
   return true;
 }
 
-void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
+void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
   if (SearchString.empty() ) {
     esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
     return;
@@ -169,20 +173,18 @@ void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultT
   std::string url = concatenate(baseURL, "/search/movie?api_key=", GetApiKey());
   if (lang) stringAppend(url, "&language=", lang->m_themoviedb);
 
-  CONVERT(SearchString_ext_rom, SearchString, removeRomanNumC);
   stringAppend(url, config.GetThemoviedbSearchOption(), "&query=");
-  if (strlen(SearchString_ext_rom) > 6) stringAppendCurlEscape(url, SearchString_ext_rom);
-  else stringAppendCurlEscape(url, SearchString);
+  stringAppendCurlEscape(url, SearchString);
   size_t lenUrl0 = url.length();
 
-  int num_pages = AddMovieResultsForUrl(buffer, url.c_str(), resultSet, normedStrings, description, setMinTextMatch);
+  int num_pages = AddMovieResultsForUrl(buffer, url.c_str(), resultSet, compareStrings, description, setMinTextMatch, lang);
   bool found = false;
   if (num_pages > 3 && years.size() + 1 < num_pages) {
 // several pages, restrict with years
     for (int year: years) {
       url.erase(lenUrl0);
       stringAppend(url, "&year=", (unsigned int)year);
-      if (AddMovieResultsForUrl(buffer, url.c_str(), resultSet, normedStrings, description, setMinTextMatch) > 0) found = true;
+      if (AddMovieResultsForUrl(buffer, url.c_str(), resultSet, compareStrings, description, setMinTextMatch, lang) > 0) found = true;
     }
   }
   if (!found) {
@@ -191,12 +193,12 @@ void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultT
     for (int page = 2; page <= num_pages; page ++) {
       url.erase(lenUrl0);
       stringAppend(url, "&page=", (unsigned int)page);
-      AddMovieResultsForUrl(buffer, url.c_str(), resultSet, normedStrings, description, setMinTextMatch);
+      AddMovieResultsForUrl(buffer, url.c_str(), resultSet, compareStrings, description, setMinTextMatch, lang);
     }
   }
 }
 
-int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch) {
+int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang) {
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
   rapidjson::Document root;
@@ -212,10 +214,10 @@ int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url
     }
   }
   if (getValueInt(root, "total_results", 0, "cMovieDbMovie::AddMovieResultsForUrl") == 0) return 0;
-  AddMovieResults(root, resultSet, normedStrings, description, setMinTextMatch);
+  AddMovieResults(root, resultSet, compareStrings, description, setMinTextMatch, lang);
   return getValueInt(root, "total_pages", 0, "cMovieDbMovie::AddMovieResultsForUrl");
 }
-void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch) {
+void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang) {
   int res = -1;
   for (const rapidjson::Value &result: cJsonArrayIterator(root, "results")) {
     if (!result.IsObject() ) continue;
@@ -223,25 +225,28 @@ void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<se
 // id of result
     int id = getValueInt(result, "id", 0, "cMovieDbMovie::AddMovieResults, id");
     if (!id) continue;
-    bool alreadyInList = false;
-    for (const searchResultTvMovie &sRes: resultSet) if (sRes.id() == id) { alreadyInList = true; break; }
-    if (alreadyInList) continue;
-
-// a result was found and will be added to the list
-    searchResultTvMovie sRes(id, true, getValueCharS(result, "release_date") );
-    sRes.setPositionInExternalResult(resultSet.size() );
+// figure out "dist": text match of strings
 // Title & OriginalTitle
-    int distOrigTitle = cNormedString(removeLastPartWithP(getValueCharS(result, "original_title"))).minDistanceNormedStrings(normedStrings, 1000);
-    distOrigTitle = std::min(1000, distOrigTitle + 50);  // increase distance for original title, because it's a less likely match
-    int dist = cNormedString(removeLastPartWithP(getValueCharS(result, "title"))).minDistanceNormedStrings(normedStrings, distOrigTitle);
+    int distOrigTitle = compareStrings.minDistance(0, removeLastPartWithP(getValueCharS(result, "original_title")), 1000);
+    if (lang) distOrigTitle = std::min(1000, distOrigTitle + 50);  // increase distance for original title, because it's a less likely match
+    int dist = compareStrings.minDistance(0, removeLastPartWithP(getValueCharS(result, "title")), distOrigTitle);
     if (dist > 300 && description && strlen(description) > 25) {
       const char *overview = getValueCharS(result, "overview");
       if (overview && *overview) dist = cNormedString(description).sentence_distance(overview, dist);
     }
     if (setMinTextMatch && res == 0) dist = std::min(dist, 500); // api.themoviedb.org has some alias names, which are used in the search but not displayed. Set the text match to a "minimum" of 500 -> 0.5 , because it was found by api.themoviedb.org
-    sRes.setMatchText(dist);
-    sRes.setPopularity(getValueDouble(result, "popularity"), getValueDouble(result, "vote_average"), getValueInt(result, "vote_count") );
-    resultSet.push_back(std::move(sRes));
+    auto sResIt = find_if(resultSet.begin(), resultSet.end(), [id](const searchResultTvMovie& x) { return x.id() == id;});
+    if (sResIt != resultSet.end() ) {
+      sResIt->setMatchTextMin(dist);
+    } else {
+
+// a result was found and will be added to the list
+      searchResultTvMovie sRes(id, true, getValueCharS(result, "release_date") );
+      sRes.setPositionInExternalResult(resultSet.size() );
+      sRes.setMatchText(dist);
+      sRes.setPopularity(getValueDouble(result, "popularity"), getValueDouble(result, "vote_average"), getValueInt(result, "vote_count") );
+      resultSet.push_back(std::move(sRes));
+    }
   }
 }
 

@@ -19,6 +19,15 @@ public:
   float getMatch() const;
   bool operator< (const searchResultTvMovie &srm) const;
   void setMatchText(int distance) { m_matches[0].match = (1000 - distance) / 1000.; }
+  void setMatchTextMin(int distance) {
+    m_matches[0].match = std::max(m_matches[0].match, (float)((1000 - distance) / 1000.)); }
+  void setMatchTextMin(int distance, const cNormedString &normedName) {
+    float match = (1000 - distance) / 1000.;
+    if (match > m_matches[0].match) {
+       m_matches[0].match = match;
+       m_normedName = normedName;
+    }
+  }
   void updateMatchText(int distance);
   void setPopularity(float popularity, float vote_average, int vote_count);
   void setPopularity(float vote_average, int vote_count);
@@ -39,7 +48,7 @@ public:
   bool movie() const { return m_movie; }
   int year() const { return m_year; }
   int m_yearMatch = 0;
-  cNormedString normedName;
+  cNormedString m_normedName;
 private:
   int m_id;
   bool m_movie;

@@ -11,6 +11,34 @@
 //
 // to be implemented by the external movie or tv database ================
 //
+/*
+class cNormedStringsDelim {
+  public:
+    cNormedStringsDelim(): m_normedStrings(5) {}
+    std::vector<std::optional<cNormedString>> m_normedStrings;
+    char m_delim;
+};
+// typedef std::vector<std::optional<cNormedStringsDelim>> cCompareStrings;
+class cCompareStrings {
+  public:
+    cCompareStrings(std::string_view searchString);
+    class iterator {
+      private:
+        std::vector<std::optional<cNormedStringsDelim>>::iterator m_it;
+      public:
+        iterator(std::vector<std::optional<cNormedStringsDelim>>::iterator it): m_it(it) {}
+        iterator& operator++() { ++m_it; return *this; }
+        bool operator!=(iterator other) const { return m_it != other.m_it; }
+        char operator*() const { return (*m_it).value().m_delim; } // return delim
+    };
+    iterator begin() { return iterator(m_normedStringsDelim.begin()); }
+    iterator end()   { return iterator(m_normedStringsDelim.end()); }
+
+    int minDistance(char delim, int dist_a, const cNormedString &compareString);
+  private:
+    std::vector<std::optional<cNormedStringsDelim>> m_normedStringsDelim;
+};
+*/
 
 class iExtMovieTvDb
 {
@@ -48,7 +76,7 @@ class iExtMovieTvDb
       // call with isFullSearchString == true if searchString is the complete searchString
       // you should split searchString to several parts, and call with each part to find more results.
       //   In this case, set isFullSearchString == false
-    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, const cYears &years, const cLanguage *lang) = 0;
+    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) = 0;
 };
 
 

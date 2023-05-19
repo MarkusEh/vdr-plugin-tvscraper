@@ -7,12 +7,8 @@ public:
 private:
   scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, std::string_view &movieName, std::string_view &episodeSearchString);
   int Store(const sMovieOrTv &movieOrTv);
-  bool SearchTv(vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool originalTitle = false);
-  bool SearchTv_i(cLargeString &buffer, iExtMovieTvDb *extMovieTvDb, vector<searchResultTvMovie> &resultSet, std::string_view searchString, const cLanguage *lang);
-  void SearchTvEpisTitle(vector<searchResultTvMovie> &resultSet, char delimiter); // Title: name of TV series, and episode name (with : or - between them)
-  void SearchMovie(vector<searchResultTvMovie> &searchResults); // 0: no match; return movie ID, search result in m_searchResult_Movie
-  void SearchMovie_0(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, const cLanguage *lang);
-  void SearchTvAll(vector<searchResultTvMovie> &searchResults);
+  void SearchNew(vector<searchResultTvMovie> &resultSet);
+  bool addSearchResults(iExtMovieTvDb *extMovieTvDb, cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, const cCompareStrings &compareStrings, const cLanguage *lang);
   void initOriginalTitle();
   bool isTitlePartOfPathName(size_t baseNameLen);
   void initBaseNameOrTitle(void);

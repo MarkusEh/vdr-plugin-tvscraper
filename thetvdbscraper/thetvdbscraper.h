@@ -17,8 +17,8 @@ class cTVDBScraper {
     cTVScraperDB *db;
     int CallRestJson(rapidjson::Document &document, const rapidjson::Value *&data, cLargeString &buffer, const char *url, bool disableLog = false);
     bool GetToken(std::string &jsonResponse);
-    bool AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang);
-    void ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang);
+    bool AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
+    void ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang);
     int StoreSeriesJson(int seriesID, bool forceUpdate);
     int StoreSeriesJson(int seriesID, const cLanguage *lang);
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const char *episodeFilename);
@@ -75,8 +75,8 @@ class cTvDbTvScraper: public iExtMovieTvDb {
         m_TVDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, const cYears &years, const cLanguage *lang) {
-      m_TVDBScraper->AddResults4(buffer, resultSet, searchString, normedStrings, lang);
+    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
+      m_TVDBScraper->AddResults4(buffer, resultSet, searchString, compareStrings, lang);
     }
   private:
     cTVDBScraper *m_TVDBScraper;

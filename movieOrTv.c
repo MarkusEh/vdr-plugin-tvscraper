@@ -243,8 +243,15 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOr
     }
 // no match with year found, try without year
 // note: this is a very week indicator that the right TV show was choosen. So, even if there is a match, return a high distance (950)
-    if (sqlI.readRow  (m_seasonNumber, m_episodeNumber)) return 950;
+    for (auto &sqlI_l: sqlI) if (sqlI_l.getInt(0) != 0) {
+// avoid season 0, this is trailer, ...
+      m_seasonNumber  = sqlI_l.getInt(0);
+      m_episodeNumber = sqlI_l.getInt(1);
+      return 950;
+    }
     if (sqlI_a.readRow(m_seasonNumber, m_episodeNumber)) return 950;
+    sqlI.resetStep();
+    if (sqlI.readRow  (m_seasonNumber, m_episodeNumber)) return 950;
   }
   return 1000;
 }

@@ -24,10 +24,10 @@ class cMovieDBScraper {
     cTVScraperDB *db;
     cOverRides *overrides;
     bool parseJSON(const rapidjson::Value &root);
-    bool AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang);
-    void AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch);
-    int AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch);
-    void AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
+    bool AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
+    void AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang);
+    int AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang);
+    void AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
 
     void StoreMovie(int movieID, bool forceUpdate = false);
     bool DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName, bool movie);
@@ -69,8 +69,8 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
       m_movieDBScraper->DownloadActors(id, true);
       return 0;
     }
-    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, const cYears &years, const cLanguage *lang) {
-      m_movieDBScraper->AddMovieResults(buffer, resultSet, searchString, normedStrings, description, isFullSearchString, years, lang);
+    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
+      m_movieDBScraper->AddMovieResults(buffer, resultSet, searchString, compareStrings, description, isFullSearchString, years, lang);
     }
   private:
     cMovieDBScraper *m_movieDBScraper;
@@ -105,8 +105,8 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
         m_movieDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const char *description, const cYears &years, const cLanguage *lang) {
-      m_movieDBScraper->AddTvResults(buffer, resultSet, searchString, normedStrings, lang);
+    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
+      m_movieDBScraper->AddTvResults(buffer, resultSet, searchString, compareStrings, lang);
     }
   private:
     cMovieDBScraper *m_movieDBScraper;

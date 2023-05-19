@@ -283,28 +283,25 @@ void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
 }
 
 // Search series
-bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang) {
-  CONVERT(SearchString_rom, SearchString, removeRomanNumC);
-  if (*SearchString_rom == 0) {
-    esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, SearchString_rom == empty");
-    return false;
-  }
-  CURLESCAPE(url_e, SearchString_rom);
-  CONCATENATE(url, baseURL4Search, url_e);
+bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
+  std::string url; url.reserve(300);
+  url.append(baseURL4Search);
+  stringAppendCurlEscape(url, SearchString);
+ 
   rapidjson::Document root;
   const rapidjson::Value *data;
-  if (CallRestJson(root, data, buffer, url) != 0) return false;
+  if (CallRestJson(root, data, buffer, url.c_str() ) != 0) return false;
   if (!data || !data->IsArray() ) {
     esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, data is %s", data?"not an array":"NULL");
     return false;
   }
-  for (const rapidjson::Value &result: data->GetArray() ){
-    ParseJson_searchSeries(result, resultSet, normedStrings, lang);
+  for (const rapidjson::Value &result: data->GetArray() ) {
+    ParseJson_searchSeries(result, resultSet, compareStrings, lang);
   }
   return true;
 }
 
-void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const std::vector<std::optional<cNormedString>> &normedStrings, const cLanguage *lang) {// add search results to resultSet
+void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang) {// add search results to resultSet
   if (!data.IsObject() ) {
     esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, data is not an object");
     return;
@@ -324,44 +321,57 @@ void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<s
     esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, seriesID = 0, %s", objectID);
     return;
   }
-// is this series already in the list?
-  for (const searchResultTvMovie &sRes: resultSet) if (sRes.id() == seriesID * (-1) ) return;
-
-// create new result object sRes
-  searchResultTvMovie sRes(seriesID * (-1), false, getValueCharS(data, "year"));
-  sRes.setPositionInExternalResult(resultSet.size() );
-
-// distance == deviation from search text
-  int dist_a = 1000;
-// if search string is not in original language, consider name (== original name) same as alias
-  if (lang) dist_a = cNormedString(removeLastPartWithP(getValueCharS(data, "name"))).minDistanceNormedStrings(normedStrings, dist_a);
-  for (const rapidjson::Value &alias: cJsonArrayIterator(data, "aliases")) {
-    if (alias.IsString() )
-    dist_a = cNormedString(removeLastPartWithP(alias.GetString() )).minDistanceNormedStrings(normedStrings, dist_a);
-  }
-// in search results, aliases don't have language information
-// in series/<id>/extended, language information for aliases IS available
-// still, effort using that seems to be too high
-// we give a malus for the missing language information, similar to movies
-  dist_a = std::min(dist_a + 50, 1000);
-  int requiredDistance = 600; // "standard" require same text similarity as we required for episode matching
+  cNormedString normedOriginalName(removeLastPartWithP(getValueCharS(data, "name")));  // name is the original name
+  cNormedString normedName;
   if (lang) {
     rapidjson::Value::ConstMemberIterator translationsIt = data.FindMember("translations");
     if (translationsIt != data.MemberEnd() && translationsIt->value.IsObject() ) {
       const char *langVal = getValueCharS(translationsIt->value, lang->m_thetvdb);
-      if (langVal) {
-        sRes.normedName.reset(removeLastPartWithP(langVal));
-        dist_a = sRes.normedName.minDistanceNormedStrings(normedStrings, dist_a);
-        requiredDistance = 700;  // translation in EPG language is available. Reduce requirement somewhat
+      if (langVal) normedName.reset(removeLastPartWithP(langVal));
+    }
+  }
+  for (char delim: compareStrings) {
+// distance == deviation from search text
+    int dist_a = 1000;
+// if search string is not in original language, consider name (== original name) same as alias
+    if (lang) dist_a = compareStrings.minDistance(delim, normedOriginalName, dist_a);
+    for (const rapidjson::Value &alias: cJsonArrayIterator(data, "aliases")) {
+      if (alias.IsString() )
+      dist_a = compareStrings.minDistance(delim, removeLastPartWithP(alias.GetString()), dist_a);
+    }
+// in search results, aliases don't have language information
+// in series/<id>/extended, language information for aliases IS available
+// still, effort using that seems to be too high
+// we give a malus for the missing language information, similar to movies
+    dist_a = std::min(dist_a + 50, 1000);
+    int requiredDistance = 600; // "standard" require same text similarity as we required for episode matching
+    if (!normedName.empty() ) {
+      dist_a = compareStrings.minDistance(delim, normedName, dist_a);
+      requiredDistance = 700;  // translation in EPG language is available. Reduce requirement somewhat
+    }
+    if (!lang) dist_a = compareStrings.minDistance(delim, normedOriginalName, dist_a);
+    if (dist_a < requiredDistance) {
+      auto sResIt = find_if(resultSet.begin(), resultSet.end(), [seriesID](const searchResultTvMovie& x) { return x.id() == -seriesID;});
+      if (sResIt != resultSet.end() ) {
+        if (!normedName.empty() ) {
+          sResIt->setMatchTextMin(dist_a, normedName);
+        } else {
+          sResIt->setMatchTextMin(dist_a, normedOriginalName);
+        }
+      } else {
+// create new result object sRes
+        searchResultTvMovie sRes(-seriesID, false, getValueCharS(data, "year"));
+        sRes.setPositionInExternalResult(resultSet.size() );
+        sRes.setDelim(delim);
+        sRes.setMatchText(dist_a);
+// main purpose of sRes.m_normedName: figure out if two TV shows are similar
+// TODO: We could improve this, may be 2 normedName, or explicitly mark normedOriginalName
+// on the other hand side: the current implementation might be good enough, so wait for
+// some real live test issues before we change here anything
+        if (!normedName.empty() ) sRes.m_normedName = normedName;
+        else sRes.m_normedName = normedOriginalName;
+        resultSet.push_back(std::move(sRes));
       }
     }
-  } else {
-// name is the name in original / primary language
-    sRes.normedName.reset(removeLastPartWithP(getValueCharS(data, "name")));
-    dist_a = sRes.normedName.minDistanceNormedStrings(normedStrings, dist_a);
-  }
-  if (dist_a < requiredDistance) {
-    sRes.setMatchText(dist_a);
-    resultSet.push_back(std::move(sRes));
   }
 }

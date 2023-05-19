@@ -551,7 +551,7 @@ public:
     bool GetTvEpisode(int tvID, int seasonNumber, int episodeNumber, int &episodeID, string &name, string &airDate, float &vote_average, string &overview, string &episodeGuestStars);
     bool episodeNameUpdateRequired(int tvID, int langId);
     bool GetFromCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
-    void InsertCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
+    void InsertCache(std::string_view movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
     void DeleteOutdatedCache() const;
     int DeleteFromCache(const char *movieNameCache); // return number of deleted entries
     void insertTvMedia (int tvID, const char *path, eMediaType mediaType);

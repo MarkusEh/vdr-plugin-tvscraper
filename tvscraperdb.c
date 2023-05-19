@@ -948,7 +948,7 @@ bool cTVScraperDB::GetFromCache(const string &movieNameCache, csEventOrRecording
   return false;
 }
 
-void cTVScraperDB::InsertCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText) {
+void cTVScraperDB::InsertCache(std::string_view movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText) {
     int recording = 0;
     if (sEventOrRecording->Recording() ) {
       recording = 1;

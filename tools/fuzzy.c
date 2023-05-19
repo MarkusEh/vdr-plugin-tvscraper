@@ -149,7 +149,7 @@ int normMatch(int i, int n) {
   return normMatch((float)i / (float)n) * 1000;
 }
 
-std::set<std::string_view> const_ignoreWords = {"der", "die", "das", "the", "I", "-", "in"};
+std::set<std::string_view> const_ignoreWords = {"der", "die", "das", "the", "I", "-", "in", "to"};
 // =====================================================================================================
 // class cNormedString  ================================================================================
 // =====================================================================================================
@@ -161,7 +161,12 @@ class cNormedString {
     cNormedString(      std::string_view s, int malus = 0): m_malus(malus) { reset(s); }
     cNormedString(const std::string     &s, int malus = 0): m_malus(malus) { reset(s); }
     cNormedString(const cNormedString&) = delete;
-    cNormedString &operator= (const cNormedString &) = delete;
+    cNormedString &operator= (const cNormedString &other) {
+      m_malus = other.m_malus;
+      m_normedString = other.m_normedString;
+      m_wordList.clear();
+      return *this;
+    }
     cNormedString(cNormedString &&other) {
       m_malus = other.m_malus;
       m_normedString = std::move(other.m_normedString);
@@ -176,6 +181,7 @@ class cNormedString {
       return *this;
     }
 
+    bool empty() const { return m_normedString.empty(); }
     cNormedString &reset(std::string_view str) {
 // if there was any "old" normed string: remove
 // replace invalid UTF8 characters with ' '
@@ -237,7 +243,7 @@ class cNormedString {
       if (m_wordList.size() > 0) return;
       m_wordList.reserve(20);
       for (std::string_view lWord: cSplit(m_normedString, ' ')) {
-        if (const_ignoreWords.find(lWord) == const_ignoreWords.end() ) m_wordList.push_back(lWord);
+        if (lWord.length() > 2 && const_ignoreWords.find(lWord) == const_ignoreWords.end() ) m_wordList.push_back(lWord);
       }
 //      std::cout << "words m_normedString: " << getWords() << "\n";
     }
@@ -353,24 +359,74 @@ class cNormedString {
     mutable std::vector<std::string_view> m_wordList;
 };
 
-std::vector<std::optional<cNormedString>> getNormedStrings(std::string_view searchString, std::string_view &searchString1, std::string_view &searchString2, std::string_view &searchString3, std::string_view &searchString4) {
-// input: searchString: string to search for
-// return list of normed strings
-  std::vector<std::optional<cNormedString>> normedStrings(5);
-  normedStrings[0].emplace(searchString);
-  searchString1 = SecondPart(searchString, ": ", 4);
-  searchString2 = SecondPart(searchString, "'s ", 4);
-  int i = 0;
-  if (!searchString1.empty() ) normedStrings[++i].emplace(searchString1, 50);
-  if (!searchString2.empty() ) normedStrings[++i].emplace(searchString2, 50);
-  bool split = splitString(searchString, " - ", 4, searchString3, searchString4);
-  if (split) {
-    normedStrings[++i].emplace(searchString3, 70);
-    normedStrings[++i].emplace(searchString4, 70);
-  } else {
-    searchString3 = "";
-    searchString4 = "";
-  }
-  return normedStrings;
-}
+class cNormedStringsDelim;
+class cCompareStrings {
+  public:
+    cCompareStrings(std::string_view searchString);
+    void add(std::string_view searchString, char delim);
+    class iterator {
+      private:
+        std::vector<cNormedStringsDelim>::const_iterator m_it;
+      public:
+        iterator(std::vector<cNormedStringsDelim>::const_iterator it): m_it(it) {}
+        iterator& operator++();
+        bool operator!=(iterator other) const;
+        char operator*() const; // return delim
+    };
+    iterator begin() const { return iterator(m_normedStringsDelim.begin()); }
+    iterator end()   const { return iterator(m_normedStringsDelim.end()); }
 
+    int minDistance(char delim, const cNormedString &compareString, int curDistance = 1000) const;
+  private:
+    std::vector<cNormedStringsDelim> m_normedStringsDelim;
+};
+class cNormedStringsDelim {
+  public:
+    cNormedStringsDelim(std::string_view searchString, char delim = 0);
+    int minDistance(const cNormedString &compareString, int curDistance = 1000) const;
+  private:
+    std::vector<std::optional<cNormedString>> m_normedStrings;
+  public:
+    const char m_delim;
+};
+
+// implementation cNormedStringsDelim
+cNormedStringsDelim::cNormedStringsDelim(std::string_view searchString, char delim):
+  m_normedStrings(5), m_delim(delim)
+{
+// input: searchString: string to search for
+  m_normedStrings[0].emplace(searchString);
+  std::string_view searchString1 = SecondPart(searchString, ": ", 4);
+  if (!searchString1.empty() ) m_normedStrings[1].emplace(searchString1, 50);
+  std::string_view searchString2 = SecondPart(searchString, "'s ", 4);
+  if (!searchString2.empty() ) m_normedStrings[2].emplace(searchString2, 50);
+  bool split = splitString(searchString, " - ", 4, searchString1, searchString2);
+  if (split) {
+    m_normedStrings[3].emplace(searchString1, 70);
+    m_normedStrings[4].emplace(searchString2, 70);
+  }
+}
+int cNormedStringsDelim::minDistance(const cNormedString &compareString, int curDistance) const {
+  for (const std::optional<cNormedString> &i_normedString: m_normedStrings)
+    if (i_normedString.has_value()) curDistance = compareString.sentence_distance(i_normedString.value(), curDistance);
+  return curDistance;
+}
+// implementation cCompareStrings
+cCompareStrings::iterator &cCompareStrings::iterator::operator++() { ++m_it; return *this; }
+bool cCompareStrings::iterator::operator!=(iterator other) const { return m_it != other.m_it; }
+char cCompareStrings::iterator::operator*() const { return m_it->m_delim; }
+
+cCompareStrings::cCompareStrings(std::string_view searchString)
+{
+  m_normedStringsDelim.emplace_back(searchString, 0);
+} 
+void cCompareStrings::add(std::string_view searchString, char delim) {
+  std::string_view TVshowName, episodeSearchString;
+  if (!splitString(searchString, delim, 4, TVshowName, episodeSearchString) ) return;
+  m_normedStringsDelim.emplace_back(TVshowName, delim);
+}
+int cCompareStrings::minDistance(char delim, const cNormedString &compareString, int curDistance) const {
+  for (const cNormedStringsDelim &normedStringsDelim: m_normedStringsDelim) 
+    if (normedStringsDelim.m_delim == delim) curDistance = normedStringsDelim.minDistance(compareString, curDistance);
+  return curDistance;
+}
