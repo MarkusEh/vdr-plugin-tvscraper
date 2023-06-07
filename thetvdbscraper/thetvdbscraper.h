@@ -4,6 +4,7 @@
 #include "../extMovieTvDb.h"
 using namespace std;
 
+std::string displayLanguageTvdb(std::string_view translations, const char *originalLanguage);
 // --- cTVDBScraper -------------------------------------------------------------
 
 class cTVDBScraper {
@@ -20,7 +21,7 @@ class cTVDBScraper {
     bool AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
     void ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang);
     int StoreSeriesJson(int seriesID, bool forceUpdate);
-    int StoreSeriesJson(int seriesID, const cLanguage *lang);
+    int downloadEpisodes(cLargeString &buffer, int seriesID, bool forceUpdate, const cLanguage *lang, bool langIsIntendedDisplayLanguage = false, const cLanguage **displayLanguage = nullptr);
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const char *episodeFilename);
     void StoreActors(int seriesID);
     void DownloadMedia (int tvID);
@@ -44,25 +45,43 @@ class cTVDBScraper {
 class cTvDbTvScraper: public iExtMovieTvDb {
   public:
     cTvDbTvScraper(cTVDBScraper *TVDBScraper): m_TVDBScraper(TVDBScraper) {}
-    virtual int download(int id, bool forceUpdate = false) {
-      return m_TVDBScraper->StoreSeriesJson(id, forceUpdate);
+
+    virtual int download(int id) {
+      return m_TVDBScraper->StoreSeriesJson(id, false);
     }
-    virtual int download(int id, const cLanguage *lang) {
-      if (config.isDefaultLanguage(lang)) return download(id, false);
-      return m_TVDBScraper->StoreSeriesJson(id, lang);
+    virtual int downloadEpisodes(int id, const cLanguage *lang) {
+      cLargeString buffer("cTvDbTvScraper::downloadEpisodes", 2000);
+      int res = m_TVDBScraper->downloadEpisodes(buffer, id, false, lang);
+      if (res == 1 && config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::downloadEpisodes lang %s not available, id %i",  lang->getNames().c_str(), id);
+      return res;
     }
 
-    virtual void enhance1(int id) {
+    virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
 // note: we assume, that during the time tv_score was written, also tv_episode_run_time
 //       was written. So no extra check for tv_episode_run_time
-//       same for series_actors
 // done / checked: series_actors: not deleted during delete of series. After that: series is again loaded. What happens?
 //   cTVScraperDB::InsertActor(seriesID, name, role, path)
 //   checks if seriesID, name, role already exists in db.
 //   If yes, it will just download path (if the file is not available)
-      cSql stmt(m_TVDBScraper->db, "select 1 from tv_score where tv_id = ?", -1*id);
-      if (stmt.readRow() ) return;
-      download(id, true);
+      cSql stmt(m_TVDBScraper->db,
+        "SELECT tv_languages, tv_languages_last_update, tv_actors_last_update FROM tv_score WHERE tv_id = ?", searchResultTvMovie.id() );
+      if (!stmt.readRow() || stmt.getInt(2) == 0) {
+// no cache at all, or missing actors => complete download
+        if (config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 force update, reason %s, lang %s, seriesID %i",
+          stmt.readRow()?"actors missing":"does not exist", lang->getNames().c_str(), searchResultTvMovie.id() );
+
+        m_TVDBScraper->StoreSeriesJson(-searchResultTvMovie.id(), true);
+        return;
+      }
+// check: was translation not available on last update, but might be available now?
+      if (!config.isUpdateFromExternalDbRequired(stmt.getInt64(1) )) return;
+      cSplit transSplit(stmt.getCharS(0), '|');
+      if (transSplit.find(lang->m_thetvdb) != transSplit.end() ) return; // translation in needed language available, no need for update
+      if (config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 force update, languages %s, lang %s, seriesID %i",
+        stmt.getCharS(0), lang->getNames().c_str(), searchResultTvMovie.id() );
+      cLargeString buffer("cTvDbTvScraper::enhance1", 2000);
+      int res = m_TVDBScraper->downloadEpisodes(buffer, -searchResultTvMovie.id(), true, lang); // this will not update the actors, which is not required here
+      if (res == 1 && config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 lang %s not available, id %i",  lang->getNames().c_str(), searchResultTvMovie.id() );
     }
 
     virtual int downloadImages(int id, int seasonNumber, int episodeNumber) {

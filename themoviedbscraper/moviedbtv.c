@@ -54,7 +54,7 @@ bool cMovieDbTv::ReadTv(bool exits_in_db, cLargeString &buffer) {
     if (m_episodeRunTimes.empty() ) m_episodeRunTimes.insert(-1); // empty episodeRunTimes results in re-reading it from external db. And there is no data on external db ...
     if(!exits_in_db) {
 // no database entry for tvID, create the db entry
-      m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks.c_str(), m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, nullptr, m_status, m_episodeRunTimes, m_createdBy.c_str() );
+      m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks.c_str(), m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, nullptr, m_status, m_episodeRunTimes, m_createdBy.c_str(), nullptr);
 // credits
       rapidjson::Value::ConstMemberIterator jCredits_it = tv.FindMember("credits");
       if (jCredits_it != tv.MemberEnd() && jCredits_it->value.IsObject() )

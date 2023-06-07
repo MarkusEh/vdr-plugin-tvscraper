@@ -48,26 +48,38 @@ class iExtMovieTvDb
 
       // download  / update the movie / TV show with this ID from external db
       // images are NOT downloaded, but information for later download with downloadImages is saved in local db
+      // figure out tv_display_language and write it to tv2
+      //    note: if translations are available in default language, tv_display_language = default language
+      //          otherwise: find a fallback
       // if forceUpdate == true: always download / update all data, including episodes in default language
       // if forceUpdate == false: check if the movie / TV show already exists in local db.
       //   if no, proceed as with forceUpdate == true
-      //   if yes, only update episode list in default language, if this update is required
+      //   if yes, only update episode list in tv_display_language, if this update is required
       //  return -1 if id does not exist in external db
-    virtual int download(int id, bool forceUpdate = false) = 0;
+      // TODO: Remove forceUpdate, this is always false!!!
+    virtual int download(int id) = 0;
 
-      // download / update language specific texts, in given language
-      // if lang == default language: call download(id, false);
-      // otherwise, text in default language and language independent information will not be downloaded
-      // note: currenty language dependent text is only available for episode names
-      // if language dependent text is already available: update only if required (there might be changes)
-      //  return -1 if id does not exist in external db
-    virtual int download(int id, const cLanguage *lang) = 0;
+      // do nothing for movies
+      // download / update the TV show episodes with ID id, in language lang from external db
+      // images are NOT downloaded, but information for later download with downloadImages is saved in local db
+      // also download / update some data in tv_s_e and tv2, but incomplete. Don't change "name" in tv2, so we can check this to figure out if data is incomplete
+      // if lang == default language, also update descriptions in tv_s_e, and add this language to tv2 (tv_display_language)
+      // if tv_display_language is in tv2 && lang == tv_display_language in tv2, also update descriptions in tv_s_e
+      // only update if episodeNameUpdateRequired.
+      //  return codes:
+//   -1 object does not exist (we already called db->DeleteSeriesCache(-id))
+//    0 success
+//    1 no episode names in this language
+//    2 invalid input data: id
+//    3 invalid input data: lang
+//    5 or > 5: Other error
+    virtual int downloadEpisodes(int id, const cLanguage *lang) = 0;
 
       // check if data required for enhance1 is available. If yes, just return
       // if no, download data from external db
       // note: these are small data (e.g. runtime), which will never be deleted and
       // can repeatedly help to identify the correct object
-    virtual void enhance1(int id) = 0;
+    virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) = 0;
 
       // download all images of the movie / TV show with this ID
     virtual int downloadImages(int id, int seasonNumber = 0, int episodeNumber = 0) = 0;

@@ -890,6 +890,7 @@ class cSplit {
           return *this;
         }
         bool operator!=(iterator other) const { return m_remainingParts != other.m_remainingParts; }
+        bool operator==(iterator other) const { return m_remainingParts == other.m_remainingParts; }
         std::string_view operator*() const {
           if (m_next_delim == std::string_view::npos) return m_remainingParts;
           else return m_remainingParts.substr(0, m_next_delim);

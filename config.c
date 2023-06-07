@@ -116,7 +116,7 @@ void cTVScraperConfig::Initialize() {
 // these values are in setup.conf. Set here defaults, if values in setup.conf are missing.
   if (m_HD_Channels.empty() ) {m_HD_Channels = getDefaultHD_Channels(); m_HD_ChannelsModified = false; }
   if (   m_channels.empty() )     m_channels = getDefaultChannels();
-  if (m_defaultLanguage == 0) setDefaultLanguage();
+  if (m_defaultLanguage == &m_emergencyLanguage) setDefaultLanguage();
 // load plugins from ext. epgs
   loadPlugins();
 //  m_extEpgs.push_back(std::make_shared<cExtEpgTvsp>());
@@ -158,7 +158,7 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
         m_enableAutoTimers = atoi(Value);
         return true;
     } else if (strcmp(Name, "defaultLanguage") == 0) {
-        m_defaultLanguage = atoi(Value);
+        m_defaultLanguage = GetLanguage(atoi(Value));
         return true;
     } else if (strcmp(Name, "additionalLanguages") == 0) {
         m_AdditionalLanguages = getSetFromString<int>(Value);
@@ -177,12 +177,18 @@ int cTVScraperConfig::GetLanguage_n(const tChannelID &channelID) const {
   {
     cTVScraperConfigLock lr;
     auto l = m_channel_language.find(channelID);
-    if (l == m_channel_language.end()) lang = m_defaultLanguage;
+    if (l == m_channel_language.end()) lang = m_defaultLanguage->m_id;
     else lang = l->second;
   }
   return lang;
 }
 
+std::string cLanguage::getNames() const {
+  return concatenate(m_thetvdb, " ", m_themoviedb, " ", m_name);
+}
+void cLanguage::log() const {
+  esyslog("tvscraper: language: m_id %i, m_thetvdb %s, m_themoviedb %s, m_name %s", m_id, m_thetvdb?m_thetvdb:"null", m_themoviedb?m_themoviedb:"null", m_name?m_name:"null");
+}
 const cLanguage *cTVScraperConfig::GetLanguage(const tChannelID &channelID) const {
   int lang;
   {
@@ -198,40 +204,52 @@ const cLanguage *cTVScraperConfig::GetLanguage(const tChannelID &channelID) cons
   return GetDefaultLanguage();
 }
 
-const cLanguage *cTVScraperConfig::GetDefaultLanguage() const {
-  int lang;
-  { cTVScraperConfigLock l; lang = m_defaultLanguage; }
-  auto r = m_languages.find(lang);
-  if(r != m_languages.end()) return &(*r);
-  const cLanguage *result;
-  if (m_languages.size() == 0) result = &m_emergencyLanguage;
-  else result = &(*m_languages.begin());
-  esyslog("tvscraper: ERROR cTVScraperConfig::getDefaultLanguage r == NULL, m_defaultLanguage = %i, set default language to %s", m_defaultLanguage, result->getNames().c_str() );
-  return result;
+const cLanguage *cTVScraperConfig::GetLanguageThetvdb(const cLanguage *l) const
+{
+  if (!l) return l;
+  auto lIt = find_if(m_languages.begin(), m_languages.end(), [l](const cLanguage& x) { return strcmp(l->m_thetvdb, x.m_thetvdb) == 0;});
+  if (lIt != m_languages.end() ) return &(*lIt);
+  esyslog("tvscraper: ERROR cTVScraperConfig::GetLanguageThetvdb l not found, l->m_thetvdb = %s", l->m_thetvdb);
+  return l;
 }
+const cLanguage *cTVScraperConfig::GetLanguage(int l) const
+// return ALLWAYS a valid cLanguage pointer
+// if l is not in the list: write ERROR to syslog, and return a default language
+{
+  auto lIt = m_languages.find(l);
+  if (lIt != m_languages.end() ) return &(*lIt);
+  if (m_languages.size() == 0) {
+    esyslog("tvscraper: ERROR cTVScraperConfig::GetLanguage l = %i m_languages.size() == 0", l);
+    return &m_emergencyLanguage;
+  }
+  esyslog("tvscraper: ERROR cTVScraperConfig::GetLanguage l = %i not found", l);
+  return  &(*m_languages.begin() );
+}
+
+
 void cTVScraperConfig::setDefaultLanguage() {
-  cTVScraperConfigLock lw(true);
-  m_defaultLanguage = 5; // en-GB, in case we find nothing ...
   string loc = setlocale(LC_NAME, NULL);
   size_t index = loc.find_first_of("_");
   if (index != 2) {
     esyslog("tvscraper: ERROR cTVScraperConfig::setDefaultLanguage, language %s, index = %zu, use en-GB as default language", loc.c_str(), index);
+    m_defaultLanguage = GetLanguage(5); // en-GB
     return;
   }
-  int li = 0;
-  int lc = 0;
+  const cLanguage *li = 0;
+  const cLanguage *lc = 0;
   for (const cLanguage &lang: m_languages) {
     if (strncmp(lang.m_themoviedb, loc.c_str(), 2) != 0) continue;
-    li = lang.m_id;
-    if (strncmp(lang.m_themoviedb+3, loc.c_str()+3, 2) == 0) lc = lang.m_id;
+    if (!li) li = &lang;
+    if (strncmp(lang.m_themoviedb+3, loc.c_str()+3, 2) == 0) if (!lc) lc = &lang;
   }
   if (li == 0) {
     esyslog("tvscraper: ERROR cTVScraperConfig::setDefaultLanguage, language %s not found, use en-GB as default language", loc.c_str() );
+    m_defaultLanguage = GetLanguage(5); // en-GB
     return;
   }
   if (lc != 0) m_defaultLanguage = lc;
   else m_defaultLanguage = li;
-  esyslog("tvscraper: set default language to %s", m_languages.find(m_defaultLanguage)->getNames().c_str() );
+  esyslog("tvscraper: set default language to %s", m_defaultLanguage->getNames().c_str() );
 }
 std::shared_ptr<iExtEpgForChannel> cTVScraperConfig::GetExtEpgIf(const tChannelID &channelID) const {
   vector<sChannelMapEpg>::const_iterator channelMapEpg_it = std::lower_bound(m_channelMap.begin(), m_channelMap.end(), channelID,

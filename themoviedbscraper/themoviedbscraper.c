@@ -146,7 +146,7 @@ bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMo
       }
       dist_a = std::min(dist_a + 10, 1000); // avoid this, prefer TVDB
 
-      auto sResIt = find_if(resultSet.begin(), resultSet.end(), [id](const searchResultTvMovie& x) { return x.id() == id;});
+      auto sResIt = find_if(resultSet.begin(), resultSet.end(), [id,delim](const searchResultTvMovie& x) { return x.id() == id && x.delim() == delim;});
       if (sResIt != resultSet.end() ) {
         sResIt->setMatchTextMin(dist_a, lang?normedName:normedOriginalName);
       } else {

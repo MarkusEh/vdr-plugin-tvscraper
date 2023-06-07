@@ -48,20 +48,18 @@ public:
 class cMovieDbMovieScraper: public iExtMovieTvDb {
   public:
     cMovieDbMovieScraper(cMovieDBScraper *movieDBScraper): m_movieDBScraper(movieDBScraper) {}
-    virtual int download(int id, bool forceUpdate = false) {
-      m_movieDBScraper->StoreMovie(id, forceUpdate);
+
+    virtual int download(int id) {
+      m_movieDBScraper->StoreMovie(id, false);
       return 0;
     }
-    virtual int download(int id, const cLanguage *lang) {
-      if (config.isDefaultLanguage(lang)) return download(id, false);
-      return 0; // there are no language dependent texts in movies (current implementation ...)
-    }
+    virtual int downloadEpisodes(int id, const cLanguage *lang) { return 0; }
 
-    virtual void enhance1(int id) {
-      int runtime = m_movieDBScraper->db->GetMovieRuntime(id);
+    virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
+      int runtime = m_movieDBScraper->db->GetMovieRuntime(searchResultTvMovie.id() );
       if (runtime  >  0 || runtime == -1) return;
 // themoviedb never checked for runtime, check now
-      download(id, true);
+      m_movieDBScraper->StoreMovie(searchResultTvMovie.id(), true);
     }
 
     virtual int downloadImages(int id, int seasonNumber = 0, int episodeNumber = 0) {
@@ -78,21 +76,28 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
 class cMovieDbTvScraper: public iExtMovieTvDb {
   public:
     cMovieDbTvScraper(cMovieDBScraper *movieDBScraper): m_movieDBScraper(movieDBScraper) {}
-    virtual int download(int id, bool forceUpdate = false) {
+
+    virtual int download(int id) {
       cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
       tv.SetTvID(id);
-      tv.UpdateDb(forceUpdate);
+      tv.UpdateDb(false);
       return 0;
     }
-    virtual int download(int id, const cLanguage *lang) {
-      if (config.isDefaultLanguage(lang)) return download(id, false);
-      return 0; // language dependent texts in episodes in themoviedb are not implemented ...
+
+    virtual int downloadEpisodes(int id, const cLanguage *lang) {
+      if (!config.isDefaultLanguage(lang)) return 0; // language dependent texts in episodes in themoviedb are not implemented ...
+      cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
+      tv.SetTvID(id);
+      tv.UpdateDb(false);
+      return 0;
     }
 
-    virtual void enhance1(int id) {
-      cSql stmt(m_movieDBScraper->db, "select 1 from tv_episode_run_time where tv_id = ?", id);
+    virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
+      cSql stmt(m_movieDBScraper->db, "select 1 from tv_episode_run_time where tv_id = ?", searchResultTvMovie.id() );
       if (stmt.readRow() ) return;
-      download(id, true);
+      cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
+      tv.SetTvID(searchResultTvMovie.id() );
+      tv.UpdateDb(true);
     }
 
     virtual int downloadImages(int id, int seasonNumber, int episodeNumber) {

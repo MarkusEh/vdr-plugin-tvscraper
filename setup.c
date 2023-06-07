@@ -65,8 +65,7 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
     return;
   }
 // default language
-  int defaultLanguage;
-  { cTVScraperConfigLock l; defaultLanguage = config.m_defaultLanguage; }
+  int defaultLanguage = config.m_defaultLanguage->m_id;
   bool defaultLanguageInList = false;
   for (const auto &l: m_all_languages)
     if (l.first == defaultLanguage) defaultLanguageInList = true;
@@ -277,7 +276,7 @@ void cTVScraperSetup::Store(void) {
       config.m_HD_ChannelsModified = true;
       config.m_HD_Channels = std::move(hd_channels);
     }
-    config.m_defaultLanguage = langDefault.getLanguage(0);
+//    config.m_defaultLanguage = langDefault.getLanguage(0); it is not possible to change defaultLanguage in setup
     config.m_AdditionalLanguages.clear();
     for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
       config.m_AdditionalLanguages.insert(langAdditional.getLanguage(i));
@@ -297,7 +296,7 @@ void cTVScraperSetup::Store(void) {
   SetupStore("TV_Shows", getStringFromSet<int>(config.m_TV_Shows).c_str());
   SetupStore("enableDebug", config.enableDebug);
   SetupStore("enableAutoTimers", config.m_enableAutoTimers);
-  SetupStore("defaultLanguage", config.m_defaultLanguage);
+  SetupStore("defaultLanguage", config.m_defaultLanguage->m_id);
   SetupStore("additionalLanguages", getStringFromSet<int>(config.m_AdditionalLanguages).c_str() );
   for (const int &lang: config.m_AdditionalLanguages)
     SetupStore(("additionalLanguage"s + std::to_string(lang)).c_str(), getStringFromMap(config.m_channel_language, lang).c_str() );

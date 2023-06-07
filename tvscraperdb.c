@@ -7,6 +7,8 @@
 #include "tvscraperdb.h"
 #include "services.h"
 #include "rapidjson/pointer.h"
+#include <inttypes.h>
+
 using namespace std;
 
 cTVScraperDB::cTVScraperDB(void):
@@ -159,7 +161,8 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "tv_status text, ";
     sql << "tv_last_season integer, ";
     sql << "tv_number_of_episodes integer, ";
-    sql << "tv_last_updated integer"; // time stamp: external DB was contacted, and checked for changes
+    sql << "tv_display_language integer, ";
+    sql << "tv_last_updated integer"; // time stamp: external DB was contacted, and checked for new episodes
     sql << "tv_last_changed integer"; // time stamp: last time when new episodes were added to tv_s_e
     sql << ");";
 
@@ -179,13 +182,17 @@ bool cTVScraperDB::CreateTables(void) {
 
 // TheTvdb now provides a TV score, instead of vote_average / vote_count
 // entries in this table are not deletet, so it is a cache
+// tv_id < 0 => thetvdb
     sql << "CREATE TABLE IF NOT EXISTS tv_score (";
     sql << "tv_id integer primary key, ";
-    sql << "tv_score real);";
-//    sql << "tv_languages nvarchar);";  TODO
-// oder : neue tabelle, für jede sprache eine zeile? Ober: wie herausfinden, ob es die Sprache nicht gibt oder für diese Serie noch nie etwas geschrieben wurde?
-// TODO: purgeTvShaow: Alles löschen, auch cache, der sonst nicht gelöscht wird (objekt gibt es in der ext. db nicht mehr.
-//       Check: Was machen wir, wenn noch verwendet, z.B. in Aufzeichnung?
+    sql << "tv_score real, ";
+    sql << "tv_languages nvarchar, ";
+    sql << "tv_languages_last_update integer, ";
+    sql << "tv_actors_last_update integer);";
+// for themoviedb: No information available regarding translations
+//    if translation is missing in "get movie detail": overview == "", tagline == "", and title == original_title
+//    if translation is missing in "search result":    overview == overview in orig. language, and title == original_title
+
 
     sql << "CREATE TABLE IF NOT EXISTS tv_media (";
     sql << "tv_id integer, ";
@@ -383,6 +390,10 @@ bool cTVScraperDB::CreateTables(void) {
         sqlite3_close(db);
         return false;
     }
+    AddCulumnIfNotExists("tv_score", "tv_languages", "nvarchar");
+    AddCulumnIfNotExists("tv_score", "tv_languages_last_update", "integer");
+    AddCulumnIfNotExists("tv_score", "tv_actors_last_update", "integer");
+    AddCulumnIfNotExists("tv2", "tv_display_language", "integer");
     AddCulumnIfNotExists("movie_runtime2", "movie_director", "nvarchar");
     AddCulumnIfNotExists("movie_runtime2", "movie_writer", "nvarchar");
     AddCulumnIfNotExists("actors", "actor_has_image", "integer");
@@ -480,6 +491,7 @@ void cTVScraperDB::DeleteSeriesCache(int seriesID) const {
 // Note: DeleteSeries is not called. If the series ID is still used in event/recordings2,
 //   some data for display are still available. We accept that some data (which where in the cache tables)
 //   are missing
+  if (config.enableDebug) esyslog("tvscraper: cTVScraperDB::DeleteSeriesCache seriesID %i", seriesID);
   exec("DELETE FROM tv_episode_run_time WHERE tv_id = ?", seriesID);
   exec("DELETE FROM tv_vote             WHERE tv_id = ?", seriesID);
   exec("DELETE FROM tv_score            WHERE tv_id = ?", seriesID);
@@ -527,15 +539,23 @@ void cTVScraperDB::DeleteSeries(int seriesID, const string &movieDir, const stri
   DeleteSeries(seriesID);
 }
 
-void cTVScraperDB::InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy) {
-  exec("INSERT OR REPLACE INTO tv2 (tv_id, tv_name, tv_original_name, tv_overview, tv_first_air_date, tv_networks, tv_genres, tv_popularity, tv_vote_average, tv_vote_count, tv_posterUrl, tv_fanartUrl, tv_IMDB_ID, tv_status, tv_created_by, tv_last_season, tv_number_of_episodes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0);",
-    tvID, name, originalName, overview, firstAired, networks, genres, popularity,
-    vote_average, vote_count, posterUrl, fanartUrl, IMDB_ID, status, createdBy);
+void cTVScraperDB::InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy, const char *languages) {
+  cSql stmt(this, "SELECT tv_last_updated, tv_last_changed, tv_display_language FROM tv2 WHERE tv_id = ?", tvID);
+  if (stmt.readRow() ) {
+    exec("INSERT OR REPLACE INTO tv2 (tv_id, tv_name, tv_original_name, tv_overview, tv_first_air_date, tv_networks, tv_genres, tv_popularity, tv_vote_average, tv_vote_count, tv_posterUrl, tv_fanartUrl, tv_IMDB_ID, tv_status, tv_created_by, tv_last_season, tv_number_of_episodes, tv_last_updated, tv_last_changed, tv_display_language) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?);",
+      tvID, name, originalName, overview, firstAired, networks, genres, popularity,
+      vote_average, vote_count, posterUrl, fanartUrl, IMDB_ID, status, createdBy, stmt.getInt64(0), stmt.getInt64(1), stmt.getCharS(2) );
+  } else {
+    exec("INSERT INTO tv2 (tv_id, tv_name, tv_original_name, tv_overview, tv_first_air_date, tv_networks, tv_genres, tv_popularity, tv_vote_average, tv_vote_count, tv_posterUrl, tv_fanartUrl, tv_IMDB_ID, tv_status, tv_created_by, tv_last_season, tv_number_of_episodes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0);",
+      tvID, name, originalName, overview, firstAired, networks, genres, popularity,
+      vote_average, vote_count, posterUrl, fanartUrl, IMDB_ID, status, createdBy);
+  }
 
     InsertTvEpisodeRunTimes(tvID, EpisodeRunTimes);
     exec("INSERT OR REPLACE INTO tv_vote (tv_id, tv_vote_average, tv_vote_count) VALUES (?, ?, ?)",
       tvID, vote_average, vote_count);
-    exec("INSERT OR REPLACE INTO tv_score (tv_id, tv_score) VALUES (?, ?)", tvID, popularity);
+// note: we call InsertTv only in case of reading all data (includeing actors, even if they are updated elsewhere)
+    exec("INSERT OR REPLACE INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update, tv_actors_last_update) VALUES (?, ?, ?, ?, ?)", tvID, popularity, languages, time(0), time(0) );
 }
 
 void cTVScraperDB::InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes) {
@@ -563,17 +583,41 @@ bool cTVScraperDB::TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberO
 }
 
 bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {
-// we cannot compare the number of episodes in tv_s_e with the number of episodes tv_s_e_name2 for lang:
-// there just might be some texts missing, ...
-  cSql stmt_tv_last_changed(this, "SELECT tv_last_changed FROM tv2 WHERE tv_id = ?", tvID);
-  if (!stmt_tv_last_changed.readRow()) {
-// should not happpen, call update (def. language) before this call
-    esyslog("tvscraper: ERROR episodeNameUpdateRequired no tv_last_changed tvID %i, langId %i", tvID, langId);
+// return true if there might be new episodes in this language
+  cSql stmt_tv2(this, "SELECT tv_last_changed, tv_last_updated, tv_status FROM tv2 WHERE tv_id = ?", tvID);
+  if (!stmt_tv2.readRow()) {
+    if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired not found in tv2, tvID %i, langId %i", tvID, langId);
     return true;
   }
+  time_t tv2_tv_last_updated = stmt_tv2.getInt64(1);
+/*
+  if (config.enableDebug) {
+    long long te = queryInt64("SELECT tv_last_updated FROM tv2 WHERE tv_id = ?", tvID);
+    if (te != (long long)tv2_tv_last_updated) esyslog("tvscraper: ERROR cTVScraperDB::episodeNameUpdateRequired te %lli != tv2_tv_last_updated %lli", te, (long long)tv2_tv_last_updated);
+  }
+*/
+
   cSql stmt_tv_name_last_updated(this, "SELECT tv_last_updated FROM tv_name WHERE tv_id = ? AND language_id = ?", tvID, langId);
-  if (!stmt_tv_name_last_updated.readRow()) return true;
-  return stmt_tv_last_changed.getInt64(0) > stmt_tv_name_last_updated.getInt64(0);
+  if (!stmt_tv_name_last_updated.readRow()) {
+    if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired not found in tv_name, tvID %i, langId %i", tvID, langId);
+    return true;
+  }
+// check: additional episodes added, but not in langId?
+// Note: we cannot compare the number of episodes in tv_s_e with the number of episodes tv_s_e_name2 for lang:
+//       there just might be some texts missing, ...
+  if ( stmt_tv2.getInt64(0) > stmt_tv_name_last_updated.getInt64(0)) {
+    if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired tv2.tv_last_changed %lli > tv_name.tv_last_updated %lli, tvID %i, langId %i", (long long)stmt_tv2.getInt64(0), (long long)stmt_tv_name_last_updated.getInt64(0), tvID, langId);
+    return true;
+  }
+
+// check: would we expect new episodes in external db, for tv_s_e?
+  if (!config.isUpdateFromExternalDbRequired(tv2_tv_last_updated )) return false;
+  std::string_view status = stmt_tv2.getStringView(2);
+  if (status.compare("Ended") == 0) return false; // see https://thetvdb-api.readthedocs.io/api/series.html
+  if (status.compare("Canceled") == 0) return false;
+// not documented for themoviedb, see https://developers.themoviedb.org/3/tv/get-tv-details . But test indicates the same values ("Ended" & "Canceled")...
+  if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired tv2.tv_last_updated %lli, tvID %i, langId %i", (long long)tv2_tv_last_updated, tvID, langId);
+  return true;
 }
 
 void cTVScraperDB::InsertEvent(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number) {
@@ -736,7 +780,7 @@ jTvscraper.SetObject();
 const char *sql_tv = "select tv_name, tv_first_air_date from tv2 where tv_id = ?";
 const char *sql_mv = "select movie_title, movie_release_date from movies3 where movie_id = ?";
 const char *sql;
-cSql stmtEpisodeName(this, "select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?"); // must exist until json is written
+cSql stmtEpisodeName(this); // must exist until json is written
 if (season_number != -100) {
 // TV Show
   jTvscraper.AddMember("type", rapidjson::Value().SetString("tv show"), jInfo.GetAllocator() );
@@ -745,7 +789,20 @@ if (season_number != -100) {
     jTvscraper.AddMember("season_number", rapidjson::Value().SetInt(season_number), jInfo.GetAllocator() );
     jTvscraper.AddMember("episode_number", rapidjson::Value().SetInt(episode_number), jInfo.GetAllocator() );
 // get episode name
-    stmtEpisodeName.resetBindStep(movie_tv_id, season_number, episode_number);
+    int langInt = queryInt("SELECT tv_display_language FROM tv2 WHERE tv_id = ?", movie_tv_id);
+    if (langInt > 0) {
+      stmtEpisodeName.finalizePrepareBindStep(
+        "SELECT tv_s_e_name2.episode_name " \
+        "FROM tv_s_e, tv_s_e_name2 " \
+        "WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id " \
+        "AND tv_s_e.tv_id = ? AND tv_s_e.season_number = ? AND tv_s_e.episode_number = ?" \
+        "AND tv_s_e_name2.language_id = ?",
+        movie_tv_id, season_number, episode_number, langInt);
+    } else {
+      stmtEpisodeName.finalizePrepareBindStep(
+        "SELECT episode_name FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?",
+        movie_tv_id, season_number, episode_number);
+    }
     const char *episode_name;
     if (stmtEpisodeName.readRow(episode_name) && episode_name) 
       jTvscraper.AddMember("episode_name", rapidjson::Value().SetString(rapidjson::StringRef(episode_name) ), jInfo.GetAllocator() );
@@ -840,7 +897,24 @@ bool cTVScraperDB::GetMovieTvID(const cEvent *event, int &movie_tv_id, int &seas
 
 std::string cTVScraperDB::GetEpisodeName(int tvID, int seasonNumber, int episodeNumber) const {
   if (seasonNumber == 0 && episodeNumber == 0) return "";
-  return queryString("select episode_name from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", tvID, seasonNumber, episodeNumber);
+  cSql stmtEpisodeName(this);
+  int langInt = queryInt("SELECT tv_display_language FROM tv2 WHERE tv_id = ?", tvID);
+  if (langInt > 0) {
+    stmtEpisodeName.finalizePrepareBindStep(
+      "SELECT tv_s_e_name2.episode_name " \
+      "FROM tv_s_e, tv_s_e_name2 " \
+      "WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id " \
+      "AND tv_s_e.tv_id = ? AND tv_s_e.season_number = ? AND tv_s_e.episode_number = ?" \
+      "AND tv_s_e_name2.language_id = ?",
+      tvID, seasonNumber, episodeNumber, langInt);
+  } else {
+    stmtEpisodeName.finalizePrepareBindStep(
+      "SELECT episode_name FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?",
+      tvID, seasonNumber, episodeNumber);
+  }
+  const char *episode_name;
+  if (stmtEpisodeName.readRow(episode_name) && episode_name) return episode_name;
+  return "";
 }
 
 string cTVScraperDB::GetDescriptionTv(int tvID) {
@@ -873,8 +947,24 @@ bool cTVScraperDB::GetTv(int tvID, time_t &lastUpdated, string &status) {
   return sql.readRow(lastUpdated, status);
 }
 
-bool cTVScraperDB::GetTvEpisode(int tvID, int seasonNumber, int episodeNumber, int &episodeID, string &name, string &airDate, float &vote_average, string &overview, string &episodeGuestStars) {
-  cSql sql(this, "select episode_id, episode_name, episode_air_date, episode_vote_average, episode_overview, episode_guest_stars from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", tvID, seasonNumber, episodeNumber);
+bool cTVScraperDB::GetTvEpisode(int tvID, int seasonNumber, int episodeNumber, int &episodeID, std::string &name, std::string &airDate, float &vote_average, std::string &overview, std::string &episodeGuestStars) {
+  cSql sql(this);
+  int langInt = queryInt("SELECT tv_display_language FROM tv2 WHERE tv_id = ?", tvID);
+  if (langInt > 0) {
+    sql.finalizePrepareBindStep(
+      "SELECT tv_s_e.episode_id, tv_s_e_name2.episode_name, tv_s_e.episode_air_date, " \
+      "tv_s_e.episode_vote_average, tv_s_e.episode_overview, tv_s_e.episode_guest_stars " \
+      "FROM tv_s_e, tv_s_e_name2 " \
+      "WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id " \
+      "AND tv_s_e.tv_id = ? AND tv_s_e.season_number = ? AND tv_s_e.episode_number = ?" \
+      "AND tv_s_e_name2.language_id = ?",
+      tvID, seasonNumber, episodeNumber, langInt);
+  } else {
+    sql.finalizePrepareBindStep(
+      "SELECT episode_id, episode_name, episode_air_date, episode_vote_average, episode_overview, episode_guest_stars " \
+      "FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?",
+      tvID, seasonNumber, episodeNumber);
+  }
   return sql.readRow(episodeID, name, airDate, vote_average, overview, episodeGuestStars);
 }
 

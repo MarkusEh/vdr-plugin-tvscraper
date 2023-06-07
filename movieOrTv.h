@@ -17,6 +17,7 @@ public:
   virtual ~cMovieOrTv() {};
   virtual bool operator==(const cMovieOrTv &sec) const = 0;
   virtual int dbID() const = 0;
+  virtual int langId(const cLanguage *lang) const { return lang?lang->m_id:0; }
   int getSeason() const { return m_seasonNumber; }
   int getEpisode() const { return m_episodeNumber; }
   virtual void DeleteMediaAndDb() = 0;
@@ -50,7 +51,7 @@ public:
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event, const cRecording *recording, int *runtime=nullptr);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event, int *runtime=nullptr);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cRecording *recording, int *runtime=nullptr);
-  static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang);
+  static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang);
   static void CleanupTv_media(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, const cTVScraperDB *db);
@@ -142,6 +143,7 @@ class cTvTvdb : public cTv {
 public:
   cTvTvdb(const cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
   virtual int dbID() const { return m_id * -1; }
+  virtual int langId(const cLanguage *lang) const { return lang?config.GetLanguageThetvdb(lang)->m_id:0; }
   virtual void DeleteMediaAndDb();
   virtual vector<cActor> GetActors(bool fullPath = true);
   virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath);

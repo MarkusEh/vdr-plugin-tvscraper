@@ -27,14 +27,16 @@ private:
     std::set<int> episodeRunTimes;
     const char *fanart = NULL;
     const char *poster = NULL;
+    std::string translations;
     const char *translation(const rapidjson::Value &jTranslations, const char *arrayAttributeName, const char *textAttributeName);
 public:
     cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper, int seriesID);
     std::string m_language; // this is the default language, if name translations are available in the default language. Otherwise, the original language
     virtual ~cTVDBSeries(void);
-    bool ParseJson_Series(const rapidjson::Value &series);
+    bool ParseJson_Series(const rapidjson::Value &series, const cLanguage *displayLanguage);
     int ParseJson_Episode(const rapidjson::Value &episode, cSql &insertEpisode);
     bool ParseJson_Episode(const rapidjson::Value &episode, const cLanguage *lang, cSql &insertEpisodeLang);
+    bool ParseJson_Episode(const rapidjson::Value &jEpisode, cSql &insertEpisode2, cSql &insertRuntime, const cLanguage *lang, cSql &insertEpisodeLang);
     void StoreDB();
     bool ParseJson_Character(const rapidjson::Value &character);
     bool ParseJson_Artwork(const rapidjson::Value &series);

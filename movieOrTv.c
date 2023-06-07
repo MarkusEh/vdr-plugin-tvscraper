@@ -257,8 +257,9 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOr
 }
 
 int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years, const cLanguage *lang) {
-// return 1000, if no match was found
-// otherwise, distance
+// search tvSearchEpisodeString_i in db with episode names in language lang
+// return 1000 and set m_seasonNumber = m_episodeNumber = 0, if no match was found
+// otherwise, set m_seasonNumber and m_episodeNumber and return distance
   bool debug = dbID() == 197649 || dbID() == 197648 || tvSearchEpisodeString_i.length() > 200;
   debug = debug || (tvSearchEpisodeString_i.length() > 0 && tvSearchEpisodeString_i[0] == 0);
   debug = debug || (tvSearchEpisodeString_i.length() > 1 && tvSearchEpisodeString_i[1] == 0);
@@ -269,12 +270,9 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
   int best_distance = 1000;
   int best_season = 0;
   int best_episode = 0;
-  bool isDefaultLang = config.isDefaultLanguage(lang);
-  const char *sqld = "select episode_name, season_number, episode_number, episode_air_date FROM tv_s_e WHERE tv_id =?";
   const char *sqll = "select tv_s_e_name2.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name2 WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name2.language_id = ?;";
   cSql statement(m_db);
-  if (!isDefaultLang) statement.finalizePrepareBindStep(cStringRef(sqll), dbID(), lang->m_id);
-  else statement.finalizePrepareBindStep(cStringRef(sqld), dbID());
+  statement.finalizePrepareBindStep(cStringRef(sqll), dbID(), langId(lang) );
   for (cSql &sqli: statement) {
     const char *episodeName = NULL;
     const char *episode_air_date = NULL;
@@ -313,12 +311,26 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
 // return runtime only if episode runtime is available. No guess here (from list of episode runtimes)
 // we start to collect episode information. Data available from episode will not be requested from TV show
 // never available (only for movies): collectionId, collectionName
+
+// TODO: only one statement for tv2
   bool episodeDataAvailable = false, episodeImdbIdAvailable = false, episodeReleaseDateAvailable = false;
   if ((m_seasonNumber != 0 || m_episodeNumber != 0) &&
     (episodeName != NULL || imdbId != NULL || releaseDate != NULL || runtime != NULL)) {
-    cSql stmt(m_db, "select episode_name, episode_air_date, episode_run_time, episode_IMDB_ID " \
-      "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?");
-    stmt.resetBindStep(dbID(), m_seasonNumber, m_episodeNumber);
+    int langInt = m_db->queryInt("SELECT tv_display_language FROM tv2 WHERE tv_id = ?", dbID());
+    cSql stmt(m_db);
+    if (langInt > 0) {
+      stmt.finalizePrepareBindStep(
+        "SELECT tv_s_e_name2.episode_name, tv_s_e.episode_air_date, tv_s_e.episode_run_time, tv_s_e.episode_IMDB_ID " \
+        "FROM tv_s_e, tv_s_e_name2 " \
+        "WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id " \
+        "AND tv_s_e.tv_id = ? AND tv_s_e.season_number = ? AND tv_s_e.episode_number = ? " \
+        "AND tv_s_e_name2.language_id = ?", dbID(), m_seasonNumber, m_episodeNumber, langInt);
+    } else {
+      stmt.finalizePrepareBindStep(
+        "SELECT episode_name, episode_air_date, episode_run_time, episode_IMDB_ID " \
+        "FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?",
+         dbID(), m_seasonNumber, m_episodeNumber);
+    }
     if (stmt.readRow(episodeName, releaseDate, runtime, imdbId) ) {
       episodeDataAvailable = true;
       episodeReleaseDateAvailable = releaseDate && !releaseDate->empty();
@@ -638,15 +650,22 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *r
 }
 
 // search episode
-int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang) {
+int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang) {
+// return 1000 if no episode was found
+// otherwise, return distance 0-999 (smaller numbers are better matches)
   bool debug = false;
+  debug = movieOrTv.id == -294265;
+  if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%.*s\"", static_cast<int>(tvSearchEpisodeString.length()), tvSearchEpisodeString.data());
   movieOrTv.season  = 0;
   movieOrTv.episode = 0;
+  if (!extMovieTvDb) return 1000;
+  int rc = extMovieTvDb->downloadEpisodes(std::abs(movieOrTv.id), lang);
+  if (rc != 0 && rc != 1) return 1000; // allow 1 (no episode names in this language), there might be other indicators like (episodeNumber)
   cMovieOrTv *mv =  cMovieOrTv::getMovieOrTv(db, movieOrTv);
   if (!mv) return 1000;
   int distance = mv->searchEpisode(tvSearchEpisodeString, baseNameOrTitle, years, lang);
   
-  if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::earchEpisode search string \"%.*s\" season %i episode %i", static_cast<int>(tvSearchEpisodeString.length()), tvSearchEpisodeString.data(), mv->m_seasonNumber, mv->m_episodeNumber);
+  if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%.*s\" season %i episode %i", static_cast<int>(tvSearchEpisodeString.length()), tvSearchEpisodeString.data(), mv->m_seasonNumber, mv->m_episodeNumber);
   if (distance != 1000) {
     movieOrTv.season  = mv->m_seasonNumber;
     movieOrTv.episode = mv->m_episodeNumber;

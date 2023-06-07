@@ -25,17 +25,14 @@ struct sMovieOrTv {
 };
 class cLanguage {
   public:
-    cLanguage(int id, const char*thetvdb, const char *themoviedb, const char *name):
+    cLanguage(int id, const char *thetvdb, const char *themoviedb, const char *name):
       m_id(id), m_thetvdb(thetvdb), m_themoviedb(themoviedb), m_name(name) {}
     int m_id;
     const char *m_thetvdb;
     const char *m_themoviedb;
     const char *m_name;
-    std::string getNames() const {
-      std::stringstream result;
-      result << m_thetvdb << " " << m_themoviedb << " " << m_name;
-      return result.str();
-    }
+    std::string getNames() const;
+    void log() const;
 };
 struct sChannelMapEpg {
       std::string extid;    // ARD
@@ -103,7 +100,6 @@ class cTVScraperConfig {
         set<int> m_TV_Shows;  // TV_Shows where missing episodes will be recorded
         set<int> m_AdditionalLanguages;
         int m_enableAutoTimers;
-        int m_defaultLanguage = 0;
         map<tChannelID, int> m_channel_language; // if a channel is not in this map, it has the default language
 // End of list of data that can be changed in the setup menu
         bool m_HD_ChannelsModified = false;
@@ -114,22 +110,28 @@ class cTVScraperConfig {
     public:
         cTVScraperConfig();
         ~cTVScraperConfig();
+// see https://api.themoviedb.org/3/configuration/languages?api_key=abb01b5a277b9c2c60ec0302d83c5ee9
+// see https://api.themoviedb.org/3/configuration/primary_translations?api_key=abb01b5a277b9c2c60ec0302d83c5ee9
+
 // static constant
         const std::set<cLanguage, std::less<>> m_languages =
 {
 { 1, "dan", "da-DK", "dansk"},
-{ 2, "deu", "de-AT", "Deutsch, Österreich"},
-{ 3, "deu", "de-CH", "Deutsch, Schweiz"},
-{ 4, "deu", "de-DE", "Deutsch"},
-{ 5, "eng", "en-GB", "English GB"},
-{ 6, "eng", "en-US", "English US"},
+{ 2, "deu", "de-AT", "deutsch, Österreich"},
+{ 3, "deu", "de-CH", "deutsch, Schweiz"},
+{ 4, "deu", "de-DE", "deutsch"},
+{ 5, "eng", "en-GB", "english GB"},
+{ 6, "eng", "en-US", "english US"},
 { 7, "fra", "fr-FR", "français"},
 { 8, "ita", "it-IT", "italiano"},
-{ 9, "nld", "nl-NL", "Nederlands"},
+{ 9, "nld", "nl-NL", "nederlands"},
 {10, "spa", "es-ES", "español"},
 {11, "fin", "fi-FI", "suomi"},
+{12, "ita", "it-IT", "italiano"},
+{13, "nld", "nl-NL", "nederlands"},
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
+        const cLanguage *m_defaultLanguage = &m_emergencyLanguage;
 // list of data that can be changed in the setup menu
         int enableDebug;
 // End of list of data that can be changed in the setup menu
@@ -157,6 +159,7 @@ class cTVScraperConfig {
         const string &GetEPG_UpdateFileName(void) const { return EPG_UpdateFileName; };
         const string &GetRecordingsUpdateFileName(void) const { return recordingsUpdateFileName; };
         bool GetReadOnlyClient() const { return readOnlyClient; }
+        bool isUpdateFromExternalDbRequired(time_t lastUpdate) { return difftime(time(0), lastUpdate) >= 60*60*24*14; }
 // Methods to access parameters (lists) that can be changed in setup menu
 // These methods are thread save
         set<tChannelID> GetScrapeAndEpgChannels() const;
@@ -170,10 +173,13 @@ class cTVScraperConfig {
         map<tChannelID, int> GetChannelLanguages() const { cTVScraperConfigLock l; auto r = m_channel_language;  return r; }
         int numAdditionalLanguages() const { cTVScraperConfigLock l; int r = m_AdditionalLanguages.size(); return r; }
         set<int> GetAdditionalLanguages() const { cTVScraperConfigLock l; auto r = m_AdditionalLanguages; return r; }
-        const cLanguage *GetDefaultLanguage() const; // this will ALLWAYS return a valid pointer to cLanguage
+        const cLanguage *GetDefaultLanguage() const { return m_defaultLanguage; } // this will ALLWAYS return a valid pointer to cLanguage
         const cLanguage *GetLanguage(const tChannelID &channelID) const;  // this will ALLWAYS return a valid pointer to cLanguage
-        bool isDefaultLanguage(const cLanguage *l) const { if (!l) return true; cTVScraperConfigLock ll; bool r = l->m_id == m_defaultLanguage; return r; }
+        bool isDefaultLanguage(const cLanguage *l) const { if (!l) return false; return l->m_id == m_defaultLanguage->m_id; }
+        bool isDefaultLanguageThetvdb(const cLanguage *l) const { if (!l) return false; return strcmp(l->m_thetvdb, m_defaultLanguage->m_thetvdb) == 0; }
         int GetLanguage_n(const tChannelID &channelID) const;
+        const cLanguage *GetLanguageThetvdb(const cLanguage *l) const;
+        const cLanguage *GetLanguage(int l) const;
         bool loadPlugins();
         std::shared_ptr<iExtEpgForChannel> GetExtEpgIf(const tChannelID &channelID) const;
         bool myDescription(const char *description) {

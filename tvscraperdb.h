@@ -520,7 +520,7 @@ public:
     void DeleteSeries(int seriesID, const string &movieDir, const string &seriesDir) const;
     int DeleteSeries(int seriesID) const;
     void DeleteSeriesCache(int seriesID) const;
-    void InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy);
+    void InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy, const char *languages);
     void InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes);
     void TvSetEpisodesUpdated(int tvID);
     void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);

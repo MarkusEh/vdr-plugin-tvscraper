@@ -207,9 +207,18 @@ class cJsonArrayIterator {
 };
 
 std::string getValueArrayConcatenated(const rapidjson::Value &json, const char *arrayName, const char *attributeName) {
+// concatenate all values of attribute attributeName in array arrayName
   cContainer result;
   for (const rapidjson::Value &elem: cJsonArrayIterator(json, arrayName)) {
     result.insert(getValueCharS(elem, attributeName));
+  }
+  return result.moveBuffer();
+}
+std::string getArrayConcatenated(const rapidjson::Value &json, const char *arrayName) {
+// concatenate all strings in array arrayName (use this if there is an array with strings ...)
+  cContainer result;
+  for (const rapidjson::Value &elem: cJsonArrayIterator(json, arrayName)) {
+    if (elem.IsString()) result.insert(elem.GetString() );
   }
   return result.moveBuffer();
 }

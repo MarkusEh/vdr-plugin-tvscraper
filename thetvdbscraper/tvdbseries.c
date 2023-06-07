@@ -37,11 +37,11 @@ const char *cTVDBSeries::translation(const rapidjson::Value &jTranslations, cons
   return NULL;
 }
 
-bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries) {
+bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries, const cLanguage *displayLanguage) {
 // curl -X 'GET' 'https://api4.thetvdb.com/v4/series/73893/extended?meta=translations&short=false' -H 'accept: application/json' -H 'Authorization: Bearer ' > 11_extended.json
 // jSeries must be the "data" of the response
 
-// no episodes (later, with language)
+// no episodes (already done, with language)
 // includes translations -> nameTranslations and translations -> overviewTranslations
 // includes characters: Actors, guest stars, director, writer, ... for all episodes ... 846 Characters ... (not here, first episodes)
 // ignore Actors here. Actors (including images) are taken from the <Actors> section
@@ -53,42 +53,15 @@ bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries) {
     return false;
   }
 // any translations?
-  bool translationAvailable = false;
-  rapidjson::Value::ConstMemberIterator nameTranslations_it = jSeries.FindMember("nameTranslations");
-  if (nameTranslations_it != jSeries.MemberEnd() && nameTranslations_it->value.IsArray() ) {
-// some translations are available
-// check: translation in default language m_language available?
-    for (const rapidjson::Value &translation: nameTranslations_it->value.GetArray() ) {
-      if (translation.IsString() && translation.GetString() && strcmp(translation.GetString(), m_language.c_str() ) == 0) {
-        translationAvailable = true;
-        break;
-      }
-    }
-    if (!translationAvailable) for (const int &l: config.GetAdditionalLanguages() ) {
-  // translation in default language m_language is not available
-  // check: translation in an additional language available?
-      auto f = config.m_languages.find(l);
-      if (f == config.m_languages.end() ) continue;   // ignore default language, as this was already checked
-      if (!f->m_thetvdb || !*f->m_thetvdb) continue;
-      for (const rapidjson::Value &translation: nameTranslations_it->value.GetArray() ) {
-        if (translation.IsString() && translation.GetString() && strcmp(translation.GetString(), f->m_thetvdb) == 0) {
-          translationAvailable = true;
-          break;
-        }
-      }
-      if (translationAvailable) {
-        m_language = f->m_thetvdb;
-        break;
-      }
-    }
-  }
-// if no translation is available, use originalLanguage as last resort
-  if (!translationAvailable) m_language = getValueString(jSeries, "originalLanguage");
+  translations = getArrayConcatenated(jSeries, "nameTranslations");
+  popularity = getValueInt(jSeries, "score");
+  if (popularity == 0) popularity = 1;  // 0 indicates that no score is available in internal db, and will result in access to external db. 
+  m_db->exec("INSERT INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update) VALUES(?, ?, ?, ?) ON CONFLICT(tv_id) DO UPDATE SET tv_score = excluded.tv_score, tv_languages = excluded.tv_languages, tv_languages_last_update = excluded.tv_languages_last_update", -m_seriesID, popularity, translations, time(0) );
+  m_language = displayLanguage->m_thetvdb;
+
   originalName = getValueCharS(jSeries, "name");
   poster = getValueCharS(jSeries, "image"); // other images will be added in ParseJson_Artwork
   firstAired = getValueCharS(jSeries, "firstAired");
-  popularity = getValueInt(jSeries, "score");
-  if (popularity == 0) popularity = 1;  // 0 indicates that no score is available in internal db, and will result in access to external db. 
 // Status
   status = getValueCharS2(jSeries, "status", "name"); // e.g. Ended
 // Networks
@@ -109,11 +82,37 @@ bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries) {
   if (!name || !*name) {
     name = originalName; // translation in desired language is not available, use name in original language
 // we already checked that the name translation is available, seems to be an error
-    esyslog("tvscraper, ERROR cTVDBSeries::ParseJson_Series, m_language %s, translationAvailable %s, name %s, seriesID %i", m_language.c_str(), translationAvailable?"true":"false", name, m_seriesID);
+    esyslog("tvscraper, ERROR cTVDBSeries::ParseJson_Series, m_language %s, name %s, seriesID %i", m_language.c_str(), name, m_seriesID);
   }
-// defaultSeasonType
   return true;
 }
+
+bool cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, cSql &insertEpisode2, cSql &insertRuntime, const cLanguage *lang, cSql &insertEpisodeLang) {
+// write both, tv_s_e & tv_lang
+// read data (episode name) from json, for one episode, and write this data to db with additional languages
+  if (m_seriesID == 0) return 0;  // seriesID must be set, before calling
+  int episodeID = getValueInt(jEpisode, "id");
+  if (episodeID == 0) return false;
+// tv_s_e
+  int episodeRunTime = getValueInt(jEpisode, "runtime");
+  if (episodeRunTime != 0) insertRuntime.resetBindStep(-m_seriesID, episodeRunTime);
+  else episodeRunTime = -1; // -1: no data available in external db; 0: data in external db not requested
+
+// 2: remove name & overview: here in language lang, which might not be the correct language
+  insertEpisode2.resetBindStep(
+     -m_seriesID, getValueInt(jEpisode, "seasonNumber"), getValueInt(jEpisode, "number"), episodeID,
+     getValueCharS(jEpisode, "aired"), getValueCharS(jEpisode, "image"), episodeRunTime);
+
+// tv_name
+  const char *episodeName = getValueCharS(jEpisode, "name");
+  if (!episodeName || !*episodeName) return false;
+//    don't save normed strings in database.
+//      doesn't help for performance (norming one string only takes 5% of sentence_distance time
+//      makes changes to the norm algorithm almost impossible
+  insertEpisodeLang.resetBindStep(episodeID, lang->m_id, episodeName);
+  return true;
+}
+
 
 int cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, cSql &insertEpisode) {
 // return episode ID
@@ -130,7 +129,7 @@ int cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, cSql &inser
   else episodeRunTime = -1; // -1: no data available in external db; 0: data in external db not requested
 
   insertEpisode.resetBindStep(
-     -1 * m_seriesID, getValueInt(jEpisode, "seasonNumber"), getValueInt(jEpisode, "number"), episodeID,
+     -m_seriesID, getValueInt(jEpisode, "seasonNumber"), getValueInt(jEpisode, "number"), episodeID,
      getValueCharS(jEpisode, "name"), getValueCharS(jEpisode, "aired"),
      getValueCharS(jEpisode, "overview"), getValueCharS(jEpisode, "image"), episodeRunTime);
 /*
@@ -159,7 +158,7 @@ bool cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, const cLan
 
 void cTVDBSeries::StoreDB() {
   if (episodeRunTimes.empty() ) episodeRunTimes.insert(-1); // empty episodeRunTimes results in re-reading it from external db. And there is no data on external db ...
-  m_db->InsertTv(m_seriesID * (-1), name, originalName, overview, firstAired, networks, genres, popularity, rating, ratingCount, cTVDBScraper::getDbUrl(poster), cTVDBScraper::getDbUrl(fanart), IMDB_ID, status, episodeRunTimes, nullptr);
+  m_db->InsertTv(-m_seriesID, name, originalName, overview, firstAired, networks, genres, popularity, rating, ratingCount, cTVDBScraper::getDbUrl(poster), cTVDBScraper::getDbUrl(fanart), IMDB_ID, status, episodeRunTimes, nullptr, translations.c_str() );
 }
 
 struct sImageScore {

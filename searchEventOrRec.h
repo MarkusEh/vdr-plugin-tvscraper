@@ -21,8 +21,6 @@ private:
   int ScrapFindAndStore(sMovieOrTv &movieOrTv);
   bool CheckCache(sMovieOrTv &movieOrTv);
   void ScrapAssign(const sMovieOrTv &movieOrTv);
-  int UpdateEpisodeListIfRequired(int tvID, const cLanguage *lang);
-  int UpdateEpisodeListIfRequired_i(int tvID);
   void getActorMatches(const char *actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, cContainer &alreadyFound);
   void getDirectorWriterMatches(std::string_view directorWriter, int &numMatchesAll, int &numMatchesSure, cContainer &alreadyFound);
   void getDirectorWriterMatches(searchResultTvMovie &sR, const char *directors, const char *writers);

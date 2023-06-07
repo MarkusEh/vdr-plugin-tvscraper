@@ -78,6 +78,7 @@ int cScraperVideoImp::getDbId() {
 }
 
 bool cScraperVideoImp::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
+// TODO: faster m_movieOrTv->getOverview, with compieled SQL statements
   m_runtime = 0;
   m_collectionId = 0;
   bool scraperDataAvaiable = false;
@@ -235,11 +236,26 @@ bool cScraperVideoImp::isEpisodeIdentified() {
 bool cScraperVideoImp::getEpisode(std::string *name, std::string *overview, int *absoluteNumber, std::string *firstAired, int *runtime, float *voteAverage, int *voteCount, std::string *imdbId) {
   if (!isEpisodeIdentified() ) return false;
 
-  cSql stmt(m_db, "select episode_absolute_number, episode_name, episode_air_date, " \
-    "episode_run_time, episode_vote_average, episode_vote_count, episode_overview, " \
-    "episode_IMDB_ID " \
-    "from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?");
-  stmt.resetBindStep(m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode());
+  int langInt = m_db->queryInt("SELECT tv_display_language FROM tv2 WHERE tv_id = ?", m_movieOrTv->dbID());
+  cSql stmt(m_db);
+  if (langInt > 0) {
+    stmt.finalizePrepareBindStep(
+      "SELECT tv_s_e.episode_absolute_number, tv_s_e_name2.episode_name, tv_s_e.episode_air_date, " \
+      "tv_s_e.episode_run_time, tv_s_e.episode_vote_average, tv_s_e.episode_vote_count, " \
+      "tv_s_e.episode_overview, tv_s_e.episode_IMDB_ID " \
+      "FROM tv_s_e, tv_s_e_name2 " \
+      "WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id " \
+      "AND tv_s_e.tv_id = ? AND tv_s_e.season_number = ? AND tv_s_e.episode_number = ?" \
+      "AND tv_s_e_name2.language_id = ?",
+       m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode(), langInt);
+  } else {
+    stmt.finalizePrepareBindStep(
+      "SELECT episode_absolute_number, episode_name, episode_air_date, " \
+      "episode_run_time, episode_vote_average, episode_vote_count, episode_overview, " \
+      "episode_IMDB_ID " \
+      "FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?",
+       m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode());
+  }
   if (!stmt.readRow(absoluteNumber, name, firstAired, runtime, voteAverage, voteCount, overview, imdbId) ) return false;
   if (runtime && *runtime <= 0) *runtime = m_runtime_guess;
   return true;
