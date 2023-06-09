@@ -456,7 +456,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
 
 bool cTVScraperWorker::StartScrapping(bool &fullScan) {
   fullScan = false;
-  if (!manualScan && TimersRunningPlanned(15.) ) return false;
+//   if (!manualScan && TimersRunningPlanned(15.) ) return false;  // we avoided scans during recordings. Seems not to be required, and such scans have advantages (create timers for collectios ..., )
   bool resetScrapeTime = false;
   if (manualScan) {
     manualScan = false;

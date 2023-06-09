@@ -129,6 +129,7 @@ class cTVScraperConfig {
 {11, "fin", "fi-FI", "suomi"},
 {12, "ita", "it-IT", "italiano"},
 {13, "nld", "nl-NL", "nederlands"},
+{14, "swe", "sv-SE", "svenska"},
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
         const cLanguage *m_defaultLanguage = &m_emergencyLanguage;
