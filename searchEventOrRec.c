@@ -315,8 +315,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   for (searchResultTvMovie &searchResult: searchResults) searchResult.setMatchYear(m_years, m_sEventOrRecording->DurationInSec() );
   std::sort(searchResults.begin(), searchResults.end() );
   if (debug) for (searchResultTvMovie &searchResult: searchResults) searchResult.log(m_TVshowSearchString.c_str() );
-  const float minMatchPre = 0.5;
-  const float minMatchFinal = 0.5;
+  const float minMatchPre = config.minMatchFinal;
   std::vector<searchResultTvMovie>::iterator end = searchResults.begin();
   for (; end != searchResults.end(); end++) if (end->getMatch() < minMatchPre) break;
   if (searchResults.begin() == end) return scrapNone; // nothing good enough found
@@ -330,7 +329,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   }
 // no more information can be added. Best result is in searchResults[0]
   if (debug) esyslog("tvscraper: ScrapFind, found: %i, title: \"%s\"", searchResults[0].id(), m_TVshowSearchString.c_str() );
-  if (searchResults[0].getMatch() < minMatchFinal) return scrapNone; // nothing good enough found
+  if (searchResults[0].getMatch() < config.minMatchFinal) return scrapNone; // nothing good enough found
   if (searchResults[0].movie() ) { foundName = m_movieSearchString; return scrapMovie;}
   if (searchResults[0].delim() ) splitString(m_movieSearchString, searchResults[0].delim(), 4, foundName, episodeSearchString);
   else foundName = m_TVshowSearchString;
@@ -653,6 +652,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
   cSql actors(searchEventOrRec.m_db);
   if (sR.movie() ) {
 // movie
+//    sR.setTranslationAvailable(true); // we have no data, so we assume theis for movies
     sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(searchEventOrRec.m_db->GetMovieRuntime(sR.id() )) );
     sR.updateMatchText(cNormedString(searchEventOrRec.m_movieSearchString).sentence_distance(searchEventOrRec.m_db->GetMovieTagline(sR.id() )));
     actors.finalizePrepareBindStep("select actor_name, actor_role from actors, actor_movie where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?", sR.id());
@@ -669,8 +669,15 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
     sR.setDirectorWriter(0);
     if (sR.id() < 0) {
 // tv show from thetvdb
-      const char *sql = "select tv_score from tv_score where tv_id = ?";
-      sR.setScore(searchEventOrRec.m_db->queryInt(sql, sR.id() ) );
+      cSql stmtScore(searchEventOrRec.m_db, "SELECT tv_score, tv_languages FROM tv_score WHERE tv_id = ?", sR.id() );
+      if (!stmtScore.readRow() ) {
+        esyslog("tvscraper: ERROR cSearchEventOrRec::enhance1, no data in tv_score, tv_id = %i",  sR.id() );
+      } else {
+        sR.setScore(stmtScore.getInt(0) );
+        cSplit transSplit(stmtScore.getCharS(1), '|');
+        if (transSplit.find(searchEventOrRec.m_sEventOrRecording->GetLanguage()->m_thetvdb) == transSplit.end() ) sR.setTranslationAvailable(false);
+//        sR.setTranslationAvailable(transSplit.find(searchEventOrRec.m_sEventOrRecording->GetLanguage()->m_thetvdb) != transSplit.end() );
+      }
       if (debug) esyslog("tvscraper: enhance1 (4)" );
       if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
       actors.finalizePrepareBindStep("SELECT actor_name, actor_role FROM series_actors WHERE actor_series_id = ?", sR.id() * (-1));
@@ -678,6 +685,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
       if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
     } else {
 // tv show from themoviedb
+//      sR.setTranslationAvailable(true); // we have no data, so we assume theis for movies
       actors.finalizePrepareBindStep("select actor_name, actor_role from actors, actor_tv where actor_tv.actor_id = actors.actor_id and actor_tv.tv_id = ?", sR.id());
     }
   }
@@ -694,6 +702,7 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   if (searchResult.movie() ) return;
 //  if (searchResult.movie() ) { searchResult.setMatchEpisode(1000); return; }
 //  Transporter - The Mission: Is a movie, and we should not give negative point for having no episode match
+  if (searchResult.simulateMatchEpisode(0) < config.minMatchFinal) return; // best possible distance is 0. If, with this distance, tha result will till not be selected, we don't need to calculate the distance
   std::string_view foundName;
   std::string_view episodeSearchString;
   sMovieOrTv movieOrTv;

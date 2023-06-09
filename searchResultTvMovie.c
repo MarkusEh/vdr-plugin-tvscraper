@@ -16,6 +16,7 @@ searchResultTvMovie::searchResultTvMovie(int id, bool movie, const char *year):
   m_matches[6].weight = 0.3; // match episode (for tv shows with episode only)
   m_matches[7].weight = 0.3; // baseNameEquShortText -> extra points for series
   m_matches[8].weight = 0.0001; // positionInExternalResult
+  m_matches[9].weight = 0.2; // translation available
 }
 searchResultTvMovie::~searchResultTvMovie() {
 //  if (m_id == 689390) log("Merlin movie 1998-04-26");
@@ -47,6 +48,7 @@ void searchResultTvMovie::log(std::string_view title) const {
       case 6: d = "Episode"; break;
       case 7: d = "BaseNameEquShortText"; break;
       case 8: d = "PositionInExternalResult"; break;
+      case 9: d = "TranslationAvailable"; break;
       default: d = "ERROR!!!!";
     }
     esyslog("tvscraper: searchResultTvMovie::log, i: %zu, match: %f, weight %f, desc: %s", i, m_matches[i].match, m_matches[i].weight, d);

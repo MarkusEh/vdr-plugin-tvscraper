@@ -132,6 +132,9 @@ class cTVScraperConfig {
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
         const cLanguage *m_defaultLanguage = &m_emergencyLanguage;
+// static constant
+        const float minMatchFinal = 0.5;
+
 // list of data that can be changed in the setup menu
         int enableDebug;
 // End of list of data that can be changed in the setup menu

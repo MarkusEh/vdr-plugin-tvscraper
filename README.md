@@ -6,7 +6,7 @@ This is a "plugin" for the Video Disk Recorder (VDR).
 - Re-written and maintained by: Markus Ehrnsperger (MarkusE @ vdr-portal.de)
 - Latest version available at:  https://github.com/MarkusEh/vdr-plugin-tvscraper
 
-Movie information provided by [TMDB](https://www.themoviedb.org/).
+Movie information provided by [TMDB](https://www.themoviedb.org/). "This product uses the TMDB API but is not endorsed or certified by TMDB."
 Series / TV show information provided by TheTVDB.com. [Please consider supporting them](https://u10505776.ct.sendgrid.net/ls/click?upn=xMYYCP13hVd-2BZPpbVcMPHeLXfv-2BPRdIsKm2qSeirIHi7kH9am8IxD-2BavFbeqGqIXIcjH_INgc0CXRkIvGU-2BJ1W6HLAynNbR0UBoMb2tkpDdezO3QRj-2FQPQAMrtJKVcB0N7eSvbYpjQTDNOQBf2pb94uDgGr0-2BXyXFk7Oyfva30BASYCRLvtRQyi5eOCAbH8fon7UETlPydobeLA3Recu9OsXol8c7Ng4pDAsH6KsFF8CH7HQoVxivnpKrQW2v4ek7U-2BYlWmH31o9Koke3vq-2FDsQ0P-2BiKLECU3LgttsntUcN8fnUs-3D).
 
 This program is free software; you can redistribute it and/or modify

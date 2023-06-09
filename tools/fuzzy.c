@@ -79,12 +79,29 @@ int romToArab(const char *&s, const char *se) {
   return ret;
 }
 
+void removeTeil(char *s, std::string_view teil) {
+// check if "teil" is in the string, and remove if reasonable
+  std::string_view sv(s);
+  size_t found = sv.rfind(teil);
+  if (found == std::string_view::npos) return; // not found
+  if (found < 5) return; // wee need some minimum entropy for search
+  if (sv[found-1] != ' ') return;     // begin word
+  size_t p = found + teil.length();
+  if (p < sv.length() && s[p] != ' ') return;  // end word
+  for (int na = 0; p < sv.length(); ++p) if (isalpha(s[p])) {
+    if (++na > 1) return;  // more than 1 alphabetic character after teil
+  }
+// remove teil
+  s[found-1] = 0;
+}
+
 int removeRomanNumC(char *to, std::string_view from) {
 // replace invalid UTF8 characters with ' '
 // replace roman numbers I - IX with ' '
 // return number of characters written to to  (don't count 0 terminator)
 // if to==NULL: don't write anything, just return the number
 
+  char *to_0 = to;
   int numChars = 0;
   const char *s  = from.data();
   const char *se = s + from.length(); // se points to char after last char (*se == 0 for c strings)
@@ -99,10 +116,14 @@ int removeRomanNumC(char *to, std::string_view from) {
     wint_t cChar;
     if (l == 0) { cChar = '?'; s++; }  // invalid utf
     else cChar = Utf8ToUtf32(s, l); // this also increases s
-    numChars += AppendUtfCodepoint(to, cChar); // also increases to
+    numChars += AppendUtfCodepoint(to, towlower(cChar) ); // also increases to
     wordStart = cChar == ' ';
   }
-  if (to) *to = 0;
+  if (to) {
+    *to = 0;
+    removeTeil(to_0, "teil");
+    removeTeil(to_0, "part");
+  }
   return numChars;
 }
 

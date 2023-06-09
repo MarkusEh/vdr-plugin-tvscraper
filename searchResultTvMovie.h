@@ -36,11 +36,13 @@ public:
   void setActors(int numMatches)  { m_matches[4].match = normMatch(numMatches/16.); }
   void setDirectorWriter(int numMatches)  { m_matches[5].match = normMatch(numMatches/2.); }
   void setMatchYear(const cYears &years, int durationInSec);
+  float simulateMatchEpisode(int distance) { float old = m_matches[6].match; setMatchEpisode(distance); float r = getMatch(); m_matches[6].match = old; return r; }
   void setMatchEpisode(int distance) { m_matches[6].match = (1000 - distance) / 1000.; }
   bool getMatchEpisode() const { return m_matches[6].match > 0.; }
   float getMatchText() const { return m_matches[0].match; }
   void setBaseNameEquShortText() { m_matches[7].match = 1.0; }
   void setPositionInExternalResult(int positionInExternalResult) { m_matches[8].match = 1.0 - normMatch(positionInExternalResult); }
+  void setTranslationAvailable(bool translationAvailable) { m_matches[9].match = translationAvailable?1.0:0.0; }
 
   void setDelim(char delim) { m_delim = delim; }
   int delim(void) const { return m_delim; }
@@ -53,6 +55,6 @@ private:
   int m_id;
   bool m_movie;
   int m_year;
-  sMatchWeight m_matches[9];
+  sMatchWeight m_matches[10];
   char m_delim = 0;
 };
