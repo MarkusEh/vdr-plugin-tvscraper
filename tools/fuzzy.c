@@ -96,10 +96,13 @@ void removeTeil(char *s, std::string_view teil) {
 }
 
 int removeRomanNumC(char *to, std::string_view from) {
+// intended to be called before passing "from" to the external search API, to find more results
+
 // replace invalid UTF8 characters with ' '
 // replace roman numbers I - IX with ' '
 // return number of characters written to to  (don't count 0 terminator)
-// if to==NULL: don't write anything, just return the number
+// if to==NULL: don't write anything, just return the (maximum) number
+// otherwise, also remove "teil" / "part" from the end of the string
 
   char *to_0 = to;
   int numChars = 0;
@@ -245,9 +248,9 @@ class cNormedString {
             m_normedString.erase(wordStart);
             m_normedString.append(1, '&');
           }
-          m_normedString.append(1, ' ');
-          wordStart = m_normedString.length();
         }
+        if (!m_normedString.empty() ) m_normedString.append(1, ' ');
+        wordStart = m_normedString.length();
       }
 // remove spaces at end
       while (!m_normedString.empty() && m_normedString.back() == ' ') m_normedString.pop_back();
@@ -264,7 +267,8 @@ class cNormedString {
       if (m_wordList.size() > 0) return;
       m_wordList.reserve(20);
       for (std::string_view lWord: cSplit(m_normedString, ' ')) {
-        if (lWord.length() > 2 && const_ignoreWords.find(lWord) == const_ignoreWords.end() ) m_wordList.push_back(lWord);
+// we have to include very short words (1 char) here, to take digits like in part 1 / part 2 into account
+        if (const_ignoreWords.find(lWord) == const_ignoreWords.end() ) m_wordList.push_back(lWord);
       }
 //      std::cout << "words m_normedString: " << getWords() << "\n";
     }
