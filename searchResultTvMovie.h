@@ -38,7 +38,10 @@ public:
   void setMatchYear(const cYears &years, int durationInSec);
   float simulateMatchEpisode(int distance) { float old = m_matches[6].match; setMatchEpisode(distance); float r = getMatch(); m_matches[6].match = old; return r; }
   void setMatchEpisode(int distance) { m_matches[6].match = (1000 - distance) / 1000.; }
-  bool getMatchEpisode() const { return m_matches[6].match > 0.; }
+//   distance <= 650: Text match
+//   distance == 700: year match, and number after ...
+//   distance == 950: only number after ...
+  int getMatchEpisode() const { return 1000 - m_matches[6].match * 1000; }
   float getMatchText() const { return m_matches[0].match; }
   void setBaseNameEquShortText() { m_matches[7].match = 1.0; }
   void setPositionInExternalResult(int positionInExternalResult) { m_matches[8].match = 1.0 - normMatch(positionInExternalResult); }

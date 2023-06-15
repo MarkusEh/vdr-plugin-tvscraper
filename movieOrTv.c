@@ -270,9 +270,7 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
   int best_distance = 1000;
   int best_season = 0;
   int best_episode = 0;
-  const char *sqll = "select tv_s_e_name2.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name2 WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id and tv_s_e.tv_id = ? and tv_s_e_name2.language_id = ?;";
-  cSql statement(m_db);
-  statement.finalizePrepareBindStep(cStringRef(sqll), dbID(), langId(lang) );
+  cSql statement(m_db, "SELECT tv_s_e_name2.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name2 WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id AND tv_s_e.tv_id = ? AND tv_s_e_name2.language_id = ?;", dbID(), langId(lang) );
   for (cSql &sqli: statement) {
     const char *episodeName = NULL;
     const char *episode_air_date = NULL;

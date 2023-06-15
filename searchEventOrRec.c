@@ -249,8 +249,11 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
 // pattern in title: TV show name
 //    in short text: episode name
         episodeSearchString = m_baseNameEquShortText?m_episodeName:m_sEventOrRecording->EpisodeSearchString();
-        if (searchResults[0].getMatchEpisode() ) {
-          movieOrTv.episodeSearchWithShorttext = 3;
+        if (searchResults[0].getMatchEpisode() < 1000) {
+          if (searchResults[0].getMatchEpisode() < 340) movieOrTv.episodeSearchWithShorttext = 3;
+// we request an episode match of the cached data only if there was a text match.
+// a number after the text is just too week, and if there was a year match this is reflected / checked in the cache anyway
+// note: we use episiode distance / 2, so distance <= 325 (roughly) is required for text match
           float bestMatchText = searchResults[0].getMatchText();
           std::string tv_name;
           for (const searchResultTvMovie &searchResult: searchResults) {
@@ -401,11 +404,12 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, cLargeStri
     for (size_t i = size0; i < resultSet.size(); i++)
       if (normedSearchString.sentence_distance(resultSet[i].m_normedName) < 600) return true;
   }
-  std::string_view searchString2 = SecondPart(searchString_f, ": ", 6);
-  if (!searchString2.empty())
+  std::string_view searchString2;
+  if (splitString(searchString_f, ": ", 6, searchString1, searchString2) ) {
+    extMovieTvDb->addSearchResults(buffer, resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
     extMovieTvDb->addSearchResults(buffer, resultSet, searchString2, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
-  bool split = splitString(searchString_f, " - ", 6, searchString1, searchString2);
-  if (split) {
+  }
+  if (splitString(searchString_f, " - ", 6, searchString1, searchString2)) {
     extMovieTvDb->addSearchResults(buffer, resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
     extMovieTvDb->addSearchResults(buffer, resultSet, searchString2, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
   }

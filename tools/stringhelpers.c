@@ -523,7 +523,7 @@ std::string_view SecondPart(std::string_view str, std::string_view delim) {
 // Return part of str after first occurence of delim
 // if delim is not in str, return ""
   size_t found = str.find(delim);
-  if (found == std::string::npos) return "";
+  if (found == std::string::npos) return std::string_view();
   std::size_t ssnd;
   for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
   return str.substr(ssnd);
