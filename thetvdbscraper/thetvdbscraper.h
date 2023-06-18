@@ -52,7 +52,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
     virtual int downloadEpisodes(int id, const cLanguage *lang) {
       cLargeString buffer("cTvDbTvScraper::downloadEpisodes", 2000);
       int res = m_TVDBScraper->downloadEpisodes(buffer, id, false, lang);
-      if (res == 1 && config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::downloadEpisodes lang %s not available, id %i",  lang->getNames().c_str(), id);
+//      if (res == 1 && config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::downloadEpisodes lang %s not available, id %i",  lang->getNames().c_str(), id);
       return res;
     }
 

@@ -217,18 +217,29 @@ bool cTv::IsUsed() {
   return config.TV_ShowSelected(dbID());
 }
 
-int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang) {
+int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, const char *description) {
 // return 1000, if no match was found
 // otherwise, distance
-  int distance = searchEpisode(tvSearchEpisodeString, years, lang);
+  int season_guess = -1; // -1: no season found (still, there might be an episode ..)
+  int episode_guess = 0; //  0: nothing found
+  if (description) episodeSEp(season_guess, episode_guess, description, "S", "Ep");
+  if (episode_guess == 0 && shortText) episodeSEp(season_guess, episode_guess, shortText, "S", "Ep");
+  int distance = searchEpisode(tvSearchEpisodeString, years, lang, season_guess, episode_guess);
   if (distance != 1000) return distance;
-// no match with episode name found, try episode number as part of title
-  int episodeNumber = NumberInLastPartWithPS(baseNameOrTitle);
-  if (episodeNumber != 0) {
+// no match with episode name found, try pattern "S2 Ep12" in description / shortText
+  if (episode_guess > 0 && season_guess >= 0) {
+    m_seasonNumber  = season_guess;
+    m_episodeNumber = episode_guess;
+    return 950; // no indication that this series is a better match than any other series
+  }
+// if no episode number found (episode_guess == 0), try episode number as part of title
+  if (episode_guess == 0) episode_guess = NumberInLastPartWithPS(baseNameOrTitle);
+  if (episode_guess != 0) {
+// we have a guess for the pepisode nuimber. Find the season number
     cSql sqlI  (m_db, "select season_number, episode_number from tv_s_e where tv_id = ? and episode_number = ?");
     cSql sqlI_a(m_db, "select season_number, episode_number from tv_s_e where tv_id = ? and episode_absolute_number = ?");
-    sqlI.resetBindStep  (dbID(), episodeNumber);
-    sqlI_a.resetBindStep(dbID(), episodeNumber);
+    sqlI.resetBindStep  (dbID(), episode_guess);
+    sqlI_a.resetBindStep(dbID(), episode_guess);
     if (!sqlI.readRow() && !sqlI_a.readRow() ) return 1000;  // nothing found without years, so there will be nothing with years ...
     cSql sqlI_y (m_db, "select season_number, episode_number from tv_s_e where tv_id = ? and episode_number = ? and episode_air_date like ?");
     cSql sqlI_ya(m_db, "select season_number, episode_number from tv_s_e where tv_id = ? and episode_absolute_number = ? and episode_air_date like ?");
@@ -238,8 +249,8 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOr
         year_s[i] = '0' + year % 10;
         year /= 10;
       }
-      if (sqlI.readRow()   &&  sqlI_y.resetBindStep(dbID(), episodeNumber, year_s).readRow(m_seasonNumber, m_episodeNumber)) return 700;
-      if (sqlI_a.readRow() && sqlI_ya.resetBindStep(dbID(), episodeNumber, year_s).readRow(m_seasonNumber, m_episodeNumber)) return 700;
+      if (sqlI.readRow()   &&  sqlI_y.resetBindStep(dbID(), episode_guess, year_s).readRow(m_seasonNumber, m_episodeNumber)) return 700;
+      if (sqlI_a.readRow() && sqlI_ya.resetBindStep(dbID(), episode_guess, year_s).readRow(m_seasonNumber, m_episodeNumber)) return 700;
     }
 // no match with year found, try without year
 // note: this is a very week indicator that the right TV show was choosen. So, even if there is a match, return a high distance (950)
@@ -256,7 +267,7 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOr
   return 1000;
 }
 
-int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years, const cLanguage *lang) {
+int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess) {
 // search tvSearchEpisodeString_i in db with episode names in language lang
 // return 1000 and set m_seasonNumber = m_episodeNumber = 0, if no match was found
 // otherwise, set m_seasonNumber and m_episodeNumber and return distance
@@ -283,10 +294,17 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years,
 //      makes changes to the norm algorithm almost impossible
     int distance = tvSearchEpisodeString.sentence_distance(episodeName);
     if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.m_normedString.c_str(), episodeName, season, episode, dbID(), distance);
-    if (season == 0) distance += 10; // avoid season == 0, could be making of, ...
+    if (season == 0) distance += 20; // avoid season == 0, could be making of, ...
     int f = years.find2(cYears::yearToInt(episode_air_date) );
     if (f == 2) distance = std::max(0, distance-100);
     else if (f == 1) distance = std::max(0, distance-50);
+    if (episode_guess > 0) {
+      if (season_guess >= 0) {
+        if (episode_guess == episode && season_guess == season) distance = std::max(0, distance-150);
+      } else {
+        if (episode_guess == episode) distance = std::max(0, distance-50);
+      }
+    }
     if (distance < best_distance) {
       best_distance = distance;
       best_season = season;
@@ -648,7 +666,7 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *r
 }
 
 // search episode
-int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang) {
+int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, const char *description) {
 // return 1000 if no episode was found
 // otherwise, return distance 0-999 (smaller numbers are better matches)
   bool debug = false;
@@ -661,7 +679,7 @@ int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iEx
   if (rc != 0 && rc != 1) return 1000; // allow 1 (no episode names in this language), there might be other indicators like (episodeNumber)
   cMovieOrTv *mv =  cMovieOrTv::getMovieOrTv(db, movieOrTv);
   if (!mv) return 1000;
-  int distance = mv->searchEpisode(tvSearchEpisodeString, baseNameOrTitle, years, lang);
+  int distance = mv->searchEpisode(tvSearchEpisodeString, baseNameOrTitle, years, lang, shortText, description);
   
   if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%.*s\" season %i episode %i", static_cast<int>(tvSearchEpisodeString.length()), tvSearchEpisodeString.data(), mv->m_seasonNumber, mv->m_episodeNumber);
   if (distance != 1000) {

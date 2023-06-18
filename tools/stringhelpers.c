@@ -498,8 +498,8 @@ bool splitString(std::string_view str, std::string_view delim, size_t minLengh, 
   for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
   if(str.length() - ssnd < minLengh) return false; // nothing found, second part to short
 
-  second = std::string_view(str).substr(ssnd);
-  first = std::string_view(str).substr(0, first_len);
+  second = str.substr(ssnd);
+  first = str.substr(0, first_len);
   return true;
 }
 
@@ -977,5 +977,45 @@ class cMeasureTime {
     std::chrono::duration<double> maxT = std::chrono::duration<double>(0.);
     std::chrono::time_point<std::chrono::high_resolution_clock> begin;
 };
+int getAsInt(std::string_view sv) {
+// read int in sv
+// return 0 is there is no int
+// ignore everything in sv after the first non-digit
+  int val = 0;
+  for (size_t p = 0; isdigit(sv[p]) && p < sv.length(); ++p) val = val*10 + (sv[p]-'0');
+  return val;
+}
+int seasonS(std::string_view description_part, const char *S) {
+// return season, if found at the beginning of description_part
+// otherwise, return -1
+  size_t s_len = strlen(S);
+  if (description_part.compare(0, s_len, S)  != 0) return -1;
+//  std::cout << "seasonS " << description_part << "\n";
+  if (description_part.length() <= s_len || !isdigit(description_part[s_len]) ) return -1;
+  return getAsInt(description_part.substr(s_len));
+}
+bool episodeSEp(int &season, int &episode, std::string_view description, const char *S, const char *Ep) {
+// search pattern S<digit> Ep<digits>
+// return true if episode was found.
+// set season = -1 if season was not found
+// set episode = 0 if episode was not found
+// find Ep[digit]
+  season = -1;
+  episode = 0;
+  size_t Ep_len = strlen(Ep);
+  size_t ep_pos = 0;
+  do {
+    ep_pos = description.find(Ep, ep_pos);
+    if (ep_pos == std::string_view::npos || ep_pos + Ep_len > description.length() ) return false;  // no Ep[digit]
+    ep_pos += Ep_len;
+//  std::cout << "ep_pos = " << ep_pos << "\n";
+  } while (!isdigit(description[ep_pos]));
+// Ep[digit] found
+//  std::cout << "ep found at " << description.substr(ep_pos) << "\n";
+  episode = getAsInt(description.substr(ep_pos));
+  if (ep_pos - Ep_len >= 3) season = seasonS(description.substr(ep_pos - Ep_len - 3), S);
+  if (season < 0 && ep_pos - Ep_len >= 4) season = seasonS(description.substr(ep_pos - Ep_len - 4), S);
+  return true;
+}
 
 #endif // __STRINGHELPERS_H

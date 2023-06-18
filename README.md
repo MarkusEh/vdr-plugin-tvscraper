@@ -51,14 +51,6 @@ Requirements
 - libsqlite3   sqlite3 3.24.0 (2018-06-04) or later
 - libcurl
 - gcc v8 or later. gcc must support -std=c++17.
-Note: if your version of GCC does not support -std=c++17, you can use -std=c++1z instead of -std=c++17. But:
-  - If you use -std=c++1z and see errors indicating a missing include (filesystem), you can change #include \<filesystem\> to #include \<experimental/filesystem\>
-  - There might be still compilation errors, because features in \<filesystem\> might be missing in \<experimental/filesystem\> . In this case, you have to upgrade your gcc compiler to GCC v8 or later
-  - See also:
-    - https://stackoverflow.com/questions/60336940/g-error-unrecognized-std-c17-what-is-g-version-and-how-to-install#60340063
-    - https://www.vdr-portal.de/forum/index.php?thread/135111-announce-vdr-plugin-tvscraper-1-0-0/&postID=1351517#post1351517
-    - https://www.vdr-portal.de/forum/index.php?thread/135453-kann-tvscraper-auf-opensuse-leap-15-4-nicht-%C3%BCbersetzen/&postID=1355981#post1355981
-
 - If you use TVGuide: Version 1.3.6+ is required
 - If you use SkinNopacity: Version 1.1.12+ is required
 
@@ -202,10 +194,11 @@ settype;string;type
 the type manually,
 "type" can be either "series" or "movie"
 ```
-- Substitute Search String:
+- Substitute Search String (deprecated):
 ```
 substitute;string;substitution
 "string" is replaced by "substitution" in every search.
+Note: this is deprecated. You should rename the recordings
 ```
 - Ignore all recordings in a dedicated directory:
 ```

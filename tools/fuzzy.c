@@ -215,47 +215,50 @@ class cNormedString {
       m_normedString.clear();
       m_normedString.reserve(str.length() );
       m_wordList.clear();
-      size_t wordStart = 0;
-      for (std::string_view word: cSplit(str, ' ')) {
-        if (word.empty() ) continue;
-// check for roman number
-        const char *s  = word.data();
-        int i = romToArab(s, s + word.length() ); // this also increases s, if a roman number was found.
-        if ( i > 0) {
-          stringAppend(m_normedString, i);
-        } else {
-          for (s = word.data(); s < word.data() + word.length(); ) {
-            wint_t cChar = getNextUtfCodepoint(s);  // this also increases s
-            if (std::iswalnum(cChar) ) stringAppendUtfCodepoint(m_normedString, towlower(cChar));
-            else switch (cChar) {
-              case '&':
-                m_normedString.append(1, cChar);
-                break;
-              case '-':
-                m_normedString.append(1, ' ');
-                break;
-              default:
-                break;
-            }
-          }
-// remove spaces at end
-          while (!m_normedString.empty() && m_normedString.back() == ' ') m_normedString.pop_back();
+// 1st step: sanitize UTF8, to_lower, replace non-alphanumeric with " "
+      for (const char *s = str.data(); s < str.data() + str.length(); ) {
+        wint_t cChar = getNextUtfCodepoint(s);  // this also increases s
+        if (std::iswalnum(cChar) ) stringAppendUtfCodepoint(m_normedString, towlower(cChar));
+        else switch (cChar) {
+          case '&':
+            m_normedString.append(1, cChar);
+            break;
+          default:
+            if (!m_normedString.empty() && m_normedString.back() != ' ') m_normedString.append(1, ' '); // -> all "unknown" non-alphanum characters -> " "
+            break;
         }
-        if (wordStart < m_normedString.length() ) {
-// something was appended
-          std::string_view lWord(m_normedString.data() + wordStart, m_normedString.length() - wordStart);
-          if (lWord == "und" || lWord == "and") {
-            m_normedString.erase(wordStart);
-            m_normedString.append(1, '&');
-          }
-        }
-        if (!m_normedString.empty() ) m_normedString.append(1, ' ');
-        wordStart = m_normedString.length();
       }
 // remove spaces at end
       while (!m_normedString.empty() && m_normedString.back() == ' ') m_normedString.pop_back();
+// next step: change words. Cannot use cSplit, as we change the string
+      bool changed;
+      do {
+        changed = false;
+        size_t we = 0;
+        for (size_t currentWordStart = 0; !changed && we != m_normedString.length(); currentWordStart = we + 1) {
+          we = m_normedString.find(" ", currentWordStart);
+          if (we == std::string::npos) we = m_normedString.length();
+          std::string_view lWord = std::string_view(m_normedString).substr(currentWordStart, we - currentWordStart);
+          if (lWord == "und" || lWord == "and") {
+            m_normedString.erase(currentWordStart, lWord.length() );
+            m_normedString.insert(currentWordStart, 1, '&');
+            changed = true;
+          } else {
+// check for roman number
+            const char *s  = lWord.data();
+            int i = romToArab(s, s + lWord.length() ); // this also increases s, if a roman number was found.
+            if ( i > 0 && s == lWord.data() + lWord.length() ) {
+              m_normedString.erase(currentWordStart, lWord.length() );
+              char buf[21]; // unsigned int 64: max. 20. (18446744073709551615) signed int64: max. 19 (+ sign)
+              char *bufferEnd = buf+20;
+              for (*bufferEnd = 0; i; i /= 10) *(--bufferEnd) = '0' + (i%10);
+              m_normedString.insert(currentWordStart, bufferEnd);
+              changed = true;
+            }
+          }
+        } // for size_t currentWordStart = 0; ...
+      } while (changed);
 //      std::cout << str << " -> \"" << m_normedString << "\"\n";
-//      std::cout << str << " -> \"" << m_normedString << "\" -> \"" << normString(str) << "\"\n";
       return *this;
     }
   private:
@@ -349,10 +352,11 @@ class cNormedString {
       int dist_lcsubstr_norm = 1000 * dist_lcsubstr / max_dist_lcsubstr;
 
       int max1 = std::max(15, 2*minLen);
-      int max2 = std::max( 9, minLen + minLen/2);
+      int max2 = std::max( 9, 2*minLen);
       int dist_norm = dist_norm_fuzzy(other, max1);
+//      std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
       if (maxLen > max2 && max1 != max2) dist_norm = std::min(dist_norm, dist_norm_fuzzy(other, max2));
-    //  std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
+//      std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
       return std::min(curDistance, dist_norm / 2 + dist_lcsubstr_norm / 2 + m_malus + other.m_malus);
     }
     int minDistanceNormedStrings(const std::vector<std::optional<cNormedString>> &normedStrings, int curDistance) const {
@@ -427,8 +431,8 @@ cNormedStringsDelim::cNormedStringsDelim(std::string_view searchString, char del
   if (!searchString2.empty() ) m_normedStrings[2].emplace(searchString2, 50);
   bool split = splitString(searchString, " - ", 4, searchString1, searchString2);
   if (split) {
-    m_normedStrings[3].emplace(searchString1, 70);
-    m_normedStrings[4].emplace(searchString2, 70);
+    if (searchString1.length() > 5) m_normedStrings[3].emplace(searchString1, 70);
+    if (searchString2.length() > 5) m_normedStrings[4].emplace(searchString2, 70);
   }
 }
 int cNormedStringsDelim::minDistance(const cNormedString &compareString, int curDistance) const {

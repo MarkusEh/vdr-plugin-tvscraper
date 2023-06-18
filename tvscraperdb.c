@@ -586,7 +586,7 @@ bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {
 // return true if there might be new episodes in this language
   cSql stmt_tv2(this, "SELECT tv_last_changed, tv_last_updated, tv_status FROM tv2 WHERE tv_id = ?", tvID);
   if (!stmt_tv2.readRow()) {
-    if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired not found in tv2, tvID %i, langId %i", tvID, langId);
+//  if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired not found in tv2, tvID %i, langId %i", tvID, langId);
     return true;
   }
   time_t tv2_tv_last_updated = stmt_tv2.getInt64(1);
@@ -599,7 +599,7 @@ bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {
 
   cSql stmt_tv_name_last_updated(this, "SELECT tv_last_updated FROM tv_name WHERE tv_id = ? AND language_id = ?", tvID, langId);
   if (!stmt_tv_name_last_updated.readRow()) {
-    if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired not found in tv_name, tvID %i, langId %i", tvID, langId);
+//    if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired not found in tv_name, tvID %i, langId %i", tvID, langId);
     return true;
   }
 // check: additional episodes added, but not in langId?
