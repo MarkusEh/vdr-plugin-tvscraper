@@ -74,7 +74,7 @@ bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries, const cLangu
     if (IMDB_ID && *IMDB_ID) break;
   }
 // translations (name, overview)
-  rapidjson::Value::ConstMemberIterator translations_it = getTag(jSeries, "translations", "cTVDBSeries::ParseJson_Series");
+  rapidjson::Value::ConstMemberIterator translations_it = getTag(jSeries, "translations", "cTVDBSeries::ParseJson_Series", nullptr);
   if (translations_it != jSeries.MemberEnd() && translations_it->value.IsObject() ) {
     name = translation(translations_it->value, "nameTranslations", "name");
     overview = translation(translations_it->value, "overviewTranslations", "overview");

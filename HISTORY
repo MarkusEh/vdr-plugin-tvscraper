@@ -95,5 +95,5 @@ Version 1.1.13
 2023-06-18: Version 1.2.0
 - Auto timers
 - Language support
-- Support plugins to provide external EPG
+- Support plugins providing external EPG
 - And many other (smaller) improvemnts

@@ -213,9 +213,9 @@ int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url
       return 0;
     }
   }
-  if (getValueInt(root, "total_results", 0, "cMovieDbMovie::AddMovieResultsForUrl") == 0) return 0;
+  if (getValueInt(root, "total_results", 0, "cMovieDbMovie::AddMovieResultsForUrl", &buffer) == 0) return 0;
   AddMovieResults(root, resultSet, compareStrings, description, setMinTextMatch, lang);
-  return getValueInt(root, "total_pages", 0, "cMovieDbMovie::AddMovieResultsForUrl");
+  return getValueInt(root, "total_pages", 0, "cMovieDbMovie::AddMovieResultsForUrl", &buffer);
 }
 void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang) {
   int res = -1;

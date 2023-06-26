@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include <string>
+#include <vector>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -80,7 +81,8 @@ class cLargeString {
     void clear();
     inline size_t length() const { return m_string_end - m_s; }
     inline bool empty() const { return m_string_end == m_s; }
-    cLargeString &erase(size_t index = 0) { setMaxSize(); m_string_end = std::min(m_string_end, m_s + index); return *this;}
+    std::string substr(size_t pos, size_t count = std::string::npos) const; // as std::string.substr(), but replace 0 with %
+//    cLargeString &erase(size_t index = 0) { setMaxSize(); m_string_end = std::min(m_string_end, m_s + index); return *this;}
     char operator[](size_t i) const { return *(m_s + i); }
     operator std::string_view() const { return std::string_view(m_s, m_string_end - m_s); }
     const char *nameData() const { return m_nameData; }

@@ -133,6 +133,7 @@ cLargeString &cLargeString::appendS(const char *s) {
   m_string_end += len;
   return *this;
 }
+
 void cLargeString::enlarge(size_t increaseSize) {
   increaseSize = std::max(increaseSize, m_increaseSize);
   increaseSize = std::max(increaseSize, (size_t)((m_buffer_end - m_s)/2) );
@@ -151,4 +152,11 @@ void cLargeString::enlarge(size_t increaseSize) {
   }
   m_buffer_end = m_s + newSize;
   m_string_end = m_s + stringLength;
+}
+
+std::string cLargeString::substr(size_t pos, size_t count) const {
+  if (pos >= length() ) return "";
+  std::string result(m_s + pos, std::min(length() - pos, count) );
+  for (char &si: result) if (si == 0) si = '%';
+  return result;
 }

@@ -69,17 +69,44 @@ void DeleteAll(const string &dirname) {
   else if (config.enableDebug) esyslog("tvscraper: deleted  \"%s\", %ju files", dirname.c_str(), n);
 }
 
+bool CheckDownloadAccessDenied(const cLargeString &df) {
+// return true if df contains an XML file, indication AccessDenied
+// return false, otherwise
+  if (df.length() < 50) return false;
+// the server responded something. Try to parse the response
+  cXmlString df_Error(df.c_str(), "Error");
+  if (!df_Error.isValid() ) return false;
+  cXmlString df_Code(df_Error, "Code");
+  if (!df_Code.isValid() || df_Code.getString() != "AccessDenied") return false;
+  return true;
+}
 bool Download(const char *url, const char *localPath) {
   if (FileExists(localPath)) return true;
   std::string error;
   int err_code;
-  if (config.enableDebug) esyslog("tvscraper: download file, url: \"%s\" local path: \"%s\"", url, localPath);
   for(int i=0; i < 11; i++) {
     if (i !=  0) sleep(i);
     if (i == 10) sleep(i); // extra long sleep before last try
-    if (CurlGetUrlFile2(url, localPath, err_code, error) && FileExists(localPath) ) return true;
+    if (CurlGetUrlFile2(url, localPath, err_code, error) ) {
+      if (FileExists(localPath) ) {
+        if (config.enableDebug) esyslog("tvscraper: successfully downloaded file, url: \"%s\" local path: \"%s\"", url, localPath);
+        return true;
+      }
+      cLargeString df("Downloaded File", localPath);
+      if (CheckDownloadAccessDenied(df)) {
+        if (config.enableDebug) {
+          esyslog("tvscraper: INFO download file failed, url: \"%s\" local path: \"%s\", AccessDenied, content \"%s\"", url, localPath, df.substr(0, 50).c_str() );
+        } else
+          esyslog("tvscraper: Download file failed, url: \"%s\" local path: \"%s\", AccessDenied", url, localPath);
+        remove(localPath);
+        return false;
+      }
+    }
   }
-  esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url, localPath, error.c_str(), err_code );
+  if (err_code == 0) {
+    cLargeString df("Downloaded File", localPath);
+    esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url, localPath, df.substr(0, 100).c_str() );
+  } else esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url, localPath, error.c_str(), err_code );
   remove(localPath);
   return false;
 }

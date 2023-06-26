@@ -35,7 +35,7 @@ bool cTVDBScraper::GetToken(void) {
   }
 // now read the tocken
   if (!GetToken(buffer)) {
-    esyslog("tvscraper: ERROR cTVDBScraper::GetToken, url %s, parsing json result %s", url, buffer.erase(40).c_str() );
+    esyslog("tvscraper: ERROR cTVDBScraper::GetToken, url %s, parsing json result %s", url, buffer.substr(0, 50).c_str() );
     return false;
   }
   return true;
@@ -59,7 +59,7 @@ bool cTVDBScraper::GetToken(std::string &jsonResponse) {
     esyslog("tvscraper: ERROR getting thetvdb token, status = %s", status);
     return false;
   }
-  rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::GetToken");
+  rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::GetToken", nullptr);
   if (data_it == document.MemberEnd() || !data_it->value.IsObject() ) return false;
   const char *tocken = getValueCharS(data_it->value, "token", "cTVDBScraper::GetToken");
   if (!tocken) return false;
@@ -324,7 +324,7 @@ int cTVDBScraper::downloadEpisodes(cLargeString &buffer, int seriesID, bool forc
       if (episodeName && *episodeName) insertEpisodeLang.resetBindStep(episodeID, langTvdbId, episodeName);
     } // end loop over each episode
 
-    rapidjson::Value::ConstMemberIterator links_it = getTag(episodes, "links", "cTVDBScraper::StoreSeriesJson_lang");
+    rapidjson::Value::ConstMemberIterator links_it = getTag(episodes, "links", "cTVDBScraper::StoreSeriesJson_lang", &buffer);
     if (links_it == episodes.MemberEnd() || !links_it->value.IsObject() ) break;
     urlE = charPointerToString(getValueCharS(links_it->value, "next"));
     first = false;
@@ -355,7 +355,7 @@ int cTVDBScraper::CallRestJson(rapidjson::Document &document, const rapidjson::V
   if (!success) return 1; // jsonCallRest wrote error in syslog
   const char *status;
   if (!getValue(document, "status", status) || !status) {
-    esyslog("tvscraper: cTVDBScraper::CallRestJson, url %s, buffer %s, no status", url, buffer.erase(50).c_str() );
+    esyslog("tvscraper: cTVDBScraper::CallRestJson, url %s, buffer %s, no status", url, buffer.substr(0, 100).c_str() );
     return 1;
   }
   if (strcmp(status, "success") != 0) {
@@ -364,10 +364,10 @@ int cTVDBScraper::CallRestJson(rapidjson::Document &document, const rapidjson::V
       if (message && strcmp(message, "Not Found") == 0) return -1;
       if (message && strncmp(message, "NotFoundException", 17) == 0) return -1;
     }
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, status = %s, message = %s, buffer %s", url, status, message?message:"no message", buffer.erase(50).c_str());
+    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, status = %s, message = %s, buffer %s", url, status, message?message:"no message", buffer.substr(0, 100).c_str() );
     return 1;
   }
-  rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::CallRestJson");
+  rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::CallRestJson", &buffer);
   if (data_it == document.MemberEnd() ) return 1;  // getTag wrote "cTVDBScraper::CallRestJson" in syslog
   data = &data_it->value;
   return 0;

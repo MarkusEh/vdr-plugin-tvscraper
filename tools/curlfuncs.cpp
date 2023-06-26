@@ -90,7 +90,7 @@ bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers) {
 //  if (config.enableDebug) esyslog("tvscraper: rate limit calling \"%s\", i = %i output \"%s\"", url, i, sOutput.substr(0, 20).c_str() );
 //  cout << "output from curl: " << sOutput.substr(0, 20) << std::endl;
   }
-  esyslog("tvscraper: CurlGetUrl ERROR calling \"%s\", tried %i times, output \"%s\"", url, i, sOutput.erase(20).c_str() );
+  esyslog("tvscraper: CurlGetUrl ERROR calling \"%s\", tried %i times, output \"%s\"", url, i, sOutput.substr(0, 30).c_str() );
   return false;
 }
 // template bool CurlGetUrl<std::string> (const char *url,  std::string &sOutput, struct curl_slist *headers);

@@ -803,9 +803,7 @@ class cXmlString {
     }
     cXmlString(const char *start, const char *tag) {
       if(!start) return;
-      const char *end;
-      for (end = start; *end; end++);
-      initialize(start, end, tag);
+      initialize(start, start + strlen(start), tag);
     }
     cXmlString(const cXmlString&) = delete;
     cXmlString &operator= (const cXmlString &) = delete;
