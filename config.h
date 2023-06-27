@@ -134,6 +134,7 @@ class cTVScraperConfig {
 {15, "por", "pt-PT", "português - Portugal"},
 {16, "nor", "nb-NO", "norsk bokmål"},
 {17, "hrv", "hr-HR", "hrvatski jezik"},
+{18, "ara", "ar-AE", "العربية"},
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
         const cLanguage *m_defaultLanguage = &m_emergencyLanguage;
