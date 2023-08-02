@@ -293,6 +293,15 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         return true;
     }
 
+    if (strcmp(Id, "GetEnvironment") == 0) {
+        if (Data == NULL) return true;
+        cEnvironment* call = (cEnvironment*) Data;
+        call->basePath = config.GetBaseDir();
+        call->seriesPath = config.GetBaseDirSeries();
+        call->moviesPath = config.GetBaseDirMovies();
+        return true;
+    }
+
     if (strcmp(Id, "GetSeries") == 0) {
         if (Data == NULL) return true;
         cSeries* call = (cSeries*) Data;

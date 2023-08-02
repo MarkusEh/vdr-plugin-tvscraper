@@ -28,12 +28,30 @@ bool CreateDirectory(const string &dir) {
 }
 
 bool FileExists(const char *filename) {
+// return true if filename exists AND is an image (make some guess checks to test for an image, exclude typical error pages)
   if (!filename) return false;
   struct stat buffer;
   if (stat (filename, &buffer) != 0) return false;
 // test: series;  smallest picture: 2521 bytes. Wrong files: 0 bytes or 243 bytes
 // test: moviedb; smallest picture: 1103 bytes. Wrong files: 0 bytes or 150 bytes
-  return buffer.st_size > 500;
+// note: wrong file with size 2361 found :( . Additional test ...
+  if (buffer.st_size > 2500) return true;   // error pages are smaller than 2500
+  if (buffer.st_size <  500) return false;  // images are larger than 500
+
+// open and read file to make final decision
+  FILE *f = fopen(filename, "rb");
+  if (!f) {
+    esyslog("tvscraper, FileExists, ERROR: stat OK, fopen fails, filename %s", filename);
+    return false;
+  }
+  char m_s[7];
+  size_t num_read = fread (m_s, 1, 6, f);
+  fclose(f);
+  if (num_read != 6) {
+    esyslog("tvscraper, FileExists, ERROR: num_read %zu != 6, filename %s", num_read, filename);
+    return false;
+  }
+  return strncmp(m_s, "<html>", 6) != 0;
 }
 bool FileExists(const std::string &filename) {
   return FileExists(filename.c_str());

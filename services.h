@@ -84,6 +84,16 @@ public:
     int episodeId;
 };
 
+// Data structure for enviromment ("GetEnvironment" call)
+
+class cEnvironment
+{
+  public:
+    std::string basePath;
+    std::string seriesPath;
+    std::string moviesPath;
+};
+
 // Data structures for full series and episode information
 //     service  "GetMovie"
 class cMovie {
