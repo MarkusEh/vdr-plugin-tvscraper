@@ -18,6 +18,19 @@
 // removed from services.h, please don't use
 // still here, so old plugins (with the old interface) continue to work for some time ...
 
+// Data structure for service "GetScraperImageDir"
+// deprecated, please use "GetEnvironment". Note: GetEnvironment is also available in scraper2vdr
+class cGetScraperImageDir {
+public:
+//in: nothing, no input required
+//out
+  std::string scraperImageDir;   // this was given to the plugin with --dir, or is the default cache directory for the plugin. It will always end with a '/'
+  cPlugin *call(cPlugin *pScraper = NULL) {
+    if (!pScraper) return cPluginManager::CallFirstService("GetScraperImageDir", this);
+    else return pScraper->Service("GetScraperImageDir", this)?pScraper:NULL;
+  }
+};
+
 // Data structure for service "GetPosterBanner"
 // deprecated, please use "GetPosterBannerV2"
 class ScraperGetPosterBanner {

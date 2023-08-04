@@ -89,7 +89,9 @@ public:
 class cEnvironment
 {
   public:
-    std::string basePath;
+//in: nothing, no input required
+//out
+    std::string basePath;  // All images are in this path or subdirectories. This was given to the plugin with --dir, or is the default cache directory for the plugin.
     std::string seriesPath;
     std::string moviesPath;
 };
@@ -210,18 +212,6 @@ public:
 };
 
 // NEW interface, used by live =========================================================
-
-// Data structure for service "GetScraperImageDir"
-class cGetScraperImageDir {
-public:
-//in: nothing, no input required
-//out
-  std::string scraperImageDir;   // this was given to the plugin with --dir, or is the default cache directory for the plugin. It will always end with a '/'
-  cPlugin *call(cPlugin *pScraper = NULL) {
-    if (!pScraper) return cPluginManager::CallFirstService("GetScraperImageDir", this);
-    else return pScraper->Service("GetScraperImageDir", this)?pScraper:NULL;
-  }
-};
 
 // Data structure for service "GetScraperUpdateTimes"
 class cGetScraperUpdateTimes {
