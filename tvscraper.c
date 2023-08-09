@@ -119,6 +119,16 @@ class cExtEpgHandler : public cEpgHandler
     }
 };
 
+class cTVScraperLastMovieLock {
+  private:
+    cStateKey m_stateKey;
+  public:
+    cTVScraperLastMovieLock(bool Write = false) {
+      config.stateLastMovieLock.Lock(m_stateKey, Write);
+    }
+    ~cTVScraperLastMovieLock() { m_stateKey.Remove(); }
+};
+
 //***************************************************************************
 // cPluginTvscraper
 //***************************************************************************
@@ -290,14 +300,18 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 // TVGuide: Version 1.3.6+ is required
         if (Data == NULL) return true;
         ScraperGetEventType* call = (ScraperGetEventType*) Data;
-        if (lastMovieOrTv) delete lastMovieOrTv;
-        lastMovieOrTv = GetMovieOrTv(call->event, call->recording);
+        cMovieOrTv *lastMovieOrTv_l = GetMovieOrTv(call->event, call->recording);
+        {
+          cTVScraperLastMovieLock l(true);
+          if (lastMovieOrTv) delete lastMovieOrTv;
+          lastMovieOrTv = lastMovieOrTv_l;
+        }
         call->type = tNone;
         call->movieId = 0;
         call->seriesId = 0;
         call->episodeId = 0;
-        if (!lastMovieOrTv) return true;
-        call->type = lastMovieOrTv->getType();
+        if (!lastMovieOrTv_l) return true;
+        call->type = lastMovieOrTv_l->getType();
         if (call->type == tSeries) {
             call->seriesId = 1234;
         } else {
@@ -318,6 +332,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     if (strcmp(Id, "GetSeries") == 0) {
         if (Data == NULL) return true;
         cSeries* call = (cSeries*) Data;
+        cTVScraperLastMovieLock l;
         if( call->seriesId == 0 || lastMovieOrTv == NULL) {
           esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", call->seriesId == 0 || lastMovieOrTv == 0");
           call->name = "Error calling VDR service interface GetSeries";
@@ -363,6 +378,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     if (strcmp(Id, "GetMovie") == 0) {
         if (Data == NULL) return true;
         cMovie* call = (cMovie*) Data;
+        cTVScraperLastMovieLock l;
         if (call->movieId == 0 || lastMovieOrTv == NULL) {
             esyslog("tvscraper: ERROR calling vdr service interface \"GetMovie\", call->movieId == 0 || lastMovieOrTv == 0");
             call->title = "Error calling VDR service interface GetMovie";

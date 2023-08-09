@@ -104,8 +104,10 @@ class cTVScraperConfig {
 // End of list of data that can be changed in the setup menu
         bool m_HD_ChannelsModified = false;
         friend class cTVScraperConfigLock;
+        friend class cTVScraperLastMovieLock;
         friend class cTVScraperSetup;
         mutable cStateLock stateLock;
+        mutable cStateLock stateLastMovieLock;
 //        mutable cStateLock stateLock("tvscraper: config");
     public:
         cTVScraperConfig();
