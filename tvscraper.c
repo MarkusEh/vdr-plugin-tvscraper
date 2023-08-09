@@ -305,13 +305,12 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
           cTVScraperLastMovieLock l(true);
           if (lastMovieOrTv) delete lastMovieOrTv;
           lastMovieOrTv = lastMovieOrTv_l;
+          call->type = lastMovieOrTv?lastMovieOrTv->getType():tNone;
         }
-        call->type = tNone;
         call->movieId = 0;
         call->seriesId = 0;
         call->episodeId = 0;
-        if (!lastMovieOrTv_l) return true;
-        call->type = lastMovieOrTv_l->getType();
+        if (call->type == tNone) return true;
         if (call->type == tSeries) {
             call->seriesId = 1234;
         } else {
