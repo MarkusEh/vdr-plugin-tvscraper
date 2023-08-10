@@ -139,7 +139,9 @@ private:
     cTVScraperDB *db;
     cTVScraperWorker *workerThread;
     cOverRides *overrides;
-    cMovieOrTv *lastMovieOrTv = NULL;
+    int m_movie_tv_id = 0;
+    int m_season_number = 0;
+    int m_episode_number = 0;
     cExtEpgHandler *extEpgHandler = NULL;
 public:
     cPluginTvscraper(void);
@@ -300,60 +302,79 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 // TVGuide: Version 1.3.6+ is required
         if (Data == NULL) return true;
         ScraperGetEventType* call = (ScraperGetEventType*) Data;
-        cMovieOrTv *lastMovieOrTv_l = GetMovieOrTv(call->event, call->recording);
-        {
-          cTVScraperLastMovieLock l(true);
-          if (lastMovieOrTv) delete lastMovieOrTv;
-          lastMovieOrTv = lastMovieOrTv_l;
-          call->type = lastMovieOrTv?lastMovieOrTv->getType():tNone;
-        }
+// set default return values
         call->movieId = 0;
         call->seriesId = 0;
         call->episodeId = 0;
-        if (call->type == tNone) return true;
-        if (call->type == tSeries) {
-            call->seriesId = 1234;
-        } else {
-            call->movieId = 1234;
+        call->type = tNone;
+// input validation
+        if (call->event && call->recording) {
+          esyslog("tvscraper: ERROR GetEventType, event && recording are provided. Please set one of these parameters to NULL");
+          return true;
         }
-        return true;
-    }
-
-    if (strcmp(Id, "GetEnvironment") == 0) {
-        if (Data == NULL) return true;
-        cEnvironment* call = (cEnvironment*) Data;
-        call->basePath = config.GetBaseDir();
-        call->seriesPath = config.GetBaseDirSeries();
-        call->moviesPath = config.GetBaseDirMovies();
+// get m_movie_tv_id, m_season_number, m_episode_number;
+        bool found = false;
+        int movie_tv_id, season_number, episode_number;
+        if (call->event    ) found = db->GetMovieTvID(call->event,     movie_tv_id, season_number, episode_number);
+        if (call->recording) found = db->GetMovieTvID(call->recording, movie_tv_id, season_number, episode_number);
+        if (!found || movie_tv_id == 0) {
+          cTVScraperLastMovieLock l(true);
+          m_movie_tv_id = 0;
+          m_season_number = 0;
+          m_episode_number = 0;
+          return true;
+        }
+        if (season_number == -100) {
+          call->movieId = movie_tv_id;
+          call->type = tMovie;
+        } else {
+          call->seriesId = movie_tv_id;
+          call->type = tSeries;
+        }
+        cTVScraperLastMovieLock l(true);
+        m_movie_tv_id = movie_tv_id;
+        m_season_number = season_number;
+        m_episode_number = episode_number;
         return true;
     }
 
     if (strcmp(Id, "GetSeries") == 0) {
         if (Data == NULL) return true;
         cSeries* call = (cSeries*) Data;
-        cTVScraperLastMovieLock l;
-        if( call->seriesId == 0 || lastMovieOrTv == NULL) {
-          esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", call->seriesId == 0 || lastMovieOrTv == 0");
-          call->name = "Error calling VDR service interface GetSeries";
-          return true;
+        cMovieOrTv *movieOrTv = NULL;
+        {
+          cTVScraperLastMovieLock l;
+          if (call->seriesId != m_movie_tv_id) return true; // we assume that the data request is outdated
+          if (call->seriesId == 0 || m_movie_tv_id == 0) {
+            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", call->seriesId == 0 || m_movie_tv_id == 0");
+            call->name = "Error calling VDR service interface GetSeries";
+            return true;
+          }
+          if (m_season_number == -100) {
+            esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", m_season_number == -100");
+            call->name = "Error calling VDR service interface GetSeries";
+            return true;
+          }
+          if (m_movie_tv_id > 0) movieOrTv = new cTvMoviedb(db, m_movie_tv_id, m_season_number, m_episode_number);
+                else             movieOrTv = new cTvTvdb(db, -1*m_movie_tv_id, m_season_number, m_episode_number);
         }
 
         float popularity, vote_average;
-        if (!db->GetTv(lastMovieOrTv->dbID(), call->name, call->overview, call->firstAired, call->network, call->genre, popularity, vote_average, call->status)) {
-          esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", Id = %i not found", lastMovieOrTv->dbID());
+        if (!db->GetTv(movieOrTv->dbID(), call->name, call->overview, call->firstAired, call->network, call->genre, popularity, vote_average, call->status)) {
+          esyslog("tvscraper: ERROR calling vdr service interface \"GetSeries\", Id = %i not found", movieOrTv->dbID());
           call->name = "Error calling VDR service interface GetSeries";
           return true;
         }
         call->rating = vote_average;
 
 // data for cEpisode episode;
-        call->episode.season = lastMovieOrTv->getSeason();
-        call->episode.number = lastMovieOrTv->getEpisode();
+        call->episode.season = movieOrTv->getSeason();
+        call->episode.number = movieOrTv->getEpisode();
         int episodeID;
-        db->GetTvEpisode(lastMovieOrTv->dbID(), lastMovieOrTv->getSeason(), lastMovieOrTv->getEpisode(), episodeID, call->episode.name, call->episode.firstAired, vote_average, call->episode.overview, call->episode.guestStars);
+        db->GetTvEpisode(movieOrTv->dbID(), movieOrTv->getSeason(), movieOrTv->getEpisode(), episodeID, call->episode.name, call->episode.firstAired, vote_average, call->episode.overview, call->episode.guestStars);
         call->episode.rating = vote_average;
 // guestStars
-        if(lastMovieOrTv->dbID() > 0) {
+        if(movieOrTv->dbID() > 0) {
           call->episode.guestStars = "";
           for (cSql &stmt: cSql(db, "select actor_name, actor_role from actors, actor_tv_episode where actor_tv_episode.actor_id = actors.actor_id and actor_tv_episode.episode_id = ?", episodeID)) {
             if(!call->episode.guestStars.empty() ) call->episode.guestStars.append("; ");
@@ -362,14 +383,14 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
             call->episode.guestStars.append(stmt.getCharS(1)); // role
           }
         }
-        lastMovieOrTv->getSingleImage(eImageLevel::episodeMovie, eOrientation::landscape, NULL, &call->episode.episodeImage.path, &call->episode.episodeImage.width, &call->episode.episodeImage.height);
+        movieOrTv->getSingleImage(eImageLevel::episodeMovie, eOrientation::landscape, NULL, &call->episode.episodeImage.path, &call->episode.episodeImage.width, &call->episode.episodeImage.height);
 
 // more not episode related data
-        call->actors = lastMovieOrTv->GetActors();
-        lastMovieOrTv->getSingleImage(eImageLevel::seasonMovie, eOrientation::portrait, NULL, &call->seasonPoster.path, &call->seasonPoster.width, &call->seasonPoster.height); 
-        call->posters = lastMovieOrTv->getImages(eOrientation::portrait);
-        call->banners = lastMovieOrTv->getBanners();
-        call->fanarts = lastMovieOrTv->getImages(eOrientation::landscape);
+        call->actors = movieOrTv->GetActors();
+        movieOrTv->getSingleImage(eImageLevel::seasonMovie, eOrientation::portrait, NULL, &call->seasonPoster.path, &call->seasonPoster.width, &call->seasonPoster.height);
+        call->posters = movieOrTv->getImages(eOrientation::portrait);
+        call->banners = movieOrTv->getBanners();
+        call->fanarts = movieOrTv->getImages(eOrientation::landscape);
 
         return true;
     }
@@ -377,26 +398,36 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     if (strcmp(Id, "GetMovie") == 0) {
         if (Data == NULL) return true;
         cMovie* call = (cMovie*) Data;
-        cTVScraperLastMovieLock l;
-        if (call->movieId == 0 || lastMovieOrTv == NULL) {
-            esyslog("tvscraper: ERROR calling vdr service interface \"GetMovie\", call->movieId == 0 || lastMovieOrTv == 0");
+        cMovieOrTv *movieOrTv = NULL;
+        {
+          cTVScraperLastMovieLock l;
+          if (call->movieId != m_movie_tv_id) return true; // we assume that the data request is outdated
+          if (call->movieId == 0 || m_movie_tv_id == 0) {
+            esyslog("tvscraper: ERROR calling vdr service interface \"GetMovie\", call->movieId == 0 || movieOrTv == 0");
             call->title = "Error calling VDR service interface GetMovie";
             return true;
+          }
+          if (m_season_number != -100) {
+            esyslog("tvscraper: ERROR calling vdr service interface \"GetMovie\", m_season_number != -100");
+            call->title = "Error calling VDR service interface GetMovie";
+            return true;
+          }
+          movieOrTv = new cMovieMoviedb(db, m_movie_tv_id);
         }
 
         int collection_id;
-        if (!db->GetMovie(lastMovieOrTv->dbID(), call->title, call->originalTitle, call->tagline, call->overview, call->adult, collection_id, call->collectionName, call->budget, call->revenue, call->genres, call->homepage, call->releaseDate, call->runtime, call->popularity, call->voteAverage)) {
-            esyslog("tvscraper: ERROR calling vdr service interface \"GetMovie\", Id = %i not found", lastMovieOrTv->dbID());
+        if (!db->GetMovie(movieOrTv->dbID(), call->title, call->originalTitle, call->tagline, call->overview, call->adult, collection_id, call->collectionName, call->budget, call->revenue, call->genres, call->homepage, call->releaseDate, call->runtime, call->popularity, call->voteAverage)) {
+            esyslog("tvscraper: ERROR calling vdr service interface \"GetMovie\", Id = %i not found", movieOrTv->dbID());
             call->title = "Error calling VDR service interface GetMovie";
             return true;
         }
 
         cImageLevelsInt level(eImageLevel::seasonMovie, eImageLevel::tvShowCollection);
-        lastMovieOrTv->getSingleImageBestL(level, eOrientation::portrait, NULL, &call->poster.path, &call->poster.width, &call->poster.height); 
-        lastMovieOrTv->getSingleImageBestL(level, eOrientation::landscape, NULL, &call->fanart.path, &call->fanart.width, &call->fanart.height);
-        lastMovieOrTv->getSingleImage(eImageLevel::tvShowCollection, eOrientation::portrait,  NULL, &call->collectionPoster.path, &call->collectionPoster.width, &call->collectionPoster.height); 
-        lastMovieOrTv->getSingleImage(eImageLevel::tvShowCollection, eOrientation::landscape, NULL, &call->collectionFanart.path, &call->collectionFanart.width, &call->collectionFanart.height); 
-        call->actors = lastMovieOrTv->GetActors();
+        movieOrTv->getSingleImageBestL(level, eOrientation::portrait, NULL, &call->poster.path, &call->poster.width, &call->poster.height);
+        movieOrTv->getSingleImageBestL(level, eOrientation::landscape, NULL, &call->fanart.path, &call->fanart.width, &call->fanart.height);
+        movieOrTv->getSingleImage(eImageLevel::tvShowCollection, eOrientation::portrait,  NULL, &call->collectionPoster.path, &call->collectionPoster.width, &call->collectionPoster.height);
+        movieOrTv->getSingleImage(eImageLevel::tvShowCollection, eOrientation::landscape, NULL, &call->collectionFanart.path, &call->collectionFanart.width, &call->collectionFanart.height);
+        call->actors = movieOrTv->GetActors();
 
         return true;
     }
@@ -492,6 +523,16 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
       call->m_recordingsUpdateTime = LastModifiedTime(config.GetRecordingsUpdateFileName().c_str() );
       return true;
     }
+
+    if (strcmp(Id, "GetEnvironment") == 0) {
+        if (Data == NULL) return true;
+        cEnvironment* call = (cEnvironment*) Data;
+        call->basePath = config.GetBaseDir();
+        call->seriesPath = config.GetBaseDirSeries();
+        call->moviesPath = config.GetBaseDirMovies();
+        return true;
+    }
+
   return false;
 }
 
