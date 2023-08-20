@@ -279,10 +279,10 @@ public:
     const cEvent *event;             // check type for this event
     const cRecording *recording;     // or for this recording
 //out
-    tvType type;                         //typeSeries or typeMovie
-    int movieId;   // note: Please ignore, nothing usefull
-    int seriesId;  // note: Please ignore, nothing usefull
-    int episodeId; // note: Please ignore, nothing usefull
+    tvType type;                     // tSeries or tMovie or tNone
+    int movieId;
+    int seriesId;
+    int episodeId;
 };
 ```
 
@@ -297,12 +297,12 @@ Example: (see services.h for data structures of cSeries & cMovie, and for enum t
     if (pTVScraper->Service("GetEventType", &call)) {
       if (call.type == tSeries) {
         cSeries call_series;
-        call_series.seriesId = call.seriesId; // this will be ignored, must not be 0. Data from last call to GetEventType will be used
+        call_series.seriesId = call.seriesId;
         if (pTVScraper->Service("GetSeries", &call_series)) {
         ... further processing ...
       } else if (call.type == tMovie) {
         cMovie call_movie;
-        call_movie.movieId = call.movieId; // this will be ignored, must not be 0. Data from last call to GetEventType will be used
+        call_movie.movieId = call.movieId;
         if (pTVScraper->Service("GetMovie", &call_movie)) {
         ... further processing ...
       }

@@ -216,11 +216,12 @@ inline int stringAppendAllASCIICharacters(std::string &target, const char *str) 
   target.append(str, i);
   return i;
 }
+void StringRemoveTrailingWhitespace(std::string &str);
 void stringAppendRemoveControlCharacters(std::string &target, const char *str) {
   for(;;) {
     str += stringAppendAllASCIICharacters(target, str);
     wint_t cp = getNextUtfCodepoint(str);
-    if (cp == 0) return;
+    if (cp == 0) { StringRemoveTrailingWhitespace(target); return; }
     if (cp > 31) stringAppendUtfCodepoint(target, cp);
     else target.append(" ");
   }
@@ -229,7 +230,7 @@ void stringAppendRemoveControlCharactersKeepNl(std::string &target, const char *
   for(;;) {
     str += stringAppendAllASCIICharacters(target, str);
     wint_t cp = getNextUtfCodepoint(str);
-    if (cp == 0) return;
+    if (cp == 0) { StringRemoveTrailingWhitespace(target); return; }
     if (cp == ' ' && str[1] == '\n') target.append("\n");
     else if (cp > 31 || cp == '\n') stringAppendUtfCodepoint(target, cp);
     else target.append(" ");

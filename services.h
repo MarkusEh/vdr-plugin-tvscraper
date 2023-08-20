@@ -78,7 +78,7 @@ public:
     const cEvent *event;             // check type for this event 
     const cRecording *recording;     // or for this recording
 //out
-    tvType type;                	 //typeSeries or typeMovie
+    tvType type;                	 //tSeries or tMovie or tNone
     int movieId;
     int seriesId;
     int episodeId;
@@ -186,7 +186,7 @@ public:
     const cEvent *event;             // check type for this event
     const cRecording *recording;     // check type for this recording
 //out
-    tvType type;                     //typeSeries or typeMovie
+    tvType type;                     // tSeries or tMovie or tNone
     cTvMedia poster;
     cTvMedia banner;
 };

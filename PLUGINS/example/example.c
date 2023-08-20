@@ -192,8 +192,11 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgIm
   if (!event->ShortText() || !*event->ShortText() ) {
 // add a short text only if no short text is available from EIT (the TV station)
     if (getValue(tvspEvent_j, "episodeTitle", s) ) event->SetShortText(s);
-    else if (getValue(tvspEvent_j, "conclusion", s) ) event->SetShortText(s);
-    else {
+    else if (getValue(tvspEvent_j, "conclusion", s) ) {
+      std::string conclusion;
+      stringAppendRemoveControlCharacters(conclusion, s);
+      event->SetShortText(conclusion.c_str() );
+    } else {
       std::string shortText;
       if (getValue(tvspEvent_j, "genre", s) ) shortText += s;
       if (getValue(tvspEvent_j, "country", s) ) { if (!shortText.empty()) shortText += " / "; shortText += s; }

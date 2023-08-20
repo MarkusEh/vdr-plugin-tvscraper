@@ -142,6 +142,7 @@ class cTVScraperConfig {
 {22, "hin", "hi-IN", "हिन्दी", },       // Hindi
 {23, "hun", "hu-HU", "Magyar"},      // Hungarian
 {24, "kor", "ko-KR", "한국어"},      // Korean
+{25, "slk", "sk-SK", "slovenčina"},  // Slovak
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
         const cLanguage *m_defaultLanguage = &m_emergencyLanguage;
