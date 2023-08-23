@@ -143,6 +143,12 @@ class cTVScraperConfig {
 {23, "hun", "hu-HU", "Magyar"},      // Hungarian
 {24, "kor", "ko-KR", "한국어"},      // Korean
 {25, "slk", "sk-SK", "slovenčina"},  // Slovak
+{26, "tur", "tr-TR", "Türkçe"},  // Turkish
+{27, "ces", "cs-CZ", "čeština"},  // Czech
+{28, "ell", "el-GR", "ελληνική γλώσσα"},  // Greek
+{29, "zho", "zh-CN", "大陆简体"},  //  Chinese - China
+{30, "ron", "ro-RO", "limba română"},  // Romanian
+// {30, "", "", ""},  //
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
         const cLanguage *m_defaultLanguage = &m_emergencyLanguage;
