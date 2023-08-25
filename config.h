@@ -131,11 +131,11 @@ class cTVScraperConfig {
 {11, "fin", "fi-FI", "suomi"},
 {12, "ita", "it-IT", "italiano"},
 {13, "nld", "nl-NL", "nederlands"},
-{14, "swe", "sv-SE", "svenska"},
+{14, "swe", "sv-SE", "svenska"}, // Swedish
 {15, "por", "pt-PT", "português - Portugal"},
-{16, "nor", "nb-NO", "norsk bokmål"},
-{17, "hrv", "hr-HR", "hrvatski jezik"},
-{18, "ara", "ar-AE", "العربية"},
+{16, "nor", "nb-NO", "norsk bokmål"}, // Norwegian
+{17, "hrv", "hr-HR", "hrvatski jezik"},  // Croatian
+{18, "ara", "ar-AE", "العربية"}, // Arabic
 {19, "pt",  "pt-BR", "português - Brasil"},
 {20, "zhtw", "zh-TW", "臺灣國語"},   // Chinese - Taiwan
 {21, "fas", "fa-IR", "فارسی"},       // Persian

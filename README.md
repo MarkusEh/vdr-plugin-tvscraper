@@ -52,7 +52,8 @@ Requirements
 - libcurl
 - gcc v8 or later. gcc must support -std=c++17.
 - If you use TVGuide: Version 1.3.6+ is required
-- If you use SkinNopacity: Version 1.1.12+ is required
+- If you use SkinNopacity: Version 1.1.15+ is required
+- If you use skinFlatPlus: Version 0.6.7+ is required
 
 Installation and configuration
 ------------------------------
@@ -214,6 +215,10 @@ a call to the provided service interface.
 
 In general each call expects a pointer to a cEvent or cRecording
 object as input variable inside the struct passed to the call.
+Note:
+- In case of a cEvent, call.recording must be nullptr.
+- In case of a cRecording, call.event must be nullptr.
+
 
 As output variables tvscraper provides media info via the "cTvMedia" struct:
 
@@ -248,7 +253,7 @@ Some calls offered by the service interface (see services.h for complete list):
 class ScraperGetPoster {
 public:
 // in
-    const cEvent *event;             // check type for this event
+    const cEvent *event;             // poster for this event
     const cRecording *recording;     // or for this recording
 //out
     cTvMedia poster;
@@ -292,12 +297,13 @@ Example: (see services.h for data structures of cSeries & cMovie, and for enum t
   static cPlugin *pTVScraper = cPluginManager::GetPlugin("tvscraper");
   if (pTVScraper) {
     ScraperGetEventType call;
-    call.event = Event;                 //provide event here
-    call.recording = Recording;         //if recording, otherwise NULL
+    call.event = Event;                 //if event, provide event here. Otherwise nullptr
+    call.recording = Recording;         //if recording. Otherwise nullptr
     if (pTVScraper->Service("GetEventType", &call)) {
       if (call.type == tSeries) {
         cSeries call_series;
         call_series.seriesId = call.seriesId;
+        call_series.episodeId = call.episodeId;
         if (pTVScraper->Service("GetSeries", &call_series)) {
         ... further processing ...
       } else if (call.type == tMovie) {
