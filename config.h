@@ -148,6 +148,7 @@ class cTVScraperConfig {
 {28, "ell", "el-GR", "ελληνική γλώσσα"},  // Greek
 {29, "zho", "zh-CN", "大陆简体"},  //  Chinese - China
 {30, "ron", "ro-RO", "limba română"},  // Romanian
+{31, "jpn", "ja-JP", "日本語"},  //  Japanese
 // {30, "", "", ""},  //
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
