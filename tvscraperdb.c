@@ -331,7 +331,8 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "movie_id integer, ";
     sql << "actor_role nvarchar(255)";
     sql << ");";
-    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx2 on actor_movie (actor_id, movie_id); ";
+    sql << "DROP INDEX IF EXISTS idx2;";
+    sql << "CREATE UNIQUE INDEX IF NOT EXISTS actor_movie_idx on actor_movie (movie_id, actor_id); ";
 
     sql << "CREATE TABLE IF NOT EXISTS cache (";
     sql << "movie_name_cache nvarchar(255), ";

@@ -12,7 +12,7 @@ void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id,
   cActor actor;
   actor.actorThumb.width = width;
   actor.actorThumb.height = height;
-  const char *actorId = NULL;
+  int actorId;
   int hasImage = 0;
   for (cSql &sql: cSql(m_db, cStringRef(sql), id) ) {
     sql.readRow(actorId, actor.name, actor.role, hasImage);
@@ -158,7 +158,7 @@ bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, st
 
 std::vector<cActor> cMovieMoviedb::GetActors(bool fullPath) {
   std::vector<cActor> actors;
-  const char sql[] = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_movie " \
+  const char *sql = "select actors.actor_id, actor_name, actor_role, actor_has_image from actors, actor_movie " \
                      "where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?";
   AddActors(actors, sql,  dbID(), "movies/actors/actor_", fullPath);
   return actors;
