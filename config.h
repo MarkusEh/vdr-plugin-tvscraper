@@ -76,6 +76,7 @@ class cTVScraperConfig {
         string themoviedbSearchOption = "";
         bool readOnlyClient = false;
         bool m_autoTimersPathSet = false; // if true, all autoTimers will use m_autoTimersPath
+        bool m_timersOnNumberOfTsFiles = false; // if true, autoTimers will be created if number of ts files != 1
         std::string m_autoTimersPath;
         string baseDir;       // /var/cache/vdr/plugins/tvscraper/
         vector<std::shared_ptr<iExtEpg>> m_extEpgs;
@@ -167,6 +168,7 @@ class cTVScraperConfig {
         void SetThemoviedbSearchOption(const string &option) { themoviedbSearchOption = option; };
         void SetAutoTimersPath(const string &option);
         void SetReadOnlyClient() { readOnlyClient = true; };
+        void SetTimersOnNumberOfTsFiles() { m_timersOnNumberOfTsFiles = true; };
         void SetBaseDir(const string &dir);
         const string &GetBaseDir(void) const { return baseDir; };
         int GetBaseDirLen(void) const { return baseDirLen; };
@@ -183,6 +185,7 @@ class cTVScraperConfig {
         const string &GetEPG_UpdateFileName(void) const { return EPG_UpdateFileName; };
         const string &GetRecordingsUpdateFileName(void) const { return recordingsUpdateFileName; };
         bool GetReadOnlyClient() const { return readOnlyClient; }
+        bool GetTimersOnNumberOfTsFiles() const { return m_timersOnNumberOfTsFiles; }
         bool isUpdateFromExternalDbRequired(time_t lastUpdate) { return difftime(time(0), lastUpdate) >= 60*60*24*14; }
 // Methods to access parameters (lists) that can be changed in setup menu
 // These methods are thread save

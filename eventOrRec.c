@@ -1,4 +1,5 @@
 #include "eventOrRec.h"
+#include <dirent.h>
 
 csEventOrRecording::csEventOrRecording(const cEvent *event):
   m_event(event)
@@ -244,8 +245,7 @@ bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
   struct stat buffer;
   if (stat (filename, &buffer) != 0) return false;
 
-  rapidjson::Document document;
-  cLargeString document_s(jsonReadFile(document, filename));
+  cJsonDocumentFromFile document(filename);
   if (document.HasParseError() ) return false;
   rapidjson::Value::ConstMemberIterator timer_j = document.FindMember("timer");
   if (timer_j == document.MemberEnd() ) return false;  // timer information not available
@@ -333,3 +333,19 @@ csEventOrRecording *GetsEventOrRecording(const cEvent *event, const cRecording *
   if (recording && recording->Info() && recording->Info()->GetEvent() ) return new csRecording(recording);
   return NULL;
 }
+
+int GetNumberOfTsFiles(const cRecording* recording) {
+// find our number of ts files
+  if (!recording || !recording->FileName() ) return -1;
+  DIR *dir = opendir(recording->FileName());
+  if (dir == nullptr) return -1;
+  struct dirent *ent;
+  int number_ts_files = 0;
+  while ((ent = readdir (dir)) != NULL) if (ent->d_name) {
+    int len = strlen(ent->d_name);
+    if (len > 3 && strcmp(ent->d_name + len -3, ".ts") == 0) ++number_ts_files;
+  }
+  closedir (dir);
+  return number_ts_files;
+}
+

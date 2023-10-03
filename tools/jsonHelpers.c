@@ -263,6 +263,26 @@ bool jsonCallRest(rapidjson::Document &document, cLargeString &buffer, const cha
   return result;
 }
 
+class cJsonDocumentFromFile: public rapidjson::Document {
+// if file does not exist: an empty (valid!) document
+// if file does     exist: read the file and return document with parsed content
+// if file does     exist, but is not valid json: error in syslog (you can check with document.HasParseError()
+  public:
+    cJsonDocumentFromFile(const char *filename): jfile("jsonReadFile", filename) {
+      if (jfile.empty() ) {
+        SetObject();
+        return;
+      }
+      ParseInsitu(jfile.data() );
+      if (HasParseError() ) {
+        esyslog("tvscraper: ERROR cJsonDocumentFromFile, file %s size %zu parse error %s, doc %s", filename, jfile.length(), rapidjson::GetParseError_En(GetParseError()), jfile.substr(0, 100).c_str() );
+      }
+    }
+  private:
+    cLargeString jfile;
+};
+
+/*
 cLargeString jsonReadFile(rapidjson::Document &document, const char *filename) {
 // if file does not exist: an empty (valid!) document
 // if file does     exist: read the file and return document with parsed content
@@ -279,6 +299,7 @@ cLargeString jsonReadFile(rapidjson::Document &document, const char *filename) {
   }
   return jfile;
 }
+*/
 
 int jsonWriteFile(rapidjson::Document &document, const char *filename) {
 // return 1, if it is not possible to write file

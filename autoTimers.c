@@ -164,6 +164,7 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
       else runtime = db.queryInt("select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", movie_tv_id, season_number, episode_number);
       if (sRecording.durationDeviation(runtime) > 60) numberOfErrors = 1;  // in case of deviations > 1min, create timer ...
     }
+    if (numberOfErrors == 0 && config.GetTimersOnNumberOfTsFiles() && GetNumberOfTsFiles(rec) != 1) numberOfErrors = 1;  //  in case of more ts files, create timer ...
     cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, numberOfErrors);
     auto found = recordings.find(scraperRec);
     if (found == recordings.end() ) recordings.insert(std::move(scraperRec)); // not in list -> insert

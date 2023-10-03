@@ -178,7 +178,8 @@ cPluginTvscraper::~cPluginTvscraper() {
 const char *cPluginTvscraper::CommandLineHelp(void) {
     return "  -d <CACHEDIR>, --dir=<CACHEDIR> Set directory where database and images are stored\n" \
            "  -c, --readOnlyClient Don't update any data, just read the data\n"  \
-           "  -p, --autoTimersPath Overide the default path for auto timer recordings\n";
+           "  -p, --autoTimersPath Overide the default path for auto timer recordings\n" \
+           "  -t, --timersOnNumberOfTsFiles Create auto timers if number of ts files != 1\n";
 }
 
 bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
@@ -187,12 +188,13 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
         { "readOnlyClient", no_argument, NULL, 'c' },
         { "themoviedbSearchOption", required_argument, NULL, 's' },
         { "autoTimersPath", required_argument, NULL, 'p' },
+        { "timersOnNumberOfTsFiles", no_argument, NULL, 't' },
         { 0, 0, 0, 0 }
     };
 
     int c;
     cacheDirSet = false;
-    while ((c = getopt_long(argc, argv, "d:s:c:p", long_options, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "d:s:c:p:t", long_options, NULL)) != -1) {
         switch (c) {
             case 'd':
                 cacheDirSet = true;
@@ -206,6 +208,9 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
                 break;
             case 'c':
                 config.SetReadOnlyClient();
+                break;
+            case 't':
+                config.SetTimersOnNumberOfTsFiles();
                 break;
             default:
                 return false;

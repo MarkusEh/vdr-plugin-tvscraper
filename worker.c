@@ -344,9 +344,7 @@ bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
 void writeTimerInfo(const cTimer *timer, const char *pathName) {
   CONCATENATE(filename, pathName, "/tvscrapper.json");
 
-  rapidjson::Document document;
-  cLargeString document_s(jsonReadFile(document, filename));
-//  if (jsonReadFile(document, filename)) return; // error parsing json file
+  cJsonDocumentFromFile document(filename);
   if (document.HasParseError() ) return;
   if (document.HasMember("timer") ) return;  // timer information already available
 

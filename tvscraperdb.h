@@ -411,8 +411,8 @@ class cSql {
       m_last_step_result = -10;
       m_statement = nullptr;
     }
-    cSql(cSql &&) = default;
-    cSql &operator= (cSql &&) = default;
+//    cSql(cSql &&) = default; // needs secial implementation
+//    cSql &operator= (cSql &&) = default; // needs secial implementation
     const cTVScraperDB *m_db;  // will be provided in constructor (mandatory, no constructur without DB)
     sqlite3_stmt *m_statement = NULL;
     std::string_view m_query;

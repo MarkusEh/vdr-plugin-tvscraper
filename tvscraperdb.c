@@ -764,8 +764,7 @@ void cTVScraperDB::WriteRecordingInfo(const cRecording *recording, int movie_tv_
   if (!recording || !recording->FileName() ) return;  // no place to write the information
   std::string filename = concatenate(recording->FileName(), "/tvscrapper.json");
 // open / parse existing file
-  rapidjson::Document jInfo;
-  cLargeString document_s(jsonReadFile(jInfo, filename.c_str() ));
+  cJsonDocumentFromFile jInfo(filename.c_str() );
   if (jInfo.HasParseError() ) {
     std::error_code ec;
     std::filesystem::copy_file(filename, filename + ".bak", ec);

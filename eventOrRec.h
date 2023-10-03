@@ -2,6 +2,8 @@
 #define __TVSCRAPER_EVENTORREC_H
 #include <string>
 
+int GetNumberOfTsFiles(const cRecording* recording);
+
 class csEventOrRecording {
 
 public:
