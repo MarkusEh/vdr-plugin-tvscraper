@@ -146,6 +146,10 @@ int parseMarkadVpsKeyword(std::ifstream &markad, const char *fname) {
     esyslog("tvscraper: ERROR parsing markad.vps, line = %s, file = %s", line.c_str(), fname );
     return 0;
   }
+// check PAUSE_START: / PAUSE_STOP:
+  if (line.compare(5, 7,  "_START:") == 0) return 2;
+  if (line.compare(5, 6,  "_STOP:") == 0) return 3;
+// check PAUSE START: / PAUSE STOP:
   line = "";
   markad >> line;
   if (line.empty() ) {
