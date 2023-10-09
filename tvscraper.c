@@ -469,22 +469,17 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         ScraperGetPosterBannerV2* call = (ScraperGetPosterBannerV2*) Data;
         cMovieOrTv *movieOrTv = GetMovieOrTv(call->event, call->recording);
         if (!movieOrTv) { call->type = tNone; return true;}
-// always return poster
+        call->type = movieOrTv->getType();
+// get poster. If no image in portrait format available, return landscape image
         movieOrTv->getSingleImageBestLO(
           cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
           cOrientationsInt(eOrientation::portrait, eOrientation::landscape),
           NULL, &call->poster.path, &call->poster.width, &call->poster.height);
-// check: Banner available?
-        if (movieOrTv->getSingleImageBestL(
+// get banner. No fallback. If there is no banner, leave GetPosterBannerV2->banner empty
+        movieOrTv->getSingleImageBestL(
             cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
             eOrientation::banner,
-            NULL, &call->banner.path, &call->banner.width, &call->banner.height) != eImageLevel::none) {
-// Banner available -> return banner && mark as series, so caller knows that banner is available
-          call->type = tSeries;
-        } else {
-// No banner available
-          call->type = tMovie;
-        }
+            NULL, &call->banner.path, &call->banner.width, &call->banner.height);
         delete movieOrTv;
         return true;
     }
