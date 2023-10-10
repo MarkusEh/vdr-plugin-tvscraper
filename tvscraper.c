@@ -476,10 +476,10 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
           cOrientationsInt(eOrientation::portrait, eOrientation::landscape),
           NULL, &call->poster.path, &call->poster.width, &call->poster.height);
 // get banner. No fallback. If there is no banner, leave GetPosterBannerV2->banner empty
-        movieOrTv->getSingleImageBestL(
-            cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
-            eOrientation::banner,
-            NULL, &call->banner.path, &call->banner.width, &call->banner.height);
+        movieOrTv->getSingleImageBestLO(
+          cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
+          cOrientationsInt(eOrientation::banner, eOrientation::landscape),
+          NULL, &call->banner.path, &call->banner.width, &call->banner.height);
         delete movieOrTv;
         return true;
     }
