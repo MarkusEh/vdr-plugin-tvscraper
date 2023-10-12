@@ -473,7 +473,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 // get poster. If no image in portrait format available, return landscape image
         movieOrTv->getSingleImageBestLO(
           cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
-          cOrientationsInt(eOrientation::portrait, eOrientation::landscape),
+          cOrientationsInt(eOrientation::portrait),
           NULL, &call->poster.path, &call->poster.width, &call->poster.height);
 // get banner. No fallback. If there is no banner, leave GetPosterBannerV2->banner empty
         movieOrTv->getSingleImageBestLO(
