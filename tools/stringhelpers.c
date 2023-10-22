@@ -411,6 +411,22 @@ std::string concatenate(const Args&... args) {
   stringAppend(result, args...);
   return result;
 }
+
+// __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with gcc 13.1
+template<typename... Args>
+void stringAppendFormated(std::string &str, const char *fmt, const Args&... args) {
+  size_t size = 1024;
+  char buf[size];
+  int needed = snprintf (&buf[0], size, fmt, args...);
+  if (needed < 0) return; // error in snprintf
+  if ((size_t)needed < size) {
+    str.append(buf);
+  } else {
+    char buf2[needed + 1];
+    sprintf (&buf2[0], fmt, args...);
+    str.append(buf2);
+  }
+}
 class cConcatenate
 {
   public:
@@ -812,16 +828,25 @@ class cXmlString {
       if (!m_start || !m_end) return "";
       return std::string(m_start, m_end - m_start);
     }
+    const char *data() { return m_start?m_start:""; }
+    int length() { return m_start?(m_end - m_start):0; }
     int getInt() const {
       if (!m_start) return 0;
       return atoi(m_start);
     }
+    long long getIntll() const {
+      if (!m_start) return 0;
+      char *end;
+      return strtoll(m_start, &end, 10);
+    }
     bool isValid() const { return m_start != NULL;}
+    bool operator== (const char *sec) const {
+      if (!m_start || !sec) return false;
+      if (strlen(sec) != (size_t)(m_end - m_start) ) return false;
+      return memcmp(m_start, sec, m_end - m_start) == 0;
+    }
     bool operator== (const cXmlString &sec) const {
-      if (!m_start || !sec.m_start) return false;
-      const char *s=sec.m_start;
-      for (const char *f=m_start; s<m_end; f++, s++) if (*f != *s) return false;
-      return true;
+      return *this == sec.m_start;
     }
   private:
     void initialize(const char *start, const char *end, const char *tag) {

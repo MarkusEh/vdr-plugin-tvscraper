@@ -68,6 +68,28 @@ msgstr "Sprache für Kanäle auswählen"
 msgid "Create timers for missing episodes of this TV show?"
 msgstr "Timer für fehlende Folgen der Serie anlegen?"
 
+msgid "improve"
+msgstr "Verbessern von"
+
+msgid "collection"
+msgstr "Ergänzung zur Sammlung von Filmen"
+#msgstr "Sammlung, fehlender Film"
+
+msgid "TV show, missing episode"
+msgstr "Fehlende Folge"
+
+#, c-format                                                                                                                                       
+msgid "Complement collection %.*s, caused by recording"
+msgstr "Ergänzen der Filmreihe %.*s, wegen der Aufzeichnung"
+
+#, c-format
+msgid "Episode of series %.*s, caused by recording"
+msgstr "Folge der Serie %.*s, wegen der Aufzeichnung"
+
+msgid "Improve recording"
+msgstr "Verbessern der Aufzeichnung"
+
+
 #~ msgid "No"
 #~ msgstr "Nein"
 

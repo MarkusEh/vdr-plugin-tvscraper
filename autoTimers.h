@@ -13,6 +13,10 @@ class cMovieOrTvAT {
     cMovieOrTvAT(const tChannelID &channel_id, const cMovieOrTv *movieOrTv);
     cMovieOrTvAT(const cMovieOrTvAT *movieOrTvAT)
      { m_movie_tv_id = movieOrTvAT->m_movie_tv_id; m_season_number = movieOrTvAT->m_season_number; m_episode_number = movieOrTvAT->m_episode_number; m_language = movieOrTvAT->m_language; m_hd = movieOrTvAT->m_hd; }
+    int movieTvId() const { return m_movie_tv_id;}
+    int seasonNumber() const { return m_season_number;}
+    int episodeNumber() const { return m_episode_number;}
+    int hd() const { return m_hd; }
     int m_movie_tv_id; // movie if season_number == -100. Otherwisse, tv
     int m_season_number;
     int m_episode_number;
@@ -60,13 +64,12 @@ class cScraperRec: public cMovieOrTvAT {
     cScraperRec(tEventID event_id, time_t event_start_time, const tChannelID &channel_id, const std::string &name, int movie_tv_id, int season_number, int episode_number, int numberOfErrors): cMovieOrTvAT(channel_id, movie_tv_id, season_number, episode_number)
     { m_event_id = event_id; m_event_start_time = event_start_time; m_channelid = channel_id; m_name = name; m_numberOfErrors = numberOfErrors; }
     bool isBetter(const cScraperRec &sec) const { return m_hd != sec.m_hd?m_hd > sec.m_hd: m_numberOfErrors < sec.m_numberOfErrors; }
-    int seasonNumber() const { return m_season_number;}
-    int episodeNumber() const { return m_episode_number;}
-    int movieTvId() const { return m_movie_tv_id;}
     bool improvemntPossible() const { return m_hd < 1 || m_numberOfErrors != 0; }
     int numberOfErrors() const { return m_numberOfErrors; }
-    int hd() const { return m_hd; }
-    const std::string &name() const { return m_name;}
+    const std::string &name() const { return m_name; }
+    tEventID EventID() const { return m_event_id; }
+    time_t StartTime() const { return m_event_start_time; }
+    tChannelID ChannelID() const { return m_channelid; }
   private:
     tChannelID m_channelid;
     tEventID m_event_id;

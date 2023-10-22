@@ -821,9 +821,12 @@ if (sqlI.readRow() ) {
 }
 jTvscraper.AddMember("movie_tv_id", rapidjson::Value().SetInt(abs(movie_tv_id) ), jInfo.GetAllocator() );
 
-// "themoviedb / thetvdb" node: this is owned by "tvscraper", so we can overwrite (if it exists)
-if (movie_tv_id > 0) { jInfo.AddMember("themoviedb", jTvscraper, jInfo.GetAllocator() ); rapidjson::Pointer("/thetvdb").Erase(jInfo); }
-                else { jInfo.AddMember("thetvdb",    jTvscraper, jInfo.GetAllocator() ); rapidjson::Pointer("/themoviedb").Erase(jInfo); }
+// First erase existing entries. Note: These will not be overwritten by rapidjson
+rapidjson::Pointer("/thetvdb").Erase(jInfo);
+rapidjson::Pointer("/themoviedb").Erase(jInfo);
+// now add the new entries
+if (movie_tv_id > 0) { jInfo.AddMember("themoviedb", jTvscraper, jInfo.GetAllocator() ); }
+                else { jInfo.AddMember("thetvdb",    jTvscraper, jInfo.GetAllocator() ); }
 
 // write file
 jsonWriteFile(jInfo, filename.c_str());
