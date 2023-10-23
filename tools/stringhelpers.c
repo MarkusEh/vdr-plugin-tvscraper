@@ -822,6 +822,10 @@ class cXmlString {
       if(!start) return;
       initialize(start, start + strlen(start), tag);
     }
+    cXmlString(std::string_view sv, const char *tag) {
+      if(sv.empty() ) return;
+      initialize(sv.data(), sv.data() + sv.length(), tag);
+    }
     cXmlString(const cXmlString&) = delete;
     cXmlString &operator= (const cXmlString &) = delete;
     std::string getString() const {
@@ -848,6 +852,8 @@ class cXmlString {
     bool operator== (const cXmlString &sec) const {
       return *this == sec.m_start;
     }
+    char operator[](size_t i) const { return *(m_start + i); }
+    operator std::string_view() const { return m_start?std::string_view(m_start, m_end - m_start):std::string_view(); }
   private:
     void initialize(const char *start, const char *end, const char *tag) {
       if(!start || !end || !tag) return;
@@ -872,6 +878,74 @@ class cXmlString {
     const char *m_start = NULL;
     const char *m_end = NULL;
 };
+size_t findWithDelimiters(std::string_view haystack, size_t pos, std::string_view pre, std::string_view needle, std::string_view post) {
+// Untested !!!!!!
+// like find, but search for pre + needle + post
+  size_t len_PreNeedlePost = pre.length() + needle.length() + post.length();
+  if (len_PreNeedlePost > haystack.length() ) return std::string_view::npos;
+  size_t maxPos_Pre = haystack.length() - len_PreNeedlePost;
+  size_t found_p ;
+
+  for (; pos < haystack.length(); pos = found_p + 1) {
+    found_p = haystack.find(pre, pos);
+    if (found_p == std::string_view::npos ||
+        found_p >  maxPos_Pre) return std::string_view::npos;
+    if (haystack.compare(found_p + pre.length(), needle.length(), needle) == 0 &&
+        haystack.compare(found_p + pre.length() + needle.length(), post.length(), post) == 0)
+      return found_p;
+  }
+  return std::string_view::npos;
+}
+size_t findWithDelimiters2(std::string_view haystack, size_t pos, std::string_view pre, std::string_view needle, std::string_view post) {
+// Untested !!!!!!
+  size_t len_PreNeedlePost = pre.length() + needle.length() + post.length();
+  char needlF[len_PreNeedlePost];
+  memcpy(needlF, pre.data(), pre.length() );
+  memcpy(needlF + pre.length(), needle.data(), needle.length() );
+  memcpy(needlF + pre.length() + needle.length(), post.data(), post.length() );
+  return haystack.find(std::string_view(needlF, len_PreNeedlePost), pos);
+}
+
+template<std::size_t N> std::string_view partInXmlTag0(std::string_view sv, const char (&tag)[N]) {
+// Untested !!!!!!
+  if (!N) return std::string_view();
+  std::string_view tag_sv(tag, N);
+  size_t pos0 = 0, pos_start;
+  for (size_t pos0 = 0; pos0 < sv.length(); pos0 = pos_start + 1) {
+    pos_start = findWithDelimiters(sv, pos0, "<", tag_sv, ">");
+    if (pos_start == std::string_view::npos) return std::string_view();
+    pos_start += N + 2;
+    size_t pos_end = findWithDelimiters(sv, pos_start, "</", tag_sv, ">");
+    if (pos_end != std::string_view::npos) return sv.substr(pos_start, pos_end - pos_start);
+  }
+  return std::string_view();
+}
+
+template<std::size_t N> std::string_view partInXmlTag(std::string_view sv, const char (&tag)[N]) {
+// Untested !!!!!!
+// very simple XML parser
+// if sv contains <tag>...</tag>, ... is returned (part between the XML tags is returned).
+// otherwise, std::string_view()  is returned. Note: this is also returned if the tags are there, but there is nothing between the tags ...
+// also, there is no error checking, like <tag> is more then once in sv, ...
+  if (!N) return std::string_view();
+  char tagD[N + 3];
+  memcpy(tagD + 2, tag, N);
+  tagD[N + 2] = '>';
+  tagD[0] = '<';
+  std::string_view tag_S(tagD+1, N + 2);
+  std::string_view tag_E(tagD,   N + 3);
+  size_t pos_start;
+  for (size_t pos0 = 0; pos0 < sv.length(); pos0 = pos_start + 1) {
+    tagD[1] = '<';
+    pos_start = sv.find(tag_S, pos0);
+    if (pos_start == std::string_view::npos) return std::string_view();
+    pos_start += N + 2;
+    tagD[1] = '/';
+    size_t pos_end = sv.find(tag_E, pos_start);
+    if (pos_end != std::string_view::npos) return sv.substr(pos_start, pos_end - pos_start);
+  }
+  return std::string_view();
+}
 
 const char* removePrefix(const char *s, const char *prefix) {
 // if s starts with prefix, return s + strlen(prefix)  (string with prefix removed)

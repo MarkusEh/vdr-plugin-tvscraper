@@ -15,8 +15,8 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
     m_movieDbMovieScraper = NULL;
     m_movieDbTvScraper = NULL;
     m_tvDbTvScraper = NULL;
-//    initSleep = 2 * 60 * 1000;
-    initSleep =     60 * 1000;
+    initSleep = 2 * 60 * 1000;  // todo: wait for video directory scanner thread ended
+//    initSleep =     60 * 1000;
     loopSleep = 5 * 60 * 1000;
     lastTimerRecordingCheck = 0;
 }

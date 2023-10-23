@@ -535,9 +535,9 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
       if (Data == NULL) return true;
       cGetAutoTimerReason* call = (cGetAutoTimerReason*) Data;
       call->createdByTvscraper = false;
-// check: timer && aux available, xml tag "tvscraper" in aux?
-      if (!call->timer || !call->timer->Aux() ) return true;
-      cXmlString xml_tvscraper(call->timer->Aux(), "tvscraper");
+// check: aux available, xml tag "tvscraper" in aux?
+      if (!call->aux) return true;
+      cXmlString xml_tvscraper(call->aux, "tvscraper");
       if (!xml_tvscraper.isValid() ) return true;
 // our timer
       call->createdByTvscraper = true;
@@ -556,7 +556,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
       } else {
         call->reason.append(tr("Improve recording"));
       }
-      if (call->requestRecording) call->recording = recordingFromAux(call->timer->Aux() );
+      if (call->requestRecording) call->recording = recordingFromAux(call->aux);
       else {
         call->recording = nullptr;
         call->reason.append(" ");
