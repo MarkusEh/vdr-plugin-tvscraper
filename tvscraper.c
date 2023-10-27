@@ -287,19 +287,6 @@ cMovieOrTv *cPluginTvscraper::GetMovieOrTv(const cEvent *event, const cRecording
   }
   return cMovieOrTv::getMovieOrTv(db, event, recording, runtime);
 }
-std::string getCollectionName(cTVScraperDB *db, const cRecording *rec) {
-  if (!rec) return tr("<unknown, no recording>");
-  int movie_tv_id, season_number, episode_number;
-  if (!db->GetMovieTvID(rec, movie_tv_id, season_number, episode_number) || !movie_tv_id) return tr("<unknown, not identified>");
-  return db->queryString("select movie_collection_name from movies3 where movie_id = ?", movie_tv_id);
-}
-
-std::string getTvShowName(cTVScraperDB *db, const cRecording *rec) {
-  if (!rec) return tr("<unknown, no recording>");
-  int movie_tv_id, season_number, episode_number;
-  if (!db->GetMovieTvID(rec, movie_tv_id, season_number, episode_number) || !movie_tv_id) return tr("<unknown, not identified>");
-  return db->queryString("select tv_name from tv2 where tv_id = ?", movie_tv_id);
-}
 
 bool cPluginTvscraper::Service(const char *Id, void *Data) {
     if (strcmp(Id, "GetScraperVideo") == 0) {
@@ -536,31 +523,37 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
       cGetAutoTimerReason* call = (cGetAutoTimerReason*) Data;
       call->createdByTvscraper = false;
 // check: aux available, xml tag "tvscraper" in aux?
-      if (!call->aux) return true;
-      cXmlString xml_tvscraper(call->aux, "tvscraper");
-      if (!xml_tvscraper.isValid() ) return true;
+      const char *aux = nullptr;
+      if (call->timer) aux = call->timer->Aux();
+      else if (call->recording_in && call->recording_in->Info() ) aux = call->recording_in->Info()->Aux();
+      if (!aux) return true;
+      std::string_view xml_tvscraper = partInXmlTag(aux, "tvscraper");
+      if (xml_tvscraper.empty() ) return true;
 // our timer
       call->createdByTvscraper = true;
 // call->recordingName
-      cXmlString xml_causedBy(xml_tvscraper, "causedBy");
-      call->recordingName = xml_causedBy.getString();
+      std::string_view xml_causedBy = partInXmlTag(xml_tvscraper, "causedBy");
+      if (xml_causedBy.empty() ) xml_causedBy = tr("(name not available)");
+      call->recordingName = xml_causedBy;
 // call->reason
       call->reason = "";
-      cXmlString xml_reason(xml_tvscraper, "reason");
+      std::string_view xml_reason = partInXmlTag(xml_tvscraper, "reason");
       if (xml_reason == "collection") {
-        cXmlString xml_collectionName(xml_tvscraper, "collectionName");
-        stringAppendFormated(call->reason, tr("Complement collection %.*s, caused by recording"), xml_collectionName.length(), xml_collectionName.data() );
+        std::string_view xml_collectionName = partInXmlTag(xml_tvscraper, "collectionName");
+        if (xml_collectionName.empty() ) xml_collectionName = tr("(name not available)");
+        stringAppendFormated(call->reason, tr("Complement collection %.*s, caused by recording"), (int)xml_collectionName.length(), xml_collectionName.data() );
       } else if (xml_reason == "TV show, missing episode") {
-        cXmlString xml_seriesName(xml_tvscraper, "seriesName");
-        stringAppendFormated(call->reason, tr("Episode of series %.*s, caused by recording"), xml_seriesName.length(), xml_seriesName.data() );
+        std::string_view xml_seriesName = partInXmlTag(xml_tvscraper, "seriesName");
+        if (xml_seriesName.empty() ) xml_seriesName = tr("(name not available)");
+        stringAppendFormated(call->reason, tr("Episode of series %.*s, caused by recording"), (int)xml_seriesName.length(), xml_seriesName.data() );
       } else {
         call->reason.append(tr("Improve recording"));
       }
-      if (call->requestRecording) call->recording = recordingFromAux(call->aux);
+      if (call->requestRecording) call->recording = recordingFromAux(aux);
       else {
         call->recording = nullptr;
         call->reason.append(" ");
-        call->reason.append(xml_causedBy.data(), xml_causedBy.length() );
+        call->reason.append(xml_causedBy);
       }
       return true;
     }

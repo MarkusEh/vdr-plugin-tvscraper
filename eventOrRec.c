@@ -271,8 +271,8 @@ bool csRecording::getEpgsearchTimerInfo(bool &vps, int &lengthInSeconds) {
   if (!epgsearchStart.isValid()) return false;
   cXmlString epgsearchStop(epgsearchAux, "stop");
   if (!epgsearchStop.isValid()) return false;
-  int start = epgsearchStart.getInt();
-  int stop = epgsearchStop.getInt();
+  time_t start = svtoull(epgsearchStart);
+  time_t stop = svtoull(epgsearchStop);
   lengthInSeconds = stop - start;
   vps = (start == m_recording->Info()->GetEvent()->StartTime() ) &&
         (lengthInSeconds == m_recording->Info()->GetEvent()->Duration() );

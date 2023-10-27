@@ -828,21 +828,8 @@ class cXmlString {
     }
     cXmlString(const cXmlString&) = delete;
     cXmlString &operator= (const cXmlString &) = delete;
-    std::string getString() const {
-      if (!m_start || !m_end) return "";
-      return std::string(m_start, m_end - m_start);
-    }
     const char *data() { return m_start?m_start:""; }
     int length() { return m_start?(m_end - m_start):0; }
-    int getInt() const {
-      if (!m_start) return 0;
-      return atoi(m_start);
-    }
-    long long getIntll() const {
-      if (!m_start) return 0;
-      char *end;
-      return strtoll(m_start, &end, 10);
-    }
     bool isValid() const { return m_start != NULL;}
     bool operator== (const char *sec) const {
       if (!m_start || !sec) return false;
@@ -859,10 +846,8 @@ class cXmlString {
       if(!start || !end || !tag) return;
       size_t tag_len = strlen(tag);
       m_start = startTag(start, end, tag, tag_len);
-  //    cout << "m_start: " << m_start << endl;
       if (!m_start) return;
       m_end = endTag(m_start, end, tag, tag_len);
-  //    cout << "m_end: " << m_end << endl;
       if (!m_end) m_start = NULL;
     }
     const char *startTag(const char *start, const char *end, const char *tag, size_t tag_len) const {
@@ -878,73 +863,29 @@ class cXmlString {
     const char *m_start = NULL;
     const char *m_end = NULL;
 };
-size_t findWithDelimiters(std::string_view haystack, size_t pos, std::string_view pre, std::string_view needle, std::string_view post) {
-// Untested !!!!!!
-// like find, but search for pre + needle + post
-  size_t len_PreNeedlePost = pre.length() + needle.length() + post.length();
-  if (len_PreNeedlePost > haystack.length() ) return std::string_view::npos;
-  size_t maxPos_Pre = haystack.length() - len_PreNeedlePost;
-  size_t found_p ;
-
-  for (; pos < haystack.length(); pos = found_p + 1) {
-    found_p = haystack.find(pre, pos);
-    if (found_p == std::string_view::npos ||
-        found_p >  maxPos_Pre) return std::string_view::npos;
-    if (haystack.compare(found_p + pre.length(), needle.length(), needle) == 0 &&
-        haystack.compare(found_p + pre.length() + needle.length(), post.length(), post) == 0)
-      return found_p;
-  }
-  return std::string_view::npos;
-}
-size_t findWithDelimiters2(std::string_view haystack, size_t pos, std::string_view pre, std::string_view needle, std::string_view post) {
-// Untested !!!!!!
-  size_t len_PreNeedlePost = pre.length() + needle.length() + post.length();
-  char needlF[len_PreNeedlePost];
-  memcpy(needlF, pre.data(), pre.length() );
-  memcpy(needlF + pre.length(), needle.data(), needle.length() );
-  memcpy(needlF + pre.length() + needle.length(), post.data(), post.length() );
-  return haystack.find(std::string_view(needlF, len_PreNeedlePost), pos);
-}
-
-template<std::size_t N> std::string_view partInXmlTag0(std::string_view sv, const char (&tag)[N]) {
-// Untested !!!!!!
-  if (!N) return std::string_view();
-  std::string_view tag_sv(tag, N);
-  size_t pos0 = 0, pos_start;
-  for (size_t pos0 = 0; pos0 < sv.length(); pos0 = pos_start + 1) {
-    pos_start = findWithDelimiters(sv, pos0, "<", tag_sv, ">");
-    if (pos_start == std::string_view::npos) return std::string_view();
-    pos_start += N + 2;
-    size_t pos_end = findWithDelimiters(sv, pos_start, "</", tag_sv, ">");
-    if (pos_end != std::string_view::npos) return sv.substr(pos_start, pos_end - pos_start);
-  }
-  return std::string_view();
-}
 
 template<std::size_t N> std::string_view partInXmlTag(std::string_view sv, const char (&tag)[N]) {
-// Untested !!!!!!
 // very simple XML parser
-// if sv contains <tag>...</tag>, ... is returned (part between the XML tags is returned).
-// otherwise, std::string_view()  is returned. Note: this is also returned if the tags are there, but there is nothing between the tags ...
-// also, there is no error checking, like <tag> is more then once in sv, ...
-  if (!N) return std::string_view();
-  char tagD[N + 3];
-  memcpy(tagD + 2, tag, N);
-  tagD[N + 2] = '>';
+// if sv contains <tag>...</tag>, ... is returned (part between the outermost XML tags is returned).
+// otherwise, std::string_view() is returned. This is also returned if the tags are there, but there is nothing between the tags ...
+// there is no error checking, like <tag> is more often in sv than </tag>, ...
+  if (N < 1) return std::string_view(); // note: N == strlen(tag) + 1. It includes the 0 terminator ...
+// create <tag>
+  char tagD[N + 2];
+  memcpy(tagD + 2, tag, N - 1);
+  tagD[N + 1] = '>';
+// find <tag>
+  tagD[1] = '<';
+  size_t pos_start = sv.find(tagD + 1, 0, N + 1);
+  if (pos_start == std::string_view::npos) return std::string_view();
+  pos_start += N + 1; // start of ... between tags
+// rfind </tag>
   tagD[0] = '<';
-  std::string_view tag_S(tagD+1, N + 2);
-  std::string_view tag_E(tagD,   N + 3);
-  size_t pos_start;
-  for (size_t pos0 = 0; pos0 < sv.length(); pos0 = pos_start + 1) {
-    tagD[1] = '<';
-    pos_start = sv.find(tag_S, pos0);
-    if (pos_start == std::string_view::npos) return std::string_view();
-    pos_start += N + 2;
-    tagD[1] = '/';
-    size_t pos_end = sv.find(tag_E, pos_start);
-    if (pos_end != std::string_view::npos) return sv.substr(pos_start, pos_end - pos_start);
-  }
-  return std::string_view();
+  tagD[1] = '/';
+//  std::cout << "tagD[0] " << std::string_view(tagD, N + 2) << "\n";
+  size_t len = sv.substr(pos_start).rfind(tagD, std::string_view::npos, N + 2);
+  if (len == std::string_view::npos) return std::string_view();
+  return sv.substr(pos_start, len);
 }
 
 const char* removePrefix(const char *s, const char *prefix) {
@@ -1044,6 +985,226 @@ class cContainer {
     std::string m_buffer;
 };
 
+inline bool __attribute__((optimize(3))) my_isspace(char c) {
+  switch (c) {
+    case ' ':
+    case '\t':
+    case '\f':
+    case '\n':
+    case '\r':
+    case '\v':
+      return true;
+    default:
+      return false;
+  }
+}
+#define SKIP_SPACE(s, e) \
+  for (; (s) < (e); ++(s)) { \
+    switch (*(s)) { \
+      case ' ': case '\t': case '\f': case '\n': case '\r': case '\v': \
+        continue; \
+      default: \
+        break; \
+    } \
+    break; \
+  }
+
+inline void __attribute__((optimize(3))) skip_space(const char *&pos, const char *pos_e) {
+// if s >= e: do nothing
+// check for whitspace at s.
+// don't use std::isspace or isspace: this is really slow ... 0.055 <-> 0.037
+  for (; pos < pos_e; ++pos) {
+    switch (*pos) {
+      case ' ': case '\t': case '\f': case '\n': case '\r': case '\v':
+        continue;
+      default:
+        break;
+    }
+    break;
+  }
+}
+unsigned long long __attribute__((optimize(3))) svtoull(std::string_view sv) {
+  const char *pos = sv.data();
+  const char *pos_e = pos + sv.length();
+  SKIP_SPACE(pos, pos_e);
+  unsigned long long val = 0;
+  for (; pos < pos_e && std::isdigit(pos[0]); ++pos) val = val*10 + (pos[0]-'0');
+  return val;
+}
+long long __attribute__((optimize(3))) svtoll(std::string_view sv) { // use this __attribute__ for performance tests. Prod: everything is optimized
+// 0.037
+// just use this for every conversion to int. There is no range check ...
+// convert sv to int
+// return 0 is there is no int
+// ignore everything in sv after the first non-digit
+  const char *pos = sv.data();
+  const char *pos_e = pos + sv.length();
+  SKIP_SPACE(pos, pos_e);
+  int sign = 1;
+  if (pos < pos_e && pos[0] == '-') {
+    sign = -1;
+    ++pos;
+    SKIP_SPACE(pos, pos_e);
+  }
+  long long val = 0;
+  for (; pos < pos_e && std::isdigit(pos[0]); ++pos) val = val*10 + (pos[0]-'0');
+  return val * sign;
+}
+
+long long __attribute__((optimize(3))) svtoll_bak(std::string_view sv) { // use this for performance tests. Prod: everything is optimized
+// long long svtoll_best(std::string_view sv) 
+// 0.037
+// just use this for every conversion to int. There is no range check ...
+// convert sv to int
+// return 0 is there is no int
+// ignore everything in sv after the first non-digit
+  const char *pos = sv.data();
+  size_t l = sv.length();
+  size_t p = 0;
+  for (p = 0; p < l && (pos[p] == ' ' || pos[p] == '\t'); ++p);
+// don't use std::isspace or isspace: this is really slow ... 0.055 <-> 0.037
+//  if (isspace(pos[p])) ++p;
+  int sign = 1;
+  if (p < l && pos[p] == '-') {
+    sign = -1;
+    ++p;
+    for (; p < l && (pos[p] == ' ' || pos[p] == '\t'); ++p);
+  }
+  long long val = 0;
+  for (; p < l && std::isdigit(pos[p]); ++p) val = val*10 + (pos[p]-'0');
+  return val * sign;
+}
+long long __attribute__((optimize(3))) svtoll_pos(const char *pos, size_t l) {
+  long long val = 0;
+  const char *pos_e = pos + l;
+  for (; pos < pos_e && std::isdigit(pos[0]); ++pos) val = val*10 + (pos[0]-'0');
+  return val;
+}
+long long __attribute__((optimize(3))) svtoll_pos(std::string_view sv) {
+// 0.041  -> now 0.035, warum auch immer ...
+// comparison of pointers (pos < pos_e) slower than comparison of size_t -> no
+// increase   of pointers (++pos)       slower than increase   of size_t -> no
+// access to pos[p] (p==0) is faster than access to pos[0] -> no
+//  if (sv.empty()) return 0;  don't use, bad for performance. access to sv is slow ...
+  long long val = 0;
+  const char *pos = sv.data();
+  const char *pos_e = pos + sv.length();
+  for (; pos < pos_e && std::isdigit(*pos); ++pos) val = val*10 + (*pos-'0');
+  return val;
+}
+long long __attribute__((optimize(3))) svtoll_p(const char *pos, size_t l) {
+  long long val = 0;
+  for (size_t p =0; p < l && std::isdigit(pos[p]); ++p) val = val*10 + (pos[p]-'0');
+  return val;
+}
+long long __attribute__((optimize(3))) svtoll_p(std::string_view sv) {
+// 0.036
+// best option. Just remove whitespace at the beginning, and support negative numbers ...
+  long long val = 0;
+  const char *pos = sv.data();
+  size_t l = sv.length();
+  for (size_t p =0; p < l && std::isdigit(pos[p]); ++p) val = val*10 + (pos[p]-'0');
+  return val;
+}
+long long __attribute__((optimize(3))) getAsIntll_no_loop(std::string_view sv) {
+// 0.032
+// no range check of characters, and no real performance improvement -> use the loop
+// most time consuming is the memory access
+  long long value_ = 0;
+  const char *str = sv.data();
+  size_t len = sv.length();
+  switch (len) { // handle up to 10 digits, assume we're 32-bit
+    case 10:    value_ += (str[len-10] - '0') * 1000000000;
+    case  9:    value_ += (str[len- 9] - '0') * 100000000;
+    case  8:    value_ += (str[len- 8] - '0') * 10000000;
+    case  7:    value_ += (str[len- 7] - '0') * 1000000;
+    case  6:    value_ += (str[len- 6] - '0') * 100000;
+    case  5:    value_ += (str[len- 5] - '0') * 10000;
+    case  4:    value_ += (str[len- 4] - '0') * 1000;
+    case  3:    value_ += (str[len- 3] - '0') * 100;
+    case  2:    value_ += (str[len- 2] - '0') * 10;
+    case  1:    value_ += (str[len- 1] - '0');
+  }
+  return value_;
+}
+long long __attribute__((optimize(3))) getAsIntll_4(std::string_view sv) {
+// 0.134
+// this is slow. Access to sv[p] seems to take much longe compared to *pos
+// sv[p] must be evaluated each time it is called. *pos can be cached, only 1 time memory access -> factor 2
+// note: there is no range check in sv[p], so this is not the performance issue
+// sv.length() in loop: re-evaluated each loop -> costs 30% performance
+  long long val = 0;
+  for (size_t p =0; p < sv.length() && std::isdigit(sv[p]); ++p) val = val*10 + (sv[p]-'0');
+  return val;
+}
+long long __attribute__((optimize(3))) getAsIntll_2(std::string_view sv) {
+// works, but somewhat slower than the sulution above, and more complicated
+// if optimization is disabled, it is somewhat faster than the solution above
+// read int in sv
+// return 0 if there is no int
+// ignore everything in sv after the first non-digit
+  if (sv.empty() ) return 0;
+  const char *pos = sv.data();
+  const char *pos_e = pos + sv.length();
+  unsigned char dchar = *pos;
+  ++pos;
+  for (; pos < pos_e && dchar != '-' && !isdigit(dchar);++pos) dchar = *(pos);
+  if (pos >= pos_e) return 0;
+  int sign = 1;
+  if (dchar == '-') {
+    sign = -1;
+    ++pos;
+    if (pos >= pos_e) return 0;
+  }
+
+  long long val = 0;
+// note for performance: no if statement in loop
+// to achieve this:
+//   have a first part: dchar = *pos -'0';
+//   loop only over sv.length() -1 iterations (++pos before loop)
+//   and have a last part: if (dchar < 10)  (if outside loop is ok)
+  dchar -= '0';
+  for (; pos < pos_e && dchar < 10;++pos) {
+    val = val*10 + dchar;
+    dchar = *(pos) -'0';
+  }
+  if (dchar < 10) val = val*10 + dchar;
+  return val * sign;
+}
+
+int seasonS(std::string_view description_part, const char *S) {
+// return season, if found at the beginning of description_part
+// otherwise, return -1
+  size_t s_len = strlen(S);
+  if (description_part.compare(0, s_len, S)  != 0) return -1;
+//  std::cout << "seasonS " << description_part << "\n";
+  if (description_part.length() <= s_len || !isdigit(description_part[s_len]) ) return -1;
+  return svtoull(description_part.substr(s_len));
+}
+bool episodeSEp(int &season, int &episode, std::string_view description, const char *S, const char *Ep) {
+// search pattern S<digit> Ep<digits>
+// return true if episode was found.
+// set season = -1 if season was not found
+// set episode = 0 if episode was not found
+// find Ep[digit]
+  season = -1;
+  episode = 0;
+  size_t Ep_len = strlen(Ep);
+  size_t ep_pos = 0;
+  do {
+    ep_pos = description.find(Ep, ep_pos);
+    if (ep_pos == std::string_view::npos || ep_pos + Ep_len > description.length() ) return false;  // no Ep[digit]
+    ep_pos += Ep_len;
+//  std::cout << "ep_pos = " << ep_pos << "\n";
+  } while (!isdigit(description[ep_pos]));
+// Ep[digit] found
+//  std::cout << "ep found at " << description.substr(ep_pos) << "\n";
+  episode = svtoull(description.substr(ep_pos));
+  if (ep_pos - Ep_len >= 3) season = seasonS(description.substr(ep_pos - Ep_len - 3), S);
+  if (season < 0 && ep_pos - Ep_len >= 4) season = seasonS(description.substr(ep_pos - Ep_len - 4), S);
+  return true;
+}
+
 class cMeasureTime {
   public:
     void start() { begin = std::chrono::high_resolution_clock::now(); }
@@ -1075,45 +1236,5 @@ class cMeasureTime {
     std::chrono::duration<double> maxT = std::chrono::duration<double>(0.);
     std::chrono::time_point<std::chrono::high_resolution_clock> begin;
 };
-int getAsInt(std::string_view sv) {
-// read int in sv
-// return 0 is there is no int
-// ignore everything in sv after the first non-digit
-  int val = 0;
-  for (size_t p = 0; isdigit(sv[p]) && p < sv.length(); ++p) val = val*10 + (sv[p]-'0');
-  return val;
-}
-int seasonS(std::string_view description_part, const char *S) {
-// return season, if found at the beginning of description_part
-// otherwise, return -1
-  size_t s_len = strlen(S);
-  if (description_part.compare(0, s_len, S)  != 0) return -1;
-//  std::cout << "seasonS " << description_part << "\n";
-  if (description_part.length() <= s_len || !isdigit(description_part[s_len]) ) return -1;
-  return getAsInt(description_part.substr(s_len));
-}
-bool episodeSEp(int &season, int &episode, std::string_view description, const char *S, const char *Ep) {
-// search pattern S<digit> Ep<digits>
-// return true if episode was found.
-// set season = -1 if season was not found
-// set episode = 0 if episode was not found
-// find Ep[digit]
-  season = -1;
-  episode = 0;
-  size_t Ep_len = strlen(Ep);
-  size_t ep_pos = 0;
-  do {
-    ep_pos = description.find(Ep, ep_pos);
-    if (ep_pos == std::string_view::npos || ep_pos + Ep_len > description.length() ) return false;  // no Ep[digit]
-    ep_pos += Ep_len;
-//  std::cout << "ep_pos = " << ep_pos << "\n";
-  } while (!isdigit(description[ep_pos]));
-// Ep[digit] found
-//  std::cout << "ep found at " << description.substr(ep_pos) << "\n";
-  episode = getAsInt(description.substr(ep_pos));
-  if (ep_pos - Ep_len >= 3) season = seasonS(description.substr(ep_pos - Ep_len - 3), S);
-  if (season < 0 && ep_pos - Ep_len >= 4) season = seasonS(description.substr(ep_pos - Ep_len - 4), S);
-  return true;
-}
 
 #endif // __STRINGHELPERS_H

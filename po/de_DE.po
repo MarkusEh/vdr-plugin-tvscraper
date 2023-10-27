@@ -78,7 +78,10 @@ msgstr "Ergänzung zur Sammlung von Filmen"
 msgid "TV show, missing episode"
 msgstr "Fehlende Folge"
 
-#, c-format                                                                                                                                       
+msgid "(name not available)"
+msgstr "(Name nicht verfügbar)"
+
+#, c-format
 msgid "Complement collection %.*s, caused by recording"
 msgstr "Ergänzen der Filmreihe %.*s, wegen der Aufzeichnung"
 

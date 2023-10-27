@@ -296,26 +296,25 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
 const cRecording *recordingFromAux(const char *aux) {
   if (!aux || !*aux) return nullptr;
 // parse aux for IDs of recording
-  cXmlString xml_tvscraper(aux, "tvscraper");
-  if (!xml_tvscraper.isValid() ) return nullptr;
-  cXmlString xml_causedByIDs(xml_tvscraper, "causedByIDs");
-  if (!xml_causedByIDs.isValid() ) return nullptr;
-  cXmlString xml_eventID(xml_causedByIDs, "eventID");
-  if (!xml_eventID.isValid() ) return nullptr;
-  cXmlString xml_eventStartTime(xml_causedByIDs, "eventStartTime");
-  if (!xml_eventStartTime.isValid() ) return nullptr;
-  cXmlString xml_channelID(xml_causedByIDs, "channelID");
+  std::string_view xml_tvscraper = partInXmlTag(aux, "tvscraper");
+  if (xml_tvscraper.empty() ) return nullptr;
+  std::string_view xml_causedByIDs = partInXmlTag(xml_tvscraper, "causedByIDs");
+  if (xml_causedByIDs.empty() ) return nullptr;
+  std::string_view xml_eventID = partInXmlTag(xml_causedByIDs, "eventID");
+  if (xml_eventID.empty() ) return nullptr;
+  std::string_view xml_eventStartTime = partInXmlTag(xml_causedByIDs, "eventStartTime");
+  if (xml_eventStartTime.empty() ) return nullptr;
+  std::string_view xml_channelID = partInXmlTag(xml_causedByIDs, "channelID");
+  bool channelID_valid = !xml_channelID.empty();
   tChannelID channelID;
-  std::string name;
-  bool channelID_valid = xml_channelID.isValid();
-  if (channelID_valid) channelID = tChannelID::FromString(xml_channelID.getString().c_str() );
+  std::string_view name;
+  if (channelID_valid) channelID = tChannelID::FromString(std::string(xml_channelID).c_str() );
   else {
-    cXmlString xml_causedBy(xml_tvscraper, "causedBy");
-    if (!xml_causedBy.isValid() ) return nullptr;
-    name = xml_causedBy.getString();
+    name = partInXmlTag(xml_tvscraper, "causedBy");
+    if (name.empty() ) return nullptr;
   }
-  tEventID event_id = xml_eventID.getIntll();
-  time_t event_start_time = xml_eventStartTime.getIntll();
+  tEventID event_id = svtoull(xml_eventID);
+  time_t event_start_time = svtoull(xml_eventStartTime);
 
   LOCK_RECORDINGS_READ;
   for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec))
@@ -574,8 +573,7 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
         ti_del = ti;
       } else {
 // Timer has event, and event is in schedule. Adjust times to event, if required (not for VPS timers)
-        cXmlString xmlNumEvents(xmlAux, "numEvents");
-        if (xmlNumEvents.getInt() == 2) {
+        if (svtoull(partInXmlTag(xmlAux, "numEvents")) == 2) {
           const cEvent *event1;
           const cEvent *event2;
           if (!timerGetEvents(event1, event2, ti)) ti_del = ti;
