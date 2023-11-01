@@ -539,13 +539,33 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
       call->reason = "";
       std::string_view xml_reason = partInXmlTag(xml_tvscraper, "reason");
       if (xml_reason == "collection") {
-        std::string_view xml_collectionName = partInXmlTag(xml_tvscraper, "collectionName");
-        if (xml_collectionName.empty() ) xml_collectionName = tr("(name not available)");
-        stringAppendFormated(call->reason, tr("Complement collection %.*s, caused by recording"), (int)xml_collectionName.length(), xml_collectionName.data() );
+        std::string      collectionNameStr;
+        std::string_view collectionName = partInXmlTag(xml_tvscraper, "collectionName");
+        if (collectionName.empty() && call->recording_in) {
+// try to get the collection name from the recording
+          cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, nullptr, call->recording_in);
+          if (movieOrTv) {
+            collectionNameStr = movieOrTv->getCollectionName();  // to avoid deletion of the string before we us it, the string is assigned to collectionNameStr (which is a string)
+            collectionName = collectionNameStr;
+            delete movieOrTv;
+          }
+        }
+        if (collectionName.empty() ) collectionName = tr("(name not available)");
+        stringAppendFormated(call->reason, tr("Complement collection %.*s, caused by recording"), (int)collectionName.length(), collectionName.data() );
       } else if (xml_reason == "TV show, missing episode") {
-        std::string_view xml_seriesName = partInXmlTag(xml_tvscraper, "seriesName");
-        if (xml_seriesName.empty() ) xml_seriesName = tr("(name not available)");
-        stringAppendFormated(call->reason, tr("Episode of series %.*s, caused by recording"), (int)xml_seriesName.length(), xml_seriesName.data() );
+        std::string_view seriesName = partInXmlTag(xml_tvscraper, "seriesName");
+        cSql stmt(db, "select tv_name from tv2 where tv_id = ?"); // define this here so returned string_view is still valid when we append to call->reason
+        if (seriesName.empty() && call->recording_in) {
+// try to get the series  name from the recording
+          cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, nullptr, call->recording_in);
+          if (movieOrTv) {
+            stmt.resetBindStep(movieOrTv->dbID() );
+            if (stmt.readRow() ) seriesName = stmt.getStringView(0);
+            delete movieOrTv;
+          }
+        }
+        if (seriesName.empty() ) seriesName = tr("(name not available)");
+        stringAppendFormated(call->reason, tr("Episode of series %.*s, caused by recording"), (int)seriesName.length(), seriesName.data() );
       } else {
         call->reason.append(tr("Improve recording"));
       }

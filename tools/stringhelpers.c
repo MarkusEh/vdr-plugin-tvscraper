@@ -108,7 +108,34 @@ SELECT( CONCATENATE_END, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
 *result##concatenate_buf = 0;
 
 // =========================================================
-// UTF8 string utilities ****************
+// methods for char *s, make sure that s==NULL is just an empty string
+// =========================================================
+inline std::string charPointerToString(const unsigned char *s) {
+  return s?reinterpret_cast<const char *>(s):"";
+}
+inline std::string_view charPointerToStringView(const unsigned char *s) {
+  return s?reinterpret_cast<const char *>(s):std::string_view();
+}
+inline std::string_view charPointerToStringView(const char *s) {
+  return s?s:std::string_view();
+}
+inline std::string charPointerToString(const char *s) {
+  return s?s:"";
+}
+
+bool stringEqual(const char *s1, const char *s2) {
+// return true if texts are identical (or both texts are NULL)
+  if (s1 && s2) return strcmp(s1, s2) == 0;
+  if (!s1 && !s2 ) return true;
+  if (!s1 && !*s2 ) return true;
+  if (!*s1 && !s2 ) return true;
+  return false;
+}
+
+// =========================================================
+// =========================================================
+// Chapter 0: UTF8 string utilities ****************
+// =========================================================
 // =========================================================
 
 int AppendUtfCodepoint(char *&target, wint_t codepoint){
@@ -207,6 +234,316 @@ inline wint_t getNextUtfCodepoint(const char *&p){
   if( l == 0 ) { p++; return '?'; }
   return Utf8ToUtf32(p, l);
 }
+
+// =========================================================
+// =========================================================
+// Chapter 1: Parse char* / string_view / string
+// =========================================================
+// =========================================================
+
+// =========================================================
+// whitespace ==============================================
+// =========================================================
+inline bool my_isspace(char c) {
+// 0.0627, fastest
+  return (c == ' ') || (c >=  0x09 && c <=  0x0d);
+// (0x09, '\t'), (0x0a, '\n'), (0x0b, '\v'),  (0x0c, '\f'), (0x0d, '\r')
+}
+void StringRemoveTrailingWhitespace(std::string &str) {
+  const char*  whitespaces = " \t\f\v\n\r";
+
+  std::size_t found = str.find_last_not_of(whitespaces);
+  if (found!=std::string::npos)
+    str.erase(found+1);
+  else
+    str.clear();            // str is all whitespace
+}
+
+int StringRemoveTrailingWhitespace(const char *str, int len) {
+// return "new" len of string, without whitespaces at the end
+  if (!str) return 0;
+  for (; len; len--) if (!my_isspace(str[len - 1])) return len;
+  return 0;
+}
+
+inline std::string_view remove_leading_whitespace(std::string_view sv) {
+// return a string_view with leading whitespace from sv removed
+// for performance:
+//   avoid changing sv: std::string_view &sv is much slower than std::string_view sv
+//   don't use std::isspace or isspace: this is really slow ... 0.055 <-> 0.037
+//   also avoid find_first_not_of(" \t\f\v\n\r";): way too slow ...
+// definition of whitespace:
+// (0x20, ' '), (0x09, '\t'), (0x0a, '\n'), (0x0b, '\v'),  (0x0c, '\f'), (0x0d, '\r')
+// or:  (c == ' ') || (c >=  0x09 && c <=  0x0d);
+// best performance: use find_first_not_of for ' ':
+  for (size_t i = 0; i < sv.length(); ++i) {
+    i = sv.find_first_not_of(' ', i);
+    if (i == std::string_view::npos) return std::string_view(); // only ' '
+    if (sv[i] > 0x0d || sv[i] < 0x09) return sv.substr(i);  // non whitespace found at i
+  }
+  return std::string_view();
+
+/*
+  for (size_t i = 0; i < sv.length(); ++i) if (!my_isspace(sv[i])) return sv.substr(i);
+  return std::string_view();
+*/
+/*
+// same performance as for with if in for loop.
+// prefaer if in for loop for shorter code and better readability
+  size_t i = 0;
+  for (; i < sv.length() && my_isspace(sv[i]); ++i);
+  return sv.substr(i);
+*/
+}
+// =========================================================
+// parse string_view for int
+// =========================================================
+
+template<class T> inline T parse_unsigned_internal(std::string_view sv) {
+  T val = 0;
+  for (size_t start = 0; start < sv.length() && std::isdigit(sv[start]); ++start) val = val*10 + (sv[start]-'0');
+  return val;
+}
+template<class T> inline T parse_int(std::string_view sv) {
+  if (sv.empty() ) return 0;
+  if (!std::isdigit(sv[0]) && sv[0] != '-') {
+    sv = remove_leading_whitespace(sv);
+    if (sv.empty() ) return 0;
+  }
+  if (sv[0] != '-') return parse_unsigned_internal<T>(sv);
+  return -parse_unsigned_internal<T>(sv.substr(1));
+}
+
+template<class T> inline T parse_unsigned(std::string_view sv) {
+  if (sv.empty() ) return 0;
+  if (!std::isdigit(sv[0])) sv = remove_leading_whitespace(sv);
+  return parse_unsigned_internal<T>(sv);
+}
+
+// =========================================================
+// parse string_view for xml
+// =========================================================
+
+template<std::size_t N> std::string_view partInXmlTag(std::string_view sv, const char (&tag)[N], bool *exists = nullptr) {
+// very simple XML parser
+// if sv contains <tag>...</tag>, ... is returned (part between the outermost XML tags is returned).
+// otherwise, std::string_view() is returned. This is also returned if the tags are there, but there is nothing between the tags ...
+// there is no error checking, like <tag> is more often in sv than </tag>, ...
+  if (exists) *exists = false;
+  if (N < 1) return std::string_view(); // note: N == strlen(tag) + 1. It includes the 0 terminator ...
+// create <tag>
+  char tagD[N + 2];
+  memcpy(tagD + 2, tag, N - 1);
+  tagD[N + 1] = '>';
+// find <tag>
+  tagD[1] = '<';
+  size_t pos_start = sv.find(tagD + 1, 0, N + 1);
+  if (pos_start == std::string_view::npos) return std::string_view();
+  pos_start += N + 1; // start of ... between tags
+// rfind </tag>
+  tagD[0] = '<';
+  tagD[1] = '/';
+//  std::cout << "tagD[0] " << std::string_view(tagD, N + 2) << "\n";
+  size_t len = sv.substr(pos_start).rfind(tagD, std::string_view::npos, N + 2);
+  if (len == std::string_view::npos) return std::string_view();
+  if (exists) *exists = true;
+  return sv.substr(pos_start, len);
+}
+
+// =========================================================
+// =========== search in char*
+// =========================================================
+
+const char* removePrefix(const char *s, const char *prefix) {
+// if s starts with prefix, return s + strlen(prefix)  (string with prefix removed)
+// otherwise, return NULL
+  if (!s || !prefix) return NULL;
+  size_t len = strlen(prefix);
+  if (strncmp(s, prefix, len) != 0) return NULL;
+  return s+len;
+}
+
+const char *strnstr(const char *haystack, const char *needle, size_t len) {
+// if len >  0: use only len characters of needle
+// if len == 0: use all (strlen(needle)) characters of needle
+
+  if (len == 0) return strstr(haystack, needle);
+  for (;(haystack = strchr(haystack, needle[0])); haystack++)
+    if (!strncmp(haystack, needle, len)) return haystack;
+  return 0;
+}
+
+const char *strstr_word (const char *haystack, const char *needle, size_t len = 0) {
+// as strstr, but needle must be a word (surrounded by non-alphanumerical characters)
+// if len >  0: use only len characters of needle
+// if len == 0: use strlen(needle) characters of needle
+  if (!haystack || !needle || !(*needle) ) return NULL;
+  size_t len2 = (len == 0) ? strlen(needle) : len;
+  if (len2 == 0) return NULL;
+  for (const char *f = strnstr(haystack, needle, len); f && *(f+1); f = strnstr (f + 1, needle, len) ) {
+    if (f != haystack   && isalpha(*(f-1) )) continue;
+    if (f[len2] != 0 && isalpha(f[len2]) ) continue;
+    return f;
+  }
+  return NULL;
+}
+
+std::string_view textAttributeValue(const char *text, const char *attributeName) {
+  if (!text || !attributeName) return std::string_view();
+  const char *found = strstr(text, attributeName);
+  if (!found) return std::string_view();
+  const char *avs = found + strlen(attributeName);
+  const char *ave = strchr(avs, '\n');
+  if (!ave) return std::string_view();
+  return std::string_view(avs, ave-avs);
+}
+
+bool splitString(std::string_view str, std::string_view delim, size_t minLengh, std::string_view &first, std::string_view &second) {
+// true if delim is part of str, and length of first & second >= minLengh
+  std::size_t found = str.find(delim);
+  size_t first_len = 0;
+  while (found != std::string::npos) {
+    first_len = StringRemoveTrailingWhitespace(str.data(), found);
+    if (first_len >= minLengh) break;
+    found = str.find(delim, found + 1);
+  }
+//  std::cout << "first_len " << first_len << " found " << found << "\n";
+  if(first_len < minLengh) return false; // nothing found
+
+  std::size_t ssnd;
+  for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
+  if(str.length() - ssnd < minLengh) return false; // nothing found, second part to short
+
+  second = str.substr(ssnd);
+  first = str.substr(0, first_len);
+  return true;
+}
+
+bool splitString(std::string_view str, char delimiter, size_t minLengh, std::string_view &first, std::string_view &second) {
+  using namespace std::literals::string_view_literals;
+  if (delimiter == '-') return splitString(str, " - "sv, minLengh, first, second);
+  if (delimiter == ':') return splitString(str, ": "sv, minLengh, first, second);
+  std::string delim(1, delimiter);
+  return splitString(str, delim, minLengh, first, second);
+}
+
+std::string_view SecondPart(std::string_view str, std::string_view delim, size_t minLengh) {
+// return second part of split string if delim is part of str, and length of first & second >= minLengh
+// otherwise, return ""
+  std::string_view first, second;
+  if (splitString(str, delim, minLengh, first, second)) return second;
+  else return "";
+}
+
+std::string_view SecondPart(std::string_view str, std::string_view delim) {
+// Return part of str after first occurence of delim
+// if delim is not in str, return ""
+  size_t found = str.find(delim);
+  if (found == std::string::npos) return std::string_view();
+  std::size_t ssnd;
+  for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
+  return str.substr(ssnd);
+}
+
+int StringRemoveLastPartWithP(const char *str, int len) {
+// remove part with (...)
+// return -1 if nothing can be removed
+// otherwise length of string without ()
+  len = StringRemoveTrailingWhitespace(str, len);
+  if (len < 3) return -1;
+  if (str[len -1] != ')') return -1;
+  for (int i = len -2; i; i--) {
+    if (!isdigit(str[i]) && str[i] != '/') {
+      if (str[i] != '(') return -1;
+      int len2 = StringRemoveLastPartWithP(str, i);
+      if (len2 == -1 ) return StringRemoveTrailingWhitespace(str, i);
+      return len2;
+    }
+  }
+  return -1;
+}
+
+bool StringRemoveLastPartWithP(std::string &str) {
+// remove part with (...)
+  int len = StringRemoveLastPartWithP(str.c_str(), str.length() );
+  if (len < 0) return false;
+  str.erase(len);
+  return true;
+}
+std::string_view removeLastPartWithP(std::string_view str) {
+  int l = StringRemoveLastPartWithP(str.data(), str.length() );
+  if (l < 0) return str;
+  return std::string_view(str.data(), l);
+}
+
+int NumberInLastPartWithPS(std::string_view str) {
+// return number in last part with (./.), 0 if not found / invalid
+  if (str.length() < 3 ) return 0;
+  if (str[str.length() - 1] != ')') return 0;
+  std::size_t found = str.find_last_of("(");
+  if (found == std::string::npos) return 0;
+  for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
+    if (!isdigit(str[i]) && str[i] != '/') return 0; // we gnore (asw), and return only number with digits only
+  }
+  return atoi(str.data() + found + 1);
+}
+int NumberInLastPartWithP(std::string_view str) {
+// return number in last part with (...), 0 if not found / invalid
+  if (str.length() < 3 ) return 0;
+  if (str[str.length() - 1] != ')') return 0;
+  std::size_t found = str.find_last_of("(");
+  if (found == std::string::npos) return 0;
+  for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
+    if (!isdigit(str[i])) return 0; // we ignore (asw), and return only number with digits only
+  }
+  return atoi(str.data() + found + 1);
+}
+
+int seasonS(std::string_view description_part, const char *S) {
+// return season, if found at the beginning of description_part
+// otherwise, return -1
+//  std::cout << "seasonS " << description_part << "\n";
+  size_t s_len = strlen(S);
+  if (description_part.length() <= s_len ||
+     !isdigit(description_part[s_len])   ||
+     description_part.compare(0, s_len, S)  != 0) return -1;
+  return parse_unsigned<int>(description_part.substr(s_len));
+}
+bool episodeSEp(int &season, int &episode, std::string_view description, const char *S, const char *Ep) {
+// search pattern S<digit> Ep<digits>
+// return true if episode was found.
+// set season = -1 if season was not found
+// set episode = 0 if episode was not found
+// find Ep[digit]
+  season = -1;
+  episode = 0;
+  size_t Ep_len = strlen(Ep);
+  size_t ep_pos = 0;
+  do {
+    ep_pos = description.find(Ep, ep_pos);
+    if (ep_pos == std::string_view::npos || ep_pos + Ep_len >= description.length() ) return false;  // no Ep[digit]
+    ep_pos += Ep_len;
+//  std::cout << "ep_pos = " << ep_pos << "\n";
+  } while (!isdigit(description[ep_pos]));
+// Ep[digit] found
+//  std::cout << "ep found at " << description.substr(ep_pos) << "\n";
+  episode = parse_unsigned<int>(description.substr(ep_pos));
+  if (ep_pos - Ep_len >= 3) season = seasonS(description.substr(ep_pos - Ep_len - 3), S);
+  if (season < 0 && ep_pos - Ep_len >= 4) season = seasonS(description.substr(ep_pos - Ep_len - 4), S);
+  return true;
+}
+
+// =========================================================
+// =========================================================
+// Chapter 2: change string: mainly: append to string
+// =========================================================
+// =========================================================
+
+// =========================================================
+// some performance improvemnt, to get string presentation for channel
+// you can also use channelID.ToString()
+// =========================================================
+
 inline int stringAppendAllASCIICharacters(std::string &target, const char *str) {
 // append all characters > 31 (signed !!!!). Unsigned: 31 < character < 128
 // return number of appended characters
@@ -216,7 +553,6 @@ inline int stringAppendAllASCIICharacters(std::string &target, const char *str) 
   target.append(str, i);
   return i;
 }
-void StringRemoveTrailingWhitespace(std::string &str);
 void stringAppendRemoveControlCharacters(std::string &target, const char *str) {
   for(;;) {
     str += stringAppendAllASCIICharacters(target, str);
@@ -236,37 +572,6 @@ void stringAppendRemoveControlCharactersKeepNl(std::string &target, const char *
     else target.append(" ");
   }
 }
-
-// =========================================================
-// methods for char *s, make sure that s==NULL is just an empty string ========
-// =========================================================
-inline std::string charPointerToString(const unsigned char *s) {
-  return s?reinterpret_cast<const char *>(s):"";
-}
-inline std::string_view charPointerToStringView(const unsigned char *s) {
-  return s?reinterpret_cast<const char *>(s):std::string_view();
-}
-inline std::string_view charPointerToStringView(const char *s) {
-  return s?s:std::string_view();
-}
-inline std::string charPointerToString(const char *s) {
-  return s?s:"";
-}
-
-bool stringEqual(const char *s1, const char *s2) {
-// return true if texts are identical (or both texts are NULL)
-  if (s1 && s2) return strcmp(s1, s2) == 0;
-  if (!s1 && !s2 ) return true;
-  if (!s1 && !*s2 ) return true;
-  if (!*s1 && !s2 ) return true;
-  return false;
-}
-
-// =========================================================
-// some performance improvemnt, to get string presentation for channel ===========
-// you can also use channelID.ToString()
-// =========================================================
-
 void sourceToBuf(char *buffer, int Code) {
 //char buffer[16];
   int st_Mask = 0xFF000000;
@@ -292,7 +597,7 @@ std::string channelToString(const tChannelID &channelID) {
 }
 
 // =========================================================
-// =========== concatenate ===========================================
+// =========== concatenate =================================
 // =========================================================
 
 std::string concatenate(const char *s1, const char *s2) {
@@ -442,165 +747,201 @@ class cConcatenate
     std::string m_data;
 };
 
-// whitespace ================================================================
-void StringRemoveTrailingWhitespace(std::string &str) {
-  const char*  whitespaces = " \t\f\v\n\r";
+// =========================================================
+// =========================================================
+// Chapter 3: containers
+// convert containers to strings, and strings to containers
+// =========================================================
+// =========================================================
 
-  std::size_t found = str.find_last_not_of(whitespaces);
-  if (found!=std::string::npos)
-    str.erase(found+1);
-  else
-    str.clear();            // str is all whitespace
+template<class T>
+void push_back_new(std::vector<T> &vec, const T &str) {
+// add str to vec, but only if str is not yet in vec and if str is not empty
+  if (str.empty() ) return;
+  if (find (vec.begin(), vec.end(), str) != vec.end() ) return;
+  vec.push_back(str);
 }
 
-int StringRemoveTrailingWhitespace(const char *str, int len) {
-// return "new" len of string, without whitespaces at the end
-  if (!str || !*str) return 0;
-  const char*  whitespaces = " \t\f\v\n\r";
-  for (; len; len--) if (strchr(whitespaces, str[len - 1]) == NULL) return len;
-  return 0;
-}
-void StringRemoveTrailingWhitespace(std::string_view &str) {
-  str.remove_suffix(str.length() - StringRemoveTrailingWhitespace(str.data(), str.length()));
-}
-
-const char *strnstr(const char *haystack, const char *needle, size_t len) {
-// if len >  0: use only len characters of needle
-// if len == 0: use all (strlen(needle)) characters of needle
-
-  if (len == 0) return strstr(haystack, needle);
-  for (;(haystack = strchr(haystack, needle[0])); haystack++)
-    if (!strncmp(haystack, needle, len)) return haystack;
-  return 0;
-}
-
-const char *strstr_word (const char *haystack, const char *needle, size_t len = 0) {
-// as strstr, but needle must be a word (surrounded by non-alphanumerical characters)
-// if len >  0: use only len characters of needle
-// if len == 0: use strlen(needle) characters of needle
-  if (!haystack || !needle || !(*needle) ) return NULL;
-  size_t len2 = (len == 0) ? strlen(needle) : len;
-  if (len2 == 0) return NULL;
-  for (const char *f = strnstr(haystack, needle, len); f && *(f+1); f = strnstr (f + 1, needle, len) ) {
-    if (f != haystack   && isalpha(*(f-1) )) continue;
-    if (f[len2] != 0 && isalpha(f[len2]) ) continue;
-    return f;
+template<class T>
+void stringToVector(std::vector<T> &vec, const char *str) {
+// if str does not start with '|', don't split, just add str to vec
+// otherwise, split str at '|', and add each part to vec
+  if (!str || !*str) return;
+  if (str[0] != '|') { vec.push_back(str); return; }
+  const char *lDelimPos = str;
+  for (const char *rDelimPos = strchr(lDelimPos + 1, '|'); rDelimPos != NULL; rDelimPos = strchr(lDelimPos + 1, '|') ) {
+    push_back_new(vec, T(lDelimPos + 1, rDelimPos - lDelimPos - 1));
+    lDelimPos = rDelimPos;
   }
+}
+
+std::string vectorToString(const std::vector<std::string> &vec) {
+  if (vec.size() == 0) return "";
+  if (vec.size() == 1) return vec[0];
+  std::string result("|");
+  for (const std::string &str: vec) { result.append(str); result.append("|"); }
+  return result;
+}
+
+std::string objToString(const int &i) { return std::to_string(i); }
+std::string objToString(const std::string &i) { return i; }
+std::string objToString(const tChannelID &i) { return channelToString(i); }
+
+template<class T, class C=std::set<T>>
+std::string getStringFromSet(const C &in, char delim = ';') {
+  if (in.size() == 0) return "";
+  std::string result;
+  if (delim == '|') result.append(1, delim);
+  for (const T &i: in) {
+    result.append(objToString(i));
+    result.append(1, delim);
+  }
+  return result;
+}
+
+template<class T> T stringToObj(const char *s, size_t len) {
+  esyslog("tvscraper: ERROR: template<class T> T stringToObj called");
+  return 5; }
+template<> int stringToObj<int>(const char *s, size_t len) { return atoi(s); }
+template<> std::string stringToObj<std::string>(const char *s, size_t len) { return std::string(s, len); }
+template<> std::string_view stringToObj<std::string_view>(const char *s, size_t len) { return std::string_view(s, len); }
+template<> tChannelID stringToObj<tChannelID>(const char *s, size_t len) {
+  return tChannelID::FromString(std::string(s, len).c_str());
+}
+
+template<class T> void insertObject(std::vector<T> &cont, const T &obj) { cont.push_back(obj); }
+template<class T> void insertObject(std::set<T> &cont, const T &obj) { cont.insert(obj); }
+
+template<class T, class C=std::set<T>>
+C getSetFromString(const char *str, char delim = ';') {
+// split str at delim';', and add each part to result
+  C result;
+  if (!str || !*str) return result;
+  const char *lStartPos = str;
+  if (delim == '|' && lStartPos[0] == delim) lStartPos++;
+  for (const char *rDelimPos = strchr(lStartPos, delim); rDelimPos != NULL; rDelimPos = strchr(lStartPos, delim) ) {
+    insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
+    lStartPos = rDelimPos + 1;
+  }
+  const char *rDelimPos = strchr(lStartPos, 0);
+  if (rDelimPos != lStartPos) insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
+  return result;
+}
+
+inline const char *strchr_se(const char *ss, const char *se, char ch) {
+  for (const char *sc = ss; sc < se; sc++) if (*sc == ch) return sc;
   return NULL;
 }
 
-std::string_view textAttributeValue(const char *text, const char *attributeName) {
-  if (!text || !attributeName) return std::string_view();
-  const char *found = strstr(text, attributeName);
-  if (!found) return std::string_view();
-  const char *avs = found + strlen(attributeName);
-  const char *ave = strchr(avs, '\n');
-  if (!ave) return std::string_view();
-  return std::string_view(avs, ave-avs);
-}
-
-bool splitString(std::string_view str, std::string_view delim, size_t minLengh, std::string_view &first, std::string_view &second) {
-// true if delim is part of str, and length of first & second >= minLengh
-  std::size_t found = str.find(delim);
-  size_t first_len = 0;
-  while (found != std::string::npos) {
-    first_len = StringRemoveTrailingWhitespace(str.data(), found);
-    if (first_len >= minLengh) break;
-    found = str.find(delim, found + 1);
+template<class T, class C=std::set<T>>
+C getSetFromString(std::string_view str, char delim, const std::set<std::string_view> &ignoreWords, int max_len = 0) {
+// split str at delim, and add each part to result
+  C result;
+  if (str.empty() ) return result;
+  const char *lCurrentPos = str.data();
+  const char *lEndPos = str.data() + str.length();
+  const char *lSoftEndPos = max_len == 0?lEndPos:str.data() + max_len;
+  for (const char *rDelimPos = strchr_se(lCurrentPos, lEndPos, delim); rDelimPos != NULL; rDelimPos = strchr_se(lCurrentPos, lEndPos, delim) ) {
+    if (ignoreWords.find(std::string_view(lCurrentPos, rDelimPos - lCurrentPos)) == ignoreWords.end()  )
+      insertObject<T>(result, stringToObj<T>(lCurrentPos, rDelimPos - lCurrentPos));
+    lCurrentPos = rDelimPos + 1;
+    if (lCurrentPos >= lSoftEndPos) break;
   }
-//  std::cout << "first_len " << first_len << " found " << found << "\n";
-  if(first_len < minLengh) return false; // nothing found
-
-  std::size_t ssnd;
-  for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
-  if(str.length() - ssnd < minLengh) return false; // nothing found, second part to short
-
-  second = str.substr(ssnd);
-  first = str.substr(0, first_len);
-  return true;
+  if (lCurrentPos < lEndPos && lCurrentPos < lSoftEndPos) insertObject<T>(result, stringToObj<T>(lCurrentPos, lEndPos - lCurrentPos));
+  return result;
 }
 
-bool splitString(std::string_view str, char delimiter, size_t minLengh, std::string_view &first, std::string_view &second) {
-  using namespace std::literals::string_view_literals;
-  if (delimiter == '-') return splitString(str, " - "sv, minLengh, first, second);
-  if (delimiter == ':') return splitString(str, ": "sv, minLengh, first, second);
-  std::string delim(1, delimiter);
-  return splitString(str, delim, minLengh, first, second);
-}
+class cSplit {
+  public:
+    cSplit(std::string_view sv, char delim): m_sv(sv), m_delim(delim), m_end(std::string_view(), m_delim) {}
+    cSplit(const char *s, char delim): m_sv(charPointerToStringView(s)), m_delim(delim), m_end(std::string_view(), m_delim) {}
+    cSplit(const cSplit&) = delete;
+    cSplit &operator= (const cSplit &) = delete;
+    class iterator {
+        std::string_view m_remainingParts;
+        char m_delim;
+        size_t m_next_delim;
+      public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = std::string_view;
+        using difference_type = int;
+        using pointer = const std::string_view*;
+        using reference = std::string_view;
 
-std::string_view SecondPart(std::string_view str, std::string_view delim, size_t minLengh) {
-// return second part of split string if delim is part of str, and length of first & second >= minLengh
-// otherwise, return ""
-  std::string_view first, second;
-  if (splitString(str, delim, minLengh, first, second)) return second;
-  else return "";
-}
+        explicit iterator(std::string_view r, char delim): m_delim(delim) {
+          if (!r.empty() && r[0] == delim) m_remainingParts = r.substr(1);
+          else m_remainingParts = r;
+          m_next_delim = m_remainingParts.find(m_delim);
+        }
+        iterator& operator++() {
+          if (m_next_delim == std::string_view::npos) {
+            m_remainingParts = std::string_view();
+          } else {
+            m_remainingParts = m_remainingParts.substr(m_next_delim + 1);
+            m_next_delim = m_remainingParts.find(m_delim);
+          }
+          return *this;
+        }
+        bool operator!=(iterator other) const { return m_remainingParts != other.m_remainingParts; }
+        bool operator==(iterator other) const { return m_remainingParts == other.m_remainingParts; }
+        std::string_view operator*() const {
+          if (m_next_delim == std::string_view::npos) return m_remainingParts;
+          else return m_remainingParts.substr(0, m_next_delim);
+        }
+      };
+      iterator begin() { return iterator(m_sv, m_delim); }
+      const iterator &end() { return m_end; }
+      iterator find(std::string_view sv) {
+        if (m_sv.find(sv) == std::string_view::npos) return m_end;
+        return std::find(begin(), end(), sv);
+      }
+    private:
+      const std::string_view m_sv;
+      const char m_delim;
+      const iterator m_end;
+};
 
-std::string_view SecondPart(std::string_view str, std::string_view delim) {
-// Return part of str after first occurence of delim
-// if delim is not in str, return ""
-  size_t found = str.find(delim);
-  if (found == std::string::npos) return std::string_view();
-  std::size_t ssnd;
-  for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
-  return str.substr(ssnd);
-}
-
-int StringRemoveLastPartWithP(const char *str, int len) {
-// remove part with (...)
-// return -1 if nothing can be removed
-// otherwise length of string without ()
-  len = StringRemoveTrailingWhitespace(str, len);
-  if (len < 3) return -1;
-  if (str[len -1] != ')') return -1;
-  for (int i = len -2; i; i--) {
-    if (!isdigit(str[i]) && str[i] != '/') {
-      if (str[i] != '(') return -1;
-      int len2 = StringRemoveLastPartWithP(str, i);
-      if (len2 == -1 ) return StringRemoveTrailingWhitespace(str, i);
-      return len2;
+class cContainer {
+  public:
+    cContainer(char delim = '|'): m_delim(delim) { }
+    cContainer(const cContainer&) = delete;
+    cContainer &operator= (const cContainer &) = delete;
+    bool find(std::string_view sv) {
+      if (!sv.empty() ) {
+        size_t f = m_buffer.find(sv);
+        if (f == std::string_view::npos || f== 0 || f + sv.length() == m_buffer.length() ) return false;
+        if (m_buffer[f-1] == m_delim && m_buffer[f+sv.length()] == m_delim) return true;
+      }
+//      std::cout << " second check ";
+      CONCATENATE(ns, "|", sv, "|");
+      size_t f = m_buffer.find(ns);
+      return f != std::string_view::npos;
     }
-  }
-  return -1;
-}
+    bool insert(std::string_view sv) {
+// true, if already in buffer (will not insert again ...)
+// else: false
+      if (m_buffer.empty() ) {
+        m_buffer.reserve(300);
+        m_buffer.append(1, m_delim);
+      } else if (find(sv)) return true;
+      m_buffer.append(sv);
+      m_buffer.append(1, m_delim);
+      return false;
+    }
+    bool insert(const char *s) {
+      if (!s) return true;
+      return insert(std::string_view(s));
+    }
+    std::string moveBuffer() { return std::move(m_buffer); }
+    const std::string &getBufferRef() { return m_buffer; }
+  private:
+    char m_delim;
+    std::string m_buffer;
+};
 
-bool StringRemoveLastPartWithP(std::string &str) {
-// remove part with (...)
-  int len = StringRemoveLastPartWithP(str.c_str(), str.length() );
-  if (len < 0) return false;
-  str.erase(len);
-  return true;
-}
-std::string_view removeLastPartWithP(std::string_view str) {
-  int l = StringRemoveLastPartWithP(str.data(), str.length() );
-  if (l < 0) return str;
-  return std::string_view(str.data(), l);
-}
-
-int NumberInLastPartWithPS(std::string_view str) {
-// return number in last part with (./.), 0 if not found / invalid
-  if (str.length() < 3 ) return 0;
-  if (str[str.length() - 1] != ')') return 0;
-  std::size_t found = str.find_last_of("(");
-  if (found == std::string::npos) return 0;
-  for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
-    if (!isdigit(str[i]) && str[i] != '/') return 0; // we gnore (asw), and return only number with digits only
-  }
-  return atoi(str.data() + found + 1);
-}
-int NumberInLastPartWithP(std::string_view str) {
-// return number in last part with (...), 0 if not found / invalid
-  if (str.length() < 3 ) return 0;
-  if (str[str.length() - 1] != ')') return 0;
-  std::size_t found = str.find_last_of("(");
-  if (found == std::string::npos) return 0;
-  for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
-    if (!isdigit(str[i])) return 0; // we ignore (asw), and return only number with digits only
-  }
-  return atoi(str.data() + found + 1);
-}
-
-// methods for years =============================================================
+// =========================================================
+// methods for years =======================================
+// =========================================================
 
 class cYears {
   public:
@@ -714,497 +1055,10 @@ template<class T>
     bool m_explicitFound = false;
 };
 
-// convert containers to strings, and strings to containers ==================
-template<class T>
-void push_back_new(std::vector<T> &vec, const T &str) {
-// add str to vec, but only if str is not yet in vec and if str is not empty
-  if (str.empty() ) return;
-  if (find (vec.begin(), vec.end(), str) != vec.end() ) return;
-  vec.push_back(str);
-}
 
-template<class T>
-void stringToVector(std::vector<T> &vec, const char *str) {
-// if str does not start with '|', don't split, just add str to vec
-// otherwise, split str at '|', and add each part to vec
-  if (!str || !*str) return;
-  if (str[0] != '|') { vec.push_back(str); return; }
-  const char *lDelimPos = str;
-  for (const char *rDelimPos = strchr(lDelimPos + 1, '|'); rDelimPos != NULL; rDelimPos = strchr(lDelimPos + 1, '|') ) {
-    push_back_new(vec, T(lDelimPos + 1, rDelimPos - lDelimPos - 1));
-    lDelimPos = rDelimPos;
-  }
-}
-
-std::string vectorToString(const std::vector<std::string> &vec) {
-  if (vec.size() == 0) return "";
-  if (vec.size() == 1) return vec[0];
-  std::string result("|");
-  for (const std::string &str: vec) { result.append(str); result.append("|"); }
-  return result;
-}
-
-std::string objToString(const int &i) { return std::to_string(i); }
-std::string objToString(const std::string &i) { return i; }
-std::string objToString(const tChannelID &i) { return channelToString(i); }
-
-template<class T, class C=std::set<T>>
-std::string getStringFromSet(const C &in, char delim = ';') {
-  if (in.size() == 0) return "";
-  std::string result;
-  if (delim == '|') result.append(1, delim);
-  for (const T &i: in) {
-    result.append(objToString(i));
-    result.append(1, delim);
-  }
-  return result;
-}
-
-template<class T> T stringToObj(const char *s, size_t len) {
-  esyslog("tvscraper: ERROR: template<class T> T stringToObj called");
-  return 5; }
-template<> int stringToObj<int>(const char *s, size_t len) { return atoi(s); }
-template<> std::string stringToObj<std::string>(const char *s, size_t len) { return std::string(s, len); }
-template<> std::string_view stringToObj<std::string_view>(const char *s, size_t len) { return std::string_view(s, len); }
-template<> tChannelID stringToObj<tChannelID>(const char *s, size_t len) {
-  return tChannelID::FromString(std::string(s, len).c_str());
-}
-
-template<class T> void insertObject(std::vector<T> &cont, const T &obj) { cont.push_back(obj); }
-template<class T> void insertObject(std::set<T> &cont, const T &obj) { cont.insert(obj); }
-
-template<class T, class C=std::set<T>>
-C getSetFromString(const char *str, char delim = ';') {
-// split str at delim';', and add each part to result
-  C result;
-  if (!str || !*str) return result;
-  const char *lStartPos = str;
-  if (delim == '|' && lStartPos[0] == delim) lStartPos++;
-  for (const char *rDelimPos = strchr(lStartPos, delim); rDelimPos != NULL; rDelimPos = strchr(lStartPos, delim) ) {
-    insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
-    lStartPos = rDelimPos + 1;
-  }
-  const char *rDelimPos = strchr(lStartPos, 0);
-  if (rDelimPos != lStartPos) insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
-  return result;
-}
-
-const char *strchr_se(const char *ss, const char *se, char ch) {
-  for (const char *sc = ss; sc < se; sc++) if (*sc == ch) return sc;
-  return NULL;
-}
-
-template<class T, class C=std::set<T>>
-C getSetFromString(std::string_view str, char delim, const std::set<std::string_view> &ignoreWords, int max_len = 0) {
-// split str at delim, and add each part to result
-  C result;
-  if (str.empty() ) return result;
-  const char *lCurrentPos = str.data();
-  const char *lEndPos = str.data() + str.length();
-  const char *lSoftEndPos = max_len == 0?lEndPos:str.data() + max_len;
-  for (const char *rDelimPos = strchr_se(lCurrentPos, lEndPos, delim); rDelimPos != NULL; rDelimPos = strchr_se(lCurrentPos, lEndPos, delim) ) {
-    if (ignoreWords.find(std::string_view(lCurrentPos, rDelimPos - lCurrentPos)) == ignoreWords.end()  )
-      insertObject<T>(result, stringToObj<T>(lCurrentPos, rDelimPos - lCurrentPos));
-    lCurrentPos = rDelimPos + 1;
-    if (lCurrentPos >= lSoftEndPos) break;
-  }
-  if (lCurrentPos < lEndPos && lCurrentPos < lSoftEndPos) insertObject<T>(result, stringToObj<T>(lCurrentPos, lEndPos - lCurrentPos));
-  return result;
-}
-
-// simple XML parser =========================================================
-class cXmlString {
-  public:
-    cXmlString(const cXmlString &xmlString, const char *tag) {
-      initialize(xmlString.m_start, xmlString.m_end, tag);
-    }
-    cXmlString(const char *start, const char *tag) {
-      if(!start) return;
-      initialize(start, start + strlen(start), tag);
-    }
-    cXmlString(std::string_view sv, const char *tag) {
-      if(sv.empty() ) return;
-      initialize(sv.data(), sv.data() + sv.length(), tag);
-    }
-    cXmlString(const cXmlString&) = delete;
-    cXmlString &operator= (const cXmlString &) = delete;
-    const char *data() { return m_start?m_start:""; }
-    int length() { return m_start?(m_end - m_start):0; }
-    bool isValid() const { return m_start != NULL;}
-    bool operator== (const char *sec) const {
-      if (!m_start || !sec) return false;
-      if (strlen(sec) != (size_t)(m_end - m_start) ) return false;
-      return memcmp(m_start, sec, m_end - m_start) == 0;
-    }
-    bool operator== (const cXmlString &sec) const {
-      return *this == sec.m_start;
-    }
-    char operator[](size_t i) const { return *(m_start + i); }
-    operator std::string_view() const { return m_start?std::string_view(m_start, m_end - m_start):std::string_view(); }
-  private:
-    void initialize(const char *start, const char *end, const char *tag) {
-      if(!start || !end || !tag) return;
-      size_t tag_len = strlen(tag);
-      m_start = startTag(start, end, tag, tag_len);
-      if (!m_start) return;
-      m_end = endTag(m_start, end, tag, tag_len);
-      if (!m_end) m_start = NULL;
-    }
-    const char *startTag(const char *start, const char *end, const char *tag, size_t tag_len) const {
-      for (; start < end - tag_len - 1; start++)
-        if (*start == '<' && strncmp(start + 1, tag, tag_len) == 0 && start[1 + tag_len] == '>') return start + 2 + tag_len;
-      return NULL;
-    }
-    const char *endTag(const char *start, const char *end, const char *tag, size_t tag_len) const {
-      for (; start < end - tag_len - 1; start++)
-        if (*start == '<' && start[1] == '/' && strncmp(start + 2, tag, tag_len) == 0 && start[2 + tag_len] == '>') return start;
-      return NULL;
-    }
-    const char *m_start = NULL;
-    const char *m_end = NULL;
-};
-
-template<std::size_t N> std::string_view partInXmlTag(std::string_view sv, const char (&tag)[N]) {
-// very simple XML parser
-// if sv contains <tag>...</tag>, ... is returned (part between the outermost XML tags is returned).
-// otherwise, std::string_view() is returned. This is also returned if the tags are there, but there is nothing between the tags ...
-// there is no error checking, like <tag> is more often in sv than </tag>, ...
-  if (N < 1) return std::string_view(); // note: N == strlen(tag) + 1. It includes the 0 terminator ...
-// create <tag>
-  char tagD[N + 2];
-  memcpy(tagD + 2, tag, N - 1);
-  tagD[N + 1] = '>';
-// find <tag>
-  tagD[1] = '<';
-  size_t pos_start = sv.find(tagD + 1, 0, N + 1);
-  if (pos_start == std::string_view::npos) return std::string_view();
-  pos_start += N + 1; // start of ... between tags
-// rfind </tag>
-  tagD[0] = '<';
-  tagD[1] = '/';
-//  std::cout << "tagD[0] " << std::string_view(tagD, N + 2) << "\n";
-  size_t len = sv.substr(pos_start).rfind(tagD, std::string_view::npos, N + 2);
-  if (len == std::string_view::npos) return std::string_view();
-  return sv.substr(pos_start, len);
-}
-
-const char* removePrefix(const char *s, const char *prefix) {
-// if s starts with prefix, return s + strlen(prefix)  (string with prefix removed)
-// otherwise, rturn NULL
-  if (!s || !prefix) return NULL;
-  size_t len = strlen(prefix);
-  if (strncmp(s, prefix, len) != 0) return NULL;
-  return s+len;
-}
-
-class cSplit {
-  public:
-    cSplit(std::string_view sv, char delim): m_sv(sv), m_delim(delim), m_end(std::string_view(), m_delim) {}
-    cSplit(const char *s, char delim): m_sv(charPointerToStringView(s)), m_delim(delim), m_end(std::string_view(), m_delim) {}
-    cSplit(const cSplit&) = delete;
-    cSplit &operator= (const cSplit &) = delete;
-    class iterator {
-        std::string_view m_remainingParts;
-        char m_delim;
-        size_t m_next_delim;
-      public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type = std::string_view;
-        using difference_type = int;
-        using pointer = const std::string_view*;
-        using reference = std::string_view;
-
-        explicit iterator(std::string_view r, char delim): m_delim(delim) {
-          if (!r.empty() && r[0] == delim) m_remainingParts = r.substr(1);
-          else m_remainingParts = r;
-          m_next_delim = m_remainingParts.find(m_delim);
-        }
-        iterator& operator++() {
-          if (m_next_delim == std::string_view::npos) {
-            m_remainingParts = std::string_view();
-          } else {
-            m_remainingParts = m_remainingParts.substr(m_next_delim + 1);
-            m_next_delim = m_remainingParts.find(m_delim);
-          }
-          return *this;
-        }
-        bool operator!=(iterator other) const { return m_remainingParts != other.m_remainingParts; }
-        bool operator==(iterator other) const { return m_remainingParts == other.m_remainingParts; }
-        std::string_view operator*() const {
-          if (m_next_delim == std::string_view::npos) return m_remainingParts;
-          else return m_remainingParts.substr(0, m_next_delim);
-        }
-      };
-      iterator begin() { return iterator(m_sv, m_delim); }
-      const iterator &end() { return m_end; }
-      iterator find(std::string_view sv) {
-        if (m_sv.find(sv) == std::string_view::npos) return m_end;
-        return std::find(begin(), end(), sv);
-      }
-    private:
-      const std::string_view m_sv;
-      const char m_delim;
-      const iterator m_end;
-};
-
-class cContainer {
-  public:
-    cContainer(char delim = '|'): m_delim(delim) { }
-    cContainer(const cContainer&) = delete;
-    cContainer &operator= (const cContainer &) = delete;
-    bool find(std::string_view sv) {
-      if (!sv.empty() ) {
-        size_t f = m_buffer.find(sv);
-        if (f == std::string_view::npos || f== 0 || f + sv.length() == m_buffer.length() ) return false;
-        if (m_buffer[f-1] == m_delim && m_buffer[f+sv.length()] == m_delim) return true;
-      }
-//      std::cout << " second check ";
-      CONCATENATE(ns, "|", sv, "|");
-      size_t f = m_buffer.find(ns);
-      return f != std::string_view::npos;
-    }
-    bool insert(std::string_view sv) {
-// true, if already in buffer (will not insert again ...)
-// else: false
-      if (m_buffer.empty() ) {
-        m_buffer.reserve(300);
-        m_buffer.append(1, m_delim);
-      } else if (find(sv)) return true;
-      m_buffer.append(sv);
-      m_buffer.append(1, m_delim);
-      return false;
-    }
-    bool insert(const char *s) {
-      if (!s) return true;
-      return insert(std::string_view(s));
-    }
-    std::string moveBuffer() { return std::move(m_buffer); }
-    const std::string &getBufferRef() { return m_buffer; }
-  private:
-    char m_delim;
-    std::string m_buffer;
-};
-
-inline bool __attribute__((optimize(3))) my_isspace(char c) {
-  switch (c) {
-    case ' ':
-    case '\t':
-    case '\f':
-    case '\n':
-    case '\r':
-    case '\v':
-      return true;
-    default:
-      return false;
-  }
-}
-#define SKIP_SPACE(s, e) \
-  for (; (s) < (e); ++(s)) { \
-    switch (*(s)) { \
-      case ' ': case '\t': case '\f': case '\n': case '\r': case '\v': \
-        continue; \
-      default: \
-        break; \
-    } \
-    break; \
-  }
-
-inline void __attribute__((optimize(3))) skip_space(const char *&pos, const char *pos_e) {
-// if s >= e: do nothing
-// check for whitspace at s.
-// don't use std::isspace or isspace: this is really slow ... 0.055 <-> 0.037
-  for (; pos < pos_e; ++pos) {
-    switch (*pos) {
-      case ' ': case '\t': case '\f': case '\n': case '\r': case '\v':
-        continue;
-      default:
-        break;
-    }
-    break;
-  }
-}
-unsigned long long __attribute__((optimize(3))) svtoull(std::string_view sv) {
-  const char *pos = sv.data();
-  const char *pos_e = pos + sv.length();
-  SKIP_SPACE(pos, pos_e);
-  unsigned long long val = 0;
-  for (; pos < pos_e && std::isdigit(pos[0]); ++pos) val = val*10 + (pos[0]-'0');
-  return val;
-}
-long long __attribute__((optimize(3))) svtoll(std::string_view sv) { // use this __attribute__ for performance tests. Prod: everything is optimized
-// 0.037
-// just use this for every conversion to int. There is no range check ...
-// convert sv to int
-// return 0 is there is no int
-// ignore everything in sv after the first non-digit
-  const char *pos = sv.data();
-  const char *pos_e = pos + sv.length();
-  SKIP_SPACE(pos, pos_e);
-  int sign = 1;
-  if (pos < pos_e && pos[0] == '-') {
-    sign = -1;
-    ++pos;
-    SKIP_SPACE(pos, pos_e);
-  }
-  long long val = 0;
-  for (; pos < pos_e && std::isdigit(pos[0]); ++pos) val = val*10 + (pos[0]-'0');
-  return val * sign;
-}
-
-long long __attribute__((optimize(3))) svtoll_bak(std::string_view sv) { // use this for performance tests. Prod: everything is optimized
-// long long svtoll_best(std::string_view sv) 
-// 0.037
-// just use this for every conversion to int. There is no range check ...
-// convert sv to int
-// return 0 is there is no int
-// ignore everything in sv after the first non-digit
-  const char *pos = sv.data();
-  size_t l = sv.length();
-  size_t p = 0;
-  for (p = 0; p < l && (pos[p] == ' ' || pos[p] == '\t'); ++p);
-// don't use std::isspace or isspace: this is really slow ... 0.055 <-> 0.037
-//  if (isspace(pos[p])) ++p;
-  int sign = 1;
-  if (p < l && pos[p] == '-') {
-    sign = -1;
-    ++p;
-    for (; p < l && (pos[p] == ' ' || pos[p] == '\t'); ++p);
-  }
-  long long val = 0;
-  for (; p < l && std::isdigit(pos[p]); ++p) val = val*10 + (pos[p]-'0');
-  return val * sign;
-}
-long long __attribute__((optimize(3))) svtoll_pos(const char *pos, size_t l) {
-  long long val = 0;
-  const char *pos_e = pos + l;
-  for (; pos < pos_e && std::isdigit(pos[0]); ++pos) val = val*10 + (pos[0]-'0');
-  return val;
-}
-long long __attribute__((optimize(3))) svtoll_pos(std::string_view sv) {
-// 0.041  -> now 0.035, warum auch immer ...
-// comparison of pointers (pos < pos_e) slower than comparison of size_t -> no
-// increase   of pointers (++pos)       slower than increase   of size_t -> no
-// access to pos[p] (p==0) is faster than access to pos[0] -> no
-//  if (sv.empty()) return 0;  don't use, bad for performance. access to sv is slow ...
-  long long val = 0;
-  const char *pos = sv.data();
-  const char *pos_e = pos + sv.length();
-  for (; pos < pos_e && std::isdigit(*pos); ++pos) val = val*10 + (*pos-'0');
-  return val;
-}
-long long __attribute__((optimize(3))) svtoll_p(const char *pos, size_t l) {
-  long long val = 0;
-  for (size_t p =0; p < l && std::isdigit(pos[p]); ++p) val = val*10 + (pos[p]-'0');
-  return val;
-}
-long long __attribute__((optimize(3))) svtoll_p(std::string_view sv) {
-// 0.036
-// best option. Just remove whitespace at the beginning, and support negative numbers ...
-  long long val = 0;
-  const char *pos = sv.data();
-  size_t l = sv.length();
-  for (size_t p =0; p < l && std::isdigit(pos[p]); ++p) val = val*10 + (pos[p]-'0');
-  return val;
-}
-long long __attribute__((optimize(3))) getAsIntll_no_loop(std::string_view sv) {
-// 0.032
-// no range check of characters, and no real performance improvement -> use the loop
-// most time consuming is the memory access
-  long long value_ = 0;
-  const char *str = sv.data();
-  size_t len = sv.length();
-  switch (len) { // handle up to 10 digits, assume we're 32-bit
-    case 10:    value_ += (str[len-10] - '0') * 1000000000;
-    case  9:    value_ += (str[len- 9] - '0') * 100000000;
-    case  8:    value_ += (str[len- 8] - '0') * 10000000;
-    case  7:    value_ += (str[len- 7] - '0') * 1000000;
-    case  6:    value_ += (str[len- 6] - '0') * 100000;
-    case  5:    value_ += (str[len- 5] - '0') * 10000;
-    case  4:    value_ += (str[len- 4] - '0') * 1000;
-    case  3:    value_ += (str[len- 3] - '0') * 100;
-    case  2:    value_ += (str[len- 2] - '0') * 10;
-    case  1:    value_ += (str[len- 1] - '0');
-  }
-  return value_;
-}
-long long __attribute__((optimize(3))) getAsIntll_4(std::string_view sv) {
-// 0.134
-// this is slow. Access to sv[p] seems to take much longe compared to *pos
-// sv[p] must be evaluated each time it is called. *pos can be cached, only 1 time memory access -> factor 2
-// note: there is no range check in sv[p], so this is not the performance issue
-// sv.length() in loop: re-evaluated each loop -> costs 30% performance
-  long long val = 0;
-  for (size_t p =0; p < sv.length() && std::isdigit(sv[p]); ++p) val = val*10 + (sv[p]-'0');
-  return val;
-}
-long long __attribute__((optimize(3))) getAsIntll_2(std::string_view sv) {
-// works, but somewhat slower than the sulution above, and more complicated
-// if optimization is disabled, it is somewhat faster than the solution above
-// read int in sv
-// return 0 if there is no int
-// ignore everything in sv after the first non-digit
-  if (sv.empty() ) return 0;
-  const char *pos = sv.data();
-  const char *pos_e = pos + sv.length();
-  unsigned char dchar = *pos;
-  ++pos;
-  for (; pos < pos_e && dchar != '-' && !isdigit(dchar);++pos) dchar = *(pos);
-  if (pos >= pos_e) return 0;
-  int sign = 1;
-  if (dchar == '-') {
-    sign = -1;
-    ++pos;
-    if (pos >= pos_e) return 0;
-  }
-
-  long long val = 0;
-// note for performance: no if statement in loop
-// to achieve this:
-//   have a first part: dchar = *pos -'0';
-//   loop only over sv.length() -1 iterations (++pos before loop)
-//   and have a last part: if (dchar < 10)  (if outside loop is ok)
-  dchar -= '0';
-  for (; pos < pos_e && dchar < 10;++pos) {
-    val = val*10 + dchar;
-    dchar = *(pos) -'0';
-  }
-  if (dchar < 10) val = val*10 + dchar;
-  return val * sign;
-}
-
-int seasonS(std::string_view description_part, const char *S) {
-// return season, if found at the beginning of description_part
-// otherwise, return -1
-  size_t s_len = strlen(S);
-  if (description_part.compare(0, s_len, S)  != 0) return -1;
-//  std::cout << "seasonS " << description_part << "\n";
-  if (description_part.length() <= s_len || !isdigit(description_part[s_len]) ) return -1;
-  return svtoull(description_part.substr(s_len));
-}
-bool episodeSEp(int &season, int &episode, std::string_view description, const char *S, const char *Ep) {
-// search pattern S<digit> Ep<digits>
-// return true if episode was found.
-// set season = -1 if season was not found
-// set episode = 0 if episode was not found
-// find Ep[digit]
-  season = -1;
-  episode = 0;
-  size_t Ep_len = strlen(Ep);
-  size_t ep_pos = 0;
-  do {
-    ep_pos = description.find(Ep, ep_pos);
-    if (ep_pos == std::string_view::npos || ep_pos + Ep_len > description.length() ) return false;  // no Ep[digit]
-    ep_pos += Ep_len;
-//  std::cout << "ep_pos = " << ep_pos << "\n";
-  } while (!isdigit(description[ep_pos]));
-// Ep[digit] found
-//  std::cout << "ep found at " << description.substr(ep_pos) << "\n";
-  episode = svtoull(description.substr(ep_pos));
-  if (ep_pos - Ep_len >= 3) season = seasonS(description.substr(ep_pos - Ep_len - 3), S);
-  if (season < 0 && ep_pos - Ep_len >= 4) season = seasonS(description.substr(ep_pos - Ep_len - 4), S);
-  return true;
-}
-
+// =========================================================
+// Utility to measure times (performance) ****************
+// =========================================================
 class cMeasureTime {
   public:
     void start() { begin = std::chrono::high_resolution_clock::now(); }

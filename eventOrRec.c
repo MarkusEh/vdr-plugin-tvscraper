@@ -265,14 +265,15 @@ bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
 bool csRecording::getEpgsearchTimerInfo(bool &vps, int &lengthInSeconds) {
 // false: No info available
 // otherwise: Epgsearch was used, timer length
-  cXmlString epgsearchAux(m_recording->Info()->Aux(), "epgsearch"); 
-  if (!epgsearchAux.isValid()) return false;
-  cXmlString epgsearchStart(epgsearchAux, "start");
-  if (!epgsearchStart.isValid()) return false;
-  cXmlString epgsearchStop(epgsearchAux, "stop");
-  if (!epgsearchStop.isValid()) return false;
-  time_t start = svtoull(epgsearchStart);
-  time_t stop = svtoull(epgsearchStop);
+  if (!m_recording->Info()->Aux() ) return false;
+  std::string_view epgsearchAux = partInXmlTag(m_recording->Info()->Aux(), "epgsearch");
+  if (epgsearchAux.empty()) return false;
+  std::string_view epgsearchStart = partInXmlTag(epgsearchAux, "start");
+  if (epgsearchStart.empty()) return false;
+  std::string_view epgsearchStop = partInXmlTag(epgsearchAux, "stop");
+  if (epgsearchStop.empty()) return false;
+  time_t start = parse_unsigned<time_t>(epgsearchStart);
+  time_t stop  = parse_unsigned<time_t>(epgsearchStop);
   lengthInSeconds = stop - start;
   vps = (start == m_recording->Info()->GetEvent()->StartTime() ) &&
         (lengthInSeconds == m_recording->Info()->GetEvent()->Duration() );

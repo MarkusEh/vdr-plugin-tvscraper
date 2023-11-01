@@ -313,8 +313,8 @@ const cRecording *recordingFromAux(const char *aux) {
     name = partInXmlTag(xml_tvscraper, "causedBy");
     if (name.empty() ) return nullptr;
   }
-  tEventID event_id = svtoull(xml_eventID);
-  time_t event_start_time = svtoull(xml_eventStartTime);
+  tEventID event_id = parse_unsigned<tEventID>(xml_eventID);
+  time_t event_start_time = parse_unsigned<time_t>(xml_eventStartTime);
 
   LOCK_RECORDINGS_READ;
   for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec))
@@ -565,15 +565,17 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
       }
       ti_del = NULL;
     }
-    cXmlString xmlAux(ti->Aux(), "tvscraper");
-    if (xmlAux.isValid() ) {
+    bool exists = false;
+    std::string_view xmlAux;
+    if (ti->Aux()) xmlAux = partInXmlTag(ti->Aux(), "tvscraper", &exists);
+    if (exists) {
 // this is "our" timer
       if (!ti->Event() || !ti->Event()->Schedule() ) {
 // Timer has no event, or event is not in schedule any more. Delete this timer
         ti_del = ti;
       } else {
 // Timer has event, and event is in schedule. Adjust times to event, if required (not for VPS timers)
-        if (svtoull(partInXmlTag(xmlAux, "numEvents")) == 2) {
+        if (parse_unsigned<unsigned>(partInXmlTag(xmlAux, "numEvents")) == 2) {
           const cEvent *event1;
           const cEvent *event2;
           if (!timerGetEvents(event1, event2, ti)) ti_del = ti;
