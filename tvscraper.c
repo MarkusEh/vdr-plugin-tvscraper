@@ -58,11 +58,11 @@ enum eMediaType: int {
 };
 
 #include <getopt.h>
+#include "tools/stringhelpers.c"
 #include "tools/largeString.h"
 #include "extEpgPlugin.h"
 #include "config.h"
 cTVScraperConfig config;
-#include "tools/stringhelpers.c"
 #include "tools/fuzzy.c"
 #include "searchResultTvMovie.h"
 #include "searchResultTvMovie.c"
@@ -527,20 +527,20 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
       if (call->timer) aux = call->timer->Aux();
       else if (call->recording_in && call->recording_in->Info() ) aux = call->recording_in->Info()->Aux();
       if (!aux) return true;
-      std::string_view xml_tvscraper = partInXmlTag(aux, "tvscraper");
+      cSv xml_tvscraper = partInXmlTag(aux, "tvscraper");
       if (xml_tvscraper.empty() ) return true;
 // our timer
       call->createdByTvscraper = true;
 // call->recordingName
-      std::string_view xml_causedBy = partInXmlTag(xml_tvscraper, "causedBy");
+      cSv xml_causedBy = partInXmlTag(xml_tvscraper, "causedBy");
       if (xml_causedBy.empty() ) xml_causedBy = tr("(name not available)");
       call->recordingName = xml_causedBy;
 // call->reason
       call->reason = "";
-      std::string_view xml_reason = partInXmlTag(xml_tvscraper, "reason");
+      cSv xml_reason = partInXmlTag(xml_tvscraper, "reason");
       if (xml_reason == "collection") {
         std::string      collectionNameStr;
-        std::string_view collectionName = partInXmlTag(xml_tvscraper, "collectionName");
+        cSv collectionName = partInXmlTag(xml_tvscraper, "collectionName");
         if (collectionName.empty() && call->recording_in) {
 // try to get the collection name from the recording
           cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, nullptr, call->recording_in);
@@ -553,8 +553,8 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         if (collectionName.empty() ) collectionName = tr("(name not available)");
         stringAppendFormated(call->reason, tr("Complement collection %.*s, caused by recording"), (int)collectionName.length(), collectionName.data() );
       } else if (xml_reason == "TV show, missing episode") {
-        std::string_view seriesName = partInXmlTag(xml_tvscraper, "seriesName");
-        cSql stmt(db, "select tv_name from tv2 where tv_id = ?"); // define this here so returned string_view is still valid when we append to call->reason
+        cSv seriesName = partInXmlTag(xml_tvscraper, "seriesName");
+        cSql stmt(db, "select tv_name from tv2 where tv_id = ?"); // define this here so returned cSv is still valid when we append to call->reason
         if (seriesName.empty() && call->recording_in) {
 // try to get the series  name from the recording
           cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, nullptr, call->recording_in);

@@ -296,18 +296,18 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
 const cRecording *recordingFromAux(const char *aux) {
   if (!aux || !*aux) return nullptr;
 // parse aux for IDs of recording
-  std::string_view xml_tvscraper = partInXmlTag(aux, "tvscraper");
+  cSv xml_tvscraper = partInXmlTag(aux, "tvscraper");
   if (xml_tvscraper.empty() ) return nullptr;
-  std::string_view xml_causedByIDs = partInXmlTag(xml_tvscraper, "causedByIDs");
+  cSv xml_causedByIDs = partInXmlTag(xml_tvscraper, "causedByIDs");
   if (xml_causedByIDs.empty() ) return nullptr;
-  std::string_view xml_eventID = partInXmlTag(xml_causedByIDs, "eventID");
+  cSv xml_eventID = partInXmlTag(xml_causedByIDs, "eventID");
   if (xml_eventID.empty() ) return nullptr;
-  std::string_view xml_eventStartTime = partInXmlTag(xml_causedByIDs, "eventStartTime");
+  cSv xml_eventStartTime = partInXmlTag(xml_causedByIDs, "eventStartTime");
   if (xml_eventStartTime.empty() ) return nullptr;
-  std::string_view xml_channelID = partInXmlTag(xml_causedByIDs, "channelID");
+  cSv xml_channelID = partInXmlTag(xml_causedByIDs, "channelID");
   bool channelID_valid = !xml_channelID.empty();
   tChannelID channelID;
-  std::string_view name;
+  cSv name;
   if (channelID_valid) channelID = tChannelID::FromString(std::string(xml_channelID).c_str() );
   else {
     name = partInXmlTag(xml_tvscraper, "causedBy");
@@ -566,7 +566,7 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
       ti_del = NULL;
     }
     bool exists = false;
-    std::string_view xmlAux;
+    cSv xmlAux;
     if (ti->Aux()) xmlAux = partInXmlTag(ti->Aux(), "tvscraper", &exists);
     if (exists) {
 // this is "our" timer

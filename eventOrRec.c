@@ -27,13 +27,13 @@ bool csEventOrRecording::DurationRange(int &durationInMinLow, int &durationInMin
   return true;
 }
 
-string_view csEventOrRecording::EpisodeSearchString() const {
+cSv csEventOrRecording::EpisodeSearchString() const {
   if(ShortText() && *ShortText() ) return ShortText();
   if(Description() ) {
     if (strlen(Description() ) <= 100) return Description();
-    else return string_view(Description(), 100);                                                                             
+    else return cSv(Description(), 100);
   }
-  return "";
+  return cSv();
 }
 
 // Recording
@@ -266,11 +266,11 @@ bool csRecording::getEpgsearchTimerInfo(bool &vps, int &lengthInSeconds) {
 // false: No info available
 // otherwise: Epgsearch was used, timer length
   if (!m_recording->Info()->Aux() ) return false;
-  std::string_view epgsearchAux = partInXmlTag(m_recording->Info()->Aux(), "epgsearch");
+  cSv epgsearchAux = partInXmlTag(m_recording->Info()->Aux(), "epgsearch");
   if (epgsearchAux.empty()) return false;
-  std::string_view epgsearchStart = partInXmlTag(epgsearchAux, "start");
+  cSv epgsearchStart = partInXmlTag(epgsearchAux, "start");
   if (epgsearchStart.empty()) return false;
-  std::string_view epgsearchStop = partInXmlTag(epgsearchAux, "stop");
+  cSv epgsearchStop = partInXmlTag(epgsearchAux, "stop");
   if (epgsearchStop.empty()) return false;
   time_t start = parse_unsigned<time_t>(epgsearchStart);
   time_t stop  = parse_unsigned<time_t>(epgsearchStop);

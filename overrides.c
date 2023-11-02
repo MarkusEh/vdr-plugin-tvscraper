@@ -9,7 +9,7 @@ cOverRides::cOverRides(void) {
 cOverRides::~cOverRides() {
 }
 
-void cOverRides::ReadConfig(string_view confDir) {
+void cOverRides::ReadConfig(cSv confDir) {
     stringstream sstrConfFile;
     sstrConfFile << confDir << "/override.conf";
     string confFile = sstrConfFile.str();
@@ -34,7 +34,7 @@ void cOverRides::ReadConfig(string_view confDir) {
 }
 
 void cOverRides::ReadConfigLine(const char *line) {
-    vector<string_view> flds = getSetFromString<string_view, vector<string_view>>(line);
+    vector<cSv> flds = getSetFromString<cSv, vector<cSv>>(line);
     if (flds.size() > 0) {
         if (!flds[0].compare("ignore")) {
             if (flds.size() == 2) {
@@ -65,7 +65,7 @@ void cOverRides::ReadConfigLine(const char *line) {
     }
 }
 
-bool cOverRides::Ignore(string_view title) {
+bool cOverRides::Ignore(cSv title) {
   for (const string &pos: ignores) {
     if (title == pos) {
 //      if (config.enableDebug) esyslog("tvscraper: ignoring \"%.*s\" because of override.conf", (int)title.length(), title.data());
@@ -86,7 +86,7 @@ bool cOverRides::Substitute(string &title) {
     return false;
 }
 
-int cOverRides::thetvdbID(string_view title) {
+int cOverRides::thetvdbID(cSv title) {
     map<string,int,std::less<>>::iterator hit = m_thetvdbID.find(title);
     if (hit != m_thetvdbID.end()) {
         if (config.enableDebug)
@@ -109,7 +109,7 @@ void cOverRides::RemovePrefix(string &title) {
   }
 }
 
-scrapType cOverRides::Type(string_view title) {
+scrapType cOverRides::Type(cSv title) {
     map<string,scrapType, less<>>::iterator hit = searchTypes.find(title);
     if (hit != searchTypes.end()) {
         if (config.enableDebug)
@@ -119,7 +119,7 @@ scrapType cOverRides::Type(string_view title) {
     return scrapNone;
 }
 
-bool cOverRides::IgnorePath(string_view path) {
+bool cOverRides::IgnorePath(cSv path) {
   for (const string &pos: ignorePath) {
     if (path.find(pos) != string::npos) {
       if (config.enableDebug) esyslog("tvscraper: ignoring path \"%.*s\" because of override.conf", (int)path.length(), path.data());

@@ -29,7 +29,7 @@ void FreeCurlLibrary(void);
 int CurlSetCookieFile(char *filename);
 bool CurlPostUrl(const char *url, const std::string &sPost, std::string &sOutput, struct curl_slist *headers = NULL);
 std::string CurlEscape(const char *url);
-std::string CurlEscape(std::string_view url);
+std::string CurlEscape(cSv url);
 
 inline void InitCurlLibraryIfNeeded();
 #define CURLESCAPE(url_e, url) \

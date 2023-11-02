@@ -2,7 +2,6 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
-#include <charconv>
 
 // implemntation of cMovieOrTv  *********************
 
@@ -217,7 +216,7 @@ bool cTv::IsUsed() {
   return config.TV_ShowSelected(dbID());
 }
 
-int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, const char *description) {
+int cTv::searchEpisode(cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, const char *description) {
 // return 1000, if no match was found
 // otherwise, distance
   int season_guess = -1; // -1: no season found (still, there might be an episode ..)
@@ -267,7 +266,7 @@ int cTv::searchEpisode(string_view tvSearchEpisodeString, string_view baseNameOr
   return 1000;
 }
 
-int cTv::searchEpisode(string_view tvSearchEpisodeString_i, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess) {
+int cTv::searchEpisode(cSv tvSearchEpisodeString_i, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess) {
 // search tvSearchEpisodeString_i in db with episode names in language lang
 // return 1000 and set m_seasonNumber = m_episodeNumber = 0, if no match was found
 // otherwise, set m_seasonNumber and m_episodeNumber and return distance
@@ -397,7 +396,7 @@ void addGuestStars(std::vector<cActor> &result, const char *str) {
   if (str[0] != '|') { actor.name = str; result.push_back(actor); }
   const char *lDelimPos = str;
   for (const char *rDelimPos = strchr(lDelimPos + 1, '|'); rDelimPos != NULL; rDelimPos = strchr(lDelimPos + 1, '|') ) {
-    std::string_view pers_name = std::string_view(lDelimPos + 1, rDelimPos - lDelimPos - 1);
+    cSv pers_name = cSv(lDelimPos + 1, rDelimPos - lDelimPos - 1);
     auto del2 = pers_name.find(": ");
     if (del2 == std::string::npos) {
       actor.name = pers_name;
@@ -666,7 +665,7 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *r
 }
 
 // search episode
-int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, string_view tvSearchEpisodeString, string_view baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, const char *description) {
+int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, const char *description) {
 // return 1000 if no episode was found
 // otherwise, return distance 0-999 (smaller numbers are better matches)
   bool debug = false;
@@ -715,15 +714,9 @@ for (const std::filesystem::directory_entry& dir_entry:
       esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts.size: %zu, filename: %s", parts.size(), dir_entry.path().filename().string().c_str());
       continue;
     }
-    tEventID eventID = 0;
-    time_t eventStartTime = 0;
-    auto result = std::from_chars(parts[0].data(), parts[0].data() + parts[0].length(), eventStartTime);
-    if (result.ec == std::errc::invalid_argument) {
-      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts[0]: %.*s, filename: %s", static_cast<int>(parts[0].length()), parts[0].data(), dir_entry.path().filename().string().c_str());
-      continue;
-    }
-    result = std::from_chars(parts[2].data(), parts[2].data() + parts[2].length() - 4, eventID);
-    if (result.ec == std::errc::invalid_argument) {
+    time_t eventStartTime = parse_unsigned<time_t>(parts[0]);
+    tEventID eventID = parse_unsigned<tEventID>(parts[2]);
+    if (eventStartTime == 0 || eventID == 0) {
       esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts[2]: %.*s, filename: %s", static_cast<int>(parts[2].length()), parts[2].data(), dir_entry.path().filename().string().c_str());
       continue;
     }

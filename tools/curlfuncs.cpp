@@ -184,7 +184,7 @@ std::string CurlEscape(const char *url) {
   curl_free(output);
   return result;
 }
-std::string CurlEscape(std::string_view url) {
+std::string CurlEscape(cSv url) {
   InitCurlLibraryIfNeeded();
   char *output = curl_easy_escape(curlfuncs::curl, url.data(), url.length());
   std::string result(output);
@@ -197,7 +197,7 @@ void stringAppendCurlEscape(std::string &str, const char *url) {
   str.append(output);
   curl_free(output);
 }
-void stringAppendCurlEscape(std::string &str, std::string_view url) {
+void stringAppendCurlEscape(std::string &str, cSv url) {
   InitCurlLibraryIfNeeded();
   char *output = curl_easy_escape(curlfuncs::curl, url.data(), url.length());
   str.append(output);

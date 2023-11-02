@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <set>
 #include <iostream>
-#include <charconv>
 #include <chrono>
 
 #define CONVERT(result, from, fn) \
@@ -122,7 +121,23 @@ inline std::string_view charPointerToStringView(const char *s) {
 inline std::string charPointerToString(const char *s) {
   return s?s:"";
 }
+// challange:
+//   method with importing parameter cSv called with const char * = nullptr
+//   undifined behavior, as cSv(nullptr) is undefined.
+// solution:
+//   a) be very carefull, check const char * for nullptr before calling a method with cSv as import parameter
+//   b) replace all cSv with cSv
+//      very small performance impact if such a method if called with cSv
+//      convert nullptr to empty cSv if called with const char *
 
+class cSv: public std::string_view {
+  public:
+    cSv(): std::string_view() {}
+    cSv(const char *s): std::string_view(charPointerToStringView(s)) {}
+    cSv(const char *s, size_t l): std::string_view(s, l) {}
+    cSv(std::string_view sv): std::string_view(sv) {}
+    cSv(const std::string &s): std::string_view(s) {}
+};
 bool stringEqual(const char *s1, const char *s2) {
 // return true if texts are identical (or both texts are NULL)
   if (s1 && s2) return strcmp(s1, s2) == 0;
@@ -266,10 +281,10 @@ int StringRemoveTrailingWhitespace(const char *str, int len) {
   return 0;
 }
 
-inline std::string_view remove_leading_whitespace(std::string_view sv) {
+inline cSv remove_leading_whitespace(cSv sv) {
 // return a string_view with leading whitespace from sv removed
 // for performance:
-//   avoid changing sv: std::string_view &sv is much slower than std::string_view sv
+//   avoid changing sv: cSv &sv is much slower than cSv sv
 //   don't use std::isspace or isspace: this is really slow ... 0.055 <-> 0.037
 //   also avoid find_first_not_of(" \t\f\v\n\r";): way too slow ...
 // definition of whitespace:
@@ -278,14 +293,14 @@ inline std::string_view remove_leading_whitespace(std::string_view sv) {
 // best performance: use find_first_not_of for ' ':
   for (size_t i = 0; i < sv.length(); ++i) {
     i = sv.find_first_not_of(' ', i);
-    if (i == std::string_view::npos) return std::string_view(); // only ' '
+    if (i == std::string_view::npos) return cSv(); // only ' '
     if (sv[i] > 0x0d || sv[i] < 0x09) return sv.substr(i);  // non whitespace found at i
   }
-  return std::string_view();
+  return cSv();
 
 /*
   for (size_t i = 0; i < sv.length(); ++i) if (!my_isspace(sv[i])) return sv.substr(i);
-  return std::string_view();
+  return cSv();
 */
 /*
 // same performance as for with if in for loop.
@@ -299,12 +314,12 @@ inline std::string_view remove_leading_whitespace(std::string_view sv) {
 // parse string_view for int
 // =========================================================
 
-template<class T> inline T parse_unsigned_internal(std::string_view sv) {
+template<class T> inline T parse_unsigned_internal(cSv sv) {
   T val = 0;
   for (size_t start = 0; start < sv.length() && std::isdigit(sv[start]); ++start) val = val*10 + (sv[start]-'0');
   return val;
 }
-template<class T> inline T parse_int(std::string_view sv) {
+template<class T> inline T parse_int(cSv sv) {
   if (sv.empty() ) return 0;
   if (!std::isdigit(sv[0]) && sv[0] != '-') {
     sv = remove_leading_whitespace(sv);
@@ -314,7 +329,7 @@ template<class T> inline T parse_int(std::string_view sv) {
   return -parse_unsigned_internal<T>(sv.substr(1));
 }
 
-template<class T> inline T parse_unsigned(std::string_view sv) {
+template<class T> inline T parse_unsigned(cSv sv) {
   if (sv.empty() ) return 0;
   if (!std::isdigit(sv[0])) sv = remove_leading_whitespace(sv);
   return parse_unsigned_internal<T>(sv);
@@ -324,13 +339,13 @@ template<class T> inline T parse_unsigned(std::string_view sv) {
 // parse string_view for xml
 // =========================================================
 
-template<std::size_t N> std::string_view partInXmlTag(std::string_view sv, const char (&tag)[N], bool *exists = nullptr) {
+template<std::size_t N> cSv partInXmlTag(cSv sv, const char (&tag)[N], bool *exists = nullptr) {
 // very simple XML parser
 // if sv contains <tag>...</tag>, ... is returned (part between the outermost XML tags is returned).
-// otherwise, std::string_view() is returned. This is also returned if the tags are there, but there is nothing between the tags ...
+// otherwise, cSv() is returned. This is also returned if the tags are there, but there is nothing between the tags ...
 // there is no error checking, like <tag> is more often in sv than </tag>, ...
   if (exists) *exists = false;
-  if (N < 1) return std::string_view(); // note: N == strlen(tag) + 1. It includes the 0 terminator ...
+  if (N < 1) return cSv(); // note: N == strlen(tag) + 1. It includes the 0 terminator ...
 // create <tag>
   char tagD[N + 2];
   memcpy(tagD + 2, tag, N - 1);
@@ -338,14 +353,14 @@ template<std::size_t N> std::string_view partInXmlTag(std::string_view sv, const
 // find <tag>
   tagD[1] = '<';
   size_t pos_start = sv.find(tagD + 1, 0, N + 1);
-  if (pos_start == std::string_view::npos) return std::string_view();
+  if (pos_start == std::string_view::npos) return cSv();
   pos_start += N + 1; // start of ... between tags
 // rfind </tag>
   tagD[0] = '<';
   tagD[1] = '/';
-//  std::cout << "tagD[0] " << std::string_view(tagD, N + 2) << "\n";
+//  std::cout << "tagD[0] " << cSv(tagD, N + 2) << "\n";
   size_t len = sv.substr(pos_start).rfind(tagD, std::string_view::npos, N + 2);
-  if (len == std::string_view::npos) return std::string_view();
+  if (len == std::string_view::npos) return cSv();
   if (exists) *exists = true;
   return sv.substr(pos_start, len);
 }
@@ -388,17 +403,17 @@ const char *strstr_word (const char *haystack, const char *needle, size_t len = 
   return NULL;
 }
 
-std::string_view textAttributeValue(const char *text, const char *attributeName) {
-  if (!text || !attributeName) return std::string_view();
+cSv textAttributeValue(const char *text, const char *attributeName) {
+  if (!text || !attributeName) return cSv();
   const char *found = strstr(text, attributeName);
-  if (!found) return std::string_view();
+  if (!found) return cSv();
   const char *avs = found + strlen(attributeName);
   const char *ave = strchr(avs, '\n');
-  if (!ave) return std::string_view();
-  return std::string_view(avs, ave-avs);
+  if (!ave) return cSv();
+  return cSv(avs, ave-avs);
 }
 
-bool splitString(std::string_view str, std::string_view delim, size_t minLengh, std::string_view &first, std::string_view &second) {
+bool splitString(cSv str, cSv delim, size_t minLengh, cSv &first, cSv &second) {
 // true if delim is part of str, and length of first & second >= minLengh
   std::size_t found = str.find(delim);
   size_t first_len = 0;
@@ -419,7 +434,7 @@ bool splitString(std::string_view str, std::string_view delim, size_t minLengh, 
   return true;
 }
 
-bool splitString(std::string_view str, char delimiter, size_t minLengh, std::string_view &first, std::string_view &second) {
+bool splitString(cSv str, char delimiter, size_t minLengh, cSv &first, cSv &second) {
   using namespace std::literals::string_view_literals;
   if (delimiter == '-') return splitString(str, " - "sv, minLengh, first, second);
   if (delimiter == ':') return splitString(str, ": "sv, minLengh, first, second);
@@ -427,19 +442,19 @@ bool splitString(std::string_view str, char delimiter, size_t minLengh, std::str
   return splitString(str, delim, minLengh, first, second);
 }
 
-std::string_view SecondPart(std::string_view str, std::string_view delim, size_t minLengh) {
+cSv SecondPart(cSv str, cSv delim, size_t minLengh) {
 // return second part of split string if delim is part of str, and length of first & second >= minLengh
 // otherwise, return ""
-  std::string_view first, second;
+  cSv first, second;
   if (splitString(str, delim, minLengh, first, second)) return second;
   else return "";
 }
 
-std::string_view SecondPart(std::string_view str, std::string_view delim) {
+cSv SecondPart(cSv str, cSv delim) {
 // Return part of str after first occurence of delim
 // if delim is not in str, return ""
   size_t found = str.find(delim);
-  if (found == std::string::npos) return std::string_view();
+  if (found == std::string::npos) return cSv();
   std::size_t ssnd;
   for(ssnd = found + delim.length(); ssnd < str.length() && str[ssnd] == ' '; ssnd++);
   return str.substr(ssnd);
@@ -470,13 +485,13 @@ bool StringRemoveLastPartWithP(std::string &str) {
   str.erase(len);
   return true;
 }
-std::string_view removeLastPartWithP(std::string_view str) {
+cSv removeLastPartWithP(cSv str) {
   int l = StringRemoveLastPartWithP(str.data(), str.length() );
   if (l < 0) return str;
-  return std::string_view(str.data(), l);
+  return cSv(str.data(), l);
 }
 
-int NumberInLastPartWithPS(std::string_view str) {
+int NumberInLastPartWithPS(cSv str) {
 // return number in last part with (./.), 0 if not found / invalid
   if (str.length() < 3 ) return 0;
   if (str[str.length() - 1] != ')') return 0;
@@ -487,7 +502,7 @@ int NumberInLastPartWithPS(std::string_view str) {
   }
   return atoi(str.data() + found + 1);
 }
-int NumberInLastPartWithP(std::string_view str) {
+int NumberInLastPartWithP(cSv str) {
 // return number in last part with (...), 0 if not found / invalid
   if (str.length() < 3 ) return 0;
   if (str[str.length() - 1] != ')') return 0;
@@ -499,7 +514,7 @@ int NumberInLastPartWithP(std::string_view str) {
   return atoi(str.data() + found + 1);
 }
 
-int seasonS(std::string_view description_part, const char *S) {
+int seasonS(cSv description_part, const char *S) {
 // return season, if found at the beginning of description_part
 // otherwise, return -1
 //  std::cout << "seasonS " << description_part << "\n";
@@ -509,7 +524,7 @@ int seasonS(std::string_view description_part, const char *S) {
      description_part.compare(0, s_len, S)  != 0) return -1;
   return parse_unsigned<int>(description_part.substr(s_len));
 }
-bool episodeSEp(int &season, int &episode, std::string_view description, const char *S, const char *Ep) {
+bool episodeSEp(int &season, int &episode, cSv description, const char *S, const char *Ep) {
 // search pattern S<digit> Ep<digits>
 // return true if episode was found.
 // set season = -1 if season was not found
@@ -631,7 +646,7 @@ namespace concat {
     for (numChars = 0; i; i /= 10) numChars++;
     return numChars;
   }
-  inline int numChars(const std::string_view &s) {
+  inline int numChars(const cSv &s) {
     return s.length();
   }
   inline int numChars(const std::string &s) {
@@ -655,7 +670,7 @@ namespace concat {
       addCharsU(++b, --l, -1*i);
     }
   }
-  inline void addChars(char *b, int l, const std::string_view &s) {
+  inline void addChars(char *b, int l, const cSv &s) {
     memcpy(b, s.data(), l);
   }
   inline void addChars(char *b, int l, const std::string &s) {
@@ -694,7 +709,7 @@ inline void stringAppend(std::string &str, long long int i) { concat::stringAppe
 // strings
 inline void stringAppend(std::string &str, const char *s) { str.append(s); }
 inline void stringAppend(std::string &str, const std::string &s) { str.append(s); }
-inline void stringAppend(std::string &str,       std::string_view s) { str.append(s); }
+inline void stringAppend(std::string &str,       cSv s) { str.append(s); }
 
 // tChannelID
 inline void stringAppend(std::string &str, const tChannelID &channelID) {
@@ -804,7 +819,7 @@ template<class T> T stringToObj(const char *s, size_t len) {
   return 5; }
 template<> int stringToObj<int>(const char *s, size_t len) { return atoi(s); }
 template<> std::string stringToObj<std::string>(const char *s, size_t len) { return std::string(s, len); }
-template<> std::string_view stringToObj<std::string_view>(const char *s, size_t len) { return std::string_view(s, len); }
+template<> cSv stringToObj<cSv>(const char *s, size_t len) { return cSv(s, len); }
 template<> tChannelID stringToObj<tChannelID>(const char *s, size_t len) {
   return tChannelID::FromString(std::string(s, len).c_str());
 }
@@ -834,7 +849,7 @@ inline const char *strchr_se(const char *ss, const char *se, char ch) {
 }
 
 template<class T, class C=std::set<T>>
-C getSetFromString(std::string_view str, char delim, const std::set<std::string_view> &ignoreWords, int max_len = 0) {
+C getSetFromString(cSv str, char delim, const std::set<cSv> &ignoreWords, int max_len = 0) {
 // split str at delim, and add each part to result
   C result;
   if (str.empty() ) return result;
@@ -842,7 +857,7 @@ C getSetFromString(std::string_view str, char delim, const std::set<std::string_
   const char *lEndPos = str.data() + str.length();
   const char *lSoftEndPos = max_len == 0?lEndPos:str.data() + max_len;
   for (const char *rDelimPos = strchr_se(lCurrentPos, lEndPos, delim); rDelimPos != NULL; rDelimPos = strchr_se(lCurrentPos, lEndPos, delim) ) {
-    if (ignoreWords.find(std::string_view(lCurrentPos, rDelimPos - lCurrentPos)) == ignoreWords.end()  )
+    if (ignoreWords.find(cSv(lCurrentPos, rDelimPos - lCurrentPos)) == ignoreWords.end()  )
       insertObject<T>(result, stringToObj<T>(lCurrentPos, rDelimPos - lCurrentPos));
     lCurrentPos = rDelimPos + 1;
     if (lCurrentPos >= lSoftEndPos) break;
@@ -853,29 +868,29 @@ C getSetFromString(std::string_view str, char delim, const std::set<std::string_
 
 class cSplit {
   public:
-    cSplit(std::string_view sv, char delim): m_sv(sv), m_delim(delim), m_end(std::string_view(), m_delim) {}
-    cSplit(const char *s, char delim): m_sv(charPointerToStringView(s)), m_delim(delim), m_end(std::string_view(), m_delim) {}
+    cSplit(cSv sv, char delim): m_sv(sv), m_delim(delim), m_end(cSv(), m_delim) {}
+    cSplit(const char *s, char delim): m_sv(charPointerToStringView(s)), m_delim(delim), m_end(cSv(), m_delim) {}
     cSplit(const cSplit&) = delete;
     cSplit &operator= (const cSplit &) = delete;
     class iterator {
-        std::string_view m_remainingParts;
+        cSv m_remainingParts;
         char m_delim;
         size_t m_next_delim;
       public:
         using iterator_category = std::forward_iterator_tag;
-        using value_type = std::string_view;
+        using value_type = cSv;
         using difference_type = int;
-        using pointer = const std::string_view*;
-        using reference = std::string_view;
+        using pointer = const cSv*;
+        using reference = cSv;
 
-        explicit iterator(std::string_view r, char delim): m_delim(delim) {
+        explicit iterator(cSv r, char delim): m_delim(delim) {
           if (!r.empty() && r[0] == delim) m_remainingParts = r.substr(1);
           else m_remainingParts = r;
           m_next_delim = m_remainingParts.find(m_delim);
         }
         iterator& operator++() {
           if (m_next_delim == std::string_view::npos) {
-            m_remainingParts = std::string_view();
+            m_remainingParts = cSv();
           } else {
             m_remainingParts = m_remainingParts.substr(m_next_delim + 1);
             m_next_delim = m_remainingParts.find(m_delim);
@@ -884,19 +899,19 @@ class cSplit {
         }
         bool operator!=(iterator other) const { return m_remainingParts != other.m_remainingParts; }
         bool operator==(iterator other) const { return m_remainingParts == other.m_remainingParts; }
-        std::string_view operator*() const {
+        cSv operator*() const {
           if (m_next_delim == std::string_view::npos) return m_remainingParts;
           else return m_remainingParts.substr(0, m_next_delim);
         }
       };
       iterator begin() { return iterator(m_sv, m_delim); }
       const iterator &end() { return m_end; }
-      iterator find(std::string_view sv) {
+      iterator find(cSv sv) {
         if (m_sv.find(sv) == std::string_view::npos) return m_end;
         return std::find(begin(), end(), sv);
       }
     private:
-      const std::string_view m_sv;
+      const cSv m_sv;
       const char m_delim;
       const iterator m_end;
 };
@@ -906,7 +921,7 @@ class cContainer {
     cContainer(char delim = '|'): m_delim(delim) { }
     cContainer(const cContainer&) = delete;
     cContainer &operator= (const cContainer &) = delete;
-    bool find(std::string_view sv) {
+    bool find(cSv sv) {
       if (!sv.empty() ) {
         size_t f = m_buffer.find(sv);
         if (f == std::string_view::npos || f== 0 || f + sv.length() == m_buffer.length() ) return false;
@@ -917,7 +932,7 @@ class cContainer {
       size_t f = m_buffer.find(ns);
       return f != std::string_view::npos;
     }
-    bool insert(std::string_view sv) {
+    bool insert(cSv sv) {
 // true, if already in buffer (will not insert again ...)
 // else: false
       if (m_buffer.empty() ) {
@@ -930,7 +945,7 @@ class cContainer {
     }
     bool insert(const char *s) {
       if (!s) return true;
-      return insert(std::string_view(s));
+      return insert(cSv(s));
     }
     std::string moveBuffer() { return std::move(m_buffer); }
     const std::string &getBufferRef() { return m_buffer; }
@@ -974,7 +989,7 @@ class cYears {
     }
     void addYears(const char *str) {
       if (!str || m_explicitFound) return;
-      std::string_view year_sv = textAttributeValue(str, "Jahr: ");
+      cSv year_sv = textAttributeValue(str, "Jahr: ");
       if (year_sv.length() == 4) {
         int y = yearToInt(year_sv.data() );
         if (!(y <= 1920 || y >= 2100)) {

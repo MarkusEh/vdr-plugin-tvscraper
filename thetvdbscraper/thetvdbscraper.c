@@ -69,7 +69,7 @@ bool cTVDBScraper::GetToken(std::string &jsonResponse) {
   return true;
 }
 
-const cLanguage *displayLanguageTvdb(std::string_view translations) {
+const cLanguage *displayLanguageTvdb(cSv translations) {
 // input: translations: List of translations
 // output: displayLanguage: Language used to display the data.
 //                          or nullptr if not found
@@ -87,19 +87,19 @@ const cLanguage *displayLanguageTvdb(std::string_view translations) {
   }
   return nullptr;
 }
-const cLanguage *languageTvdb(std::string_view tvdbLang) {
+const cLanguage *languageTvdb(cSv tvdbLang) {
   auto lang = find_if(config.m_languages.begin(), config.m_languages.end(), [tvdbLang](const cLanguage& x) { return tvdbLang == x.m_thetvdb;});
   if (lang != config.m_languages.end() ) return &(*lang);
   return nullptr;
 }
 
-int languageTvdbInt(std::string_view tvdbLang) {
+int languageTvdbInt(cSv tvdbLang) {
   const cLanguage *lang = languageTvdb(tvdbLang);
   if (lang) return lang->m_id;
   return -2; // tvdbLang not available as language in tvscraper available
 }
 
-int displayLanguageTvdbInt(std::string_view translations) {
+int displayLanguageTvdbInt(cSv translations) {
 // input: translations: List of translations
 // output: displayLanguage: Language used to display the data.
   const cLanguage *lang = displayLanguageTvdb(translations);
@@ -107,7 +107,7 @@ int displayLanguageTvdbInt(std::string_view translations) {
   return -2; // no translation is available
 }
 
-std::string displayLanguageTvdb(std::string_view translations, const char *originalLanguage) {
+std::string displayLanguageTvdb(cSv translations, const char *originalLanguage) {
 // input: translations: List of translations
 // input: originalLanguage: originalLanguage of the series / tv show
 // output: displayLanguage: Language used to display the data.
@@ -459,7 +459,7 @@ void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
 }
 
 // Search series
-bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
+bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
   std::string url; url.reserve(300);
   url.append(baseURL4Search);
   stringAppendCurlEscape(url, SearchString);

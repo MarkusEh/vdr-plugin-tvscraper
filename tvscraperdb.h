@@ -12,10 +12,10 @@ class cStringRef {
     template<std::size_t N>
     cStringRef(const char (&s)[N]): m_sv(s, N-1) {}
     explicit cStringRef(const char* s): m_sv(charPointerToStringView(s)) {}
-    explicit cStringRef(const std::string_view &sv): m_sv(sv) {}
+    explicit cStringRef(const cSv &sv): m_sv(sv) {}
     explicit cStringRef(const std::string &s): m_sv(s) {}
   private:
-    std::string_view m_sv;
+    cSv m_sv;
 };
 
 class cTVScraperDB;
@@ -44,7 +44,7 @@ class cSql {
 // or later on with methods returning the values of given columns
 // (starting with 0):
 //     int getInt(int column), sqlite3_int64 getInt64(int column),
-//     const char *getCharS(int column), std::string_view getStringView(int column)
+//     const char *getCharS(int column), cSv getStringView(int column)
 //  use valueInitial(int column) to find out whether a value was written to this cell
 //   example 1
 // cSql stmt(db, "select movie_name from movies where movie_id = ?", movieId);
@@ -55,7 +55,7 @@ class cSql {
 // if (!stmt.readRow() ) cout << "movie id not found\n";
 // else cout << "movie name: " << stmt.getCharS(0) << "\n";
 //  RESTRICTIONS / BE CAREFULL!!!
-// char* and string_view in result values:
+// char* and cSv in result values:
 //   invalidated by the next call to finalizePrepareBindStep, resetBindStep,resetBindStep,  resetStep, or destruction of the cSql instance
 
 //  execute sql statement, and read several rows ==================================
@@ -65,11 +65,11 @@ class cSql {
 //   cout << "movie name: " << stmt.getCharS(0) << "\n";
 // }
 //  RESTRICTIONS / BE CAREFULL!!!
-// char* and string_view in result values:
+// char* and cSv in result values:
 //   valid only in this loop, invalid in the next iteration of the loop (invalidated by step).
 //   also invalid after the loop ends / outside the loop.
 // for the parameters, until C++23: make sure to not use
-//   (char*, strings and string_view) temporaries as binding parameters
+//   (char*, strings and cSv) temporaries as binding parameters
 // for the parameters, since C++23: no restriction
 
 //  execute sql statement, and write several rows =================================
@@ -82,7 +82,7 @@ class cSql {
 // for (int i: <vector<int>>{4,2}) stmt.resetBindStep(i);
 
 //  RESTRICTIONS / BE CAREFULL!!!  :   Details for the parameters:
-// char*, strings and string_view provided: the refernces must be valid until the object is destroyed.
+// char*, strings and cSv provided: the refernces must be valid until the object is destroyed.
 // this shoudn't be an issue for requesting 0 or 1 rows,
 //   as step is directly called after the binding parameters are available
 //   after that, the binding parameters should not be needed any more
@@ -257,10 +257,10 @@ class cSql {
     void bind(int col, double f) { sqlite3_bind_double(m_statement, col, f); }
     void bind(int col, const char* const&s) { m_lval = true; if(s) sqlite3_bind_text(m_statement, col, s, -1, SQLITE_STATIC); else sqlite3_bind_null(m_statement, col); }
     void bind(int col, const cStringRef &sref) { sqlite3_bind_text(m_statement, col, sref.m_sv.data(), sref.m_sv.length(), SQLITE_STATIC); }
-    void bind(int col, const std::string_view &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
+    void bind(int col, const cSv &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const std::string &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const char* const&&s) { m_rval = true; if(s) sqlite3_bind_text(m_statement, col, s, -1, SQLITE_STATIC); else sqlite3_bind_null(m_statement, col); }
-    void bind(int col, const std::string_view &&str) { m_rval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
+    void bind(int col, const cSv &&str) { m_rval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const std::string &&str) { m_rval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void assertRvalLval();
   public:
@@ -269,7 +269,7 @@ class cSql {
 //   resetStep:
 //     pre-requisite:
 //       - query and all bind parameters were provided, e.g. during creation of the instance
-//       - the char* and string_view bind parameter values must still be valid !!!!
+//       - the char* and cSv bind parameter values must still be valid !!!!
 //     what it does:
 //       - reset statement and and step.
 // =======================================================================
@@ -324,7 +324,7 @@ class cSql {
     void readRow_int(int col, std::string &str) {
       str = charPointerToString(sqlite3_column_text(m_statement, col));
     }
-    void readRow_int(int col, std::string_view &str) {
+    void readRow_int(int col, cSv &str) {
       str = charPointerToStringView(sqlite3_column_text(m_statement, col));
     }
 // The pointers returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
@@ -360,8 +360,8 @@ class cSql {
 // The pointers returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
       return preCheckRead(col)?reinterpret_cast<const char *>(sqlite3_column_text(m_statement, col)):NULL;
     }
-    std::string_view getStringView(int col) {
-      return preCheckRead(col)?charPointerToStringView(sqlite3_column_text(m_statement, col)):string_view();
+    cSv getStringView(int col) {
+      return preCheckRead(col)?charPointerToStringView(sqlite3_column_text(m_statement, col)):cSv();
     }
 // The pointers returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
       ///< s (char *) results will be valit until finalizePrepareBindStep or reset is called on this cSql,
@@ -415,7 +415,7 @@ class cSql {
 //    cSql &operator= (cSql &&) = default; // needs secial implementation
     const cTVScraperDB *m_db;  // will be provided in constructor (mandatory, no constructur without DB)
     sqlite3_stmt *m_statement = NULL;
-    std::string_view m_query;
+    cSv m_query;
     int m_last_step_result = -10;
     int m_cur_row = -1; // +1 each time step is called
     int m_num_q;
@@ -460,7 +460,7 @@ private:
     string dbPathMem;
     bool inMem;
 // low level methods for sql
-    int printSqlite3Errmsg(std::string_view query) const;
+    int printSqlite3Errmsg(cSv query) const;
 // manipulate tables
     bool TableExists(const char *table);
     bool TableColumnExists(const char *table, const char *column);
@@ -551,7 +551,7 @@ public:
     bool GetTvEpisode(int tvID, int seasonNumber, int episodeNumber, int &episodeID, string &name, string &airDate, float &vote_average, string &overview, string &episodeGuestStars);
     bool episodeNameUpdateRequired(int tvID, int langId);
     bool GetFromCache(const string &movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
-    void InsertCache(std::string_view movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
+    void InsertCache(cSv movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText = false);
     void DeleteOutdatedCache() const;
     int DeleteFromCache(const char *movieNameCache); // return number of deleted entries
     void insertTvMedia (int tvID, const char *path, eMediaType mediaType);

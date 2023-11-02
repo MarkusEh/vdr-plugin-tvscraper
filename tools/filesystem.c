@@ -92,9 +92,9 @@ bool CheckDownloadAccessDenied(const cLargeString &df) {
 // return false, otherwise
   if (df.length() < 50) return false;
 // the server responded something. Try to parse the response
-  std::string_view df_Error = partInXmlTag(df, "Error");
+  cSv df_Error = partInXmlTag(df, "Error");
   if (df_Error.empty() ) return false;
-  std::string_view df_Code = partInXmlTag(df_Error, "Code");
+  cSv df_Code = partInXmlTag(df_Error, "Code");
   if (df_Code != "AccessDenied") return false;
   return true;
 }

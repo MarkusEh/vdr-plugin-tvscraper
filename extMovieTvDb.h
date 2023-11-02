@@ -21,7 +21,7 @@ class cNormedStringsDelim {
 // typedef std::vector<std::optional<cNormedStringsDelim>> cCompareStrings;
 class cCompareStrings {
   public:
-    cCompareStrings(std::string_view searchString);
+    cCompareStrings(cSv searchString);
     class iterator {
       private:
         std::vector<std::optional<cNormedStringsDelim>>::iterator m_it;
@@ -88,7 +88,7 @@ class iExtMovieTvDb
       // call with isFullSearchString == true if searchString is the complete searchString
       // you should split searchString to several parts, and call with each part to find more results.
       //   In this case, set isFullSearchString == false
-    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) = 0;
+    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) = 0;
 };
 
 

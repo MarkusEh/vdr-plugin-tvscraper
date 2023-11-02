@@ -14,7 +14,7 @@ public:
   searchResultTvMovie &operator= (const searchResultTvMovie &) = delete;
   searchResultTvMovie(searchResultTvMovie &&) = default;
   searchResultTvMovie &operator= (searchResultTvMovie &&) = default;
-  void log(std::string_view title) const;
+  void log(cSv title) const;
   static float normMatch(float x);
   float getMatch() const;
   bool operator< (const searchResultTvMovie &srm) const;

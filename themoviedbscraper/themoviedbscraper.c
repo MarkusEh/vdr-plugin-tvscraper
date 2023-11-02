@@ -104,7 +104,7 @@ void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, 
   Download(concatenate(m_stillBaseUrl, stillPathTvEpisode), pathStill);
 }
 
-bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
+bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
 // concatenate URL
   if (tvSearchString.empty() ) {
@@ -165,7 +165,7 @@ bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMo
   return true;
 }
 
-void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
+void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
   if (SearchString.empty() ) {
     esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
     return;

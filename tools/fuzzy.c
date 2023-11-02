@@ -10,7 +10,7 @@
 #include <optional>
  
 // see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
-size_t word_distance(std::string_view seq1, std::string_view seq2) {
+size_t word_distance(cSv seq1, cSv seq2) {
   const size_t size1 = seq1.size();
   const size_t size2 = seq2.size();
  
@@ -79,9 +79,9 @@ int romToArab(const char *&s, const char *se) {
   return ret;
 }
 
-void removeTeil(char *s, std::string_view teil) {
+void removeTeil(char *s, cSv teil) {
 // check if "teil" is in the string, and remove if reasonable
-  std::string_view sv(s);
+  cSv sv(s);
   size_t found = sv.rfind(teil);
   if (found == std::string_view::npos) return; // not found
   if (found < 5) return; // wee need some minimum entropy for search
@@ -95,7 +95,7 @@ void removeTeil(char *s, std::string_view teil) {
   s[found-1] = 0;
 }
 
-int removeRomanNumC(char *to, std::string_view from) {
+int removeRomanNumC(char *to, cSv from) {
 // intended to be called before passing "from" to the external search API, to find more results
 
 // replace invalid UTF8 characters with ' '
@@ -132,7 +132,7 @@ int removeRomanNumC(char *to, std::string_view from) {
 
 // find longest common substring
 // https://iq.opengenus.org/longest-common-substring/
-int lcsubstr(std::string_view s1, std::string_view s2)
+int lcsubstr(cSv s1, cSv s2)
 {
   int len1=s1.length(),len2=s2.length();
   int dp[2][len2+1];
@@ -173,7 +173,7 @@ int normMatch(int i, int n) {
   return normMatch((float)i / (float)n) * 1000;
 }
 
-std::set<std::string_view> const_ignoreWords = {"der", "die", "das", "the", "I", "-", "in", "to"};
+std::set<cSv> const_ignoreWords = {"der", "die", "das", "the", "I", "-", "in", "to"};
 // =====================================================================================================
 // class cNormedString  ================================================================================
 // =====================================================================================================
@@ -182,7 +182,7 @@ class cNormedString {
   public:
     cNormedString(int malus = 0): m_malus(malus) {}
     cNormedString(const char *s, int malus = 0): m_malus(malus) { reset(charPointerToStringView(s)); }
-    cNormedString(      std::string_view s, int malus = 0): m_malus(malus) { reset(s); }
+    cNormedString(      cSv s, int malus = 0): m_malus(malus) { reset(s); }
     cNormedString(const std::string     &s, int malus = 0): m_malus(malus) { reset(s); }
     cNormedString(const cNormedString&) = delete;
     cNormedString &operator= (const cNormedString &other) {
@@ -206,7 +206,7 @@ class cNormedString {
     }
 
     bool empty() const { return m_normedString.empty(); }
-    cNormedString &reset(std::string_view str) {
+    cNormedString &reset(cSv str) {
 // if there was any "old" normed string: remove
 // replace invalid UTF8 characters with ' '
 // replace all non-alphanumeric characters with ' '
@@ -238,7 +238,7 @@ class cNormedString {
         for (size_t currentWordStart = 0; !changed && we != m_normedString.length(); currentWordStart = we + 1) {
           we = m_normedString.find(" ", currentWordStart);
           if (we == std::string::npos) we = m_normedString.length();
-          std::string_view lWord = std::string_view(m_normedString).substr(currentWordStart, we - currentWordStart);
+          cSv lWord = cSv(m_normedString).substr(currentWordStart, we - currentWordStart);
           if (lWord == "und" || lWord == "and") {
             m_normedString.erase(currentWordStart, lWord.length() );
             m_normedString.insert(currentWordStart, 1, '&');
@@ -269,7 +269,7 @@ class cNormedString {
 // any change to m_normedString can result in changed buffer location, invaldating the string_view word list
       if (m_wordList.size() > 0) return;
       m_wordList.reserve(20);
-      for (std::string_view lWord: cSplit(m_normedString, ' ')) {
+      for (cSv lWord: cSplit(m_normedString, ' ')) {
 // we have to include very short words (1 char) here, to take digits like in part 1 / part 2 into account
         if (const_ignoreWords.find(lWord) == const_ignoreWords.end() ) m_wordList.push_back(lWord);
       }
@@ -301,7 +301,7 @@ class cNormedString {
       }
       curr_col[0] = 0;
       for (size_t idx1 = 0; idx1 < size1; ++idx1) {
-        curr_col[0] = curr_col[0] + word_distance(m_wordList[idx1], std::string_view());
+        curr_col[0] = curr_col[0] + word_distance(m_wordList[idx1], cSv());
      
         for (size_t idx2 = 0; idx2 < size2; ++idx2) {
           curr_col[idx2 + 1] = std::min(std::min(
@@ -369,8 +369,8 @@ class cNormedString {
     // split str at ~, and compare all parts with this
     // ignore last part after last ~ (in other words: ignore name of recording)
       int minDist = 1000;
-      std::string_view prev;
-      for (std::string_view part: cSplit(str, delim)) {
+      cSv prev;
+      for (cSv part: cSplit(str, delim)) {
         if (!prev.empty()) minDist = sentence_distance(prev, minDist);
         prev = part;
       }
@@ -385,14 +385,14 @@ class cNormedString {
     }
     int m_malus = 0;
     std::string m_normedString;
-    mutable std::vector<std::string_view> m_wordList;
+    mutable std::vector<cSv> m_wordList;
 };
 
 class cNormedStringsDelim;
 class cCompareStrings {
   public:
-    cCompareStrings(std::string_view searchString);
-    void add(std::string_view searchString, char delim);
+    cCompareStrings(cSv searchString);
+    void add(cSv searchString, char delim);
     class iterator {
       private:
         std::vector<cNormedStringsDelim>::const_iterator m_it;
@@ -411,7 +411,7 @@ class cCompareStrings {
 };
 class cNormedStringsDelim {
   public:
-    cNormedStringsDelim(std::string_view searchString, char delim = 0);
+    cNormedStringsDelim(cSv searchString, char delim = 0);
     int minDistance(const cNormedString &compareString, int curDistance = 1000) const;
   private:
     std::vector<std::optional<cNormedString>> m_normedStrings;
@@ -420,14 +420,14 @@ class cNormedStringsDelim {
 };
 
 // implementation cNormedStringsDelim
-cNormedStringsDelim::cNormedStringsDelim(std::string_view searchString, char delim):
+cNormedStringsDelim::cNormedStringsDelim(cSv searchString, char delim):
   m_normedStrings(5), m_delim(delim)
 {
 // input: searchString: string to search for
   m_normedStrings[0].emplace(searchString);
-  std::string_view searchString1 = SecondPart(searchString, ": ", 4);
+  cSv searchString1 = SecondPart(searchString, ": ", 4);
   if (!searchString1.empty() ) m_normedStrings[1].emplace(searchString1, 50);
-  std::string_view searchString2 = SecondPart(searchString, "'s ", 4);
+  cSv searchString2 = SecondPart(searchString, "'s ", 4);
   if (!searchString2.empty() ) m_normedStrings[2].emplace(searchString2, 50);
   bool split = splitString(searchString, " - ", 4, searchString1, searchString2);
   if (split) {
@@ -445,12 +445,12 @@ cCompareStrings::iterator &cCompareStrings::iterator::operator++() { ++m_it; ret
 bool cCompareStrings::iterator::operator!=(iterator other) const { return m_it != other.m_it; }
 char cCompareStrings::iterator::operator*() const { return m_it->m_delim; }
 
-cCompareStrings::cCompareStrings(std::string_view searchString)
+cCompareStrings::cCompareStrings(cSv searchString)
 {
   m_normedStringsDelim.emplace_back(searchString, 0);
 } 
-void cCompareStrings::add(std::string_view searchString, char delim) {
-  std::string_view TVshowName, episodeSearchString;
+void cCompareStrings::add(cSv searchString, char delim) {
+  cSv TVshowName, episodeSearchString;
   if (!splitString(searchString, delim, 4, TVshowName, episodeSearchString) ) return;
   m_normedStringsDelim.emplace_back(TVshowName, delim);
 }

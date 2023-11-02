@@ -62,7 +62,7 @@ class cLargeString {
     cLargeString &append(char c);
     cLargeString &append(const char *s, size_t len);
     cLargeString &append(const std::string &s) { return append(s.c_str(), s.length()); }
-    cLargeString &append(std::string_view s) { return append(s.data(), s.length()); }
+    cLargeString &append(cSv s) { return append(s.data(), s.length()); }
     cLargeString &append(int i);
     cLargeString &appendS(const char *s);
     template<typename... Args> cLargeString &appendFormated(char const* format, Args&&... args) {
@@ -84,7 +84,7 @@ class cLargeString {
     std::string substr(size_t pos, size_t count = std::string::npos) const; // as std::string.substr(), but replace 0 with %
 //    cLargeString &erase(size_t index = 0) { setMaxSize(); m_string_end = std::min(m_string_end, m_s + index); return *this;}
     char operator[](size_t i) const { return *(m_s + i); }
-    operator std::string_view() const { return std::string_view(m_s, m_string_end - m_s); }
+    operator cSv() const { return cSv(m_s, m_string_end - m_s); }
     const char *nameData() const { return m_nameData; }
     int nameLen() const { return m_nameLen; }
 };

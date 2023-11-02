@@ -17,13 +17,13 @@ private:
 public:
     cOverRides(void);
     virtual ~cOverRides(void);
-    void ReadConfig(string_view confDir);
-    bool Ignore(string_view title);
+    void ReadConfig(cSv confDir);
+    bool Ignore(cSv title);
     bool Substitute(string &title);
     void RemovePrefix(string &title);
-    scrapType Type(string_view title);
-    int thetvdbID(string_view title);
-    bool IgnorePath(string_view path);
+    scrapType Type(cSv title);
+    int thetvdbID(cSv title);
+    bool IgnorePath(cSv path);
     void Dump(void);
 }; 
 #endif //__TVSCRAPER_OVERRIDES_H

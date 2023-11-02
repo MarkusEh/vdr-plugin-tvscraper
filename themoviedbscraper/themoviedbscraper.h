@@ -24,10 +24,10 @@ class cMovieDBScraper {
     cTVScraperDB *db;
     cOverRides *overrides;
     bool parseJSON(const rapidjson::Value &root);
-    bool AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
+    bool AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
     void AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang);
     int AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang);
-    void AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
+    void AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
 
     void StoreMovie(int movieID, bool forceUpdate = false);
     bool DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName, bool movie);
@@ -35,8 +35,8 @@ class cMovieDBScraper {
     void DownloadMediaTv(int tvID);
     void DownloadActors(int tvID, bool movie);
     void StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode);
-//    bool AddTvResults(vector<searchResultTvMovie> &resultSet, string_view tvSearchString, const cLanguage *lang);
-//    void AddMovieResults(vector<searchResultTvMovie> &resultSet, std::string_view SearchString, const char *description, const cYears &years, const cLanguage *lang);
+//    bool AddTvResults(vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cLanguage *lang);
+//    void AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const char *description, const cYears &years, const cLanguage *lang);
 public:
     cMovieDBScraper(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cMovieDBScraper(void);
@@ -67,7 +67,7 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
       m_movieDBScraper->DownloadActors(id, true);
       return 0;
     }
-    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
+    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
       m_movieDBScraper->AddMovieResults(buffer, resultSet, searchString, compareStrings, description, isFullSearchString, years, lang);
     }
   private:
@@ -110,7 +110,7 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
         m_movieDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, std::string_view searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
+    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
       m_movieDBScraper->AddTvResults(buffer, resultSet, searchString, compareStrings, lang);
     }
   private:

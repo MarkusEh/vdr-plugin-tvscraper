@@ -36,7 +36,7 @@ cTVScraperDB::~cTVScraperDB() {
     sqlite3_close(db);
 }
 
-int cTVScraperDB::printSqlite3Errmsg(std::string_view query) const {
+int cTVScraperDB::printSqlite3Errmsg(cSv query) const {
 // return 0 if there was no error
 // otherwise, return error code
   int errCode = sqlite3_errcode(db);
@@ -426,7 +426,7 @@ bool cTVScraperDB::CreateTables(void) {
         sql << "INSERT INTO series_actors2 (actor_series_id, actor_name, actor_role, actor_number) ";
         sql << "VALUES (" << stmtActors.getCharS(0) << ", ?, ?, ";
         size_t pos;
-        const std::string_view actor_thumbnail = stmtActors.getStringView(3);
+        const cSv actor_thumbnail = stmtActors.getStringView(3);
         if (actor_thumbnail.length() > 10 && (pos = actor_thumbnail.find(".jpg") ) !=  std::string::npos) {
           sql << actor_thumbnail.substr(6, pos - 6);
         } else {
@@ -613,7 +613,7 @@ bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {
 
 // check: would we expect new episodes in external db, for tv_s_e?
   if (!config.isUpdateFromExternalDbRequired(tv2_tv_last_updated )) return false;
-  std::string_view status = stmt_tv2.getStringView(2);
+  cSv status = stmt_tv2.getStringView(2);
   if (status.compare("Ended") == 0) return false; // see https://thetvdb-api.readthedocs.io/api/series.html
   if (status.compare("Canceled") == 0) return false;
 // not documented for themoviedb, see https://developers.themoviedb.org/3/tv/get-tv-details . But test indicates the same values ("Ended" & "Canceled")...
@@ -1041,7 +1041,7 @@ bool cTVScraperDB::GetFromCache(const string &movieNameCache, csEventOrRecording
   return false;
 }
 
-void cTVScraperDB::InsertCache(std::string_view movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText) {
+void cTVScraperDB::InsertCache(cSv movieNameCache, csEventOrRecording *sEventOrRecording, sMovieOrTv &movieOrTv, bool baseNameEquShortText) {
     int recording = 0;
     if (sEventOrRecording->Recording() ) {
       recording = 1;
