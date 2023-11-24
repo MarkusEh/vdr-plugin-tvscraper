@@ -246,8 +246,8 @@ int csRecording::getVpsLength() {
 bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
 // return false if no info is available
   CONCATENATE(filename, m_recording->FileName(), "/tvscrapper.json");
-  struct stat buffer;
-  if (stat (filename, &buffer) != 0) return false;
+//  struct stat buffer;
+//  if (stat (filename, &buffer) != 0) return false;
 
   cJsonDocumentFromFile document(filename);
   if (document.HasParseError() ) return false;
@@ -302,9 +302,10 @@ int csRecording::durationDeviationVps(int s_runtime) {
 }
 int csRecording::durationDeviation(int s_runtime) {
 // return deviation between actual reording length, and planned duration (timer / vps)
-  if (!m_recording || !m_recording->FileName() || !m_recording->Info() || !m_recording->Info()->GetEvent() ) return 6000;
+// return -1 if no information is available
+  if (!m_recording || !m_recording->FileName() || !m_recording->Info() || !m_recording->Info()->GetEvent() ) return -1;
   if (m_recording->IsEdited() ) return 0;  // we assume, who ever edited the recording checked for completeness
-  if (m_recording->IsInUse()&&ruTimer == ruTimer) return 0;  // still recording => incomplete, this check is useless
+  if (m_recording->IsInUse()&ruTimer == ruTimer) return -1;  // still recording => incomplete, this check is useless
   if (!m_recording->Info()->GetEvent()->Vps() ) return durationDeviationNoVps();
 // event has VPS. Was VPS used?
   int vps_used_markad = getVpsLength();

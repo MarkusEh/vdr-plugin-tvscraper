@@ -47,6 +47,7 @@ class cScraperVideoImp: public cScraperVideo {
     const cRecording *m_recording = NULL;
     cTVScraperDB *m_db;
     int m_runtime_guess = 0; // runtime of thetvdb, which does best match to runtime of recording. Ignore if <=0
+    int m_duration_deviation = -2; // -2: not checked
     int m_runtime = -2;  // runtime of episode / movie. Most reliable. -2: not checked. -1, 0: checked, but not available
     int m_collectionId = -2; // collection ID. -2: not checked
     cMovieOrTv *m_movieOrTv = NULL;
@@ -61,7 +62,7 @@ cScraperVideoImp::cScraperVideoImp(const cEvent *event, const cRecording *record
   m_event = event;
   m_recording = recording;
   m_db = db;
-  m_movieOrTv = cMovieOrTv::getMovieOrTv(db, event, recording, &m_runtime_guess);
+  m_movieOrTv = cMovieOrTv::getMovieOrTv(db, event, recording, &m_runtime_guess, &m_duration_deviation);
 }
 cScraperVideoImp::~cScraperVideoImp() {
   if (m_movieOrTv) delete m_movieOrTv;
@@ -78,7 +79,6 @@ int cScraperVideoImp::getDbId() {
 }
 
 bool cScraperVideoImp::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
-// TODO: faster m_movieOrTv->getOverview, with compieled SQL statements
   m_runtime = 0;
   m_collectionId = 0;
   bool scraperDataAvaiable = false;
@@ -90,6 +90,7 @@ bool cScraperVideoImp::getOverview(std::string *title, std::string *episodeName,
 }
 
 int cScraperVideoImp::getDurationDeviation() {
+  if (m_duration_deviation >= 0) return m_duration_deviation;
   if (!m_recording) return 0;
   if (m_runtime == -2 && m_movieOrTv) {
     m_runtime = 0;
@@ -97,8 +98,13 @@ int cScraperVideoImp::getDurationDeviation() {
     m_movieOrTv->getOverview(NULL, NULL, NULL, &m_runtime, NULL, &m_collectionId);
   }
   csRecording sRecording(m_recording);
+
 // note: m_runtime <=0 is considered as no runtime information by sRecording->durationDeviation(m_runtime)
-  return sRecording.durationDeviation(m_runtime);
+  m_duration_deviation = sRecording.durationDeviation(m_runtime > 0?m_runtime:m_runtime_guess);
+  if (m_duration_deviation >= 0) m_db->SetDurationDeviation(m_recording, m_duration_deviation);
+  else m_duration_deviation = 0;
+
+  return m_duration_deviation;
 }
 
 bool orientationsIncludesLandscape(cOrientationsInt imageOrientations) {

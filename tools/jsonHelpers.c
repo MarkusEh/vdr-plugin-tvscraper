@@ -9,7 +9,7 @@
 
 #include <string>
 #include "curlfuncs.h"
-#include "stringhelpers.c"
+#include "stringhelpers.h"
 #include "largeString.h"
 
 inline

@@ -58,8 +58,10 @@ enum eMediaType: int {
 };
 
 #include <getopt.h>
-#include "tools/stringhelpers.c"
+#include "tools/stringhelpers.h"
+#include "tools/tvscraperhelpers.h"
 #include "tools/largeString.h"
+#include "tools/channelhelpers.h"
 #include "extEpgPlugin.h"
 #include "config.h"
 cTVScraperConfig config;
@@ -470,12 +472,12 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
         cMovieOrTv *movieOrTv = GetMovieOrTv(call->event, call->recording);
         if (!movieOrTv) { call->type = tNone; return true;}
         call->type = movieOrTv->getType();
-// get poster. If no image in portrait format available, return landscape image
+// get poster. No fallback. If there is no poster, leave GetPosterBannerV2->banner empty
         movieOrTv->getSingleImageBestLO(
           cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
           cOrientationsInt(eOrientation::portrait),
           NULL, &call->poster.path, &call->poster.width, &call->poster.height);
-// get banner. No fallback. If there is no banner, leave GetPosterBannerV2->banner empty
+// get banner. If no image in banner format available, return landscape image
         movieOrTv->getSingleImageBestLO(
           cImageLevelsInt(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection),
           cOrientationsInt(eOrientation::banner, eOrientation::landscape),

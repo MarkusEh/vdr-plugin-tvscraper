@@ -11,7 +11,7 @@ class cStringRef {
 // -> implicit conversion of string literals is save
     template<std::size_t N>
     cStringRef(const char (&s)[N]): m_sv(s, N-1) {}
-    explicit cStringRef(const char* s): m_sv(charPointerToStringView(s)) {}
+    explicit cStringRef(const char* s): m_sv(s) {}
     explicit cStringRef(const cSv &sv): m_sv(sv) {}
     explicit cStringRef(const std::string &s): m_sv(s) {}
   private:
@@ -298,11 +298,13 @@ class cSql {
     bool readRow(Args&&... args) {
       if (m_last_step_result == SQLITE_ROW) {
         if (sizeof...(Args) == 0) return true;
+/*
         if (m_num_cols != sizeof...(Args)) {
           const char *query = sqlite3_sql(m_statement);
           esyslog("tvscraper: ERROR in cSql::readRow, wrong number of values requested, requested %d available %d query %s",
                    (int)sizeof...(Args), m_num_cols, query?query:"NULL");
         }
+*/
         readRow_int0(0, std::forward<Args>(args)...);
         return true;
       }
@@ -325,7 +327,7 @@ class cSql {
       str = charPointerToString(sqlite3_column_text(m_statement, col));
     }
     void readRow_int(int col, cSv &str) {
-      str = charPointerToStringView(sqlite3_column_text(m_statement, col));
+      str = cSv(reinterpret_cast<const char*>(sqlite3_column_text(m_statement, col)), sqlite3_column_bytes(m_statement, col));
     }
 // The pointers returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
     void readRow_int(int col, const char* &s) {
@@ -361,7 +363,7 @@ class cSql {
       return preCheckRead(col)?reinterpret_cast<const char *>(sqlite3_column_text(m_statement, col)):NULL;
     }
     cSv getStringView(int col) {
-      return preCheckRead(col)?charPointerToStringView(sqlite3_column_text(m_statement, col)):cSv();
+      return preCheckRead(col)?cSv(sqlite3_column_text(m_statement, col)):cSv();
     }
 // The pointers returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
       ///< s (char *) results will be valit until finalizePrepareBindStep or reset is called on this cSql,
@@ -451,9 +453,9 @@ class cSqlGetSimilarTvShows {
 using namespace std; 
 
 // --- cTVScraperDB --------------------------------------------------------
-
 class cTVScraperDB {
   friend class cSql;
+  friend class cLockDB;
 private:
     sqlite3 *db;
     string dbPathPhys;
@@ -536,7 +538,8 @@ public:
     void ClearRecordings2(void);
     bool CheckStartScrapping(int minimumDistance);
     bool GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr) const;
-    bool GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr) const;
+    bool GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr, int *duration_deviation = nullptr) const;
+    bool SetDurationDeviation(const cRecording *recording, int duration_deviation) const;
     int GetMovieCollectionID(int movieID) const;
     std::string GetEpisodeName(int tvID, int seasonNumber, int episodeNumber) const;
     string GetDescriptionTv(int tvID);
@@ -566,4 +569,28 @@ public:
     void setSimilar(int tv_id1, int tv_id2);
 };
 
+/*
+ * class cLockDB: use the for thread-safety.
+ *
+ * see https://dev.yorhel.nl/doc/sqlaccess
+ * void *some_thread(void *arg) {
+ *   sqlite3_mutex_enter(sqlite3_db_mutex(db));
+ *   // Perform some queries on the database
+ *   sqlite3_mutex_leave(sqlite3_db_mutex(db));
+ * }
+ * Prepared statement re-use
+ *     Prepared statements can be safely re-used inside a single enter/leave block. However, if you want to remain portable with SQLite versions before 3.5.0, then any prepared statements must be freed before the mutex is unlocked. This can be a major downside if the enter/leave blocks themselves are relatively short but accessed quite often. If portability with older versions is not an issue, then this restriction is gone and prepared statements can be re-used easily.
+ *
+*/
+class cLockDB {
+public:
+  cLockDB(const cTVScraperDB *db) {
+    m_mutex = sqlite3_db_mutex(db->db);
+    if (!m_mutex) esyslog("tvscraper: ERROR in cLockDB, sqlite3_db_mutex returned 0");
+    sqlite3_mutex_enter(m_mutex);
+  }
+  ~cLockDB() { sqlite3_mutex_leave(m_mutex); }
+private:
+  sqlite3_mutex *m_mutex;
+};
 #endif //__TVSCRAPER_TVSCRAPPERDB_H

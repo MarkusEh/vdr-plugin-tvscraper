@@ -81,7 +81,7 @@ bool cTVScraperDB::Connect(void) {
         time_t timeMem = LastModifiedTime(dbPathMem.c_str() );
         time_t timePhys = LastModifiedTime(dbPathPhys.c_str() );
         bool readFromPhys = timePhys > timeMem;
-        if (sqlite3_open(dbPathMem.c_str(),&db)!=SQLITE_OK) {
+        if (sqlite3_open_v2(dbPathMem.c_str(),&db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr)!=SQLITE_OK) {
             esyslog("tvscraper: failed to open or create %s", dbPathMem.c_str());
             return false;
         }
@@ -371,8 +371,8 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "runtime integer, ";       // runtime of thetvdb, which does best match to runtime of recording
     sql << "movie_tv_id integer, ";   // movie if season_number == -100. Otherwisse, tv
     sql << "season_number integer, ";
-    sql << "episode_number integer";
-    sql << ");";
+    sql << "episode_number integer, ";
+    sql << "duration_deviation integer);";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_recordings2 on recordings2 (event_id, event_start_time, channel_id); ";
 
     sql << "CREATE TABLE IF NOT EXISTS scrap_checker (";
@@ -400,6 +400,7 @@ bool cTVScraperDB::CreateTables(void) {
     AddCulumnIfNotExists("actors", "actor_has_image", "integer");
     AddCulumnIfNotExists("event", "runtime", "integer");
     AddCulumnIfNotExists("recordings2", "runtime", "integer");
+    AddCulumnIfNotExists("recordings2", "duration_deviation", "integer");
 
     AddCulumnIfNotExists("tv_s_e", "episode_run_time", "integer");
     if (!TableColumnExists("tv2", "tv_last_changed") ) {
@@ -869,32 +870,53 @@ bool cTVScraperDB::CheckStartScrapping(int minimumDistance) {
   return startScrapping;
 }
 
-bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime) const {
+bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime, int *duration_deviation) const {
   if (!recording || !recording->Info() || !recording->Info()->GetEvent()) return false;
   csRecording sRecording(recording);
-  if (runtime) {
-    cSql sqlI(this, "select runtime, movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?");
-    sqlI.resetBindStep(sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
-    return sqlI.readRow(*runtime, movie_tv_id, season_number, episode_number);
-  } else {
-    cSql sqlI(this, "select movie_tv_id, season_number, episode_number from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?");
-    sqlI.resetBindStep(sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
-    return sqlI.readRow(movie_tv_id, season_number, episode_number);
+  cLockDB lock(this);
+  if (!config.selectRecRuntime) config.selectRecRuntime = new cSql(this, "select movie_tv_id, season_number, episode_number, runtime, duration_deviation from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?");
+//  config.timeSelectFromRecordings.start();
+  config.selectRecRuntime->resetBindStep(sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
+/*
+  config.timeSelectFromRecordings.stop();
+  if ( config.timeSelectFromRecordings.getNumCalls() >= 1964) {
+    config.timeSelectFromRecordings.print("live: GetMovieTvID_recording");
+    config.timeSelectFromRecordings.reset();
   }
+*/
+  if (!config.selectRecRuntime->readRow()) return false;
+  if (duration_deviation) {
+    if (config.selectRecRuntime->valueInitial(4)) {
+      *duration_deviation = -2; // no information
+    } else {
+// get from cache
+      *duration_deviation = config.selectRecRuntime->getInt(4);
+    }
+  }
+  if (runtime) {
+    return config.selectRecRuntime->readRow(movie_tv_id, season_number, episode_number, *runtime);
+  } else {
+    return config.selectRecRuntime->readRow(movie_tv_id, season_number, episode_number);
+  }
+}
+bool cTVScraperDB::SetDurationDeviation(const cRecording *recording, int duration_deviation) const {
+  if (!recording || duration_deviation < 0 || config.GetReadOnlyClient() ) return false;
+  csRecording sRecording(recording);
+  exec("UPDATE recordings2 SET duration_deviation = ? WHERE event_id = ? and event_start_time = ? and channel_id = ?", duration_deviation, sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
+  return true;
 }
 
 bool cTVScraperDB::GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number, int *runtime) const {
   if (!event) return false;
   std::string channelIDs = channelToString(event->ChannelID() );
   if (channelIDs.empty() ) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID (event), !channelIDs");
+  cLockDB lock(this);
+  if (!config.selectEventRuntime) config.selectEventRuntime = new cSql(this, "select movie_tv_id, season_number, episode_number, runtime from event where event_id = ? and channel_id = ?");
+  config.selectEventRuntime->resetBindStep(event->EventID(), channelIDs);
   if (runtime) {
-    cSql sqlI(this, "select runtime, movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?");
-    sqlI.resetBindStep(event->EventID(), channelIDs);
-    return sqlI.readRow(*runtime, movie_tv_id, season_number, episode_number);
+    return config.selectEventRuntime->readRow(movie_tv_id, season_number, episode_number, *runtime);
   } else {
-    cSql sqlI(this, "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?");
-    sqlI.resetBindStep(event->EventID(), channelIDs);
-    return sqlI.readRow(movie_tv_id, season_number, episode_number);
+    return config.selectEventRuntime->readRow(movie_tv_id, season_number, episode_number);
   }
 }
 

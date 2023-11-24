@@ -9,6 +9,7 @@
 
 using namespace std;
 class iExtEpg;
+class cSql;
 
 enum scrapType {
     scrapSeries,
@@ -150,6 +151,7 @@ class cTVScraperConfig {
 {29, "zho", "zh-CN", "大陆简体"},  //  Chinese - China
 {30, "ron", "ro-RO", "limba română"},  // Romanian
 {31, "jpn", "ja-JP", "日本語"},  //  Japanese
+{32, "mon", "mn-MN", "Mongolian"},  // Mongolian, note: not supported in themoviedb, "mn-MN" is a guess
 // {30, "", "", ""},  //
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
@@ -213,6 +215,14 @@ class cTVScraperConfig {
           for (auto &extEpg: m_extEpgs) if (extEpg->myDescription(description)) return true;
           return false;
         }
+        mutable cStateLock stateSelectRecRuntime;
+        cSql *selectRecRuntime = 0;
+        cSql *selectEventRuntime = 0;
+        cSql *selectMoviewOverview = 0;
+        cSql *selectTvOverview = 0;
+        cSql *selectTvEpisode= 0;
+        cSql *selectTvEpisodeLanguage= 0;
+        cMeasureTime timeSelectFromRecordings;
 };
 
 #endif //__TVSCRAPER_CONFIG_H

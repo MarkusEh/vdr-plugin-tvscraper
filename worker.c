@@ -36,7 +36,7 @@ void cTVScraperWorker::Stop(void) {
 }
 
 void cTVScraperWorker::InitVideoDirScan(const char *recording) {
-    m_recording = charPointerToString(recording);
+    m_recording = cSv(recording);
     scanVideoDir = true;
     waitCondition.Broadcast();
 }

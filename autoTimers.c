@@ -133,18 +133,16 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
 // all recordings where a movie or TV episode was identified are returned.
 // In case of duplicates, the better one is returned
 
-#if APIVERSNUM < 20301
-  for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec))
-#else
+  cSql runtime_movie(&db, "select movie_runtime from movies3 where movie_id = ?");
+  cSql runtime_tv(&db, "select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?");
   LOCK_RECORDINGS_READ;
   for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec))
-#endif
   {
     const char *pos_delim = strrchr(rec->Name(), '~');
     if (pos_delim != 0)
       if (!config.recordingFolderSelected(std::string(rec->Name(), pos_delim - rec->Name() ))) continue;
-    int  movie_tv_id, season_number, episode_number;
-    if (!db.GetMovieTvID(rec, movie_tv_id, season_number, episode_number)) continue;
+    int  movie_tv_id, season_number, episode_number, runtime_guess, duration_deviation;
+    if (!db.GetMovieTvID(rec, movie_tv_id, season_number, episode_number, &runtime_guess, &duration_deviation)) continue;
     if (movie_tv_id == 0) continue;
     if (season_number == 0 && episode_number == 0) continue; // we look only for recordings we can assign to a specific episode/movie
     if (season_number == -100) episode_number = 0;
@@ -159,10 +157,23 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
     if (numberOfErrors < 0) numberOfErrors = 1; // -1: Not checked, also create timer in this case
     if (numberOfErrors == 0) {
 // check duration deviation
-      int runtime;
-      if (season_number == -100) runtime = db.queryInt("select movie_runtime from movies3 where movie_id = ?", movie_tv_id);
-      else runtime = db.queryInt("select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", movie_tv_id, season_number, episode_number);
-      if (sRecording.durationDeviation(runtime) > 60) numberOfErrors = 1;  // in case of deviations > 1min, create timer ...
+      if (duration_deviation < 0) {
+// no data in cache, find out and update cache in recordings2
+        int runtime;
+        cSql *runtime_sql;
+        if (season_number == -100) { runtime_movie.resetBindStep(movie_tv_id); runtime_sql = &runtime_movie; }
+        else { runtime_tv.resetBindStep(movie_tv_id, season_number, episode_number); runtime_sql = &runtime_tv; }
+        if (runtime_sql->readRow() && !runtime_sql->valueInitial(0)) {
+          runtime = runtime_sql->getInt(0);
+          if (runtime <= 0) runtime = runtime_guess;
+        } else {
+          runtime = runtime_guess;
+        }
+        duration_deviation = sRecording.durationDeviation(runtime);
+        if (duration_deviation >= 0) db.SetDurationDeviation(rec, duration_deviation);
+        else duration_deviation = 0;
+      }
+      if (duration_deviation > 60) numberOfErrors = 1;  // in case of deviations > 1min, create timer ...
     }
     if (numberOfErrors == 0 && config.GetTimersOnNumberOfTsFiles() && GetNumberOfTsFiles(rec) != 1) numberOfErrors = 1;  //  in case of more ts files, create timer ...
     cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, numberOfErrors);
@@ -408,7 +419,7 @@ std::string getEpisodeName(const cTVScraperDB &db, const cEventMovieOrTv &scrape
 bool EventsMovieOrTvEqual(const cTVScraperDB &db, const cEvent *event1, const cEvent *event2, const cEventMovieOrTv *scraperEvent1 = NULL) {
 // return true if the MovieOrTv assigned to event1 is equal to the MovieOrTv assigned to event2
 // if scraperEvent1 is provided, it must contain the movie_tv_id, season_number and episode_number of event1
-  if (stringEqual(event1->Title(), event2->Title()) && stringEqual(event1->ShortText(), event2->ShortText()) && stringEqual(event1->Description(), event2->Description()) ) return true;
+  if (cSv(event1->Title()) == cSv(event2->Title()) && cSv(event1->ShortText()) == cSv(event2->ShortText()) && cSv(event1->Description()) == cSv(event2->Description()) ) return true;
 
   int movie_tv_id1, season_number1, episode_number1;
   int movie_tv_id2, season_number2, episode_number2;

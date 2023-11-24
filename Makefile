@@ -89,6 +89,7 @@ install-conf:
 	@if [ ! -f $(DESTDIR)$(PLGCONFDIR)/override.conf ]; then cp conf/override.conf $(DESTDIR)$(PLGCONFDIR); fi;
 
 install-plugins: plugins
+	mkdir -p "$(PLGDEST)"
 	mkdir -p "$(_PLGDEST)"
 	for i in ${PLGSRCDIR}/*/Makefile; do\
       grep -q "PLUGIN.*=" "$$i" || continue;\
