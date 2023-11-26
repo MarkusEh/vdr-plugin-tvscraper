@@ -342,7 +342,7 @@ bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
 }
 
 void writeTimerInfo(const cTimer *timer, const char *pathName) {
-  CONCATENATE(filename, pathName, "/tvscrapper.json");
+  CONCATENATE(filename, pathName, "/tvscraper.json");
 
   cJsonDocumentFromFile document(filename);
   if (document.HasParseError() ) return;
@@ -383,7 +383,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
         continue;
       }
-      CONCATENATE(filename, rc->FileName(), "/tvscrapper.json");
+      CONCATENATE(filename, rc->FileName(), "/tvscraper.json");
       if (stat(filename, &buffer) != 0) {
         recordingFileNames.push_back(rc->FileName() );
         writeTimerInfo(timer, rc->FileName() );

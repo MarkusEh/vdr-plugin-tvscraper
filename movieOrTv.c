@@ -227,13 +227,22 @@ int cTv::searchEpisode(cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYe
   if (description) episodeSEp(season_guess, episode_guess, description, "S", "Ep");
   if (episode_guess == 0 && shortText) episodeSEp(season_guess, episode_guess, shortText, "S", "Ep");
   int distance = searchEpisode(tvSearchEpisodeString, years, lang, season_guess, episode_guess);
-  if (distance != 1000) return distance;
-// no match with episode name found, try pattern "S2 Ep12" in description / shortText
-  if (episode_guess > 0 && season_guess >= 0) {
+  if (distance > 500 && episode_guess > 0 && season_guess >= 0 &&
+      (season_guess != m_seasonNumber || episode_guess != m_episodeNumber)) {
+// pattern "S2 Ep12" found, and no or bad match with episode name
+// -> Use pattern
     m_seasonNumber  = season_guess;
     m_episodeNumber = episode_guess;
-    return 950; // no indication that this series is a better match than any other series
+    cSql sql_year(m_db, "select episode_air_date from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", dbID(), m_seasonNumber, m_episodeNumber);
+    if (!sql_year.readRow()) return 950; // season/episode does not exist in DB. Very weak indikator
+    const char *episode_air_date = sql_year.getCharS(0);
+    if (!episode_air_date) return 800;   // season/episode does exist in DB. No year information. Weak indikator
+    int year_found = years.find2(cYears::yearToInt(cSv(episode_air_date, 4)));
+    if (year_found == 2) return 600; // exact match
+    if (year_found == 1) return 700; // near match
+    return 800; // no year match
   }
+  if (distance != 1000) return distance;
 // if no episode number found (episode_guess == 0), try episode number as part of title
   if (episode_guess == 0) episode_guess = NumberInLastPartWithPS(baseNameOrTitle);
   if (episode_guess != 0) {
@@ -276,6 +285,7 @@ int cTv::searchEpisode(cSv tvSearchEpisodeString_i, const cYears &years, const c
   bool debug = dbID() == 197649 || dbID() == 197648 || tvSearchEpisodeString_i.length() > 200;
   debug = debug || (tvSearchEpisodeString_i.length() > 0 && tvSearchEpisodeString_i[0] == 0);
   debug = debug || (tvSearchEpisodeString_i.length() > 1 && tvSearchEpisodeString_i[1] == 0);
+  debug = dbID() == -248837;
   debug = false;
   if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string_i length %zu, \"%.*s\", dbid %i", tvSearchEpisodeString_i.length(), std::min(100, static_cast<int>(tvSearchEpisodeString_i.length())), tvSearchEpisodeString_i.data(), dbID());
   cNormedString tvSearchEpisodeString(tvSearchEpisodeString_i);
@@ -295,7 +305,7 @@ int cTv::searchEpisode(cSv tvSearchEpisodeString_i, const cYears &years, const c
 //      doesn't help for performance (norming one string only takes 5% of sentence_distance time
 //      makes changes to the norm algorithm almost impossible
     int distance = tvSearchEpisodeString.sentence_distance(episodeName);
-    if (debug && (distance < 600 || (season < 3 && episode == 13)) ) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.m_normedString.c_str(), episodeName, season, episode, dbID(), distance);
+    if (debug && (distance < 600 || (season < 3)) ) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\" episodeName \"%s\"  season %i episode %i dbid %i, distance %i", tvSearchEpisodeString.m_normedString.c_str(), episodeName, season, episode, dbID(), distance);
     if (season == 0) distance += 20; // avoid season == 0, could be making of, ...
     int f = years.find2(cYears::yearToInt(episode_air_date) );
     if (f == 2) distance = std::max(0, distance-100);

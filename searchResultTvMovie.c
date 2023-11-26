@@ -19,6 +19,7 @@ searchResultTvMovie::searchResultTvMovie(int id, bool movie, const char *year):
   m_matches[9].weight = 0.2; // translation available
 }
 searchResultTvMovie::~searchResultTvMovie() {
+//  if (m_id == 80605) log("un-homme-amoureux");
 //  if (m_id == 689390) log("Merlin movie 1998-04-26");
 //  if (m_id == -83269) log("Merlin series Sam Neill");
 //  if (m_id == -72449) log("Stargate SG-1");

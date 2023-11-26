@@ -479,8 +479,8 @@ bool cTVScraperDB::CheckMovieOutdatedEvents(int movieID, int season_number, int 
 
 bool cTVScraperDB::CheckMovieOutdatedRecordings(int movieID, int season_number, int episode_number) const {
 // check if there is still a recording for which movieID is required
-  const char sql_m[] = "select count(event_id) from recordings2 where season_number  = ? and movie_tv_id = ?";
-  const char sql_t[] = "select count(event_id) from recordings2 where season_number != ? and movie_tv_id = ?";
+  const char *sql_m = "select count(event_id) from recordings2 where season_number  = ? and movie_tv_id = ?";
+  const char *sql_t = "select count(event_id) from recordings2 where season_number != ? and movie_tv_id = ?";
   if (season_number == -100) return queryInt(sql_m, -100, movieID) > 0;
                         else return queryInt(sql_t, -100, movieID) > 0;
 }
@@ -763,7 +763,7 @@ int cTVScraperDB::InsertRecording2(csEventOrRecording *sEventOrRecording, int mo
 
 void cTVScraperDB::WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number) {
   if (!recording || !recording->FileName() ) return;  // no place to write the information
-  std::string filename = concatenate(recording->FileName(), "/tvscrapper.json");
+  std::string filename = concatenate(recording->FileName(), "/tvscraper.json");
 // open / parse existing file
   cJsonDocumentFromFile jInfo(filename.c_str() );
   if (jInfo.HasParseError() ) {
