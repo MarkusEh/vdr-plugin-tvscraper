@@ -886,7 +886,7 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
 */
   if (!config.selectRecRuntime->readRow()) return false;
   if (duration_deviation) {
-    if (recording->FileName() && *recording->FileName() == '%') *duration_deviation = 0;  // assume who ever cut the recording, checked for completness
+    if (recording->IsEdited() ) *duration_deviation = 0;  // assume who ever cut the recording, checked for completness
     else {
       if (config.selectRecRuntime->valueInitial(4)) {
         *duration_deviation = -2; // no information
