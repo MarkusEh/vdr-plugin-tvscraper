@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-// #include <vdr/plugin.h>
+#include <vdr/plugin.h>
 #include "largeString.h"
 
 void cLargeString::init(size_t initialSize, size_t increaseSize, bool debugBufferSize) {
@@ -21,6 +21,7 @@ void cLargeString::init(size_t initialSize, size_t increaseSize, bool debugBuffe
   m_buffer_end = m_s + initialSize;
   m_string_end = m_s;
 }
+/*
 void cLargeString::loadFile(const char *filename, bool *exists) {
   if (exists) *exists = false;
   if (!filename) return;
@@ -51,6 +52,7 @@ void cLargeString::loadFile(const char *filename, bool *exists) {
     m_string_end = m_s + std::min(num_read, (size_t)buffer.st_size);
   }
 }
+*/
 
 cLargeString::~cLargeString() {
   if (m_s == m_s_initial) return;
@@ -133,7 +135,6 @@ cLargeString &cLargeString::appendS(const char *s) {
   m_string_end += len;
   return *this;
 }
-
 void cLargeString::enlarge(size_t increaseSize) {
   increaseSize = std::max(increaseSize, m_increaseSize);
   increaseSize = std::max(increaseSize, (size_t)((m_buffer_end - m_s)/2) );

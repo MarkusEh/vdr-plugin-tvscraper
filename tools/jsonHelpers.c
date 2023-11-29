@@ -267,39 +267,25 @@ class cJsonDocumentFromFile: public rapidjson::Document {
 // if file does not exist: an empty (valid!) document
 // if file does     exist: read the file and return document with parsed content
 // if file does     exist, but is not valid json: error in syslog (you can check with document.HasParseError()
+// if file does     exist, but is not valid json and backup_invalid_file == true: rename the invalid file to .bak, and return an empty (valid) document. Write Error message to syslog
   public:
-    cJsonDocumentFromFile(const char *filename): jfile("jsonReadFile", filename) {
-      if (jfile.empty() ) {
+    cJsonDocumentFromFile(const char *filename, bool backup_invalid_file = false): m_jfile(filename) {
+      if (cSv(m_jfile).empty() ) {
         SetObject();
         return;
       }
-      ParseInsitu(jfile.data() );
+      ParseInsitu(m_jfile.data() );
       if (HasParseError() ) {
-        esyslog("tvscraper: ERROR cJsonDocumentFromFile, file %s size %zu parse error %s, doc %s", filename, jfile.length(), rapidjson::GetParseError_En(GetParseError()), jfile.substr(0, 100).c_str() );
+        esyslog("tvscraper: ERROR cJsonDocumentFromFile, file %s size %zu parse error %s, doc %s", filename, cSv(m_jfile).length(), rapidjson::GetParseError_En(GetParseError()), zeroToPercent(cSv(m_jfile).substr_csv(0, 100)).c_str() );
+        if (backup_invalid_file) {
+          RenameFile(filename, concat(filename, ".bak"));
+          SetObject();
+        }
       }
     }
   private:
-    cLargeString jfile;
+    cToSvFile m_jfile;
 };
-
-/*
-cLargeString jsonReadFile(rapidjson::Document &document, const char *filename) {
-// if file does not exist: an empty (valid!) document
-// if file does     exist: read the file and return document with parsed content
-// if file does     exist, but is not valid json: error in syslog (you can check with document.HasParseError()
-
-  cLargeString jfile("jsonReadFile", filename);
-  if (jfile.empty() ) {
-    document.SetObject();
-    return jfile;
-  }
-  document.ParseInsitu(jfile.data() );
-  if (document.HasParseError() ) {
-    esyslog("tvscraper: ERROR jsonReadFile, file %s size %zu parse error %s, doc %s", filename, jfile.length(), rapidjson::GetParseError_En(document.GetParseError()), jfile.substr(0, 100).c_str() );
-  }
-  return jfile;
-}
-*/
 
 int jsonWriteFile(rapidjson::Document &document, const char *filename) {
 // return 1, if it is not possible to write file

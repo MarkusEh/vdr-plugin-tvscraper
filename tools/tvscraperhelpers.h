@@ -276,7 +276,7 @@ inline std::string vectorToString(const std::vector<std::string> &vec) {
 //        or any other object wher methods to convert from/to string are available
 // =========================================================
 
-inline std::string objToString(const int &i) { return toStringI(i); }
+inline std::string objToString(const int &i) { return std::string(cToSvInt(i)); }
 inline std::string objToString(const std::string &i) { return i; }
 
 template<class T, class C=std::set<T>>
@@ -315,5 +315,21 @@ C getSetFromString(const char *str, char delim = ';') {
   if (rDelimPos != lStartPos) insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
   return result;
 }
+
+class cConcatenate
+// deprecated. Use function concatenate or stringAppend
+{
+  public:
+    cConcatenate(size_t buf_size = 0) { m_data.reserve(buf_size>0?buf_size:200); }
+    cConcatenate(const cConcatenate&) = delete;
+    cConcatenate &operator= (const cConcatenate &) = delete;
+  template<typename T>
+    cConcatenate & operator<<(const T &i) { stringAppend(m_data, i); return *this; }
+    std::string moveStr() { return std::move(m_data); }
+    operator cSv() const { return cSv(m_data.data(), m_data.length()); }
+    const char *getCharS() { return m_data.c_str(); }
+  private:
+    std::string m_data;
+};
 
 #endif // __TVSCRAPERHELPERS_H

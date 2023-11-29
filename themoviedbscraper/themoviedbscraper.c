@@ -45,7 +45,7 @@ void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
     if (!actor_path || !*actor_path) continue;
     CONCATENATE(actorsFullUrl, m_actorsBaseUrl, actor_path);
     CONCATENATE(downloadFullPath, config.GetBaseDirMovieActors(), "actor_", stmt.getInt(0), ".jpg");
-    Download(actorsFullUrl, downloadFullPath);
+    DownloadImg(actorsFullUrl, downloadFullPath);
   }
   db->DeleteActorDownload (tvID, movie);
 }
@@ -89,7 +89,7 @@ bool cMovieDBScraper::DownloadFile(const string &urlBase, const string &urlFileN
   stringAppend(destFullPath, destDir, destID);
   if (!movie) CreateDirectory(destFullPath);
   destFullPath.append(destFileName);
-  return Download(concatenate(urlBase, urlFileName), destFullPath);
+  return DownloadImg(concatenate(urlBase, urlFileName), destFullPath);
 }
 
 void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode) {
@@ -101,7 +101,7 @@ void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, 
   stringAppend(pathStill, "/", seasonNumber);
   CreateDirectory(pathStill);
   stringAppend(pathStill, "/still_", episodeNumber, ".jpg");
-  Download(concatenate(m_stillBaseUrl, stillPathTvEpisode), pathStill);
+  DownloadImg(concatenate(m_stillBaseUrl, stillPathTvEpisode), pathStill);
 }
 
 bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {

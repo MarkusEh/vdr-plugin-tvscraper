@@ -242,7 +242,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
         }
         waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
         if (!extEpgImages.empty() ) {
-          Download(extEpgImages[0].path, extEpgImage);
+          DownloadImg(extEpgImages[0].path, extEpgImage);
         }
         if (movieOrTv) {
           movieOrTv->DownloadImages(m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, "");
@@ -439,12 +439,12 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
       delete movieOrTv;
       movieOrTv = NULL;
     }
-    std::string fanartImg = concatenate(filename, "/fanart.jpg");
-    if (!FileExists(fanartImg) && !epgImagePath.empty() ) {
+    std::string fanartImg = concat(filename, "/fanart.jpg");
+    if (!FileExistsImg(fanartImg) && !epgImagePath.empty() ) {
 //    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), fanartImg.c_str() );
-      CopyFile(epgImagePath, fanartImg);
+      CopyFileImg(epgImagePath, fanartImg);
 //    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), recordingImagePath.c_str() );
-      CopyFile(epgImagePath, recordingImagePath);
+      CopyFileImg(epgImagePath, recordingImagePath);
       if (!newRecData) TouchFile(config.GetRecordingsUpdateFileName().c_str());
     }
   }

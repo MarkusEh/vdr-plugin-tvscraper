@@ -391,13 +391,13 @@ void cTVDBScraper::download(const char *url, const char *localPath) {
 // create full download url fron given url, and download to local path
   if (!url || !*url || !localPath || !*localPath) return;
   if (strncmp(url, cTVDBScraper::prefixImageURL2, strlen(cTVDBScraper::prefixImageURL2) ) == 0) {
-    Download(url, localPath);
+    DownloadImg(url, localPath);
     return;
   }
   std::string fullUrl;
-  if (url[0] == '/') fullUrl = concatenate(cTVDBScraper::prefixImageURL2, url);
-  fullUrl = concatenate(cTVDBScraper::prefixImageURL1, url);  // for URLs returned by APIv3
-  Download(fullUrl, localPath);
+  if (url[0] == '/') fullUrl = concat(cTVDBScraper::prefixImageURL2, url);
+  else fullUrl = concat(cTVDBScraper::prefixImageURL1, url);  // for URLs returned by APIv3
+  DownloadImg(fullUrl, localPath);
 }
 
 void cTVDBScraper::StoreActors(int seriesID) {

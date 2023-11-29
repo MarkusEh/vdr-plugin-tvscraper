@@ -151,7 +151,7 @@ cTvMedia getEpgImage(const cEvent *event, const cRecording *recording, bool full
   if (!event && !recording) return result;
   if (event && recording) return result;
   result.path = event?getEpgImagePath(event, false):getRecordingImagePath(recording);
-  if (FileExists(result.path)) {
+  if (FileExistsImg(result.path)) {
     if (!fullPath) result.path.erase(0, config.GetBaseDirLen());
     result.width = 952;
     result.height = 714;

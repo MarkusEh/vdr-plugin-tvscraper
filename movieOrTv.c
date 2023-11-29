@@ -17,7 +17,7 @@ void cMovieOrTv::AddActors(std::vector<cActor> &actors, const char *sql, int id,
     sql.readRow(actorId, actor.name, actor.role, hasImage);
     if (hasImage) {
       CONCATENATE(path, config.GetBaseDir(), pathPart, actorId, ".jpg");
-      if (FileExists(path)) {
+      if (FileExistsImg(path)) {
         if (fullPath) actor.actorThumb.path = path;
         else actor.actorThumb.path = path + config.GetBaseDirLen();
       } else {
@@ -68,9 +68,9 @@ bool cMovieOrTv::copyImagesToRecordingFolder(const std::string &recordingFileNam
   std::string path;
   cImageLevelsInt level(eImageLevel::seasonMovie, eImageLevel::tvShowCollection, eImageLevel::anySeasonCollection);
   if (getSingleImageBestL(level, eOrientation::portrait, NULL, &path) != eImageLevel::none)
-    CopyFile(path, recordingFileName + "/poster.jpg" );
+    CopyFileImg(path, recordingFileName + "/poster.jpg" );
   if (getSingleImageBestL(level, eOrientation::landscape, NULL, &path) != eImageLevel::none) {
-    CopyFile(path, recordingFileName + "/fanart.jpg" );
+    CopyFileImg(path, recordingFileName + "/fanart.jpg" );
     return true;
   }
   return false;
@@ -167,7 +167,7 @@ std::vector<cActor> cMovieMoviedb::GetActors(bool fullPath) {
 }
 
 bool checkPath(const char *path, string *relPath, string *fullPath, int *width, int *height, int i_width, int i_height) {
-  if (!FileExists(path) ) return false;
+  if (!FileExistsImg(path) ) return false;
   if (fullPath) *fullPath = path;
   if (relPath) *relPath = path + config.GetBaseDirLen();
   if (width) *width = i_width;
@@ -436,9 +436,7 @@ void cTvTvdb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
 
 // implemntation of cTvMoviedb  *********************
 void cTvMoviedb::DeleteMediaAndDb() {
-  cConcatenate folder;
-  folder << config.GetBaseDirMovieTv() << m_id;
-  DeleteAll(folder.getStrRef() );
+  DeleteAll(concatenate(config.GetBaseDirMovieTv(), m_id));
   m_db->DeleteSeries(m_id);
 }
 
@@ -539,7 +537,7 @@ std::vector<cActor> cTvTvdb::GetActors(bool fullPath) {
     actor.actorThumb.path = "";
     if (actorId && actorId[0] != '-') {
       CONCATENATE(path, config.GetBaseDirSeries(), m_id, "/actor_", actorId, ".jpg");
-      if (FileExists(path)) {
+      if (FileExistsImg(path)) {
         if (fullPath) actor.actorThumb.path = path;
         else actor.actorThumb.path = path + config.GetBaseDirLen();
       }

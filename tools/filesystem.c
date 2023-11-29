@@ -27,7 +27,7 @@ bool CreateDirectory(const string &dir) {
   return CreateDirectory(dir.c_str() );
 }
 
-bool FileExists(const char *filename) {
+bool FileExistsImg(const char *filename) {
 // return true if filename exists AND is an image (make some guess checks to test for an image, exclude typical error pages)
   if (!filename) return false;
   struct stat buffer;
@@ -41,20 +41,20 @@ bool FileExists(const char *filename) {
 // open and read file to make final decision
   FILE *f = fopen(filename, "rb");
   if (!f) {
-    esyslog("tvscraper, FileExists, ERROR: stat OK, fopen fails, filename %s", filename);
+    esyslog("tvscraper, FileExistsImg, ERROR: stat OK, fopen fails, filename %s", filename);
     return false;
   }
   char m_s[7];
   size_t num_read = fread (m_s, 1, 6, f);
   fclose(f);
   if (num_read != 6) {
-    esyslog("tvscraper, FileExists, ERROR: num_read %zu != 6, filename %s", num_read, filename);
+    esyslog("tvscraper, FileExistsImg, ERROR: num_read %zu != 6, filename %s", num_read, filename);
     return false;
   }
   return strncmp(m_s, "<html>", 6) != 0;
 }
-bool FileExists(const std::string &filename) {
-  return FileExists(filename.c_str());
+bool FileExistsImg(const std::string &filename) {
+  return FileExistsImg(filename.c_str());
 }
 
 bool DirExists(const char *dirname) {
@@ -79,15 +79,14 @@ void DeleteFile(const string &filename) {
     remove(filename.c_str());
 }
 
-void DeleteAll(const string &dirname) {
-  fs::path pDir(dirname);
+void DeleteAll(cSv dirname) {
   std::error_code ec;
-  std::uintmax_t n = fs::remove_all(pDir, ec);
-  if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  deleted  \"%s\", %ju files", ec.message().c_str(), ec.value(), dirname.c_str(), n);
-  else if (config.enableDebug) esyslog("tvscraper: deleted  \"%s\", %ju files", dirname.c_str(), n);
+  std::uintmax_t n = fs::remove_all((std::string_view)dirname, ec);
+  if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  deleted  \"%.*s\", %ju files", ec.message().c_str(), ec.value(), (int)dirname.length(), dirname.data(), n);
+  else if (config.enableDebug) esyslog("tvscraper: deleted  \"%.*s\", %ju files", (int)dirname.length(), dirname.data(), n);
 }
 
-bool CheckDownloadAccessDenied(const cLargeString &df) {
+bool CheckDownloadAccessDenied(cSv df) {
 // return true if df contains an XML file, indication AccessDenied
 // return false, otherwise
   if (df.length() < 50) return false;
@@ -98,22 +97,22 @@ bool CheckDownloadAccessDenied(const cLargeString &df) {
   if (df_Code != "AccessDenied") return false;
   return true;
 }
-bool Download(const char *url, const char *localPath) {
-  if (FileExists(localPath)) return true;
+bool DownloadImg(const char *url, const char *localPath) {
+  if (FileExistsImg(localPath)) return true;
   std::string error;
   int err_code;
   for(int i=0; i < 11; i++) {
     if (i !=  0) sleep(i);
     if (i == 10) sleep(i); // extra long sleep before last try
     if (CurlGetUrlFile2(url, localPath, err_code, error) ) {
-      if (FileExists(localPath) ) {
+      if (FileExistsImg(localPath) ) {
         if (config.enableDebug) esyslog("tvscraper: successfully downloaded file, url: \"%s\" local path: \"%s\"", url, localPath);
         return true;
       }
-      cLargeString df("Downloaded File", localPath);
+      cToSvFile df(localPath);
       if (CheckDownloadAccessDenied(df)) {
         if (config.enableDebug) {
-          esyslog("tvscraper: INFO download file failed, url: \"%s\" local path: \"%s\", AccessDenied, content \"%s\"", url, localPath, df.substr(0, 50).c_str() );
+          esyslog("tvscraper: INFO download file failed, url: \"%s\" local path: \"%s\", AccessDenied, content \"%.*s\"", url, localPath, std::min(50, (int)cSv(df).length()), df.data() );
         } else
           esyslog("tvscraper: Download file failed, url: \"%s\" local path: \"%s\", AccessDenied", url, localPath);
         remove(localPath);
@@ -122,27 +121,37 @@ bool Download(const char *url, const char *localPath) {
     }
   }
   if (err_code == 0) {
-    cLargeString df("Downloaded File", localPath);
-    esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url, localPath, df.substr(0, 100).c_str() );
+    cToSvFile df(localPath, 50);  // read max 50 bytes
+    esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url, localPath, df.data() ); // df.data() is zero terminated
   } else esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url, localPath, error.c_str(), err_code );
   remove(localPath);
   return false;
 }
-bool Download(const std::string &url, const std::string &localPath) {
-  return Download(url.c_str(), localPath.c_str() ); }
-bool Download(const std::string &url, const char *localPath) {
-  return Download(url.c_str(), localPath); }
-bool Download(const char *url, const std::string &localPath) {
-  return Download(url, localPath.c_str() ); }
+bool DownloadImg(const std::string &url, const std::string &localPath) {
+  return DownloadImg(url.c_str(), localPath.c_str() ); }
+bool DownloadImg(const std::string &url, const char *localPath) {
+  return DownloadImg(url.c_str(), localPath); }
+bool DownloadImg(const char *url, const std::string &localPath) {
+  return DownloadImg(url, localPath.c_str() ); }
 
-bool CopyFile(const std::string &from, const std::string &to) {
-  if (!FileExists(from)) return false;
-  if ( FileExists(to)) return true;
-  fs::path pFrom(from);
-  fs::path pTo(to);
+bool CopyFile(cSv from, cSv to) {
+// true if the file was copied, false otherwise.
   std::error_code ec;
-  bool result = fs::copy_file(pFrom, pTo, ec);
-  if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to copy \"%s\" to \"%s\"", ec.message().c_str(), ec.value(), from.c_str(), to.c_str() );
+  bool result = fs::copy_file((std::string_view)from, (std::string_view)to, ec);
+  if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to copy \"%.*s\" to \"%.*s\"", ec.message().c_str(), ec.value(), (int)from.length(), from.data(), (int)from.length(), to.data() );
 
   return result;
+}
+void RenameFile(cSv from, cSv to) {
+  std::error_code ec;
+  fs::rename((std::string_view)from, (std::string_view)to, ec);
+  if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to rename \"%.*s\" to \"%.*s\"", ec.message().c_str(), ec.value(), (int)from.length(), from.data(), (int)to.length(), to.data() );
+}
+
+bool CopyFileImg(const std::string &from, const std::string &to) {
+// include checks for images, which may be incomplete
+// true if the file was copied, false otherwise.
+  if (!FileExistsImg(from)) return false;
+  if ( FileExistsImg(to)) return true;
+  return CopyFile(from, to);
 }

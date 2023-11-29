@@ -763,15 +763,14 @@ int cTVScraperDB::InsertRecording2(csEventOrRecording *sEventOrRecording, int mo
 
 void cTVScraperDB::WriteRecordingInfo(const cRecording *recording, int movie_tv_id, int season_number, int episode_number) {
   if (!recording || !recording->FileName() ) return;  // no place to write the information
-  std::string filename = concatenate(recording->FileName(), "/tvscraper.json");
-// open / parse existing file
-  cJsonDocumentFromFile jInfo(filename.c_str() );
-  if (jInfo.HasParseError() ) {
-    std::error_code ec;
-    std::filesystem::copy_file(filename, filename + ".bak", ec);
-    if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to copy \"%s\" to \"%s.bak\"", ec.message().c_str(), ec.value(), filename.c_str(), filename.c_str() );
-    jInfo.SetObject();
-  }
+  CONCATENATE(filename_old, recording->FileName(), "/tvscrapper.json");
+  CONCATENATE(filename_new, recording->FileName(), "/tvscraper.json");
+  cJsonDocumentFromFile jInfo_old(filename_old, true);
+  cJsonDocumentFromFile jInfo_new(filename_new, true);
+
+  cJsonDocumentFromFile *jInfo;
+  if (jInfo_old.HasMember("timer") ) jInfo = &jInfo_old;
+  else jInfo = &jInfo_new;
 
 // set new attributes
 rapidjson::Value jTvscraper;
@@ -784,11 +783,11 @@ const char *sql;
 cSql stmtEpisodeName(this); // must exist until json is written
 if (season_number != -100) {
 // TV Show
-  jTvscraper.AddMember("type", rapidjson::Value().SetString("tv show"), jInfo.GetAllocator() );
+  jTvscraper.AddMember("type", rapidjson::Value().SetString("tv show"), jInfo->GetAllocator() );
   sql = sql_tv;
   if( season_number != 0 || episode_number != 0) {  // season / episode was found
-    jTvscraper.AddMember("season_number", rapidjson::Value().SetInt(season_number), jInfo.GetAllocator() );
-    jTvscraper.AddMember("episode_number", rapidjson::Value().SetInt(episode_number), jInfo.GetAllocator() );
+    jTvscraper.AddMember("season_number", rapidjson::Value().SetInt(season_number), jInfo->GetAllocator() );
+    jTvscraper.AddMember("episode_number", rapidjson::Value().SetInt(episode_number), jInfo->GetAllocator() );
 // get episode name
     int langInt = queryInt("SELECT tv_display_language FROM tv2 WHERE tv_id = ?", movie_tv_id);
     if (langInt > 0) {
@@ -806,31 +805,33 @@ if (season_number != -100) {
     }
     const char *episode_name;
     if (stmtEpisodeName.readRow(episode_name) && episode_name) 
-      jTvscraper.AddMember("episode_name", rapidjson::Value().SetString(rapidjson::StringRef(episode_name) ), jInfo.GetAllocator() );
+      jTvscraper.AddMember("episode_name", rapidjson::Value().SetString(rapidjson::StringRef(episode_name) ), jInfo->GetAllocator() );
 }} else {
 // movie
-  jTvscraper.AddMember("type", rapidjson::Value().SetString("movie"), jInfo.GetAllocator() );
+  jTvscraper.AddMember("type", rapidjson::Value().SetString("movie"), jInfo->GetAllocator() );
   sql = sql_mv;
 }
 cSql sqlI(this, cStringRef(sql), movie_tv_id);
 if (sqlI.readRow() ) {
   const char *title = sqlI.getCharS(0);
   const char *date = sqlI.getCharS(1);
-  if (title) jTvscraper.AddMember("name", rapidjson::Value().SetString(rapidjson::StringRef(title)), jInfo.GetAllocator() );
+  if (title) jTvscraper.AddMember("name", rapidjson::Value().SetString(rapidjson::StringRef(title)), jInfo->GetAllocator() );
   if (date && strlen(date) >= 4)
-    jTvscraper.AddMember("year", rapidjson::Value().SetInt(atoi(date)), jInfo.GetAllocator() );
+    jTvscraper.AddMember("year", rapidjson::Value().SetInt(atoi(date)), jInfo->GetAllocator() );
 }
-jTvscraper.AddMember("movie_tv_id", rapidjson::Value().SetInt(abs(movie_tv_id) ), jInfo.GetAllocator() );
+jTvscraper.AddMember("movie_tv_id", rapidjson::Value().SetInt(abs(movie_tv_id) ), jInfo->GetAllocator() );
 
 // First erase existing entries. Note: These will not be overwritten by rapidjson
-rapidjson::Pointer("/thetvdb").Erase(jInfo);
-rapidjson::Pointer("/themoviedb").Erase(jInfo);
+rapidjson::Pointer("/thetvdb").Erase(*jInfo);
+rapidjson::Pointer("/themoviedb").Erase(*jInfo);
 // now add the new entries
-if (movie_tv_id > 0) { jInfo.AddMember("themoviedb", jTvscraper, jInfo.GetAllocator() ); }
-                else { jInfo.AddMember("thetvdb",    jTvscraper, jInfo.GetAllocator() ); }
+if (movie_tv_id > 0) { jInfo->AddMember("themoviedb", jTvscraper, jInfo->GetAllocator() ); }
+                else { jInfo->AddMember("thetvdb",    jTvscraper, jInfo->GetAllocator() ); }
 
 // write file
-jsonWriteFile(jInfo, filename.c_str());
+jsonWriteFile(*jInfo, filename_new);
+struct stat buffer;
+if (stat(filename_old, &buffer) == 0) RenameFile(filename_old, concat(filename_old, ".bak"));
 }
 
 int cTVScraperDB::SetRecording(csEventOrRecording *sEventOrRecording) {

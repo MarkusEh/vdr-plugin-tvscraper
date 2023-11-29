@@ -245,9 +245,11 @@ int csRecording::getVpsLength() {
 }
 bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
 // return false if no info is available
-  CONCATENATE(filename, m_recording->FileName(), "/tvscraper.json");
-//  struct stat buffer;
-//  if (stat (filename, &buffer) != 0) return false;
+  CONCATENATE(filename_old, m_recording->FileName(), "/tvscrapper.json");
+  CONCATENATE(filename_new, m_recording->FileName(), "/tvscraper.json");
+  const char *filename = filename_old;
+  struct stat buffer;
+  if (stat (filename, &buffer) != 0) filename = filename_new;
 
   cJsonDocumentFromFile document(filename);
   if (document.HasParseError() ) return false;
