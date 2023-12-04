@@ -8,6 +8,7 @@
 #include <math.h>
 #include <set>
 #include <optional>
+#include "tvscraperhelpers.h"
  
 // see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
 size_t word_distance(cSv seq1, cSv seq2) {

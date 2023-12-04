@@ -1,7 +1,7 @@
 #include <memory>
 #include "../../rapidjson/document.h"
 #include "../../extEpgPlugin.h"
-#include "../../tools/stringhelpers.c"
+#include "../../tools/stringhelpers.h"
 #include "../../tools/largeString.h"
 
 class cTvspEvent

@@ -61,7 +61,6 @@ enum eMediaType: int {
 #include "tools/stringhelpers.h"
 #include "tools/tvscraperhelpers.h"
 #include "tools/largeString.h"
-#include "tools/channelhelpers.h"
 #include "extEpgPlugin.h"
 #include "config.h"
 cTVScraperConfig config;

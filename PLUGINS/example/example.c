@@ -1,7 +1,7 @@
 #include "example.h"
 #include "../../tools/jsonHelpers.c"
 #include "../../tools/curlfuncs.h"
-#include "../../tools/stringhelpers.c"
+#include "../../tools/stringhelpers.h"
 #include "../../tools/fuzzy.c"
 #include "../../tools/largeString.cpp"
 #include "../../tools/curlfuncs.cpp"
@@ -35,6 +35,7 @@ void cTvspEpgOneDay::initJson(const std::string &extChannelId, time_t startTime)
     startTime -= hourDayBegin*60*60;
     time = localtime_r(&startTime, &tm_r);
   }
+/*
   std::stringstream date;
   date << "http://live.tvspielfilm.de/static/broadcast/list/";
   date << extChannelId << "/";
@@ -42,6 +43,13 @@ void cTvspEpgOneDay::initJson(const std::string &extChannelId, time_t startTime)
   << std::setfill('0') << std::setw(2) << (time->tm_mon + 1)
   << '-' << std::setfill('0') << std::setw(2) << time->tm_mday;
   std::string url = date.str();
+*/
+  std::string url = concat(
+    "http://live.tvspielfilm.de/static/broadcast/list/",
+    extChannelId, "/",
+    cToSvInt(time->tm_year + 1900).setw(4), "-",
+    cToSvInt(time->tm_mon + 1).setw(2), "-",
+    cToSvInt(time->tm_mday).setw(2));
 // if (extChannelId[0] == 'A') esyslog("tvscraper epg about to download %s", url.c_str() );
 // calculate m_start: today 5 am
   time->tm_sec = 0;

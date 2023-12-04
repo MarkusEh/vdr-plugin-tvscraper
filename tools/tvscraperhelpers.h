@@ -186,7 +186,7 @@ inline int NumberInLastPartWithPS(cSv str) {
   for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
     if (!isdigit(str[i]) && str[i] != '/') return 0; // we ignore (asw), and return only number with digits only
   }
-  return parse_unsigned_internal<int>(str.substr_csv(found + 1));
+  return parse_unsigned_internal<int>(str.substr(found + 1));
 }
 inline int NumberInLastPartWithP(cSv str) {
 // return number in last part with (...), 0 if not found / invalid
@@ -197,7 +197,7 @@ inline int NumberInLastPartWithP(cSv str) {
   for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
     if (!isdigit(str[i])) return 0; // we ignore (asw), and return only number with digits only
   }
-  return parse_unsigned_internal<int>(str.substr_csv(found + 1));
+  return parse_unsigned_internal<int>(str.substr(found + 1));
 }
 
 inline int seasonS(cSv description_part, const char *S) {
@@ -272,12 +272,13 @@ inline std::string vectorToString(const std::vector<std::string> &vec) {
 
 // =========================================================
 // special container:
-//   set, can contain string or integer or channel (if channelhelpers.h is included)
+//   set, can contain string or integer or channel
 //        or any other object wher methods to convert from/to string are available
 // =========================================================
 
 inline std::string objToString(const int &i) { return std::string(cToSvInt(i)); }
 inline std::string objToString(const std::string &i) { return i; }
+inline std::string objToString(const tChannelID &i) { return std::string(cToSvChannel(i)); }
 
 template<class T, class C=std::set<T>>
 std::string getStringFromSet(const C &in, char delim = ';') {
@@ -296,6 +297,12 @@ template<class T> T stringToObj(const char *s, size_t len) {
 template<> inline int stringToObj<int>(const char *s, size_t len) { return parse_unsigned<int>(cSv(s, len)); }
 template<> inline std::string stringToObj<std::string>(const char *s, size_t len) { return std::string(s, len); }
 template<> inline cSv stringToObj<cSv>(const char *s, size_t len) { return cSv(s, len); }
+template<> tChannelID stringToObj<tChannelID>(const char *s, size_t len) {
+  char buf[len+1];
+  buf[len] = 0;
+  memcpy(buf, s, len);
+  return tChannelID::FromString(buf);
+}
 
 template<class T> void insertObject(std::vector<T> &cont, const T &obj) { cont.push_back(obj); }
 template<class T> void insertObject(std::set<T> &cont, const T &obj) { cont.insert(obj); }

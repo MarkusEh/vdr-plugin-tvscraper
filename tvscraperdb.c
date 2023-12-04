@@ -912,8 +912,8 @@ bool cTVScraperDB::SetDurationDeviation(const cRecording *recording, int duratio
 
 bool cTVScraperDB::GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number, int *runtime) const {
   if (!event) return false;
-  std::string channelIDs = channelToString(event->ChannelID() );
-  if (channelIDs.empty() ) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID (event), !channelIDs");
+  cToSvChannel channelIDs(event->ChannelID() );
+  if (cSv(channelIDs).empty() ) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID (event), !channelIDs");
   cLockDB lock(this);
   if (!config.selectEventRuntime) config.selectEventRuntime = new cSql(this, "select movie_tv_id, season_number, episode_number, runtime from event where event_id = ? and channel_id = ?");
   config.selectEventRuntime->resetBindStep(event->EventID(), channelIDs);

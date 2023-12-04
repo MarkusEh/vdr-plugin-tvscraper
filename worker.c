@@ -211,7 +211,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
 					if (!channelActive) continue;
           newEvent = true;
           if (!newEventSchedule) {
-            dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), channelToString(channelID).c_str() );
+            dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), cToSvChannel(channelID).c_str() );
             newEventSchedule = true;
           }
           csEventOrRecording sEvent(event);

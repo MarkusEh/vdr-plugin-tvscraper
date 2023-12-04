@@ -12,6 +12,8 @@
 #include "stringhelpers.h"
 #include "largeString.h"
 
+namespace fs = std::filesystem;
+
 inline
 bool checkIsObject(const rapidjson::Value &json, const char *tag, const char *context, cLargeString *doc) {
   if (json.IsObject() ) return true;
@@ -276,9 +278,12 @@ class cJsonDocumentFromFile: public rapidjson::Document {
       }
       ParseInsitu(m_jfile.data() );
       if (HasParseError() ) {
-        esyslog("tvscraper: ERROR cJsonDocumentFromFile, file %s size %zu parse error %s, doc %s", filename, cSv(m_jfile).length(), rapidjson::GetParseError_En(GetParseError()), zeroToPercent(cSv(m_jfile).substr_csv(0, 100)).c_str() );
+        esyslog("tvscraper: ERROR cJsonDocumentFromFile, file %s size %zu parse error %s, doc %s", filename, cSv(m_jfile).length(), rapidjson::GetParseError_En(GetParseError()), zeroToPercent(cSv(m_jfile).substr(0, 100)).c_str() );
         if (backup_invalid_file) {
-          RenameFile(filename, concat(filename, ".bak"));
+          std::error_code ec;
+          fs::rename(filename, concat(filename, ".bak"), ec);
+          if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to rename \"%s\" to \"%s\"", ec.message().c_str(), ec.value(), filename, concat(filename, ".bak").c_str());
+
           SetObject();
         }
       }
