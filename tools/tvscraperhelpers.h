@@ -11,6 +11,130 @@
 #include <chrono>
 #include "stringhelpers.h"
 
+#define CONVERT(result, from, fn) \
+char result[fn(NULL, from) + 1]; \
+fn(result, from);
+
+#define CV_VA_NUM_ARGS_HELPER(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, N, ...)    N
+#define CV_VA_NUM_ARGS(...)      CV_VA_NUM_ARGS_HELPER(__VA_ARGS__, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#define CAT2( A, B ) A ## B
+#define SELECT( NAME, NUM ) CAT2( NAME ## _, NUM )
+#define VA_SELECT( NAME, ... ) SELECT( NAME, CV_VA_NUM_ARGS(__VA_ARGS__) )(__VA_ARGS__)
+
+// concatenate macro based  ===========================
+// deprectaed, use cToSvConcat, which is almost as fast
+#define CONCATENATE_START_2(result, s1, s2) \
+int result##concatenate_lvls = 0; \
+int result##concatenate_lvl1 = ns_concat::numChars(s1); \
+result##concatenate_lvls += result##concatenate_lvl1; \
+int result##concatenate_lvl2 = ns_concat::numChars(s2); \
+result##concatenate_lvls += result##concatenate_lvl2;
+
+#define CONCATENATE_START_3(result, s1, s2, s3) \
+CONCATENATE_START_2(result, s1, s2) \
+int result##concatenate_lvl3 = ns_concat::numChars(s3); \
+result##concatenate_lvls += result##concatenate_lvl3;
+
+#define CONCATENATE_START_4(result, s1, s2, s3, s4) \
+CONCATENATE_START_3(result, s1, s2, s3) \
+int result##concatenate_lvl4 = ns_concat::numChars(s4); \
+result##concatenate_lvls += result##concatenate_lvl4;
+
+#define CONCATENATE_START_5(result, s1, s2, s3, s4, s5) \
+CONCATENATE_START_4(result, s1, s2, s3, s4) \
+int result##concatenate_lvl5 = ns_concat::numChars(s5); \
+result##concatenate_lvls += result##concatenate_lvl5;
+
+#define CONCATENATE_START_6(result, s1, s2, s3, s4, s5, s6) \
+CONCATENATE_START_5(result, s1, s2, s3, s4, s5) \
+int result##concatenate_lvl6 = ns_concat::numChars(s6); \
+result##concatenate_lvls += result##concatenate_lvl6;
+
+#define CONCATENATE_START_7(result, s1, s2, s3, s4, s5, s6, s7) \
+CONCATENATE_START_6(result, s1, s2, s3, s4, s5, s6) \
+int result##concatenate_lvl7 = ns_concat::numChars(s7); \
+result##concatenate_lvls += result##concatenate_lvl7;
+
+#define CONCATENATE_START_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
+CONCATENATE_START_7(result, s1, s2, s3, s4, s5, s6, s7) \
+int result##concatenate_lvl8 = ns_concat::numChars(s8); \
+result##concatenate_lvls += result##concatenate_lvl8;
+
+#define CONCATENATE_START_9(result, s1, s2, s3, s4, s5, s6, s7, s8, s9) \
+CONCATENATE_START_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
+int result##concatenate_lvl9 = ns_concat::numChars(s9); \
+result##concatenate_lvls += result##concatenate_lvl9;
+
+#define CONCATENATE_END_ADDCHARS_B(result_concatenate_buf, lvl, s) \
+ns_concat::addChars(result_concatenate_buf, lvl, s); \
+result_concatenate_buf += lvl;
+
+#define CONCATENATE_END_2(result, s1, s2) \
+char *result##concatenate_buf = result; \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl1, s1); \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl2, s2);
+
+#define CONCATENATE_END_3(result, s1, s2, s3) \
+CONCATENATE_END_2(result, s1, s2) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl3, s3);
+
+#define CONCATENATE_END_4(result, s1, s2, s3, s4) \
+CONCATENATE_END_3(result, s1, s2, s3) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl4, s4);
+
+#define CONCATENATE_END_5(result, s1, s2, s3, s4, s5) \
+CONCATENATE_END_4(result, s1, s2, s3, s4) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl5, s5);
+
+#define CONCATENATE_END_6(result, s1, s2, s3, s4, s5, s6) \
+CONCATENATE_END_5(result, s1, s2, s3, s4, s5) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl6, s6);
+
+#define CONCATENATE_END_7(result, s1, s2, s3, s4, s5, s6, s7) \
+CONCATENATE_END_6(result, s1, s2, s3, s4, s5, s6) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl7, s7);
+
+#define CONCATENATE_END_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
+CONCATENATE_END_7(result, s1, s2, s3, s4, s5, s6, s7) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl8, s8);
+
+#define CONCATENATE_END_9(result, s1, s2, s3, s4, s5, s6, s7, s8, s9) \
+CONCATENATE_END_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
+CONCATENATE_END_ADDCHARS_B(result##concatenate_buf, result##concatenate_lvl9, s9);
+
+#define CONCATENATE(result, ...) \
+SELECT( CONCATENATE_START, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
+char result[result##concatenate_lvls + 1]; \
+result[result##concatenate_lvls] = 0; \
+SELECT( CONCATENATE_END, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
+*result##concatenate_buf = 0;
+
+// methods for CONCATENATE
+// deprecated
+
+namespace ns_concat {
+  template<class T> inline int numCharsUg0(T i) {
+// note: i must be > 0!!!!
+    int numChars;
+    for (numChars = 0; i; i /= 10) numChars++;
+    return numChars;
+  }
+  inline int numChars(cSv s) { return s.length(); }
+  inline int numChars(std::string_view s) { return s.length(); }
+  inline int numChars(const std::string &s) { return s.length(); }
+  inline int numChars(const char *s) { return s?strlen(s):0; }
+  inline int numChars(int i) {
+    if (i == 0) return 1;
+    if (i > 0 ) return numCharsUg0(i);
+    return numCharsUg0(-i) + 1;
+  }
+  inline void addChars(char *b, int l, int i) { stringhelpers_internal::addCharsIbe(b+l, i); }
+  inline void addChars(char *b, int l, const std::string_view &s) { memcpy(b, s.data(), l); }
+  inline void addChars(char *b, int l, const cSv &s) { memcpy(b, s.data(), l); }
+  inline void addChars(char *b, int l, const std::string &s) { memcpy(b, s.data(), l); }
+  inline void addChars(char *b, int l, const char *s) { if(s) memcpy(b, s, l); }
+}
+
 inline cSv textAttributeValue(const char *text, const char *attributeName) {
 // if attributeName is empty or not found in text: return ""
 // else, return text after attributeName to end of line
@@ -146,6 +270,13 @@ inline bool splitString(cSv str, char delimiter, size_t minLengh, cSv &first, cS
   return splitString(str, delim, minLengh, first, second);
 }
 
+inline int StringRemoveTrailingWhitespace(const char *str, int len) {
+// return "new" len of string, without whitespaces at the end
+  if (!str) return 0;
+  for (; len; len--) if (!my_isspace(str[len - 1])) return len;
+  return 0;
+}
+
 inline int StringRemoveLastPartWithP(const char *str, int len) {
 // remove part with (...)
 // return -1 if nothing can be removed
@@ -234,6 +365,43 @@ inline bool episodeSEp(int &season, int &episode, cSv description, const char *S
   return true;
 }
 
+// =========================================================
+// =========== search in char*
+// =========================================================
+
+inline const char* removePrefix(const char *s, const char *prefix) {
+// if s starts with prefix, return s + strlen(prefix)  (string with prefix removed)
+// otherwise, return NULL
+  if (!s || !prefix) return NULL;
+  size_t len = strlen(prefix);
+  if (strncmp(s, prefix, len) != 0) return NULL;
+  return s+len;
+}
+
+inline const char *strnstr(const char *haystack, const char *needle, size_t len) {
+// if len >  0: use only len characters of needle
+// if len == 0: use all (strlen(needle)) characters of needle
+
+  if (len == 0) return strstr(haystack, needle);
+  for (;(haystack = strchr(haystack, needle[0])); haystack++)
+    if (!strncmp(haystack, needle, len)) return haystack;
+  return 0;
+}
+
+inline const char *strstr_word (const char *haystack, const char *needle, size_t len = 0) {
+// as strstr, but needle must be a word (surrounded by non-alphanumerical characters)
+// if len >  0: use only len characters of needle
+// if len == 0: use strlen(needle) characters of needle
+  if (!haystack || !needle || !(*needle) ) return NULL;
+  size_t len2 = (len == 0) ? strlen(needle) : len;
+  if (len2 == 0) return NULL;
+  for (const char *f = strnstr(haystack, needle, len); f && *(f+1); f = strnstr (f + 1, needle, len) ) {
+    if (f != haystack   && isalpha(*(f-1) )) continue;
+    if (f[len2] != 0 && isalpha(f[len2]) ) continue;
+    return f;
+  }
+  return NULL;
+}
 // =========================================================
 // special container:
 //   delimiter is '|'

@@ -239,6 +239,15 @@ std::string getArrayConcatenated(const rapidjson::Value &json, const char *array
   }
   return result.moveBuffer();
 }
+
+inline std::string zeroToPercent(cSv sv) {
+// rapidjson, inplace -> there are 0 in data
+// to print such data, we replace 0 with %
+  std::string result(sv);
+  for (char &si: result) if (si == 0) si = '%';
+  return result;
+}
+
 bool jsonCallRest(rapidjson::Document &document, cLargeString &buffer, const char *url, bool debug, struct curl_slist *headers) {
 // true on success
 // download json file
@@ -265,7 +274,47 @@ bool jsonCallRest(rapidjson::Document &document, cLargeString &buffer, const cha
   return result;
 }
 
-class cJsonDocumentFromFile: public rapidjson::Document {
+class cJsonDocument: public rapidjson::Document {
+  public:
+    virtual cSv context() const = 0;  // provide context information to the object, must be implemented by the derived classes
+};
+class cJsonDocumentFromUrl: public cJsonDocument {
+  public:
+    cJsonDocumentFromUrl() { }
+template<typename... Args>
+    cJsonDocumentFromUrl(const char *url, const Args... args) {
+      download_and_parse(url, std::forward(args)...);
+    }
+template<typename... Args>
+    bool download_and_parse(const char *url, const Args... args) {
+      struct curl_slist *headers = NULL;
+      headers = curl_slistAppend(headers, std::forward(args)...);
+      bool result = download_and_parse_int(url, headers);
+      if (headers) curl_slist_free_all(headers);
+      return result;
+    }
+    bool download_and_parse_int(const char *url, struct curl_slist *headers) {
+      headers = curl_slistAppend(headers, "Accept: application/json");
+      if (!CurlGetUrl(url, m_data, headers)) {
+// CurlGetUrl already writes the syslog entry. We create an empty (valid) document
+        SetObject();
+        return false;
+      }
+      ParseInsitu(m_data.data() );
+      if (HasParseError() ) {
+        esyslog("tvscraper: ERROR cJsonDocumentFromUrl, url %s parse error %s, doc %s", url, rapidjson::GetParseError_En(GetParseError()), zeroToPercent(cSv(m_data).substr(0, 100)).c_str() );
+        SetObject();
+        return false;
+      }
+      return true;
+    }
+    virtual cSv context() const {
+      return zeroToPercent(cSv(m_data).substr(100));
+    }
+  private:
+    std::string m_data;
+};
+class cJsonDocumentFromFile: public cJsonDocument {
 // if file does not exist: an empty (valid!) document
 // if file does     exist: read the file and return document with parsed content
 // if file does     exist, but is not valid json: error in syslog (you can check with document.HasParseError()
@@ -283,10 +332,12 @@ class cJsonDocumentFromFile: public rapidjson::Document {
           std::error_code ec;
           fs::rename(filename, concat(filename, ".bak"), ec);
           if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to rename \"%s\" to \"%s\"", ec.message().c_str(), ec.value(), filename, concat(filename, ".bak").c_str());
-
-          SetObject();
         }
+        SetObject();
       }
+    }
+    virtual cSv context() const {
+      return zeroToPercent(cSv(m_jfile).substr(100));
     }
   private:
     cToSvFile m_jfile;

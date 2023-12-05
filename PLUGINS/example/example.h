@@ -1,8 +1,9 @@
 #include <memory>
-#include "../../rapidjson/document.h"
 #include "../../extEpgPlugin.h"
+#include "../../rapidjson/document.h"
 #include "../../tools/stringhelpers.h"
 #include "../../tools/largeString.h"
+#include "../../tools/jsonHelpers.c"
 
 class cTvspEvent
 {
@@ -17,17 +18,16 @@ bool operator<(const cTvspEvent &e1, const cTvspEvent &e2) { return e1.m_startTi
 class cTvspEpgOneDay
 {
   public:
-    cTvspEpgOneDay(const std::string &extChannelId, time_t startTime);
+    cTvspEpgOneDay(cSv extChannelId, time_t startTime);
     bool enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgImages); // return true if the event is in "my" time frame (one day )
   private:
-    void initJson(const std::string &extChannelId, time_t startTime);
+    void initJson(cSv extChannelId, time_t startTime);
     int eventMatch(std::vector<cTvspEvent>::const_iterator event_it, const cEvent *event) const;
     bool findTvspEvent(std::vector<cTvspEvent>::const_iterator &event_it, const cEvent *event) const;
 
     time_t m_start;
     time_t m_end;
-    std::shared_ptr<cLargeString> m_json;
-    std::shared_ptr<rapidjson::Document> m_document;
+    std::shared_ptr<cJsonDocumentFromUrl> m_document;
     std::shared_ptr<std::vector<cTvspEvent>> m_events;
     const int c_always_accepted_deviation = 60;  // seconds
     const int c_never_accepted_deviation = 60 * 30;  // seconds
@@ -35,7 +35,7 @@ class cTvspEpgOneDay
 class cTvspEpg: public iExtEpgForChannel
 {
   public:
-    cTvspEpg(const std::string &extChannelId):
+    cTvspEpg(cSv extChannelId):
       iExtEpgForChannel(),
       m_extChannelId(extChannelId) {};
     virtual void enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgImages) {
@@ -46,7 +46,7 @@ class cTvspEpg: public iExtEpgForChannel
       m_tvspEpgOneDayS.push_back(tvspEpgOneDay);
     }
   private:
-    const std::string &m_extChannelId;
+    cSv m_extChannelId;
     std::vector<cTvspEpgOneDay> m_tvspEpgOneDayS;
     bool m_debug;
 };

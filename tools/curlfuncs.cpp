@@ -93,7 +93,7 @@ bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers) {
   esyslog("tvscraper: CurlGetUrl ERROR calling \"%s\", tried %i times, output \"%s\"", url, i, sOutput.substr(0, 30).c_str() );
   return false;
 }
-// template bool CurlGetUrl<std::string> (const char *url,  std::string &sOutput, struct curl_slist *headers);
+template bool CurlGetUrl<std::string> (const char *url,  std::string &sOutput, struct curl_slist *headers);
 template bool CurlGetUrl<cLargeString>(const char *url, cLargeString &sOutput, struct curl_slist *headers);
 
 int CurlGetUrlFile(const char *url, const char *filename)

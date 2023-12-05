@@ -1,10 +1,7 @@
 #include "example.h"
-#include "../../tools/jsonHelpers.c"
 #include "../../tools/curlfuncs.h"
-#include "../../tools/stringhelpers.h"
-#include "../../tools/fuzzy.c"
-#include "../../tools/largeString.cpp"
 #include "../../tools/curlfuncs.cpp"
+#include "../../tools/fuzzy.c"
 
 // cTvspEvent ***********************************************
 
@@ -17,16 +14,15 @@ cTvspEvent::cTvspEvent(const rapidjson::Value& tvspEvent, rapidjson::SizeType li
 
 // cTvspEpgOneDay ***********************************************
 
-cTvspEpgOneDay::cTvspEpgOneDay(const std::string &extChannelId, time_t startTime):
-  m_json(std::make_shared<cLargeString>("cTvspEpgOneDay", 20000)),
-  m_document(std::make_shared<rapidjson::Document>() ),
+cTvspEpgOneDay::cTvspEpgOneDay(cSv extChannelId, time_t startTime):
+  m_document(std::make_shared<cJsonDocumentFromUrl>() ),
   m_events(std::make_shared<std::vector<cTvspEvent>>() )
   {
     initJson(extChannelId, startTime);
   }
 
 
-void cTvspEpgOneDay::initJson(const std::string &extChannelId, time_t startTime) {
+void cTvspEpgOneDay::initJson(cSv extChannelId, time_t startTime) {
   const int hourDayBegin = 5; // the day beginns at 5:00 (from tvsp point of view ...)
   struct tm tm_r;
   struct tm *time = localtime_r(&startTime, &tm_r);
@@ -44,12 +40,11 @@ void cTvspEpgOneDay::initJson(const std::string &extChannelId, time_t startTime)
   << '-' << std::setfill('0') << std::setw(2) << time->tm_mday;
   std::string url = date.str();
 */
-  std::string url = concat(
-    "http://live.tvspielfilm.de/static/broadcast/list/",
-    extChannelId, "/",
-    cToSvInt(time->tm_year + 1900).setw(4), "-",
-    cToSvInt(time->tm_mon + 1).setw(2), "-",
-    cToSvInt(time->tm_mday).setw(2));
+  cToSvConcat url("http://live.tvspielfilm.de/static/broadcast/list/",
+                  extChannelId, '/',
+                  cToSvInt(time->tm_year + 1900).setw(4), '-',
+                  cToSvInt(time->tm_mon + 1).setw(2), '-',
+                  cToSvInt(time->tm_mday).setw(2));
 // if (extChannelId[0] == 'A') esyslog("tvscraper epg about to download %s", url.c_str() );
 // calculate m_start: today 5 am
   time->tm_sec = 0;
@@ -59,7 +54,8 @@ void cTvspEpgOneDay::initJson(const std::string &extChannelId, time_t startTime)
   m_end = m_start + 24*60*60;
 
 // download json file
-  if (!jsonCallRest(*m_document, *m_json, url.c_str(), false) ) return; // no data
+  if (!m_document->download_and_parse(url.c_str()) ) return; // no data
+//  if (!jsonCallRest(*m_document, *m_json, url.c_str(), false) ) return; // no data
   if (!m_document->IsArray() ) {
     esyslog("tvscraper: ERROR cTvspEpgOneDay::initJson, parse %s failed, document is not an array", url.c_str() );
     return; // no data
@@ -228,23 +224,6 @@ bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgIm
 // size4: 952x714
     }
   }
-/*
-  rapidjson::Value::ConstMemberIterator images_it = tvspEvent_j.FindMember("images");
-  if (images_it != tvspEvent_j.MemberEnd() && images_it->value.IsArray() && images_it->value.Size() > 0) {
-// there is an images array. Download first image
-    if (getValue(images_it->value[0], "size4", s) ) {
-      cTvMedia tvMedia;
-      tvMedia.width = 952;
-      tvMedia.height = 714;
-      tvMedia.path = s; // note: s is the URL
-      extEpgImages.push_back(tvMedia);
-// size1: 130x101
-// size2: 320x250
-// size3: 476x357
-// size4: 952x714
-    }
-  }
-*/
   return true;
 }
 
