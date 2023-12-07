@@ -29,12 +29,11 @@ bool cMovieDbTv::UpdateDb(bool forceUpdate) {
   int lastSeason = 0;
   if (exists) m_db->TvGetNumberOfEpisodes(m_tvID, lastSeason, numberOfEpisodes);
 
-  cLargeString buffer("cMovieDbTv::UpdateDb", 5000);
-  if(!ReadTv(exists, buffer)) return false;
+  if(!ReadTv(exists)) return false;
   if(!exists || m_tvNumberOfEpisodes > numberOfEpisodes) {
 //  if this is new (not yet in db), always search seasons. "number_of_episodes" is sometimes wrong :(
 //  there exist new episodes, update db with new episodes
-    for(m_seasonNumber = lastSeason; m_seasonNumber <= m_tvNumberOfSeasons; m_seasonNumber++) AddOneSeason(buffer);
+    for(m_seasonNumber = lastSeason; m_seasonNumber <= m_tvNumberOfSeasons; m_seasonNumber++) AddOneSeason();
     m_db->exec("UPDATE tv2 SET tv_last_changed = ? WHERE tv_id= ?", time(0), m_tvID);
   }
   m_db->TvSetNumberOfEpisodes(m_tvID, m_tvNumberOfSeasons, m_tvNumberOfEpisodes);
@@ -42,13 +41,15 @@ bool cMovieDbTv::UpdateDb(bool forceUpdate) {
   return true;
 }
 
-bool cMovieDbTv::ReadTv(bool exits_in_db, cLargeString &buffer) {
+bool cMovieDbTv::ReadTv(bool exits_in_db) {
 // call themoviedb api, get data
   const char *lang = config.GetDefaultLanguage()->m_themoviedb;
   std::string url = concatenate(m_baseURL, "/tv/", m_tvID, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&include_image_language=en,null");
   if(!exits_in_db) url += "&append_to_response=credits";
-  rapidjson::Document tv;
-  if (!jsonCallRest(tv, buffer, url.c_str(), config.enableDebug) ) return false;
+  cJsonDocumentFromUrl tv;
+  tv.set_enableDebug(config.enableDebug);
+  if (!tv.download_and_parse(url.c_str())) return false;
+//  if (!jsonCallRest(tv, url.c_str(), config.enableDebug) ) return false;
   bool ret = ReadTv(tv);
   if(ret) {
     if (m_episodeRunTimes.empty() ) m_episodeRunTimes.insert(-1); // empty episodeRunTimes results in re-reading it from external db. And there is no data on external db ...
@@ -93,13 +94,15 @@ bool cMovieDbTv::ReadTv(const rapidjson::Value &tv) {
   return true;
 }
 
-bool cMovieDbTv::AddOneSeason(cLargeString &buffer) {
+bool cMovieDbTv::AddOneSeason() {
 // call api, get json
-  cConcatenate url;
+  cToSvConcat url;
   const char *lang = config.GetDefaultLanguage()->m_themoviedb;
   url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang;
-  rapidjson::Document root;
-  if (!jsonCallRest(root, buffer, url.getCharS(), config.enableDebug)) return false;
+  cJsonDocumentFromUrl root;
+  root.set_enableDebug(config.enableDebug);
+  if (!root.download_and_parse(url.c_str())) return false;
+//  if (!jsonCallRest(root, url.getCharS(), config.enableDebug)) return false;
 // posterPath
   m_db->insertTvMediaSeasonPoster(m_tvID, getValueCharS(root, "poster_path"), mediaSeason, m_seasonNumber);
 // episodes

@@ -31,9 +31,9 @@ private:
    int m_seasonNumber = 0;
    int m_episodeNumber = 0;
    set<int> m_episodeRunTimes;
-   bool ReadTv(bool exits_in_db, cLargeString &buffer);
+   bool ReadTv(bool exits_in_db);
    bool ReadTv(const rapidjson::Value &tv);
-   bool AddOneSeason(cLargeString &buffer);
+   bool AddOneSeason();
 public:
    cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
    virtual ~cMovieDbTv(void);

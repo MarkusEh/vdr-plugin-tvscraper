@@ -1,34 +1,43 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <string>
 #include "../rapidjson/document.h"
 #include "../rapidjson/prettywriter.h"
 #include "../rapidjson/stringbuffer.h"
 #include "../rapidjson/ostreamwrapper.h"
 #include "../rapidjson/error/en.h"
 
-#include <string>
 #include "curlfuncs.h"
 #include "stringhelpers.h"
-#include "largeString.h"
 
 namespace fs = std::filesystem;
 
+class cJsonDocument: public rapidjson::Document {
+  public:
+    virtual const char* context() const = 0;  // provide context information to the object, must be implemented by the derived classes
+       // must return a zero terminated c_str(). must not return zero!
+       // returned c_str only valid in the current statement!
+    void set_enableDebug(bool enableDebug) { m_enableDebug = enableDebug; }
+  protected:
+    bool m_enableDebug = false;
+};
+
 inline
-bool checkIsObject(const rapidjson::Value &json, const char *tag, const char *context, cLargeString *doc) {
+bool checkIsObject(const rapidjson::Value &json, const char *tag, const char *context, cJsonDocument *doc) {
   if (json.IsObject() ) return true;
   if (!context) return false;
-  esyslog("tvscraper: ERROR, checkIsObject, not an object, tag %s, context %s, doc %s", tag?tag:"no tag", context, doc?doc->substr(0, 100).c_str():"no doc");
+  esyslog("tvscraper: ERROR, checkIsObject, not an object, tag %s, context %s, doc %s", tag?tag:"no tag", context, doc?doc->context():"no doc");
   return false;
 }
 
 inline
-rapidjson::Value::ConstMemberIterator getTag(const rapidjson::Value &json, const char *tag, const char *context, cLargeString *doc) {
+rapidjson::Value::ConstMemberIterator getTag(const rapidjson::Value &json, const char *tag, const char *context, cJsonDocument *doc) {
 // like Value.FindMember: But: create syslog ERROR entry, if tag was not found && context != NULL
 // context is used only for error message. Should be filename (if possible)
   rapidjson::Value::ConstMemberIterator res = json.FindMember(tag);
   if (context && res == json.MemberEnd() ) {
-    esyslog("tvscraper: ERROR, getTag, tag %s not found, context %s, doc %s", tag, context, doc?doc->substr(0, 100).c_str():"no doc");
+    esyslog("tvscraper: ERROR, getTag, tag %s not found, context %s, doc %s", tag, context, doc?doc->context():"no doc");
   }
   return res;
 }
@@ -106,18 +115,18 @@ bool getValue(const rapidjson::Value &json, const char *tag, T &value) {
   return getValue(res->value, value);
 }
 template<typename T>
-bool getValue(const rapidjson::Value &json, const char *tag, T &value, const char *context, cLargeString *doc = nullptr) {
+bool getValue(const rapidjson::Value &json, const char *tag, T &value, const char *context, cJsonDocument *doc = nullptr) {
 // return false if tag does not exist, or is wrong data type
   if (!checkIsObject(json, tag, context, doc)) return false;
   rapidjson::Value::ConstMemberIterator res = getTag(json, tag, context, doc);
   if (res == json.MemberEnd() ) return false; // error message was written by getTag, if required
   if (getValue(res->value, value) ) return true;
-  esyslog("tvscraper: ERROR, getValue, tag %s wrong data type, context %s, doc %s", tag, context, doc?doc->substr(0, 100).c_str():"no doc");
+  esyslog("tvscraper: ERROR, getValue, tag %s wrong data type, context %s, doc %s", tag, context, doc?doc->context():"no doc");
   return false;
 }
 
 // special getBool, return -1 if tag does not exist, or is not a bool. =============
-int getBool(const rapidjson::Value &json, const char *tag, bool *b=NULL, const char *context = NULL, cLargeString *doc = nullptr) {
+int getBool(const rapidjson::Value &json, const char *tag, bool *b=NULL, const char *context = NULL, cJsonDocument *doc = nullptr) {
 // return -1 if tag does not exist, or is not a bool.
 // 1 true
 // 0 false
@@ -128,78 +137,78 @@ int getBool(const rapidjson::Value &json, const char *tag, bool *b=NULL, const c
 }
 
 // getValue for char *  ==========================================================
-const char *getValueCharS(const rapidjson::Value &json, const char *tag, const char *context = NULL, cLargeString *doc = nullptr) {
+const char *getValueCharS(const rapidjson::Value &json, const char *tag, const char *context = NULL, cJsonDocument *doc = nullptr) {
 // return NULL if tag does not exist, or is not a string. If context is provided, create syslog ERROR entry
   if (!checkIsObject(json, tag, context, doc)) return NULL;
   rapidjson::Value::ConstMemberIterator res = getTag(json, tag, context, doc);
   if (res == json.MemberEnd() ) return NULL;
   if (res->value.IsString() ) return res->value.GetString();
   if (context) {
-    esyslog("tvscraper: ERROR, getValueCharS, tag %s not a string, context %s, doc %s", tag, context, doc?doc->substr(0, 100).c_str():"no doc");
+    esyslog("tvscraper: ERROR, getValueCharS, tag %s not a string, context %s, doc %s", tag, context, doc?doc->context():"no doc");
   }
   return NULL;
 }
 
-const char *getValueCharS2(const rapidjson::Value &json, const char *tag1, const char *tag2, const char *context = NULL, cLargeString *doc = nullptr) {
+const char *getValueCharS2(const rapidjson::Value &json, const char *tag1, const char *tag2, const char *context = NULL, cJsonDocument *doc = nullptr) {
 // return NULL if tag does not exist, or is not a string. If context is provided, create syslog ERROR entry
   if (!checkIsObject(json, tag1, context, doc)) return NULL;
   rapidjson::Value::ConstMemberIterator res = getTag(json, tag1, context, doc);
   if (res == json.MemberEnd() ) return NULL;
   if (res->value.IsObject() ) return getValueCharS(res->value, tag2, context, doc);
   if (context) {
-    esyslog("tvscraper: ERROR, getValueCharS2, tag1: %s, tag2 %s not an object, context %s, doc %s", tag1, tag2, context, doc?doc->substr(0, 100).c_str():"no doc");
+    esyslog("tvscraper: ERROR, getValueCharS2, tag1: %s, tag2 %s not an object, context %s, doc %s", tag1, tag2, context, doc?doc->context():"no doc");
   }
   return NULL;
 }
 
 // getValue for String  ==========================================================
-std::string getValueString(const rapidjson::Value &json, const char *tag, const char *returnOnError = NULL, const char *context = NULL, cLargeString *doc = nullptr) {
+std::string getValueString(const rapidjson::Value &json, const char *tag, const char *returnOnError = NULL, const char *context = NULL, cJsonDocument *doc = nullptr) {
 // return NULL if tag does not exist, or is not a string. If context is provided, create syslog ERROR entry
   if (!checkIsObject(json, tag, context, doc)) return charPointerToString(returnOnError);
   rapidjson::Value::ConstMemberIterator res = getTag(json, tag, context, doc);
   if (res == json.MemberEnd() ) return charPointerToString(returnOnError);
   if (res->value.IsString() ) return charPointerToString(res->value.GetString());
   if (context) {
-    esyslog("tvscraper: ERROR, getValueString, tag %s not a string, context %s, doc %s", tag, context, doc?doc->substr(0, 100).c_str():"no doc");
+    esyslog("tvscraper: ERROR, getValueString, tag %s not a string, context %s, doc %s", tag, context, doc?doc->context():"no doc");
   }
   return charPointerToString(returnOnError);
 }
 
 // getValue for int     ==========================================================
-int getValueInt(const rapidjson::Value &json, const char *tag, int returnOnError = 0, const char *context = NULL, cLargeString *doc = nullptr) {
+int getValueInt(const rapidjson::Value &json, const char *tag, int returnOnError = 0, const char *context = NULL, cJsonDocument *doc = nullptr) {
 // return returnOnError if tag does not exist, or is not int. If context is provided, create syslog ERROR entry
   if (!checkIsObject(json, tag, context, doc)) return returnOnError;
   rapidjson::Value::ConstMemberIterator res = getTag(json, tag, context, doc);
   if (res == json.MemberEnd() ) return returnOnError;
   if (res->value.IsInt() ) return res->value.GetInt();
   if (context) {
-    esyslog("tvscraper: ERROR, getValueInt, tag %s not int, context %s, doc %s", tag, context, doc?doc->substr(0, 100).c_str():"no doc");
+    esyslog("tvscraper: ERROR, getValueInt, tag %s not int, context %s, doc %s", tag, context, doc?doc->context():"no doc");
   }
   return returnOnError;
 }
 
 // getValue for bool    ==========================================================
-bool getValueBool(const rapidjson::Value &json, const char *tag, bool returnOnError = false, const char *context = NULL, cLargeString *doc = nullptr) {
+bool getValueBool(const rapidjson::Value &json, const char *tag, bool returnOnError = false, const char *context = NULL, cJsonDocument *doc = nullptr) {
 // return returnOnError if tag does not exist, or is not bool. If context is provided, create syslog ERROR entry
   if (!checkIsObject(json, tag, context, doc)) return returnOnError;
   rapidjson::Value::ConstMemberIterator res = getTag(json, tag, context, doc);
   if (res == json.MemberEnd() ) return returnOnError;
   if (res->value.IsBool() ) return res->value.GetBool();
   if (context) {
-    esyslog("tvscraper: ERROR, getValueBool, tag %s not bool, context %s, doc %s", tag, context, doc?doc->substr(0, 100).c_str():"no doc");
+    esyslog("tvscraper: ERROR, getValueBool, tag %s not bool, context %s, doc %s", tag, context, doc?doc->context():"no doc");
   }
   return returnOnError;
 }
 
 // getValue for double  ==========================================================
-double getValueDouble(const rapidjson::Value &json, const char *tag, double returnOnError = 0., const char *context = NULL, cLargeString *doc = nullptr) {
+double getValueDouble(const rapidjson::Value &json, const char *tag, double returnOnError = 0., const char *context = NULL, cJsonDocument *doc = nullptr) {
 // return returnOnError if tag does not exist, or is not double. If context is provided, create syslog ERROR entry
   if (!checkIsObject(json, tag, context, doc)) return returnOnError;
   rapidjson::Value::ConstMemberIterator res = getTag(json, tag, context, doc);
   if (res == json.MemberEnd() ) return returnOnError;
   if (res->value.IsDouble() ) return res->value.GetDouble();
   if (context) {
-    esyslog("tvscraper: ERROR, getValueInt, tag %s not double, context %s, doc %s", tag, context, doc?doc->substr(0, 100).c_str():"no doc");
+    esyslog("tvscraper: ERROR, getValueInt, tag %s not double, context %s, doc %s", tag, context, doc?doc->context():"no doc");
   }
   return returnOnError;
 }
@@ -248,52 +257,23 @@ inline std::string zeroToPercent(cSv sv) {
   return result;
 }
 
-bool jsonCallRest(rapidjson::Document &document, cLargeString &buffer, const char *url, bool debug, struct curl_slist *headers) {
-// true on success
-// download json file
-  buffer.clear();
-  headers = curl_slistAppend(headers, "Accept: application/json");
-  if (debug) esyslog("tvscraper: calling %s, buffer %.*s", url, buffer.nameLen(), buffer.nameData() );
-  if (!CurlGetUrl(url, buffer, headers) ) {
-    esyslog("tvscraper: ERROR jsonCallRest, download %s failed, buffer %.*s", url, buffer.nameLen(), buffer.nameData() );
-    return false; // no data
-  }
-  document.ParseInsitu(buffer.data() );
-  if (document.HasParseError() ) {
-    esyslog("tvscraper: ERROR jsonCallRest, url %s, parse %s failed, parse error %s buffer %.*s", url, buffer.substr(0, 100).c_str(), rapidjson::GetParseError_En(document.GetParseError()), buffer.nameLen(), buffer.nameData() );
-    return false; // no data
-  }
-  return true;
-}
-template<typename... Args>
-bool jsonCallRest(rapidjson::Document &document, cLargeString &buffer, const char *url, bool debug, const Args... args) {
-  struct curl_slist *headers = NULL;
-  headers = curl_slistAppend(headers, args...);
-  bool result = jsonCallRest(document, buffer, url, debug, headers);
-  if (headers) curl_slist_free_all(headers);
-  return result;
-}
-
-class cJsonDocument: public rapidjson::Document {
-  public:
-    virtual cSv context() const = 0;  // provide context information to the object, must be implemented by the derived classes
-};
 class cJsonDocumentFromUrl: public cJsonDocument {
   public:
     cJsonDocumentFromUrl() { }
 template<typename... Args>
-    cJsonDocumentFromUrl(const char *url, const Args... args) {
-      download_and_parse(url, std::forward(args)...);
+    cJsonDocumentFromUrl(const char *url, Args... args) {
+      download_and_parse(url, std::forward<Args>(args)...);
     }
 template<typename... Args>
-    bool download_and_parse(const char *url, const Args... args) {
+    bool download_and_parse(const char *url, Args... args) {
       struct curl_slist *headers = NULL;
-      headers = curl_slistAppend(headers, std::forward(args)...);
+      headers = curl_slistAppend(headers, std::forward<Args>(args)...);
       bool result = download_and_parse_int(url, headers);
       if (headers) curl_slist_free_all(headers);
       return result;
     }
     bool download_and_parse_int(const char *url, struct curl_slist *headers) {
+      if (m_enableDebug) esyslog("tvscraper: calling %s", url);
       headers = curl_slistAppend(headers, "Accept: application/json");
       if (!CurlGetUrl(url, m_data, headers)) {
 // CurlGetUrl already writes the syslog entry. We create an empty (valid) document
@@ -308,8 +288,8 @@ template<typename... Args>
       }
       return true;
     }
-    virtual cSv context() const {
-      return zeroToPercent(cSv(m_data).substr(100));
+    virtual const char* context() const {
+      return zeroToPercent(cSv(m_data).substr(100)).c_str();
     }
   private:
     std::string m_data;
@@ -336,8 +316,8 @@ class cJsonDocumentFromFile: public cJsonDocument {
         SetObject();
       }
     }
-    virtual cSv context() const {
-      return zeroToPercent(cSv(m_jfile).substr(100));
+    virtual const char* context() const {
+      return zeroToPercent(cSv(m_jfile).substr(100)).c_str();
     }
   private:
     cToSvFile m_jfile;

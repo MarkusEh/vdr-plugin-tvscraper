@@ -563,7 +563,7 @@ class cToSvFormated: public cToSv {
         esyslog("live: ERROR, out of memory in cToSvFormated::cToSvFormated, needed = %d, fmt = %s", needed, fmt);
         return;
       }
-      needed = sprintf (m_huge_buffer, fmt, args...);
+      needed = sprintf (m_huge_buffer, fmt, std::forward<Args>(args)...);
       if (needed < 0) {
         esyslog("live: ERROR, cToSvFormated::cToSvFormated, needed (2) = %d, fmt = %s", needed, fmt);
         return; // error in sprintf
@@ -574,7 +574,7 @@ class cToSvFormated: public cToSv {
       std::free(m_huge_buffer);
     }
     operator cSv() const { return m_result; }
-    const char *c_str() const { return m_result.data(); }
+    const char *c_str() const { return m_result.empty()?"":m_result.data(); } // if m_result is not empty data are created by sprintf and zero terminated
   private:
     char m_buffer[256];
     char *m_huge_buffer = nullptr;
@@ -627,9 +627,9 @@ class cToSvConcat: public cToSv {
       append(std::forward<Args>(args)...);
     }
     template<typename T, typename U, typename... Args>
-    cToSvConcat &append(const T &n, const U &u, const Args&... args) {
+    cToSvConcat &append(T &&n, U &&u, Args&&... args) {
       append(n);
-      return append(u, args...);
+      return append(std::forward<U>(u), std::forward<Args>(args)...);
     }
     cToSvConcat &append(char ch) {
       if (m_use_buffer) {
@@ -742,8 +742,24 @@ void stringAppendFormated(std::string &str, const char *fmt, Args&&... args) {
   }
 }
 /*
-  short, and works fine with str.data()
-  but, too slow :) . Usage of buf is twice as fast ...
+ * slower than stringAppendFormated
+ * also, we wast memory as needed_guess is too large
+template<typename... Args>
+void stringAppendFormated_2(std::string &str, const char *fmt, Args&&... args) {
+  size_t needed_guess =  80;
+  size_t old_len = str.length();
+  str.append(needed_guess, 0);
+  int needed = snprintf (str.data() + old_len, needed_guess+1, fmt, std::forward<Args>(args)...);
+  if (needed < 0) {
+    esyslog("live: ERROR, stringAppendFormated, needed = %d, fmt = %s", needed, fmt);
+    return; // error in snprintf
+  }
+  if ( (size_t)needed <= needed_guess) { str.erase(old_len + needed); return; }
+  str.append(needed - needed_guess, '|');
+  sprintf (str.data() + old_len, fmt, std::forward<Args>(args)...);
+}
+ * short, and works fine with str.data()
+ * but, too slow :) . Usage of buf is twice as fast ...
 template<typename... Args>
 void stringAppendFormated_slow(std::string &str, const char *fmt, Args&&... args) {
   int needed = snprintf (nullptr, 0, fmt, std::forward<Args>(args)...);
@@ -792,150 +808,61 @@ inline void stringAppend(std::string &str, const tChannelID &channelID) {
   str.append(cToSvChannel(channelID));
 }
 template<typename T, typename U, typename... Args>
-void stringAppend(std::string &str, const T &n, const U &u, const Args&... args) {
+void stringAppend(std::string &str, const T &n, const U &u, Args&&... args) {
   stringAppend(str, n);
-  stringAppend(str, u, args...);
+  stringAppend(str, u, std::forward<Args>(args)...);
 }
 
 // =========================================================
 // =========== concatenate =================================
 // =========================================================
-
 // deprecated. Use cToSvConcat
-inline std::string concatenate() { return std::string(); }
-template<typename T> inline std::string concatenate(const T &t) {
+
+template<typename... Args>
+inline std::string concatenate(Args&&... args) {
   std::string result;
-  stringAppend(result, t);
+  result.reserve(200);
+  stringAppend(result, std::forward<Args>(args)...);
+  return result;
+}
+
+// =========================================================
+// =========== concat      =================================
+// =========================================================
+
+// create a string with "exactly" the required capacity (call reserve() for that)
+// note: cToSvConc has a better performance, so use
+//   concat only if such a string is required
+//   e.g. the string is member of your class
+// otherwise, use cToSvConcat
+
+inline size_t length_csv(cSv s1) { return s1.length(); }
+template<typename... Args>
+inline size_t length_csv(cSv s1, Args&&... args) {
+  return s1.length() + length_csv(std::forward<Args>(args)...);
+}
+inline void append_csv(std::string &str, cSv s1) { str.append(s1); }
+template<typename... Args>
+inline void append_csv(std::string &str, cSv s1, Args&&... args) {
+  str.append(s1);
+  append_csv(str, std::forward<Args>(args)...);
+}
+template<typename... Args>
+inline std::string concat(Args&&... args) {
+  std::string result;
+// yes, reserve improves performance. Yes, I tested: 0.17 -> 0.31
+// also tested with reserve(200); -> (almost) no performance improvement
+  result.reserve(length_csv(std::forward<Args>(args)...));
+  append_csv(result, std::forward<Args>(args)...);
   return result;
 }
 template<typename... Args>
-inline std::string concatenate(const Args&... args) {
+inline std::string concat2(Args&&... args) {
   std::string result;
   result.reserve(200);
-//stringAppend(result, std::forward<Args>(args)...);
-  stringAppend(result, args...);
+  append_csv(result, std::forward<Args>(args)...);
   return result;
 }
-
-// use concat if you need a string with optimized capacity
-//   e.g. the string is member of your class
-// otherwise, use cToSvConcat
-inline std::string concat(cSv s1, cSv s2) {
-  std::string result;
-  result.reserve(s1.length() + s2.length());
-  result.append(s1);
-  result.append(s2);
-  return result;
-}
-inline std::string concat(cSv s1, cSv s2, cSv s3) {
-  std::string result;
-  result.reserve(s1.length() + s2.length() + s3.length() );
-  result.append(s1);
-  result.append(s2);
-  result.append(s3);
-  return result;
-}
-inline std::string concat(cSv s1, cSv s2, cSv s3, cSv s4) {
-  std::string result;
-  result.reserve(s1.length() + s2.length() + s3.length() + s4.length() );
-  result.append(s1);
-  result.append(s2);
-  result.append(s3);
-  result.append(s4);
-  return result;
-}
-inline std::string concat(cSv s1, cSv s2, cSv s3, cSv s4, cSv s5) {
-  std::string result;
-  result.reserve(s1.length() + s2.length() + s3.length() + s4.length() + s5.length() );
-  result.append(s1);
-  result.append(s2);
-  result.append(s3);
-  result.append(s4);
-  result.append(s5);
-  return result;
-}
-inline std::string concat(cSv s1, cSv s2, cSv s3, cSv s4, cSv s5, cSv s6) {
-  std::string result;
-  result.reserve(s1.length() + s2.length() + s3.length() + s4.length() + s5.length() + s6.length() );
-  result.append(s1);
-  result.append(s2);
-  result.append(s3);
-  result.append(s4);
-  result.append(s5);
-  result.append(s6);
-  return result;
-}
-inline std::string concat(cSv s1, cSv s2, cSv s3, cSv s4, cSv s5, cSv s6, cSv s7) {
-  std::string result;
-  result.reserve(s1.length() + s2.length() + s3.length() + s4.length() + s5.length() + s6.length() + s7.length());
-  result.append(s1);
-  result.append(s2);
-  result.append(s3);
-  result.append(s4);
-  result.append(s5);
-  result.append(s6);
-  result.append(s7);
-  return result;
-}
-inline std::string concat(cSv s1, cSv s2, cSv s3, cSv s4, cSv s5, cSv s6, cSv s7, cSv s8) {
-  std::string result;
-  result.reserve(s1.length() + s2.length() + s3.length() + s4.length() + s5.length() + s6.length() + s7.length() + s8.length());
-  result.append(s1);
-  result.append(s2);
-  result.append(s3);
-  result.append(s4);
-  result.append(s5);
-  result.append(s6);
-  result.append(s7);
-  result.append(s8);
-  return result;
-}
-inline std::string concat(cSv s1, cSv s2, cSv s3, cSv s4, cSv s5, cSv s6, cSv s7, cSv s8, cSv s9) {
-  std::string result;
-  result.reserve(s1.length() + s2.length() + s3.length() + s4.length() + s5.length() + s6.length() + s7.length() + s8.length() + s9.length());
-  result.append(s1);
-  result.append(s2);
-  result.append(s3);
-  result.append(s4);
-  result.append(s5);
-  result.append(s6);
-  result.append(s7);
-  result.append(s8);
-  result.append(s9);
-  return result;
-}
-inline std::string concat(cSv s1, cSv s2, cSv s3, cSv s4, cSv s5, cSv s6, cSv s7, cSv s8, cSv s9, cSv s10) {
-  std::string result;
-  result.reserve(s1.length() + s2.length() + s3.length() + s4.length() + s5.length() + s6.length() + s7.length() + s8.length() + s9.length() + s10.length());
-  result.append(s1);
-  result.append(s2);
-  result.append(s3);
-  result.append(s4);
-  result.append(s5);
-  result.append(s6);
-  result.append(s7);
-  result.append(s8);
-  result.append(s9);
-  result.append(s10);
-  return result;
-}
-inline std::string concat(cSv s1, cSv s2, cSv s3, cSv s4, cSv s5, cSv s6, cSv s7, cSv s8, cSv s9, cSv s10, cSv s11) {
-  std::string result;
-  result.reserve(s1.length() + s2.length() + s3.length() + s4.length() + s5.length() + s6.length() + s7.length() + s8.length() + s9.length() + s10.length() + s11.length());
-  result.append(s1);
-  result.append(s2);
-  result.append(s3);
-  result.append(s4);
-  result.append(s5);
-  result.append(s6);
-  result.append(s7);
-  result.append(s8);
-  result.append(s9);
-  result.append(s10);
-  result.append(s11);
-  return result;
-}
-
 // =========================================================
 // =========================================================
 // Chapter 6: containers

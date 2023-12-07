@@ -152,6 +152,9 @@ class cTVScraperConfig {
 {30, "ron", "ro-RO", "limba română"},  // Romanian
 {31, "jpn", "ja-JP", "日本語"},  //  Japanese
 {32, "mon", "mn-MN", "Mongolian"},  // Mongolian, note: not supported in themoviedb, "mn-MN" is a guess
+{33, "pol", "pl-PL", "Polski"},  //
+{34, "msa", "ms-MY", "Bahasa melayu"},  //  Malay
+{35, "ukr", "uk-UA", "Український"},  //  Ukrainian
 // {30, "", "", ""},  //
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};

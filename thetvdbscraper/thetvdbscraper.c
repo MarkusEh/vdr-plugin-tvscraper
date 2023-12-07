@@ -157,14 +157,13 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
     if (displayLanguage) displayLanguage->log();
     return 0;
   }
-  cLargeString buffer("cTVDBScraper::StoreSeriesJson", 15000);
   const cLanguage *newDisplayLanguage = 0;
-  int rde = downloadEpisodes(buffer, seriesID, forceUpdate, displayLanguage, true, &newDisplayLanguage);
+  int rde = downloadEpisodes(seriesID, forceUpdate, displayLanguage, true, &newDisplayLanguage);
   if (rde == 1) {
     if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreSeriesJson displayLanguage %s not available, seriesID %i",  displayLanguage->getNames().c_str(), seriesID);
     if (!newDisplayLanguage) return 0;
     displayLanguage = newDisplayLanguage;
-    rde = downloadEpisodes(buffer, seriesID, forceUpdate, displayLanguage, true);
+    rde = downloadEpisodes(seriesID, forceUpdate, displayLanguage, true);
     if (rde == 1) {
       esyslog("tvscraper: ERROR cTVDBScraper::StoreSeriesJson newDisplayLanguage %s not available, seriesID %i", displayLanguage->getNames().c_str(), seriesID);
       return 0;
@@ -179,9 +178,9 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
 // Episode Guest stars, writer, ... NOT available in https://api4.thetvdb.com/v4/seasons/1978231/extended
 //
   CONCATENATE(url, baseURL4, "series/", seriesID, "/extended?meta=translations&short=false");
-  rapidjson::Document document;
+  cJsonDocumentFromUrl document;
   const rapidjson::Value *data;
-  int error = CallRestJson(document, data, buffer, url);
+  int error = CallRestJson(document, data, url);
   if (error != 0) {
     if (error == -1) { db->DeleteSeriesCache(-seriesID); return -1; } // object does not exist
     return 0;
@@ -200,7 +199,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
   return seriesID;
 }
 
-int cTVDBScraper::downloadEpisodes(cLargeString &buffer, int seriesID, bool forceUpdate, const cLanguage *lang, bool langIsIntendedDisplayLanguage, const cLanguage **displayLanguage) {
+int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLanguage *lang, bool langIsIntendedDisplayLanguage, const cLanguage **displayLanguage) {
 // return codes:
 //   -1 object does not exist (we already called db->DeleteSeriesCache(-seriesID))
 //    0 success
@@ -239,9 +238,9 @@ int cTVDBScraper::downloadEpisodes(cLargeString &buffer, int seriesID, bool forc
   bool first = true;
   bool langIsDisplayLanguage = langIsIntendedDisplayLanguage;
   do {
-    rapidjson::Document episodes;
+    cJsonDocumentFromUrl episodes;
     const rapidjson::Value *data_episodes;
-    int error = CallRestJson(episodes, data_episodes, buffer, urlE.c_str() );
+    int error = CallRestJson(episodes, data_episodes, urlE.c_str() );
     if (error != 0) {
       if (error == -1) { db->DeleteSeriesCache(-seriesID); return -1; } // object does not exist
       return 5;
@@ -324,7 +323,7 @@ int cTVDBScraper::downloadEpisodes(cLargeString &buffer, int seriesID, bool forc
       if (episodeName && *episodeName) insertEpisodeLang.resetBindStep(episodeID, langTvdbId, episodeName);
     } // end loop over each episode
 
-    rapidjson::Value::ConstMemberIterator links_it = getTag(episodes, "links", "cTVDBScraper::StoreSeriesJson_lang", &buffer);
+    rapidjson::Value::ConstMemberIterator links_it = getTag(episodes, "links", "cTVDBScraper::StoreSeriesJson_lang", &episodes);
     if (links_it == episodes.MemberEnd() || !links_it->value.IsObject() ) break;
     urlE = charPointerToString(getValueCharS(links_it->value, "next"));
     first = false;
@@ -343,19 +342,19 @@ int cTVDBScraper::downloadEpisodes(cLargeString &buffer, int seriesID, bool forc
   return 0;
 }
 
-int cTVDBScraper::CallRestJson(rapidjson::Document &document, const rapidjson::Value *&data, cLargeString &buffer, const char *url, bool disableLog) {
+int cTVDBScraper::CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog) {
 // return 0 on success. In this case, "data" exists, and can be accessed with document["data"].
 //  1: error: In this case, an ERROR message is written in syslog
 // -1: "Not Found" (no message in syslog, just the reqested object does not exist)
   if (!GetToken() ) return 1; // GetToken will write error in syslog
-  buffer.clear();
+  document.set_enableDebug(config.enableDebug && !disableLog);
   apiCalls.start();
-  bool success = jsonCallRest(document, buffer, url, config.enableDebug && !disableLog, tokenHeader.c_str(), "charset: utf-8");
+  bool success = document.download_and_parse(url, tokenHeader.c_str(), "charset: utf-8");
   apiCalls.stop();
   if (!success) return 1; // jsonCallRest wrote error in syslog
   const char *status;
   if (!getValue(document, "status", status) || !status) {
-    esyslog("tvscraper: cTVDBScraper::CallRestJson, url %s, buffer %s, no status", url, buffer.substr(0, 100).c_str() );
+    esyslog("tvscraper: cTVDBScraper::CallRestJson, url %s, doc %s, no status", url, document.context() );
     return 1;
   }
   if (strcmp(status, "success") != 0) {
@@ -364,10 +363,10 @@ int cTVDBScraper::CallRestJson(rapidjson::Document &document, const rapidjson::V
       if (message && strcmp(message, "Not Found") == 0) return -1;
       if (message && strncmp(message, "NotFoundException", 17) == 0) return -1;
     }
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, status = %s, message = %s, buffer %s", url, status, message?message:"no message", buffer.substr(0, 100).c_str() );
+    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, status = %s, message = %s, doc %s", url, status, message?message:"no message", document.context() );
     return 1;
   }
-  rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::CallRestJson", &buffer);
+  rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::CallRestJson", &document);
   if (data_it == document.MemberEnd() ) return 1;  // getTag wrote "cTVDBScraper::CallRestJson" in syslog
   data = &data_it->value;
   return 0;
@@ -459,14 +458,14 @@ void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
 }
 
 // Search series
-bool cTVDBScraper::AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
+bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
   std::string url; url.reserve(300);
   url.append(baseURL4Search);
   stringAppendCurlEscape(url, SearchString);
  
-  rapidjson::Document root;
+  cJsonDocumentFromUrl root;
   const rapidjson::Value *data;
-  if (CallRestJson(root, data, buffer, url.c_str() ) != 0) return false;
+  if (CallRestJson(root, data, url.c_str() ) != 0) return false;
   if (!data || !data->IsArray() ) {
     esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, data is %s", data?"not an array":"NULL");
     return false;

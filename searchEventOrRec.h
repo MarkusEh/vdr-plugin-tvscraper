@@ -8,7 +8,7 @@ private:
   scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, cSv &movieName, cSv &episodeSearchString);
   int Store(const sMovieOrTv &movieOrTv);
   void SearchNew(vector<searchResultTvMovie> &resultSet);
-  bool addSearchResults(iExtMovieTvDb *extMovieTvDb, cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv searchString, const cCompareStrings &compareStrings, const cLanguage *lang);
+  bool addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<searchResultTvMovie> &resultSet, cSv searchString, const cCompareStrings &compareStrings, const cLanguage *lang);
   void initOriginalTitle();
   bool isTitlePartOfPathName(size_t baseNameLen);
   void initBaseNameOrTitle(void);

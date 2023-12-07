@@ -60,7 +60,6 @@ enum eMediaType: int {
 #include <getopt.h>
 #include "tools/stringhelpers.h"
 #include "tools/tvscraperhelpers.h"
-#include "tools/largeString.h"
 #include "extEpgPlugin.h"
 #include "config.h"
 cTVScraperConfig config;
@@ -75,7 +74,6 @@ cTVScraperConfig config;
 #include "tools/curlfuncs.cpp"
 #include "tools/filesystem.c"
 #include "tools/jsonHelpers.c"
-#include "tools/largeString.cpp"
 #include "eventOrRec.c"
 #include "overrides.c"
 #include "tvscraperdb.c"

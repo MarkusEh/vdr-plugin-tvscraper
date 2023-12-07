@@ -16,12 +16,12 @@ class cTVDBScraper {
     std::string tokenHeader;
     time_t tokenHeaderCreated = 0;
     cTVScraperDB *db;
-    int CallRestJson(rapidjson::Document &document, const rapidjson::Value *&data, cLargeString &buffer, const char *url, bool disableLog = false);
+    int CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog = false);
     bool GetToken(std::string &jsonResponse);
-    bool AddResults4(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
+    bool AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
     void ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang);
     int StoreSeriesJson(int seriesID, bool forceUpdate);
-    int downloadEpisodes(cLargeString &buffer, int seriesID, bool forceUpdate, const cLanguage *lang, bool langIsIntendedDisplayLanguage = false, const cLanguage **displayLanguage = nullptr);
+    int downloadEpisodes(int seriesID, bool forceUpdate, const cLanguage *lang, bool langIsIntendedDisplayLanguage = false, const cLanguage **displayLanguage = nullptr);
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const char *episodeFilename);
     void StoreActors(int seriesID);
     void DownloadMedia (int tvID);
@@ -50,8 +50,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
       return m_TVDBScraper->StoreSeriesJson(id, false);
     }
     virtual int downloadEpisodes(int id, const cLanguage *lang) {
-      cLargeString buffer("cTvDbTvScraper::downloadEpisodes", 2000);
-      int res = m_TVDBScraper->downloadEpisodes(buffer, id, false, lang);
+      int res = m_TVDBScraper->downloadEpisodes(id, false, lang);
 //      if (res == 1 && config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::downloadEpisodes lang %s not available, id %i",  lang->getNames().c_str(), id);
       return res;
     }
@@ -79,8 +78,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
       if (transSplit.find(lang->m_thetvdb) != transSplit.end() ) return; // translation in needed language available, no need for update
       if (config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 force update, languages %s, lang %s, seriesID %i",
         stmt.getCharS(0), lang->getNames().c_str(), searchResultTvMovie.id() );
-      cLargeString buffer("cTvDbTvScraper::enhance1", 2000);
-      int res = m_TVDBScraper->downloadEpisodes(buffer, -searchResultTvMovie.id(), true, lang); // this will not update the actors, which is not required here
+      int res = m_TVDBScraper->downloadEpisodes(-searchResultTvMovie.id(), true, lang); // this will not update the actors, which is not required here
       if (res == 1 && config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 lang %s not available, id %i",  lang->getNames().c_str(), searchResultTvMovie.id() );
     }
 
@@ -94,8 +92,8 @@ class cTvDbTvScraper: public iExtMovieTvDb {
         m_TVDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
-      m_TVDBScraper->AddResults4(buffer, resultSet, searchString, compareStrings, lang);
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
+      m_TVDBScraper->AddResults4(resultSet, searchString, compareStrings, lang);
     }
   private:
     cTVDBScraper *m_TVDBScraper;

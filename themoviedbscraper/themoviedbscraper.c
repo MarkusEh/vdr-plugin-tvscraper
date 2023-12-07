@@ -20,9 +20,9 @@ void cMovieDBScraper::StoreMovie(int movieID, bool forceUpdate) {
   movie.ReadAndStore(movieID);
 }
 bool cMovieDBScraper::Connect(void) {
-  rapidjson::Document document;
-  cLargeString configJSON("cMovieDBScraper::Connect", 1500);
-  if (!jsonCallRest(document, configJSON, concatenate(baseURL, "/configuration?api_key=", apiKey).c_str(), config.enableDebug)) return false;
+  cJsonDocumentFromUrl document;
+  document.set_enableDebug(config.enableDebug);
+  if (!document.download_and_parse(cToSvConcat(baseURL, "/configuration?api_key=", apiKey).c_str())) return false;
   return parseJSON(document);
 }
 
@@ -104,23 +104,24 @@ void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, 
   DownloadImg(concatenate(m_stillBaseUrl, stillPathTvEpisode), pathStill);
 }
 
-bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
+bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
 // search for tv series, add search results to resultSet
-// concatenate URL
   if (tvSearchString.empty() ) {
     esyslog("tvscraper: ERROR cMovieDbTv::AddTvResults, tvSearchString == empty");
     return false;
   }
+// concatenate URL
   std::string url; url.reserve(300);
   stringAppend(url, baseURL, "/search/tv?api_key=", apiKey);
   if (lang) stringAppend(url, "&language=", lang->m_themoviedb);
   stringAppend(url, "&query=");
   stringAppendCurlEscape(url, tvSearchString);
 
-  rapidjson::Document root;
+  cJsonDocumentFromUrl root;
 // call api, get json
   apiCalls.start();
-  bool success = jsonCallRest(root, buffer, url.c_str(), config.enableDebug);
+  root.set_enableDebug(config.enableDebug);
+  bool success = root.download_and_parse(url.c_str());
   apiCalls.stop();
   if (!success) return false;
   if (getValueInt(root, "status_code", -1) == 50) {
@@ -165,7 +166,7 @@ bool cMovieDBScraper::AddTvResults(cLargeString &buffer, vector<searchResultTvMo
   return true;
 }
 
-void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
+void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
   if (SearchString.empty() ) {
     esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
     return;
@@ -177,14 +178,14 @@ void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultT
   stringAppendCurlEscape(url, SearchString);
   size_t lenUrl0 = url.length();
 
-  int num_pages = AddMovieResultsForUrl(buffer, url.c_str(), resultSet, compareStrings, description, setMinTextMatch, lang);
+  int num_pages = AddMovieResultsForUrl(url.c_str(), resultSet, compareStrings, description, setMinTextMatch, lang);
   bool found = false;
   if (num_pages > 3 && years.size() + 1 < num_pages) {
 // several pages, restrict with years
     for (int year: years) {
       url.erase(lenUrl0);
       stringAppend(url, "&year=", (unsigned int)year);
-      if (AddMovieResultsForUrl(buffer, url.c_str(), resultSet, compareStrings, description, setMinTextMatch, lang) > 0) found = true;
+      if (AddMovieResultsForUrl(url.c_str(), resultSet, compareStrings, description, setMinTextMatch, lang) > 0) found = true;
     }
   }
   if (!found) {
@@ -193,17 +194,18 @@ void cMovieDBScraper::AddMovieResults(cLargeString &buffer, vector<searchResultT
     for (int page = 2; page <= num_pages; page ++) {
       url.erase(lenUrl0);
       stringAppend(url, "&page=", (unsigned int)page);
-      AddMovieResultsForUrl(buffer, url.c_str(), resultSet, compareStrings, description, setMinTextMatch, lang);
+      AddMovieResultsForUrl(url.c_str(), resultSet, compareStrings, description, setMinTextMatch, lang);
     }
   }
 }
 
-int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang) {
+int cMovieDBScraper::AddMovieResultsForUrl(const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang) {
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
-  rapidjson::Document root;
+  cJsonDocumentFromUrl root;
+  root.set_enableDebug(config.enableDebug);
   apiCalls.start();
-  bool success = jsonCallRest(root, buffer, url, config.enableDebug);
+  bool success = root.download_and_parse(url);
   apiCalls.stop();
   if (!success) return 0;
   if (getValueInt(root, "status_code", -1) == 50) {
@@ -213,9 +215,9 @@ int cMovieDBScraper::AddMovieResultsForUrl(cLargeString &buffer, const char *url
       return 0;
     }
   }
-  if (getValueInt(root, "total_results", 0, "cMovieDbMovie::AddMovieResultsForUrl", &buffer) == 0) return 0;
+  if (getValueInt(root, "total_results", 0, "cMovieDbMovie::AddMovieResultsForUrl", &root) == 0) return 0;
   AddMovieResults(root, resultSet, compareStrings, description, setMinTextMatch, lang);
-  return getValueInt(root, "total_pages", 0, "cMovieDbMovie::AddMovieResultsForUrl", &buffer);
+  return getValueInt(root, "total_pages", 0, "cMovieDbMovie::AddMovieResultsForUrl", &root);
 }
 void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang) {
   int res = -1;

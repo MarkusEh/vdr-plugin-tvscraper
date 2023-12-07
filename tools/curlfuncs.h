@@ -3,13 +3,14 @@
 #include <string>
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include "stringhelpers.h"
 
 struct curl_slist *curl_slistAppend(struct curl_slist *slist) { return slist; }
-struct curl_slist *curl_slistAppend1(struct curl_slist *slist, const char *string);
+struct curl_slist *curl_slistAppend(struct curl_slist *slist, const char *string);
 template<typename... Args>
-struct curl_slist *curl_slistAppend(struct curl_slist *slist, const char *string, const Args... args) {
-  slist = curl_slistAppend1(slist, string);
-  return curl_slistAppend(slist, args...);
+struct curl_slist *curl_slistAppend(struct curl_slist *slist, const char *string1, const char *string2, const Args... args) {
+  slist = curl_slistAppend(slist, string1);
+  return curl_slistAppend(slist, string2, args...);
 }
 
 template<class T>
@@ -28,15 +29,19 @@ bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, std::
 void FreeCurlLibrary(void);
 int CurlSetCookieFile(char *filename);
 bool CurlPostUrl(const char *url, const std::string &sPost, std::string &sOutput, struct curl_slist *headers = NULL);
-std::string CurlEscape(const char *url);
-std::string CurlEscape(cSv url);
 
+void stringAppendCurlEscape(std::string &str, cSv url);
 inline void InitCurlLibraryIfNeeded();
-#define CURLESCAPE(url_e, url) \
-  InitCurlLibraryIfNeeded(); \
-  char *output_##url_e = curl_easy_escape(curlfuncs::curl, url, strlen(url)); \
-  char url_e[strlen(output_##url_e) + 1]; \
-  strcpy(url_e, output_##url_e); \
-  curl_free(output_##url_e);
 
-#endif
+class cToSvUrlEscape: public cToSv {
+  public:
+    cToSvUrlEscape(cSv url);
+    operator cSv() const { return cSv(m_escaped_url); }
+    const char *c_str() const { return m_escaped_url?m_escaped_url:""; }
+    ~cToSvUrlEscape() {
+      curl_free(m_escaped_url);
+    }
+  private:
+    char *m_escaped_url = nullptr;
+};
+#endif // __CURLFUNCS_H_20020513__

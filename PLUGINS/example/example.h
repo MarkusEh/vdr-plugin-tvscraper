@@ -2,7 +2,6 @@
 #include "../../extEpgPlugin.h"
 #include "../../rapidjson/document.h"
 #include "../../tools/stringhelpers.h"
-#include "../../tools/largeString.h"
 #include "../../tools/jsonHelpers.c"
 
 class cTvspEvent

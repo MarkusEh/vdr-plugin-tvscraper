@@ -831,7 +831,7 @@ if (movie_tv_id > 0) { jInfo->AddMember("themoviedb", jTvscraper, jInfo->GetAllo
 // write file
 jsonWriteFile(*jInfo, filename_new);
 struct stat buffer;
-if (stat(filename_old, &buffer) == 0) RenameFile(filename_old, concat(filename_old, ".bak"));
+if (stat(filename_old, &buffer) == 0) RenameFile(filename_old, cToSvConcat(&filename_old[0], ".bak"));
 }
 
 int cTVScraperDB::SetRecording(csEventOrRecording *sEventOrRecording) {

@@ -20,14 +20,6 @@ static size_t curl_collect_data_string(void *data, size_t size, size_t nmemb, vo
   return realsize;
 }
 
-static size_t curl_collect_data_large_string(void *data, size_t size, size_t nmemb, void *userp)
-{
-  size_t realsize = size * nmemb;
-  cLargeString *out = (cLargeString *) userp;
-  out->append((char *)data, realsize);
-  return realsize;
-}
-
 inline void InitCurlLibraryIfNeeded() 
 {
   if (!curlfuncs::bInitialized) {
@@ -44,7 +36,7 @@ inline void InitCurlLibraryIfNeeded()
   }
 }
 
-struct curl_slist *curl_slistAppend1(struct curl_slist *slist, const char *string) {
+struct curl_slist *curl_slistAppend(struct curl_slist *slist, const char *string) {
   if (!string) return slist;
   struct curl_slist *temp = curl_slist_append(slist, string);
   if (temp == NULL) {
@@ -69,9 +61,6 @@ bool CurlGetUrl_int(const char *url, void *sOutput, struct curl_slist *headers, 
 bool CurlGetUrl_int(const char *url, std::string &sOutput, struct curl_slist *headers) {
   return CurlGetUrl_int(url, &sOutput, headers, curl_collect_data_string);
 }
-bool CurlGetUrl_int(const char *url, cLargeString &sOutput, struct curl_slist *headers) {
-  return CurlGetUrl_int(url, &sOutput, headers, curl_collect_data_large_string);
-}
 
 template<class T>
 bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers) {
@@ -94,7 +83,6 @@ bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers) {
   return false;
 }
 template bool CurlGetUrl<std::string> (const char *url,  std::string &sOutput, struct curl_slist *headers);
-template bool CurlGetUrl<cLargeString>(const char *url, cLargeString &sOutput, struct curl_slist *headers);
 
 int CurlGetUrlFile(const char *url, const char *filename)
 {
@@ -177,25 +165,10 @@ int CurlSetCookieFile(char *filename)
     return 0;
   return 1;
 }
-std::string CurlEscape(const char *url) {
+cToSvUrlEscape::cToSvUrlEscape(cSv url) {
   InitCurlLibraryIfNeeded();
-  char *output = curl_easy_escape(curlfuncs::curl, url, strlen(url));
-  std::string result(output);
-  curl_free(output);
-  return result;
-}
-std::string CurlEscape(cSv url) {
-  InitCurlLibraryIfNeeded();
-  char *output = curl_easy_escape(curlfuncs::curl, url.data(), url.length());
-  std::string result(output);
-  curl_free(output);
-  return result;
-}
-void stringAppendCurlEscape(std::string &str, const char *url) {
-  InitCurlLibraryIfNeeded();
-  char *output = curl_easy_escape(curlfuncs::curl, url, strlen(url));
-  str.append(output);
-  curl_free(output);
+  m_escaped_url = curl_easy_escape(curlfuncs::curl, url.data(), url.length() );
+  if (!m_escaped_url) esyslog("tvscraper, ERROR in cToSvUrlEscape, url = %.*s", (int)url.length(), url.data());
 }
 void stringAppendCurlEscape(std::string &str, cSv url) {
   InitCurlLibraryIfNeeded();

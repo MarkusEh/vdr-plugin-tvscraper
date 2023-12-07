@@ -361,31 +361,30 @@ int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
 
 void cSearchEventOrRec::SearchNew(vector<searchResultTvMovie> &resultSet) {
   extDbConnected = true;
-  cLargeString buffer("cSearchEventOrRec::SearchNew", 10000);
   scrapType type_override = m_overrides->Type(m_baseNameOrTitle);
   if (!m_originalTitle.empty() ) {
     cCompareStrings compareStrings(m_originalTitle);
-    if (type_override != scrapSeries) addSearchResults(m_movieDbMovieScraper, buffer, resultSet, m_originalTitle, compareStrings, nullptr);
+    if (type_override != scrapSeries) addSearchResults(m_movieDbMovieScraper, resultSet, m_originalTitle, compareStrings, nullptr);
     if (m_originalTitle == m_movieSearchString) {
       compareStrings.add(m_originalTitle, ':');
       compareStrings.add(m_originalTitle, '-');
     }
-    if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, buffer, resultSet, m_originalTitle, compareStrings, nullptr);
+    if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_originalTitle, compareStrings, nullptr);
   }
   const cLanguage *lang = m_sEventOrRecording->GetLanguage();
   if (m_TVshowSearchString != m_movieSearchString && m_TVshowSearchString != m_originalTitle) {
     cCompareStrings compareStrings(m_TVshowSearchString);
-    if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, buffer, resultSet, m_TVshowSearchString, compareStrings, lang);
+    if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_TVshowSearchString, compareStrings, lang);
   }
   if (m_movieSearchString != m_originalTitle) {
     cCompareStrings compareStrings(m_movieSearchString);
-    if (type_override != scrapSeries) addSearchResults(m_movieDbMovieScraper, buffer, resultSet, m_movieSearchString, compareStrings, lang);
+    if (type_override != scrapSeries) addSearchResults(m_movieDbMovieScraper, resultSet, m_movieSearchString, compareStrings, lang);
     compareStrings.add(m_movieSearchString, ':');
     compareStrings.add(m_movieSearchString, '-');
-    if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, buffer, resultSet, m_movieSearchString, compareStrings, lang);
+    if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_movieSearchString, compareStrings, lang);
   }
 }
-bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, cLargeString &buffer, vector<searchResultTvMovie> &resultSet, cSv searchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
+bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<searchResultTvMovie> &resultSet, cSv searchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
 // return true if something was added
 // modify searchString so that the external db will find something
 // call the external db with the modified string
@@ -395,10 +394,10 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, cLargeStri
   cSv searchString1 = SecondPart(searchString_f, "'s ", 6);
   size_t size0 = resultSet.size();
   if (!searchString1.empty()) {
-    extMovieTvDb->addSearchResults(buffer, resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+    extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
     if (resultSet.size() > size0) return true;
   }
-  extMovieTvDb->addSearchResults(buffer, resultSet, searchString_f, true, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+  extMovieTvDb->addSearchResults(resultSet, searchString_f, true, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
   if (resultSet.size() > size0) {
     cNormedString normedSearchString(searchString);
     for (size_t i = size0; i < resultSet.size(); i++)
@@ -406,12 +405,12 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, cLargeStri
   }
   cSv searchString2;
   if (splitString(searchString_f, ": ", 3, searchString1, searchString2) ) {
-    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(buffer, resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
-    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(buffer, resultSet, searchString2, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
   }
   if (splitString(searchString_f, " - ", 3, searchString1, searchString2)) {
-    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(buffer, resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
-    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(buffer, resultSet, searchString2, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
   }
   return resultSet.size() > size0;
 }
