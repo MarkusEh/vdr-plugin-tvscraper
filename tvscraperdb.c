@@ -821,9 +821,11 @@ if (sqlI.readRow() ) {
 }
 jTvscraper.AddMember("movie_tv_id", rapidjson::Value().SetInt(abs(movie_tv_id) ), jInfo->GetAllocator() );
 
-// First erase existing entries. Note: These will not be overwritten by rapidjson
-rapidjson::Pointer("/thetvdb").Erase(*jInfo);
-rapidjson::Pointer("/themoviedb").Erase(*jInfo);
+// First erase ALL existing entries. Note: These will not be overwritten by rapidjson
+  rapidjson::Value::MemberIterator res;
+  for (res = jInfo->FindMember("themoviedb"); res != jInfo->MemberEnd(); res = jInfo->FindMember("themoviedb") ) jInfo->RemoveMember(res);
+  for (res = jInfo->FindMember("thetvdb")   ; res != jInfo->MemberEnd(); res = jInfo->FindMember("thetvdb")    ) jInfo->RemoveMember(res);
+
 // now add the new entries
 if (movie_tv_id > 0) { jInfo->AddMember("themoviedb", jTvscraper, jInfo->GetAllocator() ); }
                 else { jInfo->AddMember("thetvdb",    jTvscraper, jInfo->GetAllocator() ); }
