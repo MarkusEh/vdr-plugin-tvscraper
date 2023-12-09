@@ -293,8 +293,10 @@ int cTv::searchEpisode(cSv tvSearchEpisodeString_i, const cYears &years, const c
   int best_distance = 1000;
   int best_season = 0;
   int best_episode = 0;
-  cSql statement(m_db, "SELECT tv_s_e_name2.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name2 WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id AND tv_s_e.tv_id = ? AND tv_s_e_name2.language_id = ?;", dbID(), langId(lang) );
-  for (cSql &sqli: statement) {
+  cSql statement_tvdb(m_db, "SELECT tv_s_e_name2.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name2 WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id AND tv_s_e.tv_id = ? AND tv_s_e_name2.language_id = ?;", dbID(), langId(lang) );
+  cSql statement_moviedb(m_db, "SELECT tv_s_e_name_moviedb.episode_name, tv_s_e.season_number, tv_s_e.episode_number, tv_s_e.episode_air_date FROM tv_s_e, tv_s_e_name_moviedb WHERE tv_s_e_name_moviedb.episode_id = tv_s_e.episode_id AND tv_s_e.tv_id = ? AND tv_s_e_name_moviedb.language_id = ?;", dbID(), langId(lang) );
+  cSql *statement = dbID()<0?&statement_tvdb:&statement_moviedb;
+  for (cSql &sqli: *statement) {
     const char *episodeName = NULL;
     const char *episode_air_date = NULL;
     int episode = 0;

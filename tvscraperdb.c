@@ -246,6 +246,14 @@ bool cTVScraperDB::CreateTables(void) {
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e_name2 on tv_s_e_name2 (episode_id, language_id); ";
 
+// new table: Original strings, for themoviedb
+    sql << "CREATE TABLE IF NOT EXISTS tv_s_e_name_moviedb (";
+    sql << "episode_id integer, ";
+    sql << "language_id integer, ";
+    sql << "episode_name nvarchar";
+    sql << ");";
+    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e_name_moviedb on tv_s_e_name_moviedb (episode_id, language_id); ";
+
 // time stamp, last update of tv_s_e_name2
     sql << "CREATE TABLE IF NOT EXISTS tv_name (";
     sql << "tv_id integer, ";

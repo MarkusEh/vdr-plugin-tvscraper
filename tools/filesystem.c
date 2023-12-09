@@ -39,19 +39,16 @@ bool FileExistsImg(const char *filename) {
   if (buffer.st_size <  500) return false;  // images are larger than 500
 
 // open and read file to make final decision
-  FILE *f = fopen(filename, "rb");
-  if (!f) {
-    esyslog("tvscraper, FileExistsImg, ERROR: stat OK, fopen fails, filename %s", filename);
+  cToSvFileN<6> fileStart(filename);
+  if (!fileStart.exists() ) {
+    esyslog("tvscraper, FileExistsImg, ERROR: stat OK, open fails, filename %s", filename);
     return false;
   }
-  char m_s[7];
-  size_t num_read = fread (m_s, 1, 6, f);
-  fclose(f);
-  if (num_read != 6) {
-    esyslog("tvscraper, FileExistsImg, ERROR: num_read %zu != 6, filename %s", num_read, filename);
+  if (cSv(fileStart).length() != 6) {
+    esyslog("tvscraper, FileExistsImg, ERROR: num_read %i != 6, filename %s", (int)cSv(fileStart).length(), filename);
     return false;
   }
-  return strncmp(m_s, "<html>", 6) != 0;
+  return strncmp(fileStart.c_str(), "<html>", 6) != 0;
 }
 bool FileExistsImg(const std::string &filename) {
   return FileExistsImg(filename.c_str());
@@ -121,8 +118,8 @@ bool DownloadImg(const char *url, const char *localPath) {
     }
   }
   if (err_code == 0) {
-    cToSvFile df(localPath, 50);  // read max 50 bytes
-    esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url, localPath, df.data() ); // df.data() is zero terminated
+    cToSvFileN<50> df(localPath);  // read max 50 bytes
+    esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url, localPath, df.c_str() ); // df.c_str() is zero terminated
   } else esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url, localPath, error.c_str(), err_code );
   remove(localPath);
   return false;
@@ -148,10 +145,13 @@ void RenameFile(cSv from, cSv to) {
   if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to rename \"%.*s\" to \"%.*s\"", ec.message().c_str(), ec.value(), (int)from.length(), from.data(), (int)to.length(), to.data() );
 }
 
-bool CopyFileImg(const std::string &from, const std::string &to) {
+bool CopyFileImg(const char *from, const char *to) {
 // include checks for images, which may be incomplete
 // true if the file was copied, false otherwise.
   if (!FileExistsImg(from)) return false;
   if ( FileExistsImg(to)) return true;
   return CopyFile(from, to);
 }
+bool CopyFileImg(const std::string &from, const std::string &to) { return CopyFileImg(from.c_str(), to.c_str()); }
+bool CopyFileImg(const std::string &from, const char        *to) { return CopyFileImg(from.c_str(), to        ); }
+bool CopyFileImg(const char        *from, const std::string &to) { return CopyFileImg(from        , to.c_str()); }

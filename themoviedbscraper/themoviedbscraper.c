@@ -30,10 +30,10 @@ bool cMovieDBScraper::parseJSON(const rapidjson::Value &root) {
 // parse result of https://api.themoviedb.org/3/configuration
   const char *imageUrl = getValueCharS2(root, "images", "base_url", "cMovieDBScraper::parseJSON, image URL");
   if (!imageUrl) return false;
-  m_posterBaseUrl = concatenate(imageUrl, posterSize);
-  m_backdropBaseUrl = concatenate(imageUrl, backdropSize);
-  m_stillBaseUrl = concatenate(imageUrl, stillSize);
-  m_actorsBaseUrl = concatenate(imageUrl, actorthumbSize);
+  m_posterBaseUrl = concat(imageUrl, posterSize);
+  m_backdropBaseUrl = concat(imageUrl, backdropSize);
+  m_stillBaseUrl = concat(imageUrl, stillSize);
+  m_actorsBaseUrl = concat(imageUrl, actorthumbSize);
 
   return true;
 }
@@ -54,15 +54,15 @@ void cMovieDBScraper::DownloadMediaTv(int tvID) {
   cSql sql(db, "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
 // if mediaType == season_poster, media_number is the season
   for (cSql &statement: sql.resetBindStep(tvID, (int)mediaSeason)) {
-    std::string baseDirDownload = concatenate(config.GetBaseDirMovieTv(), tvID, "/");
-    CreateDirectory(baseDirDownload);
-    DownloadFile(m_posterBaseUrl, statement.getCharS(0), baseDirDownload, statement.getInt(1), "/poster.jpg", false);
+    cToSvConcat baseDirDownload(config.GetBaseDirMovieTv(), tvID, "/");
+    CreateDirectory(baseDirDownload.c_str() );
+    DownloadFile(m_posterBaseUrl, statement.getStringView(0), baseDirDownload, statement.getInt(1), "/poster.jpg", false);
     break;
   }
   cSql sql2(db, "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
   for (int type = 1; type <= 2; type++) {
     for (cSql &statement: sql2.resetBindStep(tvID, type)) {
-      DownloadFile(m_posterBaseUrl, statement.getCharS(0), config.GetBaseDirMovieTv(), tvID, type==1?"/poster.jpg":"/backdrop.jpg", false);
+      DownloadFile(m_posterBaseUrl, statement.getStringView(0), config.GetBaseDirMovieTv(), tvID, type==1?"/poster.jpg":"/backdrop.jpg", false);
       break;
     }
   }
@@ -80,16 +80,14 @@ void cMovieDBScraper::DownloadMedia(int movieID) {
   }
   db->deleteTvMedia (movieID, true, true);
 }
-bool cMovieDBScraper::DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName, bool movie) {
+bool cMovieDBScraper::DownloadFile(cSv urlBase, cSv urlFileName, cSv destDir, int destID, const char * destFileName, bool movie) {
 // download urlBase urlFileName to destDir destID destFileName
 // for tv shows (movie == false), create the directory destDir destID
   if(urlFileName.empty() ) return false;
-  std::string destFullPath;
-  destFullPath.reserve(200);
-  stringAppend(destFullPath, destDir, destID);
-  if (!movie) CreateDirectory(destFullPath);
+  cToSvConcat destFullPath (destFullPath, destDir, destID);
+  if (!movie) CreateDirectory(destFullPath.c_str() );
   destFullPath.append(destFileName);
-  return DownloadImg(concatenate(urlBase, urlFileName), destFullPath);
+  return DownloadImg(cToSvConcat(urlBase, urlFileName).c_str(), destFullPath.c_str() );
 }
 
 void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode) {
@@ -138,14 +136,13 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, cSv t
     cNormedString normedName(removeLastPartWithP(getValueCharS(result, "name")));
     for (char delim: compareStrings) {
 // distance == deviation from search text
-//      sRes.normedName.reset(removeLastPartWithP(getValueCharS(result, "original_name")));
       int dist_a = compareStrings.minDistance(delim, normedOriginalName, 1000);
       if (lang) {
 // search string is not in original language, reduce match to original_name somewhat
         dist_a = std::min(dist_a + 50, 1000);
         dist_a = compareStrings.minDistance(delim, normedName, dist_a);
       }
-      dist_a = std::min(dist_a + 10, 1000); // avoid this, prefer TVDB
+      dist_a = std::min(dist_a + 50, 1000); // avoid this, prefer TVDB
 
       auto sResIt = find_if(resultSet.begin(), resultSet.end(), [id,delim](const searchResultTvMovie& x) { return x.id() == id && x.delim() == delim;});
       if (sResIt != resultSet.end() ) {

@@ -370,11 +370,13 @@ void cSearchEventOrRec::SearchNew(vector<searchResultTvMovie> &resultSet) {
       compareStrings.add(m_originalTitle, '-');
     }
     if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_originalTitle, compareStrings, nullptr);
+    if (type_override != scrapMovie) addSearchResults(m_movieDbTvScraper, resultSet, m_originalTitle, compareStrings, nullptr);
   }
   const cLanguage *lang = m_sEventOrRecording->GetLanguage();
   if (m_TVshowSearchString != m_movieSearchString && m_TVshowSearchString != m_originalTitle) {
     cCompareStrings compareStrings(m_TVshowSearchString);
     if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_TVshowSearchString, compareStrings, lang);
+    if (type_override != scrapMovie) addSearchResults(m_movieDbTvScraper, resultSet, m_TVshowSearchString, compareStrings, lang);
   }
   if (m_movieSearchString != m_originalTitle) {
     cCompareStrings compareStrings(m_movieSearchString);
@@ -382,6 +384,7 @@ void cSearchEventOrRec::SearchNew(vector<searchResultTvMovie> &resultSet) {
     compareStrings.add(m_movieSearchString, ':');
     compareStrings.add(m_movieSearchString, '-');
     if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_movieSearchString, compareStrings, lang);
+    if (type_override != scrapMovie) addSearchResults(m_movieDbTvScraper, resultSet, m_movieSearchString, compareStrings, lang);
   }
 }
 bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<searchResultTvMovie> &resultSet, cSv searchString, const cCompareStrings &compareStrings, const cLanguage *lang) {

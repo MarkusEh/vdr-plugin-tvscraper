@@ -34,10 +34,12 @@ private:
    bool ReadTv(bool exits_in_db);
    bool ReadTv(const rapidjson::Value &tv);
    bool AddOneSeason();
+   bool AddOneSeason(const cLanguage *lang);
 public:
    cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper);
    virtual ~cMovieDbTv(void);
    bool UpdateDb(bool forceUpdate);
+   int downloadEpisodes(bool forceUpdate, const cLanguage *lang);
    int tvID(void) { return m_tvID; };
    void SetTvID(int tvID) { m_tvID = tvID; };
 };

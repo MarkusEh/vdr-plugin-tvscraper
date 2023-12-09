@@ -484,42 +484,59 @@ class cToSvHex: public cToSv {
     char m_buffer[N];
 };
 
+// read files
+class cOpen {
+  public:
+    cOpen(const char *pathname, int flags) {
+      if (!pathname) return;
+      m_fd = open(pathname, flags);
+      checkError(pathname, errno);
+    }
+    cOpen(const char *pathname, int flags, mode_t mode) {
+      if (!pathname) return;
+      m_fd = open(pathname, flags, mode);
+      checkError(pathname, errno);
+    }
+    operator int() const { return m_fd; }
+    bool exists() const { return m_fd != -1; }
+    ~cOpen() {
+      if (m_fd != -1) close(m_fd);
+    }
+  private:
+    void checkError(const char *pathname, int errno_l) {
+      if (m_fd == -1) {
+// no message for errno == ENOENT, the file just does not exist
+        if (errno_l != ENOENT) esyslog("cOpen::checkError, ERROR: open fails, errno %d, filename %s\n", errno_l, pathname);
+      }
+    }
+    int m_fd = -1;
+};
 class cToSvFile: public cToSv {
   public:
     cToSvFile(const char *filename, size_t max_length = 0) { load(filename, max_length); }
     cToSvFile(const std::string &filename, size_t max_length = 0) { load(filename.c_str(), max_length ); }
-    cToSvFile(const cToSvFile&) = delete;
-    cToSvFile &operator= (const cToSvFile &) = delete;
     operator cSv() const { return m_result; }
-    char *data() { return m_s; } // Retunrs zero if file is empty! Is zero terminated
-    const char *c_str() { return m_s?m_s:""; } // Is zero terminated
+    char *data() { return m_s?m_s:m_empty; } // Is zero terminated
+    const char *c_str() { return m_s?m_s:m_empty; } // Is zero terminated
     bool exists() const { return m_exists; }
     ~cToSvFile() { std::free(m_s); }
   private:
     void load(const char *filename, size_t max_length) {
-      if (!filename) return;
-      int fd = open(filename, O_RDONLY);
-      if (fd == -1) {
-// no message for errno == ENOENT, the file just does not exist
-        if (errno != ENOENT) esyslog("cToSvFile::load, ERROR: open fails, errno %d, filename %s\n", errno, filename);
-        return;
-      }
+      cOpen fd(filename, O_RDONLY);
+      if (!fd.exists()) return;
       struct stat buffer;
       if (fstat(fd, &buffer) != 0) {
         if (errno != ENOENT) esyslog("cToSvFile::load, ERROR: in fstat, errno %d, filename %s\n", errno, filename);
-        close(fd);
         return;
       }
-
 // file exists, length buffer.st_size
       m_exists = true;
-      if (buffer.st_size == 0) { close(fd); return; } // empty file
+      if (buffer.st_size == 0) return; // empty file
       size_t length = buffer.st_size;
       if (max_length != 0 && length > max_length) length = max_length;
       m_s = (char *) malloc((length + 1) * sizeof(char));  // add one. So we can add the 0 string terminator
       if (!m_s) {
         esyslog("cToSvFile::load, ERROR out of memory, filename = %s, requested size = %zu\n", filename, length + 1);
-        close(fd);
         return;
       }
       size_t num_read = 0;
@@ -527,13 +544,11 @@ class cToSvFile: public cToSv {
       for (; num_read1 > 0 && num_read < length; num_read += num_read1) {
         num_read1 = read(fd, m_s + num_read, length - num_read);
         if (num_read1 == -1) {
-          esyslog("cToSvFile::load, ERROR: read fails, errno %d, filename %s\n", errno, filename);
-          close(fd);
+          esyslog("cToSvFile::load, ERROR: read failed, errno %d, filename %s\n", errno, filename);
           m_s[0] = 0;
           return;
         }
       }
-      close(fd);
       m_result = cSv(m_s, num_read);
       m_s[num_read] = 0;  // so data returns a 0 terminated string
       if (num_read != length) {
@@ -542,6 +557,33 @@ class cToSvFile: public cToSv {
     }
     bool m_exists = false;
     char *m_s = nullptr;
+    cSv m_result;
+    char m_empty[1] = "";
+};
+template<std::size_t N> class cToSvFileN: public cToSv {
+// read up to N bytes from file
+  public:
+    cToSvFileN(const char *filename) { load(filename); }
+    cToSvFileN(const std::string &filename) { load(filename.c_str()); }
+    operator cSv() const { return m_result; }
+    char *data() { return m_s; } // Is zero terminated
+    const char *c_str() { return m_s; } // Is zero terminated
+    bool exists() const { return m_exists; }
+  private:
+    void load(const char *filename) {
+      cOpen fd(filename, O_RDONLY);
+      if (!fd.exists()) return;
+      m_exists = true;
+      ssize_t num_read = read(fd, m_s, N);
+      if (num_read == -1) {
+        esyslog("cToSvFile::load, ERROR: read fails, errno %d, filename %s\n", errno, filename);
+        num_read = 0;
+      }
+      m_result = cSv(m_s, num_read);
+      m_s[num_read] = 0;  // so data returns a 0 terminated string
+    }
+    bool m_exists = false;
+    char m_s[N+1] = "";
     cSv m_result;
 };
 
@@ -670,6 +712,11 @@ class cToSvConcat: public cToSv {
     template<typename T> cToSvConcat &operator<<(T sv) { return append(sv); }
     operator cSv() const { return m_use_buffer?cSv(m_buffer, m_pos_for_append-m_buffer):m_buffer_string; }
     const char *c_str() const { if (m_use_buffer) { *m_pos_for_append = 0; return m_buffer; } else return m_buffer_string.c_str(); }
+    cToSvConcat &erase(size_t index = 0) {
+      if (m_use_buffer) m_pos_for_append = std::min(m_pos_for_append, m_buffer + index);
+      else m_buffer_string.erase(index);
+      return *this;
+    }
   private:
     char m_buffer[256];
     char *m_pos_for_append = m_buffer;

@@ -30,13 +30,11 @@ class cMovieDBScraper {
     void AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
 
     void StoreMovie(int movieID, bool forceUpdate = false);
-    bool DownloadFile(const string &urlBase, const string &urlFileName, const string &destDir, int destID, const char * destFileName, bool movie);
+    bool DownloadFile(cSv urlBase, const cSv urlFileName, cSv destDir, int destID, const char * destFileName, bool movie);
     void DownloadMedia(int movieID);
     void DownloadMediaTv(int tvID);
     void DownloadActors(int tvID, bool movie);
     void StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode);
-//    bool AddTvResults(vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cLanguage *lang);
-//    void AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const char *description, const cYears &years, const cLanguage *lang);
 public:
     cMovieDBScraper(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cMovieDBScraper(void);
@@ -85,18 +83,19 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
     }
 
     virtual int downloadEpisodes(int id, const cLanguage *lang) {
-      if (!config.isDefaultLanguage(lang)) return 0; // language dependent texts in episodes in themoviedb are not implemented ...
+//      if (!config.isDefaultLanguage(lang)) return 0; // language dependent texts in episodes in themoviedb are not implemented ...
       cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
       tv.SetTvID(id);
-      tv.UpdateDb(false);
-      return 0;
+//      tv.UpdateDb(false);
+      return tv.downloadEpisodes(false, lang);
     }
 
     virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
-      cSql stmt(m_movieDBScraper->db, "select 1 from tv_episode_run_time where tv_id = ?", searchResultTvMovie.id() );
-      if (stmt.readRow() ) return;
       cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
       tv.SetTvID(searchResultTvMovie.id() );
+      tv.downloadEpisodes(false, lang);
+      cSql stmt(m_movieDBScraper->db, "select 1 from tv_episode_run_time where tv_id = ?", searchResultTvMovie.id() );
+      if (stmt.readRow() ) return;
       tv.UpdateDb(true);
     }
 
