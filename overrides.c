@@ -10,59 +10,66 @@ cOverRides::~cOverRides() {
 }
 
 void cOverRides::ReadConfig(cSv confDir) {
-    stringstream sstrConfFile;
-    sstrConfFile << confDir << "/override.conf";
-    string confFile = sstrConfFile.str();
-    dsyslog("tvscraper: reading overrides from %s", confFile.c_str());
-    if (access(confFile.c_str(), F_OK) == 0) {
-        FILE *f = fopen(confFile.c_str(), "r");
-        if (f) {
-            char *s;
-            cReadLine ReadLine;
-            while ((s = ReadLine.Read(f)) != NULL) {
-                char *p = strchr(s, '#');
-                if (p)
-                    *p = 0;
-                stripspace(s);
-                if (!isempty(s)) {
-                    ReadConfigLine(s);
-                }
-            }
-            fclose(f);
-        }
+  cToSvConcat confFile(confDir, "/override.conf");
+  dsyslog("tvscraper: reading overrides from %s", confFile.c_str());
+  if (access(confFile.c_str(), F_OK) == 0) {
+    FILE *f = fopen(confFile.c_str(), "r");
+    if (f) {
+      char *s;
+      cReadLine ReadLine;
+      while ((s = ReadLine.Read(f)) != NULL) {
+        char *p = strchr(s, '#');
+        if (p) *p = 0;
+        stripspace(s);
+        if (!isempty(s)) ReadConfigLine(s);
+      }
+      fclose(f);
     }
+  }
 }
 
 void cOverRides::ReadConfigLine(const char *line) {
-    vector<cSv> flds = getSetFromString<cSv, vector<cSv>>(line);
-    if (flds.size() > 0) {
-        if (!flds[0].compare("ignore")) {
-            if (flds.size() == 2) {
-                ignores.push_back(string(flds[1]));
-            }
-        } else if (!flds[0].compare("settype")) {
-            if (flds.size() == 3) {
-                if (!flds[2].compare("series")) {
-                    searchTypes.insert(pair<string, scrapType>(flds[1], scrapSeries));
-                } else if (!flds[2].compare("movie")) {
-                    searchTypes.insert(pair<string, scrapType>(flds[1], scrapMovie));
-                }
-            }
-        } else if (!flds[0].compare("substitute")) {
-            if (flds.size() == 3) {
-                substitutes.insert(pair<string, string>(flds[1], flds[2]));
-            }
-        } else if (!flds[0].compare("ignorePath")) {
-            if (flds.size() == 2) {
-                if (flds[1].find("/", flds[1].length()-1) != std::string::npos)
-                    ignorePath.push_back(string(flds[1]));
-                else
-                    ignorePath.push_back(string(flds[1]) + "/");
-            }
-        } else if (!flds[0].compare("removePrefix")) {
-                removePrefixes.push_back(string(flds[1]));
+  vector<cSv> flds = getSetFromString<cSv, vector<cSv>>(line);
+  if (flds.size() > 0) {
+    if (!flds[0].compare("ignore")) {
+      if (flds.size() == 2) {
+        ignores.push_back(string(flds[1]));
+      }
+    } else if (!flds[0].compare("settype")) {
+      if (flds.size() == 3) {
+        if (!flds[2].compare("series")) {
+          searchTypes.insert(pair<string, scrapType>(flds[1], scrapSeries));
+        } else if (!flds[2].compare("movie")) {
+          searchTypes.insert(pair<string, scrapType>(flds[1], scrapMovie));
         }
+      }
+    } else if (!flds[0].compare("substitute")) {
+      if (flds.size() == 3) {
+        substitutes.insert(pair<string, string>(flds[1], flds[2]));
+      }
+    } else if (!flds[0].compare("ignorePath")) {
+      if (flds.size() == 2) {
+        if (flds[1].find("/", flds[1].length()-1) != std::string::npos)
+          ignorePath.push_back(string(flds[1]));
+        else
+          ignorePath.push_back(string(flds[1]) + "/");
+      }
+    } else if (!flds[0].compare("removePrefix")) {
+        removePrefixes.push_back(string(flds[1]));
+    } else if (!flds[0].compare("TheTVDB_SeriesID")) {
+      if (flds.size() == 3) {
+        m_TheTVDB_SeriesID.insert(pair<std::string, int>(std::string(flds[1]), parse_int<int>(flds[2])));
+      }
+    } else if (!flds[0].compare("TheMovieDB_SeriesID")) {
+      if (flds.size() == 3) {
+        m_TheMovieDB_SeriesID.insert(pair<std::string, int>(std::string(flds[1]), parse_int<int>(flds[2])));
+      }
+    } else if (!flds[0].compare("TheMovieDB_MovieID")) {
+      if (flds.size() == 3) {
+        m_TheMovieDB_MovieID.insert(pair<std::string, int>(std::string(flds[1]), parse_int<int>(flds[2])));
+      }
     }
+  }
 }
 
 bool cOverRides::Ignore(cSv title) {
@@ -86,14 +93,28 @@ bool cOverRides::Substitute(string &title) {
     return false;
 }
 
-int cOverRides::thetvdbID(cSv title) {
-    map<string,int,std::less<>>::iterator hit = m_thetvdbID.find(title);
-    if (hit != m_thetvdbID.end()) {
-        if (config.enableDebug)
-            esyslog("tvscraper: title \"%.*s\", use thetvdb ID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
-        return (int)hit->second;
-    }
-    return 0;
+int cOverRides::TheTVDB_SeriesID(cSv title) {
+  auto hit = m_TheTVDB_SeriesID.find(title);
+  if (hit == m_TheTVDB_SeriesID.end()) return 0;
+  if (config.enableDebug)
+    esyslog("tvscraper: title \"%.*s\", use TheTVDB_SeriesID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
+  return hit->second;
+}
+
+int cOverRides::TheMovieDB_SeriesID(cSv title) {
+  auto hit = m_TheMovieDB_SeriesID.find(title);
+  if (hit == m_TheMovieDB_SeriesID.end()) return 0;
+  if (config.enableDebug)
+    esyslog("tvscraper: title \"%.*s\", use TheMovieDB_SeriesID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
+  return hit->second;
+}
+
+int cOverRides::TheMovieDB_MovieID(cSv title) {
+  auto hit = m_TheMovieDB_MovieID.find(title);
+  if (hit == m_TheMovieDB_MovieID.end()) return 0;
+  if (config.enableDebug)
+    esyslog("tvscraper: title \"%.*s\", use TheMovieDB_MovieID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
+  return hit->second;
 }
 
 void cOverRides::RemovePrefix(string &title) {

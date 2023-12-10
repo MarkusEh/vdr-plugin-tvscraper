@@ -206,6 +206,35 @@ cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
   return cMovieOrTv::getMovieOrTv(m_db, movieOrTv);
 }
 
+scrapType cSearchEventOrRec::ScrapCheckOverride(vector<searchResultTvMovie> &searchResults, cSv &foundName, cSv &episodeSearchString) {
+  int o_id = m_overrides->TheTVDB_SeriesID(m_sEventOrRecording->Title() );
+  if (o_id != 0) {
+    foundName = m_sEventOrRecording->Title();
+    episodeSearchString = m_sEventOrRecording->ShortText();
+    searchResultTvMovie l_searchResultTvMovie(-o_id, false, nullptr);
+    l_searchResultTvMovie.setMatchText(0);  // distance == 0 -> exact match
+    searchResults.push_back(std::move(l_searchResultTvMovie));
+    return scrapSeries;
+  }
+  o_id = m_overrides->TheMovieDB_SeriesID(m_sEventOrRecording->Title() );
+  if (o_id != 0) {
+    foundName = m_sEventOrRecording->Title();
+    episodeSearchString = m_sEventOrRecording->ShortText();
+    searchResultTvMovie l_searchResultTvMovie(o_id, false, nullptr);
+    l_searchResultTvMovie.setMatchText(0);  // distance == 0 -> exact match
+    searchResults.push_back(std::move(l_searchResultTvMovie));
+    return scrapSeries;
+  }
+  o_id = m_overrides->TheMovieDB_MovieID(m_sEventOrRecording->Title() );
+  if (o_id != 0) {
+    foundName = m_sEventOrRecording->Title();
+    searchResultTvMovie l_searchResultTvMovie(o_id, true, nullptr);
+    l_searchResultTvMovie.setMatchText(0);  // distance == 0 -> exact match
+    searchResults.push_back(std::move(l_searchResultTvMovie));
+    return scrapMovie;
+  }
+  return scrapNone;
+}
 int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
 // 1: cache hit
 // 11: external db
@@ -219,7 +248,8 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
   vector<searchResultTvMovie> searchResults;
   cSv episodeSearchString;
   cSv foundName;
-  scrapType sType = ScrapFind(searchResults, foundName, episodeSearchString);
+  scrapType sType = ScrapCheckOverride(searchResults, foundName, episodeSearchString);
+  if (sType == scrapNone) sType = ScrapFind(searchResults, foundName, episodeSearchString);
   if (searchResults.size() == 0) sType = scrapNone;
   movieOrTv.type = sType;
   if (sType == scrapNone) {
@@ -298,13 +328,8 @@ int cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
 
 // required for older vdr versions, to make swap used by sort unambigous
 inline void swap(searchResultTvMovie &a, searchResultTvMovie &b) {
-/*
- searchResultTvMovie h = std::move(a);
- a = std::move(b);
- b = std::move(h);
-*/
  std::swap(a, b);
- }
+}
 
 scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResults, cSv &foundName, cSv &episodeSearchString) {
 //  bool debug = m_TVshowSearchString == "james cameron's dark angel";

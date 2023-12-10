@@ -7,12 +7,14 @@ using namespace std;
 
 class cOverRides {
 private:
-    vector<string> ignores;
-    map<string,scrapType, less<>> searchTypes;
-    map<string,string> substitutes;
-    map<string,int,less<>> m_thetvdbID;
-    vector<string> ignorePath;
-    vector<string> removePrefixes;
+    std::vector<std::string> ignores;
+    std::map<std::string,scrapType, less<>> searchTypes;
+    std::map<std::string,string,less<>> substitutes;
+    std::map<std::string,int,less<>> m_TheTVDB_SeriesID;
+    std::map<std::string,int,less<>> m_TheMovieDB_SeriesID;
+    std::map<std::string,int,less<>> m_TheMovieDB_MovieID;
+    std::vector<std::string> ignorePath;
+    std::vector<std::string> removePrefixes;
     void ReadConfigLine(const char *line);
 public:
     cOverRides(void);
@@ -22,8 +24,10 @@ public:
     bool Substitute(string &title);
     void RemovePrefix(string &title);
     scrapType Type(cSv title);
-    int thetvdbID(cSv title);
+    int TheTVDB_SeriesID(cSv title);
+    int TheMovieDB_SeriesID(cSv title);
+    int TheMovieDB_MovieID(cSv title);
     bool IgnorePath(cSv path);
     void Dump(void);
-}; 
+};
 #endif //__TVSCRAPER_OVERRIDES_H
