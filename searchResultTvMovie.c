@@ -5,6 +5,7 @@
 searchResultTvMovie::searchResultTvMovie(int id, bool movie, const char *year):
      m_id(id), m_movie(movie) {
   m_year = cYears::yearToInt(year);
+//  if (id ==	1161242) esyslog("tvscraper: movie 1161242 Vika, year s %s, year i %d", year?year:"no year", m_year);
 // defaults for m_matches
   for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) m_matches[i].match = -1.;
   m_matches[0].weight = 0.6; // match text
@@ -109,6 +110,7 @@ void searchResultTvMovie::setMatchYear(const cYears &years, int durationInSec) {
   if (m_year <= 0) { m_matches[1].match = 0.; return; }
   if (!m_movie &&  durationInSec < 80*60) m_matches[1].weight = 0.1; // for a series, this matching is more irrelevant. Except a min series with long episodes
   int f = years.find2(m_year);
+//  if (m_id ==	1161242) esyslog("tvscraper: movie 1161242 Vika, find2 f %d", f);
   if (f == 2 ) { m_yearMatch =  1; m_matches[1].match = 1.; return; }
   if (f == 1 ) { m_yearMatch = -1; m_matches[1].match = .8; return; }
   m_matches[1].match = .3; // some points for the existing year ...
