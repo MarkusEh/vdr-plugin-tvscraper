@@ -119,7 +119,6 @@ namespace ns_concat {
     for (numChars = 0; i; i /= 10) numChars++;
     return numChars;
   }
-  inline int numChars(cSv s) { return s.length(); }
   inline int numChars(std::string_view s) { return s.length(); }
   inline int numChars(const std::string &s) { return s.length(); }
   inline int numChars(const char *s) { return s?strlen(s):0; }
@@ -130,7 +129,6 @@ namespace ns_concat {
   }
   inline void addChars(char *b, int l, int i) { stringhelpers_internal::addCharsIbe(b+l, i); }
   inline void addChars(char *b, int l, const std::string_view &s) { memcpy(b, s.data(), l); }
-  inline void addChars(char *b, int l, const cSv &s) { memcpy(b, s.data(), l); }
   inline void addChars(char *b, int l, const std::string &s) { memcpy(b, s.data(), l); }
   inline void addChars(char *b, int l, const char *s) { if(s) memcpy(b, s, l); }
 }
@@ -233,6 +231,8 @@ template<class T>
     }
     void finalize() {
 // this adds year +-1, at the end
+// new: this adds year +1, at the end: EPG: Production year, ext.db: premiere
+// back to +-1: Made a check, can also be -1; there seem to be several reasons for deviations ...
       if (m_years_e != -1) return;  // add this only once ...
       m_years_e = m_years_p;
       for (int i=0; i < m_years_e; i++) {

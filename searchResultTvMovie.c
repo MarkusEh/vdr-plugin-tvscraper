@@ -106,7 +106,7 @@ void setScore(int score);
 
 
 void searchResultTvMovie::setMatchYear(const cYears &years, int durationInSec) {
-// input: list of years in texts
+// input: years: list of years in texts
   if (m_year <= 0) { m_matches[1].match = 0.; return; }
   if (!m_movie &&  durationInSec < 80*60) m_matches[1].weight = 0.1; // for a series, this matching is more irrelevant. Except a min series with long episodes
   int f = years.find2(m_year);

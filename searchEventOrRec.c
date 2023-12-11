@@ -207,7 +207,8 @@ cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
 }
 
 scrapType cSearchEventOrRec::ScrapCheckOverride(vector<searchResultTvMovie> &searchResults, cSv &foundName, cSv &episodeSearchString) {
-  int o_id = m_overrides->TheTVDB_SeriesID(m_sEventOrRecording->Title() );
+  cSv title = removeLastPartWithP(m_sEventOrRecording->Title() );
+  int o_id = m_overrides->TheTVDB_SeriesID(title);
   if (o_id != 0) {
     foundName = m_sEventOrRecording->Title();
     episodeSearchString = m_sEventOrRecording->ShortText();
@@ -216,7 +217,7 @@ scrapType cSearchEventOrRec::ScrapCheckOverride(vector<searchResultTvMovie> &sea
     searchResults.push_back(std::move(l_searchResultTvMovie));
     return scrapSeries;
   }
-  o_id = m_overrides->TheMovieDB_SeriesID(m_sEventOrRecording->Title() );
+  o_id = m_overrides->TheMovieDB_SeriesID(title);
   if (o_id != 0) {
     foundName = m_sEventOrRecording->Title();
     episodeSearchString = m_sEventOrRecording->ShortText();
@@ -529,42 +530,43 @@ void cSearchEventOrRec::ScrapAssign(const sMovieOrTv &movieOrTv) {
 }
 
 void cSearchEventOrRec::getActorMatches(const char* actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, cContainer &alreadyFound) {
+// search name in Description & ShortText, if found, increase numMatches*. But only once for each name found
+// return true if found. Always. Even if numMatches is not increased
+
 // numMatchesAll:   complete actor match, and actor must contain a blank
 // numMatchesSure:  match of last part of actor (blank delimited)
 // numMatchesFirst: match of other parts of actor (blank delimited)
 // note: too short parts of actor are ignored, can be articles, ...
-  const char *description = m_sEventOrRecording->Description();
-  if (!description || !actor) return;
+  if (!actor) return;
   const char *pos_blank = strrchr(actor, ' ');
-  if ( pos_blank && addActor(description, actor, numMatchesAll,  alreadyFound)) return;
-  if (!pos_blank && addActor(description, actor, numMatchesSure, alreadyFound)) return;
+  if ( pos_blank && addActor(actor, numMatchesAll,  alreadyFound)) return;
+  if (!pos_blank && addActor(actor, numMatchesSure, alreadyFound)) return;
   if (!pos_blank || pos_blank == actor) return;
 
 // look for matches of part of the actor
   const char *lPos = actor;
   for (const char *rDelimPos; (rDelimPos = strchr(lPos, ' ')); lPos = rDelimPos + 1)
-    addActor(description, cSv(lPos, rDelimPos - lPos), numMatchesFirst, alreadyFound);
-  addActor(description, lPos, numMatchesSure, alreadyFound);
+    addActor(cSv(lPos, rDelimPos - lPos), numMatchesFirst, alreadyFound);
+  addActor(lPos, numMatchesSure, alreadyFound);
 }
 
 void cSearchEventOrRec::getDirectorWriterMatches(cSv directorWriter, int &numMatchesAll, int &numMatchesSure, cContainer &alreadyFound) {
   if (directorWriter.length() < 3) return;
-  const char *description = m_sEventOrRecording->Description();
-  if (!description) return;
-  if (addActor(description, directorWriter, numMatchesAll, alreadyFound)) return;
+  if (addActor(directorWriter, numMatchesAll, alreadyFound)) return;
 // complete name not found. Try last name
   size_t pos_blank = directorWriter.rfind(' ');
   if (pos_blank == std::string::npos || pos_blank == 0) return;
-  addActor(description, directorWriter.substr(pos_blank + 1), numMatchesSure, alreadyFound);
+  addActor(directorWriter.substr(pos_blank + 1), numMatchesSure, alreadyFound);
 }
 
-bool cSearchEventOrRec::addActor(const char *description, cSv name, int &numMatches, cContainer &alreadyFound) {
-// search name in description, if found, increase numMatches. But only once for each name found
+bool cSearchEventOrRec::addActor(cSv name, int &numMatches, cContainer &alreadyFound) {
+// search name in Description & ShortText, if found, increase numMatches. But only once for each name found
 // return true if found. Always. Even if numMatches is not increased
   if (name.length() < 3) return false; // ignore if name is too short
   if (const_ignoreWords.find(name) != const_ignoreWords.end() ) return false;
-  if (strstr_word(description, name.data(), name.length() ) == NULL) return false;   // name not found in description
-  if (!alreadyFound.insert(name)) numMatches++;
+  if (strstr_word(m_sEventOrRecording->Description(), name.data(), name.length() ) == NULL &&
+      strstr_word(m_sEventOrRecording->ShortText()  , name.data(), name.length() ) == NULL) return false;   // name not found in text
+  if (!alreadyFound.insert(name)) ++numMatches;
   return true;
 }
 

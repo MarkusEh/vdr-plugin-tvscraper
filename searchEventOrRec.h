@@ -26,7 +26,7 @@ private:
   void getDirectorWriterMatches(cSv directorWriter, int &numMatchesAll, int &numMatchesSure, cContainer &alreadyFound);
   void getDirectorWriterMatches(searchResultTvMovie &sR, const char *directors, const char *writers);
   void getActorMatches(searchResultTvMovie &sR, cSql &actors);
-  bool addActor(const char *description, cSv name, int &numMatches, cContainer &alreadyFound);
+  bool addActor(cSv name, int &numMatches, cContainer &alreadyFound);
   bool selectBestAndEnhanceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));
   static void enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
   static void enhance2(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);

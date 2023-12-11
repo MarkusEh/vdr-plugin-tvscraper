@@ -70,6 +70,17 @@ class cSv: public std::string_view {
     }
 };
 
+class cStr {
+  public:
+    cStr() {}
+    cStr(const char *s) { if (s) m_s = s; }
+    cStr(const unsigned char *s) { if (s) m_s = reinterpret_cast<const char *>(s); }
+    cStr(const std::string &s): m_s(s.c_str()) {}
+    operator const char*() const { return m_s; }
+  private:
+    const char *m_s = "";
+};
+
 // =========================================================
 // =========================================================
 // Chapter 1: UTF8 string utilities ****************
@@ -444,6 +455,10 @@ class cToSv {
     cToSv &operator= (const cToSv &) = delete;
     virtual ~cToSv() {}
     virtual operator cSv() const = 0;
+    operator std::string_view() const { return (cSv)*this; }
+//    operator std::basic_string_view<char, std::char_traits<char>>() const { return (cSv)*this; }
+template<typename _CharT, typename _Traits>
+operator std::basic_string_view<_CharT, _Traits>() const { return (cSv)*this; }
 };
 inline std::ostream& operator<<(std::ostream& os, cToSv const& sv )
 {
@@ -849,7 +864,6 @@ inline void stringAppend(std::string &str, long long int i) { str.append(cToSvIn
 inline void stringAppend(std::string &str, const char *s) { if(s) str.append(s); }
 inline void stringAppend(std::string &str, const std::string &s) { str.append(s); }
 inline void stringAppend(std::string &str, std::string_view s) { str.append(s); }
-inline void stringAppend(std::string &str, cSv s) { str.append(s); }
 
 inline void stringAppend(std::string &str, const tChannelID &channelID) {
   str.append(cToSvChannel(channelID));
