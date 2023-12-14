@@ -7,11 +7,10 @@ cMovieDbMovie::cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper):
 
 bool cMovieDbMovie::ReadAndStore(int id) {
   const char *lang = config.GetDefaultLanguage()->m_themoviedb;
-  cToSvConcat url(m_baseURL, "/movie/", id, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&append_to_response=credits");
+  cToSvConcat url(m_baseURL, "/movie/", id, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&append_to_response=credits,alternative_titles,translations");
   cJsonDocumentFromUrl document;
   document.set_enableDebug(config.enableDebug);
   if (!document.download_and_parse(url.c_str())) return false;
-//  if (!jsonCallRest(document, buffer, url.c_str(), config.enableDebug)) return false;
   if (!ReadMovie(document, id)) {
     esyslog("tvscraper: ERROR reading movie \"%i\" ", id);
     return false;
@@ -27,6 +26,15 @@ bool cMovieDbMovie::ReadAndStore(int id) {
       m_db->exec("UPDATE movie_runtime2 SET movie_director = ?, movie_writer = ? WHERE movie_id = ?", director, writer, id);
 // add actors to database
     readAndStoreMovieDbActors(m_db, credits_it->value, id, true);
+  }
+
+// alternative_titles =======================
+  cSql sql_titles(m_db, "INSERT OR REPLACE INTO alternative_titles (external_database, id, alternative_title, iso_3166_1) VALUES (?, ?, ?, ?);");
+  rapidjson::Value::ConstMemberIterator alternative_titles_it = document.FindMember("alternative_titles");
+  if (alternative_titles_it != document.MemberEnd() && alternative_titles_it->value.IsObject() ) {
+    for (const rapidjson::Value &title: cJsonArrayIterator(alternative_titles_it->value, "titles")) {
+      sql_titles.resetBindStep(1, id, getValueCharS(title, "title"), getValueCharS(title, "iso_3166_1"));
+    }
   }
   return true;
 }
@@ -59,6 +67,22 @@ bool cMovieDbMovie::ReadMovie(const rapidjson::Value &movie, int id) {
   float voteAverage = getValueDouble(movie, "vote_average");
   int voteCount = getValueInt(movie, "vote_count");
 
+// languages
+  cToSvConcat l_languages;
+  bool first = true;
+  rapidjson::Value::ConstMemberIterator translations_it = movie.FindMember("translations");
+  if (translations_it != movie.MemberEnd() && translations_it->value.IsObject() ) {
+    for (const rapidjson::Value &translation: cJsonArrayIterator(translations_it->value, "translations")) {
+      if(first) {
+        l_languages.append("|");
+        first = false;
+      }
+      l_languages.append(getValueCharS(translation, "iso_639_1"));
+      l_languages.append("-");
+      l_languages.append(getValueCharS(translation, "iso_3166_1"));
+      l_languages.append("|");
+    }
+  }
 // backdropPath, posterPath
   const char *backdropPath = getValueCharS(movie, "backdrop_path");
   const char *posterPath = getValueCharS(movie, "poster_path");
@@ -67,7 +91,7 @@ bool cMovieDbMovie::ReadMovie(const rapidjson::Value &movie, int id) {
   const char *fanart;
   if (posterPath && *posterPath    ) poster = posterPath;   else poster = collectionPosterPath;
   if (backdropPath && *backdropPath) fanart = backdropPath; else fanart = collectionBackdropPath;
-  m_db->InsertMovie(id, title, originalTitle, tagline, overview, adult, collectionId, collectionName, budget, revenue, genres.c_str(), homepage, releaseDate, runtime, popularity, voteAverage, voteCount, productionCountries.c_str(), poster, fanart, imdb_id);
+  m_db->InsertMovie(id, title, originalTitle, tagline, overview, adult, collectionId, collectionName, budget, revenue, genres.c_str(), homepage, releaseDate, runtime, popularity, voteAverage, voteCount, productionCountries.c_str(), poster, fanart, imdb_id, l_languages.c_str() );
 
 // store media in db, for later download
   cSql stmt(m_db, "INSERT OR REPLACE INTO tv_media (tv_id, media_path, media_type, media_number) VALUES (?, ?, ?, ?);");
@@ -75,9 +99,5 @@ bool cMovieDbMovie::ReadMovie(const rapidjson::Value &movie, int id) {
   if (backdropPath && * backdropPath) stmt.resetBindStep(id, backdropPath, mediaFanart, -100);
   if (collectionPosterPath && *collectionPosterPath)     stmt.resetBindStep(id, collectionPosterPath,   mediaPosterCollection, collectionId * -1);
   if (collectionBackdropPath && *collectionBackdropPath) stmt.resetBindStep(id, collectionBackdropPath, mediaFanartCollection, collectionId * -1);
-//  m_db->insertTvMediaSeasonPoster (id, posterPath,   mediaPoster, -100);
-//  m_db->insertTvMediaSeasonPoster (id, backdropPath, mediaFanart, -100);
-//  m_db->insertTvMediaSeasonPoster (id, collectionPosterPath,   mediaPosterCollection, collectionId * -1);
-//  m_db->insertTvMediaSeasonPoster (id, collectionBackdropPath, mediaFanartCollection, collectionId * -1);
   return true;
 }

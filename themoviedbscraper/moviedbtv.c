@@ -75,23 +75,24 @@ int cMovieDbTv::downloadEpisodes(bool forceUpdate, const cLanguage *lang) {
 bool cMovieDbTv::ReadTv(bool exits_in_db) {
 // call themoviedb api, get data
   const char *lang = config.GetDefaultLanguage()->m_themoviedb;
-  std::string url = concatenate(m_baseURL, "/tv/", m_tvID, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&include_image_language=en,null");
-  if(!exits_in_db) url += "&append_to_response=credits";
+  cToSvConcat url(m_baseURL, "/tv/", m_tvID, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&include_image_language=en,null&append_to_response=translations,alternative_titles");
+  if(!exits_in_db) url.append(",credits");
   cJsonDocumentFromUrl tv;
   tv.set_enableDebug(config.enableDebug);
-  if (!tv.download_and_parse(url.c_str())) return false;
+  if (!tv.download_and_parse(url.c_str() )) return false;
   bool ret = ReadTv(tv);
-  if(ret) {
+  if (ret) {
     if (m_episodeRunTimes.empty() ) m_episodeRunTimes.insert(-1); // empty episodeRunTimes results in re-reading it from external db. And there is no data on external db ...
-    if(!exits_in_db) {
+    if (!exits_in_db) {
 // no database entry for tvID, create the db entry
-      m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks.c_str(), m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, nullptr, m_status, m_episodeRunTimes, m_createdBy.c_str(), nullptr);
+      m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks.c_str(), m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, nullptr, m_status, m_episodeRunTimes, m_createdBy.c_str(), m_languages.c_str() );
 // credits
       rapidjson::Value::ConstMemberIterator jCredits_it = tv.FindMember("credits");
       if (jCredits_it != tv.MemberEnd() && jCredits_it->value.IsObject() )
         readAndStoreMovieDbActors(m_db, jCredits_it->value, m_tvID, false);
     } else {
       m_db->InsertTvEpisodeRunTimes(m_tvID, m_episodeRunTimes);
+      m_db->exec("INSERT OR REPLACE INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update, tv_actors_last_update, tv_data_available) VALUES (?, ?, ?, ?, ?, ?)", m_tvID, m_popularity, m_languages, time(0), time(0), 4);
     }
   }
   return ret;
@@ -118,6 +119,31 @@ bool cMovieDbTv::ReadTv(const rapidjson::Value &tv) {
     int rt = jElement.GetInt();
     if (rt != 0) m_episodeRunTimes.insert(rt);
   }
+// alternative titles
+  cSql sql_titles(m_db, "INSERT OR REPLACE INTO alternative_titles (external_database, id, alternative_title, iso_3166_1) VALUES (?, ?, ?, ?);");
+  rapidjson::Value::ConstMemberIterator alternative_titles_it = tv.FindMember("alternative_titles");
+  if (alternative_titles_it != tv.MemberEnd() && alternative_titles_it->value.IsObject() ) {
+    for (const rapidjson::Value &title: cJsonArrayIterator(alternative_titles_it->value, "results")) {
+      sql_titles.resetBindStep(2, m_tvID, getValueCharS(title, "title"), getValueCharS(title, "iso_3166_1"));
+    }
+  }
+// languages
+  cToSvConcat l_languages;
+  bool first = true;
+  rapidjson::Value::ConstMemberIterator translations_it = tv.FindMember("translations");
+  if (translations_it != tv.MemberEnd() && translations_it->value.IsObject() ) {
+    for (const rapidjson::Value &translation: cJsonArrayIterator(translations_it->value, "translations")) {
+      if(first) {
+        l_languages.append("|");
+        first = false;
+      }
+      l_languages.append(getValueCharS(translation, "iso_639_1"));
+      l_languages.append("-");
+      l_languages.append(getValueCharS(translation, "iso_3166_1"));
+      l_languages.append("|");
+    }
+  }
+  m_languages = std::string(l_languages);
 // download poster & backdrop
   m_db->insertTvMedia(m_tvID, m_tvPosterPath,   mediaPoster);
   m_db->insertTvMedia(m_tvID, m_tvBackdropPath, mediaFanart);

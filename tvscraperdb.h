@@ -368,8 +368,12 @@ class cSql {
 // The pointers returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
       ///< s (char *) results will be valit until finalizePrepareBindStep or reset is called on this cSql,
       ///<            or this cSql is destroyed
-    int getInt(int col) {
-      return preCheckRead(col)?static_cast<int>(sqlite3_column_int64(m_statement, col)):0;
+    int getInt(int col, int row_not_found = 0, int col_empty = 0) {
+// return value provided in row_not_found if the row was not found in db (m_last_step_result != SQLITE_ROW)
+// return value provided in col_empty if col is empty (there was never wirtten a value, or nullptr was written
+      if (!preCheckRead(col) ) return row_not_found;
+      if (col_empty != 0 && sqlite3_column_type(m_statement, col) == SQLITE_NULL) return col_empty;
+      return static_cast<int>(sqlite3_column_int64(m_statement, col));
     }
     sqlite3_int64 getInt64(int col) {
       return preCheckRead(col)?sqlite3_column_int64(m_statement, col):0;
@@ -511,7 +515,7 @@ public:
     std::string queryString(const char *query, Args&&... args) const {
 // return "" if the requested entry does not exist in database
       cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
-      return sql.readRow()?std::string(sql.getStringView(0)):"";
+      return sql.readRow()?std::string(sql.getStringView(0)):std::string();
     }
 // methods to make specific db changes
     void ClearOutdated() const;
@@ -530,7 +534,7 @@ public:
     void InsertEvent(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
     void DeleteEventOrRec(csEventOrRecording *sEventOrRecording);
     void InsertActor(int seriesID, const char *name, const char *role, const char *path);
-    void InsertMovie(int movieID, const char *title, const char *original_title, const char *tagline, const char *overview, bool adult, int collection_id, const char *collection_name, int budget, int revenue, const char *genres, const char *homepage, const char *release_date, int runtime, float popularity, float vote_average, int vote_count, const char *productionCountries, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID);
+    void InsertMovie(int movieID, const char *title, const char *original_title, const char *tagline, const char *overview, bool adult, int collection_id, const char *collection_name, int budget, int revenue, const char *genres, const char *homepage, const char *release_date, int runtime, float popularity, float vote_average, int vote_count, const char *productionCountries, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *languages);
     bool MovieExists(int movieID);
     bool TvExists(int tvID);
     int InsertRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
@@ -546,7 +550,6 @@ public:
     string GetDescriptionTv(int tvID, int seasonNumber, int episodeNumber);
     string GetDescriptionMovie(int movieID);
     bool GetMovie(int movieID, string &title, string &original_title, string &tagline, string &overview, bool &adult, int &collection_id, string &collection_name, int &budget, int &revenue, string &genres, string &homepage, string &release_date, int &runtime, float &popularity, float &vote_average);
-    string GetMovieTagline(int movieID);
     int GetMovieRuntime(int movieID) const;
     bool GetTv(int tvID, string &name, string &overview, string &firstAired, string &networks, string &genres, float &popularity, float &vote_average, string &status);
     bool GetTv(int tvID, time_t &lastUpdated, string &status);

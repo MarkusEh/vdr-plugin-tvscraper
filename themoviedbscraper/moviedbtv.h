@@ -31,6 +31,7 @@ private:
    int m_seasonNumber = 0;
    int m_episodeNumber = 0;
    set<int> m_episodeRunTimes;
+   std::string m_languages;
    bool ReadTv(bool exits_in_db);
    bool ReadTv(const rapidjson::Value &tv);
    bool AddOneSeason();

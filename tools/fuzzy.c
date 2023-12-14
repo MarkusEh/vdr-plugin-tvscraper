@@ -182,9 +182,7 @@ std::set<cSv> const_ignoreWords = {"der", "die", "das", "the", "I", "-", "in", "
 class cNormedString {
   public:
     cNormedString(int malus = 0): m_malus(malus) {}
-    cNormedString(const char *s, int malus = 0): m_malus(malus) { reset(s); }
-    cNormedString(      cSv s, int malus = 0): m_malus(malus) { reset(s); }
-    cNormedString(const std::string     &s, int malus = 0): m_malus(malus) { reset(s); }
+    cNormedString(cSv s, int malus = 0): m_malus(malus) { reset(s); }
     cNormedString(const cNormedString&) = delete;
     cNormedString &operator= (const cNormedString &other) {
       m_malus = other.m_malus;
@@ -329,6 +327,9 @@ class cNormedString {
     }
 
   public:
+    int sentence_distance(cSv other, int curDistance = 1000) const {
+      return sentence_distance(cNormedString(other), curDistance);
+    }
     int sentence_distance(const cNormedString &other, int curDistance = 1000) const {
 // return 0-1000, or 0-curDistance
 // if there is already a curDistance, return the smaller one (std::min(result of this, curDistance))

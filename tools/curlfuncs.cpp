@@ -135,7 +135,7 @@ bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, std::
   return false;
 }
 
-bool CurlPostUrl(const char *url, const std::string &sPost, std::string &sOutput, struct curl_slist *headers) {
+bool CurlPostUrl(const char *url, cStr sPost, std::string &sOutput, struct curl_slist *headers) {
   InitCurlLibraryIfNeeded();
   curl_easy_setopt(curlfuncs::curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt(curlfuncs::curl, CURLOPT_URL, url);

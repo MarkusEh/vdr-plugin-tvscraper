@@ -56,7 +56,17 @@ inline std::string charPointerToString(const unsigned char *s) {
 class cSv: public std::string_view {
   public:
     cSv(): std::string_view() {}
-    cSv(const char *s): std::string_view(charPointerToStringView(s)) {}
+    template<std::size_t N> cSv(const char (&s)[N]): std::string_view(s, N-1) {
+//      std::cout << "cSv const char (&s)[N] " << s << "\n";
+    }
+    template<typename T, std::enable_if_t<std::is_same<T, const char*>::value, bool> = true>
+    cSv(T s): std::string_view(charPointerToStringView(s)) {
+//      std::cout << "cSv const char *s " << (s?s:"nullptr") << "\n";
+    }
+    template<typename T, std::enable_if_t<std::is_same<T, char*>::value, bool> = true>
+    cSv(T s): std::string_view(charPointerToStringView(s)) {
+//      std::cout << "cSv       char *s " << (s?s:"nullptr") << "\n";
+    }
     cSv(const unsigned char *s): std::string_view(charPointerToStringView(reinterpret_cast<const char *>(s))) {}
     cSv(const char *s, size_t l): std::string_view(s, l) {}
     cSv(const unsigned char *s, size_t l): std::string_view(reinterpret_cast<const char *>(s), l) {}
@@ -77,6 +87,10 @@ class cStr {
     cStr(const unsigned char *s) { if (s) m_s = reinterpret_cast<const char *>(s); }
     cStr(const std::string &s): m_s(s.c_str()) {}
     operator const char*() const { return m_s; }
+    const char *c_str() const { return m_s; }
+    const char *data() const { return m_s; }
+    size_t length() const { return strlen(m_s); }
+    operator cSv() const { return cSv(m_s, strlen(m_s)); }
   private:
     const char *m_s = "";
 };
@@ -456,9 +470,6 @@ class cToSv {
     virtual ~cToSv() {}
     virtual operator cSv() const = 0;
     operator std::string_view() const { return (cSv)*this; }
-//    operator std::basic_string_view<char, std::char_traits<char>>() const { return (cSv)*this; }
-template<typename _CharT, typename _Traits>
-operator std::basic_string_view<_CharT, _Traits>() const { return (cSv)*this; }
 };
 inline std::ostream& operator<<(std::ostream& os, cToSv const& sv )
 {
@@ -528,11 +539,11 @@ class cOpen {
 };
 class cToSvFile: public cToSv {
   public:
-    cToSvFile(const char *filename, size_t max_length = 0) { load(filename, max_length); }
-    cToSvFile(const std::string &filename, size_t max_length = 0) { load(filename.c_str(), max_length ); }
+    cToSvFile(cStr filename, size_t max_length = 0) { load(filename, max_length ); }
     operator cSv() const { return m_result; }
     char *data() { return m_s?m_s:m_empty; } // Is zero terminated
-    const char *c_str() { return m_s?m_s:m_empty; } // Is zero terminated
+    const char *c_str() const { return m_s?m_s:m_empty; } // Is zero terminated
+    operator cStr() const { return m_s; }
     bool exists() const { return m_exists; }
     ~cToSvFile() { std::free(m_s); }
   private:
@@ -578,11 +589,11 @@ class cToSvFile: public cToSv {
 template<std::size_t N> class cToSvFileN: public cToSv {
 // read up to N bytes from file
   public:
-    cToSvFileN(const char *filename) { load(filename); }
-    cToSvFileN(const std::string &filename) { load(filename.c_str()); }
+    cToSvFileN(cStr filename) { load(filename); }
     operator cSv() const { return m_result; }
     char *data() { return m_s; } // Is zero terminated
     const char *c_str() { return m_s; } // Is zero terminated
+    operator cStr() const { return m_s; }
     bool exists() const { return m_exists; }
   private:
     void load(const char *filename) {
@@ -727,6 +738,7 @@ class cToSvConcat: public cToSv {
     template<typename T> cToSvConcat &operator<<(T sv) { return append(sv); }
     operator cSv() const { return m_use_buffer?cSv(m_buffer, m_pos_for_append-m_buffer):m_buffer_string; }
     const char *c_str() const { if (m_use_buffer) { *m_pos_for_append = 0; return m_buffer; } else return m_buffer_string.c_str(); }
+    operator cStr() const { return this->c_str(); }
     cToSvConcat &erase(size_t index = 0) {
       if (m_use_buffer) m_pos_for_append = std::min(m_pos_for_append, m_buffer + index);
       else m_buffer_string.erase(index);

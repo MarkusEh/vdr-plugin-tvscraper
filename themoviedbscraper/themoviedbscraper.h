@@ -54,9 +54,8 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
     virtual int downloadEpisodes(int id, const cLanguage *lang) { return 0; }
 
     virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
-      int runtime = m_movieDBScraper->db->GetMovieRuntime(searchResultTvMovie.id() );
-      if (runtime  >  0 || runtime == -1) return;
-// themoviedb never checked for runtime, check now
+      if (cSql(m_movieDBScraper->db, "SELECT movie_data_available FROM movie_runtime2 WHERE movie_id = ?", searchResultTvMovie.id() ).getInt(0) >= 4) return;
+// Data are missing for this movie, download now
       m_movieDBScraper->StoreMovie(searchResultTvMovie.id(), true);
     }
 
@@ -83,10 +82,8 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
     }
 
     virtual int downloadEpisodes(int id, const cLanguage *lang) {
-//      if (!config.isDefaultLanguage(lang)) return 0; // language dependent texts in episodes in themoviedb are not implemented ...
       cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
       tv.SetTvID(id);
-//      tv.UpdateDb(false);
       return tv.downloadEpisodes(false, lang);
     }
 
@@ -94,8 +91,7 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
       cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
       tv.SetTvID(searchResultTvMovie.id() );
       tv.downloadEpisodes(false, lang);
-      cSql stmt(m_movieDBScraper->db, "select 1 from tv_episode_run_time where tv_id = ?", searchResultTvMovie.id() );
-      if (stmt.readRow() ) return;
+      if (cSql(m_movieDBScraper->db, "SELECT movie_data_available FROM movie_runtime2 WHERE movie_id = ?", searchResultTvMovie.id() ).getInt(0) >= 4) return;
       tv.UpdateDb(true);
     }
 

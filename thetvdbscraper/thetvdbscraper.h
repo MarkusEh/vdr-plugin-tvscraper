@@ -63,7 +63,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
 //   checks if seriesID, name, role already exists in db.
 //   If yes, it will just download path (if the file is not available)
       cSql stmt(m_TVDBScraper->db,
-        "SELECT tv_languages, tv_languages_last_update, tv_actors_last_update FROM tv_score WHERE tv_id = ?", searchResultTvMovie.id() );
+        "SELECT tv_languages, tv_languages_last_update, tv_actors_last_update, tv_data_available integer FROM tv_score WHERE tv_id = ?", searchResultTvMovie.id() );
       if (!stmt.readRow() || stmt.getInt(2) == 0) {
 // no cache at all, or missing actors => complete download
         if (config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 force update, reason %s, lang %s, seriesID %i",

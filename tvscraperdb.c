@@ -140,8 +140,8 @@ int cTVScraperDB::LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int is
 bool cTVScraperDB::CreateTables(void) {
     stringstream sql;
 // tv2: data for a TV show.
-// tv_id > 0 -> data from themoviedb
-// tv_id < 0 -> data from thetvdb
+// tv_id > 0 -> data from The Movie Database (TMDB)
+// tv_id < 0 -> data from TheTVDB
     sql << "DROP TABLE IF EXISTS tv;";
     sql << "CREATE TABLE IF NOT EXISTS tv2 (";
     sql << "tv_id integer primary key, ";
@@ -166,6 +166,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "tv_last_changed integer"; // time stamp: last time when new episodes were added to tv_s_e
     sql << ");";
 
+// used for TheTVDB and TMDB
 // each TV show can have several episode run times
 // entries in this table are not deletet, so it is a cache
 // better: use individual run times in tv_s_e
@@ -174,25 +175,32 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "episode_run_time integer);";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_episode_run_time on tv_episode_run_time (tv_id, episode_run_time);";
 
-// entries in this table are not deletet, so it is a cache
-    sql << "CREATE TABLE IF NOT EXISTS tv_vote (";
-    sql << "tv_id integer primary key, ";
-    sql << "tv_vote_average real, ";
-    sql << "tv_vote_count integer);";
+    sql << "DROP TABLE IF EXISTS tv_vote;";
 
-// TheTvdb now provides a TV score, instead of vote_average / vote_count
-// entries in this table are not deletet, so it is a cache
-// tv_id < 0 => thetvdb
+// ===========  tv_score            ================================
+// notes for TheTVDB:
+//   score not part of search results -> required here
+//   tv_vote_average / vote_count not available any more in TheTVDB
+//   we also cache the list of available languages
+// notes for The Movie Database (TMDB):
+//   score not required for TMDB, as TMDB has this list in the search results
+//     for movies and series
+//   languages not available -> empty
+//   tv_actors_last_update -> only data used for TMDB
+// entries in this table are not deleted, so it is a cache
+// tv_id < 0 => TheTVDB
+// tv_id > 0 => The Movie Database (TMDB)
     sql << "CREATE TABLE IF NOT EXISTS tv_score (";
     sql << "tv_id integer primary key, ";
-    sql << "tv_score real, ";
+    sql << "tv_score real, ";  // only TheTVDB, for TMDB vote* is part of the search result
     sql << "tv_languages nvarchar, ";
     sql << "tv_languages_last_update integer, ";
-    sql << "tv_actors_last_update integer);";
-// for themoviedb: No information available regarding translations
+    sql << "tv_actors_last_update integer, ";
+    sql << "tv_data_available integer);"; // 0 no data; 1: score; 2: languages; 3: actors; 4: alternative_titles
+// check actors the TMDB
+// for TMDB: &append_to_response=credits,translations,alternative_titles
 //    if translation is missing in "get movie detail": overview == "", tagline == "", and title == original_title
 //    if translation is missing in "search result":    overview == overview in orig. language, and title == original_title
-
 
     sql << "CREATE TABLE IF NOT EXISTS tv_media (";
     sql << "tv_id integer, ";
@@ -210,7 +218,37 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "movie_runtime integer, ";
     sql << "movie_tagline nvarchar(255), ";
     sql << "movie_director nvarchar, ";
-    sql << "movie_writer nvarchar);";
+    sql << "movie_writer nvarchar, ";
+    sql << "movie_languages nvarchar, ";
+    sql << "movie_last_update integer, ";
+    sql << "movie_data_available integer);"; //0 no data; 1: runtime; 2: tagline; 3: director/writer; 4: alternative_titles+languages
+
+// ===========  alternative_titles  ================================
+// notes for TheTVDB:
+//   not required for TheTVDB, as TheTVDB has this list in the search results
+//   (without any language information)
+//   In get series, TheTVDB provides a language for each alias name
+//   (3 letter code, same as for translations)
+// notes for The Movie Database (TMDB):
+//   not part of search results -> required here
+//   TMDB provides a country (!) together with each alternative title
+//   see also https://www.themoviedb.org/talk/610d7b404cbe12004b4474a2
+//   available for movies and series
+    sql << "CREATE TABLE IF NOT EXISTS alternative_titles (";
+    sql << "external_database integer, ";  // 1: TMDB movie; 2: TMDB series; 4: TheTVDB series
+    sql << "id integer, ";   // id of the object in the external database
+    sql << "alternative_title nvarchar, ";
+    sql << "iso_3166_1 nvarchar);";  // country !!
+    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_alternative_titles on alternative_titles (external_database, id, alternative_title);";
+/*
+for thetvdb:
+    for (const rapidjson::Value &alias: cJsonArrayIterator(data, "aliases")) {
+      if (alias.IsString() )
+      dist_a = compareStrings.minDistance(delim, removeLastPartWithP(alias.GetString()), dist_a);
+    }
+-> ignore country information
+*/
+
 
 // episode information for tv
     sql << "CREATE TABLE IF NOT EXISTS tv_s_e (";
@@ -238,7 +276,7 @@ bool cTVScraperDB::CreateTables(void) {
 // delete old table, with normaices strings
     sql << "DROP INDEX IF EXISTS idx_tv_s_e_name;";
     sql << "DROP TABLE IF EXISTS tv_s_e_name;";
-// new table: Original strings, to allow future improvements
+// new table: Original strings for TheTVDB, to allow future improvements
     sql << "CREATE TABLE IF NOT EXISTS tv_s_e_name2 (";
     sql << "episode_id integer, ";
     sql << "language_id integer, ";
@@ -246,7 +284,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e_name2 on tv_s_e_name2 (episode_id, language_id); ";
 
-// new table: Original strings, for themoviedb
+// Original strings, for The Movie Database
     sql << "CREATE TABLE IF NOT EXISTS tv_s_e_name_moviedb (";
     sql << "episode_id integer, ";
     sql << "language_id integer, ";
@@ -254,13 +292,16 @@ bool cTVScraperDB::CreateTables(void) {
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_s_e_name_moviedb on tv_s_e_name_moviedb (episode_id, language_id); ";
 
-// time stamp, last update of tv_s_e_name2
+// time stamp, last update of tv_s_e_name2 and tv_s_e_name_moviedb
+// tv_id < 0 => TheTVDB
+// tv_id > 0 => The Movie Database (TMDB)
     sql << "CREATE TABLE IF NOT EXISTS tv_name (";
     sql << "tv_id integer, ";
     sql << "language_id integer, ";
     sql << "tv_last_updated integer);";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_name on tv_name (tv_id, language_id); ";
 
+// The Movie Database (TMDB)
     sql << "CREATE TABLE IF NOT EXISTS actor_tv (";
     sql << "tv_id integer, ";
     sql << "actor_id integer, ";
@@ -268,6 +309,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_actor_tv on actor_tv (tv_id, actor_id); ";
 
+// The Movie Database (TMDB)
     sql << "CREATE TABLE IF NOT EXISTS actor_tv_episode (";
     sql << "episode_id integer, ";
     sql << "actor_id integer, ";
@@ -275,9 +317,10 @@ bool cTVScraperDB::CreateTables(void) {
     sql << ");";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_actor_tv on actor_tv_episode (episode_id, actor_id); ";
 
-// actors for tv shows from thetvdb
-// note: actor_series_id > 0, as this is always from thetvdb
-// so here, as an exception, we have positive actor_series_id for data from thetvdb
+// TheTVDB
+// actors for tv shows from TheTVDB
+// note: actor_series_id > 0, as this is always from TheTVDB
+// so here, as an exception, we have positive actor_series_id for data from TheTVDB
     sql << "CREATE TABLE IF NOT EXISTS series_actors (";
     sql << "actor_series_id integer, ";
     sql << "actor_name nvarchar(255), ";
@@ -293,7 +336,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "equal_id integer);";
     sql << "CREATE INDEX IF NOT EXISTS idx1 on tv_similar (equal_id); ";
 
-// data for movies from themoviedb
+// data for movies from The Movie Database
     sql << "DROP TABLE IF EXISTS movies;";
     sql << "DROP TABLE IF EXISTS movies2;";
     sql << "CREATE TABLE IF NOT EXISTS movies3 (";
@@ -320,7 +363,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "movie_IMDB_ID text";
     sql << ");";
 
-// actors from themoviedb
+// actors from The Movie Database
     sql << "CREATE TABLE IF NOT EXISTS actors (";
     sql << "actor_id integer primary key, ";
     sql << "actor_has_image integer , ";
@@ -334,6 +377,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "actor_path nvarchar";
     sql << ");";
 
+// movie actors from The Movie Database
     sql << "CREATE TABLE IF NOT EXISTS actor_movie (";
     sql << "actor_id integer, ";
     sql << "movie_id integer, ";
@@ -402,9 +446,13 @@ bool cTVScraperDB::CreateTables(void) {
     AddCulumnIfNotExists("tv_score", "tv_languages", "nvarchar");
     AddCulumnIfNotExists("tv_score", "tv_languages_last_update", "integer");
     AddCulumnIfNotExists("tv_score", "tv_actors_last_update", "integer");
+    AddCulumnIfNotExists("tv_score", "tv_data_available", "integer");
     AddCulumnIfNotExists("tv2", "tv_display_language", "integer");
     AddCulumnIfNotExists("movie_runtime2", "movie_director", "nvarchar");
     AddCulumnIfNotExists("movie_runtime2", "movie_writer", "nvarchar");
+    AddCulumnIfNotExists("movie_runtime2", "movie_languages", "nvarchar");
+    AddCulumnIfNotExists("movie_runtime2", "movie_last_update", "integer");
+    AddCulumnIfNotExists("movie_runtime2", "movie_data_available", "integer");
     AddCulumnIfNotExists("actors", "actor_has_image", "integer");
     AddCulumnIfNotExists("event", "runtime", "integer");
     AddCulumnIfNotExists("recordings2", "runtime", "integer");
@@ -503,7 +551,6 @@ void cTVScraperDB::DeleteSeriesCache(int seriesID) const {
 //   are missing
   if (config.enableDebug) esyslog("tvscraper: cTVScraperDB::DeleteSeriesCache seriesID %i", seriesID);
   exec("DELETE FROM tv_episode_run_time WHERE tv_id = ?", seriesID);
-  exec("DELETE FROM tv_vote             WHERE tv_id = ?", seriesID);
   exec("DELETE FROM tv_score            WHERE tv_id = ?", seriesID);
   if (seriesID > 0)
     exec("DELETE FROM actor_tv          WHERE tv_id = ?", seriesID);
@@ -562,10 +609,8 @@ void cTVScraperDB::InsertTv(int tvID, const char *name, const char *originalName
   }
 
     InsertTvEpisodeRunTimes(tvID, EpisodeRunTimes);
-    exec("INSERT OR REPLACE INTO tv_vote (tv_id, tv_vote_average, tv_vote_count) VALUES (?, ?, ?)",
-      tvID, vote_average, vote_count);
 // note: we call InsertTv only in case of reading all data (includeing actors, even if they are updated elsewhere)
-    exec("INSERT OR REPLACE INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update, tv_actors_last_update) VALUES (?, ?, ?, ?, ?)", tvID, popularity, languages, time(0), time(0) );
+    exec("INSERT OR REPLACE INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update, tv_actors_last_update, tv_data_available) VALUES (?, ?, ?, ?, ?, ?)", tvID, popularity, languages, time(0), time(0), 4);
 }
 
 void cTVScraperDB::InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes) {
@@ -650,7 +695,7 @@ void cTVScraperDB::DeleteEventOrRec(csEventOrRecording *sEventOrRecording) {
   }
 }
 
-void cTVScraperDB::InsertMovie(int movieID, const char *title, const char *original_title, const char *tagline, const char *overview, bool adult, int collection_id, const char *collection_name, int budget, int revenue, const char *genres, const char *homepage, const char *release_date, int runtime, float popularity, float vote_average, int vote_count, const char *productionCountries, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID){
+void cTVScraperDB::InsertMovie(int movieID, const char *title, const char *original_title, const char *tagline, const char *overview, bool adult, int collection_id, const char *collection_name, int budget, int revenue, const char *genres, const char *homepage, const char *release_date, int runtime, float popularity, float vote_average, int vote_count, const char *productionCountries, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *languages) {
 
   exec("INSERT OR REPLACE INTO movies3 (movie_id, movie_title, movie_original_title, movie_tagline, movie_overview, movie_adult, movie_collection_id, movie_collection_name, movie_budget, movie_revenue, movie_genres, movie_homepage, movie_release_date, movie_runtime, movie_popularity, movie_vote_average, movie_vote_count, movie_production_countries, movie_posterUrl, movie_fanartUrl, movie_IMDB_ID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
     movieID, title, original_title, tagline, overview, adult, collection_id, collection_name, budget, revenue,
@@ -658,12 +703,8 @@ void cTVScraperDB::InsertMovie(int movieID, const char *title, const char *origi
     vote_count, productionCountries, posterUrl, fanartUrl, IMDB_ID);
 // extra table for runtime & tagline, will not be deleted
   if (runtime == 0) runtime = -1; // -1 : no runtime available in themoviedb
-  exec("INSERT OR REPLACE INTO movie_runtime2 (movie_id, movie_runtime, movie_tagline) VALUES (?, ?, ?);",
-    movieID, runtime, tagline);
-}
-
-string cTVScraperDB::GetMovieTagline(int movieID) {
-  return queryString("select movie_tagline from movie_runtime2 where movie_id = ?", movieID);
+  exec("INSERT OR REPLACE INTO movie_runtime2 (movie_id, movie_runtime, movie_tagline, movie_languages, movie_last_update, movie_data_available) VALUES (?, ?, ?, ?, ?, ?);",
+    movieID, runtime, tagline, languages, time(0), 4); // current version of cMovieDbMovie::ReadAndStore stores all of; 1: runtime; 2: tagline; 3: director/writer; 4: alternative_titles
 }
 
 int cTVScraperDB::GetMovieRuntime(int movieID) const {

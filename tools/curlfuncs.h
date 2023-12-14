@@ -28,7 +28,7 @@ int CurlGetUrlFile(const char *url, const char *filename);
 bool CurlGetUrlFile2(const char *url, const char *filename, int &err_code, std::string &error);
 void FreeCurlLibrary(void);
 int CurlSetCookieFile(char *filename);
-bool CurlPostUrl(const char *url, const std::string &sPost, std::string &sOutput, struct curl_slist *headers = NULL);
+bool CurlPostUrl(const char *url, cStr sPost, std::string &sOutput, struct curl_slist *headers = NULL);
 
 void stringAppendCurlEscape(std::string &str, cSv url);
 inline void InitCurlLibraryIfNeeded();

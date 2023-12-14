@@ -151,10 +151,10 @@ class cTVScraperConfig {
 {29, "zho", "zh-CN", "大陆简体"},  //  Chinese - China
 {30, "ron", "ro-RO", "limba română"},  // Romanian
 {31, "jpn", "ja-JP", "日本語"},  //  Japanese
-{32, "mon", "mn-MN", "Mongolian"},  // Mongolian, note: not supported in themoviedb, "mn-MN" is a guess
-{33, "pol", "pl-PL", "Polski"},  //
-{34, "msa", "ms-MY", "Bahasa melayu"},  //  Malay
-{35, "ukr", "uk-UA", "Український"},  //  Ukrainian
+{32, "mon", "mn-MN", "монгол"},  // Mongolian, note: not supported in themoviedb, "mn-MN" is a guess
+{33, "pol", "pl-PL", "język polski"},  // Polish
+{34, "msa", "ms-MY", "bahasa Melayu"},  //  Malay
+{35, "ukr", "uk-UA", "українська мова"},  //  Ukrainian
 // {30, "", "", ""},  //
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
