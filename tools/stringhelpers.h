@@ -53,7 +53,10 @@ inline std::string charPointerToString(const unsigned char *s) {
 
 // 2nd advantage of cSv: substr(pos) if pos > length: no dump, just an empty cSv as result
 
+inline wint_t Utf8ToUtf32(const char *&p, int len);
+class utf8_iterator;
 class cSv: public std::string_view {
+  friend class utf8_iterator;
   public:
     cSv(): std::string_view() {}
     template<std::size_t N> cSv(const char (&s)[N]): std::string_view(s, N-1) {
@@ -78,7 +81,109 @@ class cSv: public std::string_view {
     static std::string_view charPointerToStringView(const char *s) {
       return s?std::string_view(s, strlen(s)):std::string_view();
     }
+// =================================================
+// *********   utf8  *****************
+// =================================================
+    int utf8CodepointIsValid(size_t pos) const {
+// In case of invalid UTF8, return 0
+// In case of invalid input, return -1 (pos  >= sc.length())
+// otherwise, return number of characters for this UTF codepoint
+// note: pos + number of characters <= sc.length(), this is checked (otherwise 0 is returned)
+
+      if (pos >= length() ) return -1;
+      static const uint8_t LEN[] = {2,2,2,2,3,3,4,0};
+
+      int len = (((*this)[pos] & 0xC0) == 0xC0) * LEN[((*this)[pos] >> 3) & 7] + (((*this)[pos] | 0x7F) == 0x7F);
+      if (len == 1) return 1;
+      if (len + pos > length()) return 0;
+      for (size_t k= pos + 1; k < pos + len; k++) if (((*this)[k] & 0xC0) != 0x80) len = 0;
+      return len;
+    }
+    size_t utf8ParseBackwards(size_t pos) const {
+// pos <= s.length()! this is not checked
+// return position of character before pos
+// see also https://stackoverflow.com/questions/22257486/iterate-backwards-through-a-utf8-multibyte-string
+      for (size_t i = pos; i > 0; ) {
+        --i;
+        if (((*this)[i] & 0xC0) != 0x80) return i;
+// (s[i] & 0xC0) == 0x80 is true if bit 6 is clear and bit 7 is set
+      }
+      return 0;
+    }
+  public:
+    utf8_iterator utf8_begin() const;
+    utf8_iterator utf8_end() const;
 };
+
+// iterator for utf8
+class utf8_iterator {
+    const cSv m_sv;
+    size_t m_pos;
+    mutable int m_len = -2;
+    int get_len() const {
+      if (m_len == -2) m_len = m_sv.utf8CodepointIsValid(m_pos);
+      return m_len;
+    }
+  public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = wint_t;
+    using difference_type = int;
+    using pointer = const wint_t*;
+    using reference = const wint_t&;
+
+    explicit utf8_iterator(cSv sv, size_t pos): m_sv(sv) {
+// note: if pos is not begin/end, pos will be moved back to a valid utf8 start point
+//       i.e. to an ascii (bit 7 not set) or and utf8 start byte (bit 6&7 set)
+      if (pos == 0) { m_pos = 0; return; }
+      if (pos >= sv.length() ) { m_pos = sv.length(); return; }
+// to avoid a position in the middle of utf8:
+      m_pos = sv.utf8ParseBackwards(pos+1);
+    }
+    utf8_iterator& operator++() {
+      if (m_pos >= m_sv.length() ) return *this;
+      int l = get_len();
+      if (l > 0) m_pos += l; else ++m_pos;
+      m_len = -2;
+      return *this;
+    }
+    utf8_iterator& operator--() {
+      if (m_pos == 0) return *this;
+      size_t new_pos = m_sv.utf8ParseBackwards(m_pos);
+      int new_len = m_sv.utf8CodepointIsValid(new_pos);
+      if (new_pos + new_len == m_pos || m_pos - new_pos == 1) {
+        m_pos = new_pos;
+        m_len = new_len;
+      } else {
+// some invalid UTF8.
+        --m_pos;
+        m_len = -2;
+      }
+      return *this;
+    }
+    bool operator!=(utf8_iterator other) const { return m_pos != other.m_pos; }
+    bool operator==(utf8_iterator other) const { return m_pos == other.m_pos; }
+    wint_t codepoint() const {
+      if (m_pos >= m_sv.length() ) return 0;
+      int l = get_len();
+      if (l <= 0) return '?'; // invalid utf8
+      const char *p = m_sv.data() + m_pos;
+      return Utf8ToUtf32(p, l);
+    }
+    size_t pos() const {
+// note: if this == end(), sv[m_pos] is invalid!!!
+      return m_pos;
+    }
+    const wint_t operator*() const {
+      return codepoint();
+    }
+};
+inline utf8_iterator cSv::utf8_begin() const { return utf8_iterator(*this, 0); }
+inline utf8_iterator cSv::utf8_end() const { return utf8_iterator(*this, length() ); }
+
+
+// =========================================================
+// cStr: similar to cSv, but support c_str()
+// =========================================================
 
 class cStr {
   public:
@@ -101,7 +206,7 @@ class cStr {
 // =========================================================
 // =========================================================
 
-inline int AppendUtfCodepoint(char *&target, wint_t codepoint){
+inline int AppendUtfCodepoint(char *&target, wint_t codepoint) {
   if (codepoint <= 0x7F) {
     if (target) {
       *(target++) = (char) (codepoint);
@@ -136,7 +241,7 @@ inline int AppendUtfCodepoint(char *&target, wint_t codepoint){
   return 4;
 }
 
-inline void stringAppendUtfCodepoint(std::string &target, wint_t codepoint){
+inline void stringAppendUtfCodepoint(std::string &target, wint_t codepoint) {
   if (codepoint <= 0x7F){
      target.push_back( (char) (codepoint) );
      return;
@@ -159,7 +264,7 @@ inline void stringAppendUtfCodepoint(std::string &target, wint_t codepoint){
      return;
 }
 
-inline int utf8CodepointIsValid(const char *p){
+inline int utf8CodepointIsValid(const char *p) {
 // In case of invalid UTF8, return 0
 // otherwise, return number of characters for this UTF codepoint
   static const uint8_t LEN[] = {2,2,2,2,3,3,4,0};
@@ -168,7 +273,6 @@ inline int utf8CodepointIsValid(const char *p){
   for (int k=1; k < len; k++) if ((p[k] & 0xC0) != 0x80) len = 0;
   return len;
 }
-
 inline wint_t Utf8ToUtf32(const char *&p, int len) {
 // assumes, that uft8 validity checks have already been done. len must be provided. call utf8CodepointIsValid first
 // change p to position of next codepoint (p = p + len)
@@ -196,27 +300,6 @@ inline wint_t getNextUtfCodepoint(const char *&p){
   int l = utf8CodepointIsValid(p);
   if( l == 0 ) { p++; return '?'; }
   return Utf8ToUtf32(p, l);
-}
-inline void stringAppendToLower(std::string &target, cSv str, const std::locale &loc) {
-  const char *pos = str.data();
-  const char *end = str.data() + str.length();
-  while (pos < end) {
-    wint_t u_char = getNextUtfCodepoint(pos);
-    try {
-      if (u_char) stringAppendUtfCodepoint(target, std::tolower<wchar_t>(u_char, loc));
-// The standard library is guaranteed to provide the following specializations (they are required to be implemented by any locale object):
-//   std::ctype<char> and std::ctype<wchar_t> . So don't call  std::tolower<wint_t>, this is not implemented !!!!
-    } catch (const std::bad_cast& e) {
-      esyslog("ERROR in stringToLower(%.*s,%s), error message: %s", (int) str.length(), str.data(), loc.name().c_str(), e.what() );
-      return;
-    }
-  }
-}
-inline std::string stringToLower(cSv str, const std::locale &loc) {
-  std::string result;
-  result.reserve(str.length() + 1);
-  stringAppendToLower(result, str, loc);
-  return result;
 }
 
 // =========================================================
@@ -699,6 +782,8 @@ class cToSvConcat: public cToSv {
       append(n);
       return append(std::forward<U>(u), std::forward<Args>(args)...);
     }
+// ========================
+// overloads for append
     cToSvConcat &append(char ch) {
       if (m_use_buffer) {
         if (m_pos_for_append  < m_be_data) {
@@ -736,6 +821,29 @@ class cToSvConcat: public cToSv {
     cToSvConcat &append(unsigned long long i) { return append(cToSvInt(i)); }
     cToSvConcat &append(const tChannelID &channelID) { return append(cToSvChannel(channelID)); }
     template<typename T> cToSvConcat &operator<<(T sv) { return append(sv); }
+// =======================
+// append utf8
+    cToSvConcat &append_utf8(wint_t codepoint) {
+      if (m_use_buffer) {
+        if (m_pos_for_append + 4 <= m_be_data) {
+          AppendUtfCodepoint(m_pos_for_append, codepoint);
+          return *this;
+        }
+// m_buffer too small, switch to string
+        m_use_buffer = false;
+        m_buffer_string.reserve(2*sizeof(m_buffer) );
+        m_buffer_string.append(m_buffer, m_pos_for_append-m_buffer);
+      }
+      stringAppendUtfCodepoint(m_buffer_string, codepoint);
+      return *this;
+    }
+    void appendToLower(cSv sv, const std::locale &loc) {
+      for (auto it = sv.utf8_begin(); it != sv.utf8_end(); ++it) {
+        append_utf8(std::tolower<wchar_t>(*it, loc));
+      }
+    }
+// ========================
+// get data
     operator cSv() const { return m_use_buffer?cSv(m_buffer, m_pos_for_append-m_buffer):m_buffer_string; }
     const char *c_str() const { if (m_use_buffer) { *m_pos_for_append = 0; return m_buffer; } else return m_buffer_string.c_str(); }
     operator cStr() const { return this->c_str(); }
@@ -751,6 +859,12 @@ class cToSvConcat: public cToSv {
     bool m_use_buffer = true;
     std::string m_buffer_string;
 };
+
+inline std::string stringToLower(cSv sv, const std::locale &loc) {
+  cToSvConcat result;
+  result.appendToLower(sv, loc);
+  return std::string(result);
+}
 
 
 // =========================================================

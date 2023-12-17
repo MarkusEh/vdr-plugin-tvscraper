@@ -58,6 +58,10 @@ enum eMediaType: int {
 };
 
 #include <getopt.h>
+#include <locale>
+const std::locale g_locale = std::locale("");
+
+
 #include "tools/stringhelpers.h"
 #include "tools/tvscraperhelpers.h"
 #include "extEpgPlugin.h"
@@ -643,7 +647,9 @@ cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, 
   }
   if ((strcasecmp(Command, "DELS") == 0) || (strcasecmp(Command, "DeleteSeries") == 0)) {
     if ( Option && *Option ) {
-      int del_entries = db->DeleteSeries(atoi(Option) );
+      int tv_id = atoi(Option);
+      db->DeleteSeriesCache(tv_id);
+      int del_entries = db->DeleteSeries(tv_id);
       return cString::sprintf("%i series entry/entries deleted", del_entries);
     }
     ReplyCode = 550;
@@ -651,7 +657,9 @@ cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, 
   }
   if ((strcasecmp(Command, "DELM") == 0) || (strcasecmp(Command, "DeleteMovie") == 0)) {
     if ( Option && *Option ) {
-      int del_entries = db->DeleteMovie(atoi(Option) );
+      int movie_id = atoi(Option);
+      db->DeleteMovieCache(movie_id);
+      int del_entries = db->DeleteMovie(movie_id);
       return cString::sprintf("%i movie entry/entries deleted", del_entries);
     }
     ReplyCode = 550;

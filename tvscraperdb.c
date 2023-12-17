@@ -69,7 +69,7 @@ bool cTVScraperDB::TableExists(const char *table) {
   return queryInt("select count(type) from sqlite_master where type= ? and name= ?", "table", table) == 1;
 }
 
-void cTVScraperDB::AddCulumnIfNotExists(const char *table, const char *column, const char *type) {
+void cTVScraperDB::AddColumnIfNotExists(const char *table, const char *column, const char *type) {
   if (TableColumnExists(table, column) ) return;
   stringstream sql;
   sql << "ALTER TABLE " << table << " ADD COLUMN " << column << " " << type;
@@ -443,22 +443,22 @@ for thetvdb:
         sqlite3_close(db);
         return false;
     }
-    AddCulumnIfNotExists("tv_score", "tv_languages", "nvarchar");
-    AddCulumnIfNotExists("tv_score", "tv_languages_last_update", "integer");
-    AddCulumnIfNotExists("tv_score", "tv_actors_last_update", "integer");
-    AddCulumnIfNotExists("tv_score", "tv_data_available", "integer");
-    AddCulumnIfNotExists("tv2", "tv_display_language", "integer");
-    AddCulumnIfNotExists("movie_runtime2", "movie_director", "nvarchar");
-    AddCulumnIfNotExists("movie_runtime2", "movie_writer", "nvarchar");
-    AddCulumnIfNotExists("movie_runtime2", "movie_languages", "nvarchar");
-    AddCulumnIfNotExists("movie_runtime2", "movie_last_update", "integer");
-    AddCulumnIfNotExists("movie_runtime2", "movie_data_available", "integer");
-    AddCulumnIfNotExists("actors", "actor_has_image", "integer");
-    AddCulumnIfNotExists("event", "runtime", "integer");
-    AddCulumnIfNotExists("recordings2", "runtime", "integer");
-    AddCulumnIfNotExists("recordings2", "duration_deviation", "integer");
+    AddColumnIfNotExists("tv_score", "tv_languages", "nvarchar");
+    AddColumnIfNotExists("tv_score", "tv_languages_last_update", "integer");
+    AddColumnIfNotExists("tv_score", "tv_actors_last_update", "integer");
+    AddColumnIfNotExists("tv_score", "tv_data_available", "integer");
+    AddColumnIfNotExists("tv2", "tv_display_language", "integer");
+    AddColumnIfNotExists("movie_runtime2", "movie_director", "nvarchar");
+    AddColumnIfNotExists("movie_runtime2", "movie_writer", "nvarchar");
+    AddColumnIfNotExists("movie_runtime2", "movie_languages", "nvarchar");
+    AddColumnIfNotExists("movie_runtime2", "movie_last_update", "integer");
+    AddColumnIfNotExists("movie_runtime2", "movie_data_available", "integer");
+    AddColumnIfNotExists("actors", "actor_has_image", "integer");
+    AddColumnIfNotExists("event", "runtime", "integer");
+    AddColumnIfNotExists("recordings2", "runtime", "integer");
+    AddColumnIfNotExists("recordings2", "duration_deviation", "integer");
 
-    AddCulumnIfNotExists("tv_s_e", "episode_run_time", "integer");
+    AddColumnIfNotExists("tv_s_e", "episode_run_time", "integer");
     if (!TableColumnExists("tv2", "tv_last_changed") ) {
       exec("ALTER TABLE tv2 ADD COLUMN tv_last_changed integer");
       cSql stmt_update(this, "UPDATE tv2 SET tv_last_changed = ? WHERE tv_id = ?");
@@ -466,7 +466,7 @@ for thetvdb:
         stmt_update.resetBindStep(stmt.getInt64(1), stmt.getInt(0));
       }
     }
-// move from actor_thumbnail to actor_number, and delete culumn actor_path (if exists)
+// move from actor_thumbnail to actor_number, and delete column actor_path (if exists)
     if (TableColumnExists("series_actors", "actor_thumbnail") ) {
       stringstream sql;
       sql << "CREATE TABLE IF NOT EXISTS series_actors2 (";
@@ -506,25 +506,31 @@ void cTVScraperDB::ClearOutdated() const {
   esyslog("tvscraper: Cleanup Done");
 }
 
-void cTVScraperDB::DeleteMovie(int movieID, string movieDir) const {
-    //delete images
-    stringstream backdrop;
-    backdrop << movieDir << "/" << movieID << "_backdrop.jpg";
-    stringstream poster;
-    poster << movieDir << "/" << movieID << "_poster.jpg";
-    DeleteFile(backdrop.str());
-    DeleteFile(poster.str());
-//delete this movie from db
-    DeleteMovie(movieID);
-}
 int cTVScraperDB::DeleteMovie(int movieID) const {
 //delete this movie from db
+// no entries in cache tables are deleted. See DeleteMovieCache
+// Images
+  DeleteFile(cToSvConcat(config.GetBaseDirMovies(), movieID, "_backdrop.jpg"));
+  DeleteFile(cToSvConcat(config.GetBaseDirMovies(), movieID, "_poster.jpg"));
+// DB Entries
   deleteTvMedia (movieID, true, false);  // deletes entries in table tv_media
   DeleteActorDownload (movieID, true);  // deletes entries in actor_download
   exec("DELETE FROM movies3 WHERE movie_id = ?", movieID);
   return sqlite3_changes(db);
 }
-
+void cTVScraperDB::DeleteMovieCache(int movieID) const {
+// this should be called if a movie does not exist in external database any more
+// or to enforce the system to re-read data from external database
+// delete all cache entries in this local db (in other words: everything which is not deleted with DeleteMovie.
+// Note: DeleteMovie is not called. If the movieID is still used in event/recordings2,
+//   some data for display are still available. We accept that some data (which where in the cache tables)
+//   are missing
+  if (config.enableDebug) esyslog("tvscraper: cTVScraperDB::DeleteMovieCache movieID %i", movieID);
+  exec("DELETE FROM movie_runtime2       WHERE movie_id = ?", movieID);
+  exec("DELETE FROM actor_movie          WHERE movie_id = ?", movieID);
+  exec("DELETE FROM alternative_titles   WHERE external_database = 1 AND id = ?", movieID);
+  exec("DELETE FROM cache                WHERE movie_tv_id = ? and season_number = -100", movieID);
+}
 bool cTVScraperDB::CheckMovieOutdatedEvents(int movieID, int season_number, int episode_number) const {
 // check if there is still an event for which movieID is required
   const char sql_m[] = "select count(event_id) from event where season_number  = ? and movie_tv_id = ? and valid_till > ?";
@@ -545,32 +551,45 @@ void cTVScraperDB::DeleteSeriesCache(int seriesID) const {
 // seriesID > 0 => moviedb
 // seriesID < 0 => tvdb
 // this should be called if a series does not exist in external database any more
+// or to enforce the system to re-read data from external database
 // delete all cache entries in this local db (in other words: everything which is not deleted with DeleteSeries.
 // Note: DeleteSeries is not called. If the series ID is still used in event/recordings2,
 //   some data for display are still available. We accept that some data (which where in the cache tables)
 //   are missing
   if (config.enableDebug) esyslog("tvscraper: cTVScraperDB::DeleteSeriesCache seriesID %i", seriesID);
-  exec("DELETE FROM tv_episode_run_time WHERE tv_id = ?", seriesID);
-  exec("DELETE FROM tv_score            WHERE tv_id = ?", seriesID);
-  if (seriesID > 0)
-    exec("DELETE FROM actor_tv          WHERE tv_id = ?", seriesID);
-  if (seriesID < 0)
-    exec("DELETE FROM series_actors     WHERE actor_series_id = ?", -seriesID);
-  exec("DELETE FROM tv_similar          WHERE tv_id = ?", seriesID);
-  exec("DELETE FROM cache               WHERE movie_tv_id = ? and season_number != -100", seriesID);
+  exec("DELETE FROM tv_episode_run_time  WHERE tv_id = ?", seriesID);
+  exec("DELETE FROM tv_score             WHERE tv_id = ?", seriesID);
+  if (seriesID > 0) {
+// only TMDb
+    exec("DELETE FROM actor_tv           WHERE tv_id = ?", seriesID);
+    exec("DELETE FROM alternative_titles WHERE external_database = 2 AND id = ?", seriesID);
+  } else {
+// only TheTVDB
+    exec("DELETE FROM series_actors      WHERE actor_series_id = ?", -seriesID);
+  }
+  exec("DELETE FROM tv_similar           WHERE tv_id = ?", seriesID);
+  exec("DELETE FROM cache                WHERE movie_tv_id = ? and season_number != -100", seriesID);
 }
 int cTVScraperDB::DeleteSeries(int seriesID) const {
 // seriesID > 0 => moviedb
 // seriesID < 0 => tvdb
-// this one only deletes the entry in tv database. No images, ... are deleted
-// also, no entries in cache tables are deleted. See DeleteSeriesCache
+// no entries in cache tables are deleted. See DeleteSeriesCache
+
+// images  =============================
+  cToSvConcat folder;
+  if (seriesID < 0) folder << config.GetBaseDirSeries() << -seriesID;
+               else folder << config.GetBaseDirMovieTv() << seriesID;
+  DeleteAll(folder);
+// DB entries ==========================
   if (seriesID > 0) {
-// delete actor_tv_episode, data are only for moviedb
-    exec("DELETE FROM actor_tv_episode WHERE episode_id in ( select episode_id from tv_s_e where tv_s_e.tv_id = ? );",
-      seriesID);
-  };
-// delete tv_s_e_name2
-  exec("DELETE FROM tv_s_e_name2 WHERE episode_id in ( select episode_id from tv_s_e where tv_s_e.tv_id = ? );", seriesID);
+// only for TMDb  ======================
+// actor_tv_episode is only meaningfull if there are entries in tv_s_e, which will be deleted ...
+    exec("DELETE FROM actor_tv_episode WHERE episode_id in ( SELECT episode_id FROM tv_s_e WHERE tv_s_e.tv_id = ? );", seriesID);
+    exec("DELETE FROM tv_s_e_name_moviedb WHERE episode_id in ( SELECT episode_id FROM tv_s_e WHERE tv_s_e.tv_id = ? );", seriesID);
+  } else {
+// only for TheTVDB ===================
+    exec("DELETE FROM tv_s_e_name2 WHERE episode_id in ( SELECT episode_id FROM tv_s_e WHERE tv_s_e.tv_id = ? );", seriesID);
+  }
 // delete tv_name
   exec("DELETE FROM tv_name WHERE tv_id = ?", seriesID);
 // delete tv_s_e
@@ -578,22 +597,10 @@ int cTVScraperDB::DeleteSeries(int seriesID) const {
 // delete tv
   exec("DELETE FROM tv2    WHERE tv_id = ?", seriesID);
   int num_del = sqlite3_changes(db);
-// don't delete from cach BDs, see DeleteSeriesCache
+// don't delete from cache DBs, see DeleteSeriesCache
   deleteTvMedia (seriesID, false, false);  // deletes entries in table tv_media
   DeleteActorDownload (seriesID, false); // deletes entries in table actor_download
   return num_del;
-}
-
-void cTVScraperDB::DeleteSeries(int seriesID, const string &movieDir, const string &seriesDir) const {
-// seriesID > 0 => moviedb
-// seriesID < 0 => tvdb
-// delete images
-  stringstream folder;
-  if (seriesID < 0) folder << seriesDir << "/" << seriesID * (-1);
-               else folder << movieDir <<  "/tv/" << seriesID;
-  DeleteAll(folder.str() );
-// now the db entries
-  DeleteSeries(seriesID);
 }
 
 void cTVScraperDB::InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy, const char *languages) {
@@ -1137,8 +1144,8 @@ int cTVScraperDB::DeleteFromCache(const char *movieNameCache) { // return number
   if (!movieNameCache) return 0;
   if (strcmp(movieNameCache, "ALL") == 0) exec("delete from cache");
   else {
-    string cacheS = movieNameCache;
-    transform(cacheS.begin(), cacheS.end(), cacheS.begin(), ::tolower);
+    cToSvConcat cacheS;
+    cacheS.appendToLower(movieNameCache, g_locale);
     exec("delete from cache where movie_name_cache = ?", cacheS);
   }
   return sqlite3_changes(db);
@@ -1177,13 +1184,13 @@ bool cTVScraperDB::existsTvMedia (int tvID, const char *path) {
 }
 
 void cTVScraperDB::deleteTvMedia (int tvID, bool movie, bool keepSeasonPoster) const {
-  cConcatenate sql;
+  cToSvConcat sql;
   sql << "delete from tv_media where tv_id = ? ";
   if (movie) sql << "and media_number <  0";
   else {     sql << "and media_number >= 0";
     if(keepSeasonPoster) sql << " and media_type != "  << (int)mediaSeason;
   }
-  exec(sql.getCharS(), tvID);
+  exec(sql, tvID);
 }
 
 int cTVScraperDB::findUnusedActorNumber (int seriesID) {

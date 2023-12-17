@@ -167,7 +167,7 @@ void cSearchEventOrRec::initSearchString(std::string &searchString) {
     m_overrides->RemovePrefix(searchString);
     StringRemoveLastPartWithP(searchString); // always remove this: Year, number of season/episode, ... but not a part of the name
   }
-  transform(searchString.begin(), searchString.end(), searchString.begin(), ::tolower);
+  searchString = stringToLower(searchString, g_locale);
 }
 
 cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
@@ -226,7 +226,7 @@ scrapType cSearchEventOrRec::ScrapCheckOverride(vector<searchResultTvMovie> &sea
     searchResults.push_back(std::move(l_searchResultTvMovie));
     return scrapSeries;
   }
-  o_id = m_overrides->TheMovieDB_MovieID(m_sEventOrRecording->Title() );
+  o_id = m_overrides->TheMovieDB_MovieID(title);
   if (o_id != 0) {
     foundName = m_sEventOrRecording->Title();
     searchResultTvMovie l_searchResultTvMovie(o_id, true, nullptr);
@@ -367,7 +367,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
 
 int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
   int finalDurationDistance = -1; // default, no data available
-  cSql stmt(m_db, "select episode_run_time from tv_episode_run_time where tv_id = ?", tvID);
+  cSql stmt(m_db, "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?", tvID);
   if (!stmt.readRow() ) {
     esyslog("tvscraper: ERROR, cSearchEventOrRec::GetTvDurationDistance, no runtime tvID = %d", tvID);
 // we call iExtMovieTvDb->enhance1() before this, so data should be available
@@ -683,26 +683,27 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
   if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
   searchEventOrRec.getExtMovieTvDb(sR)->enhance1(sR, searchEventOrRec.m_sEventOrRecording->GetLanguage() );
   cSql actors(searchEventOrRec.m_db);
+  cSv lang_themoviedb = cSv(searchEventOrRec.m_sEventOrRecording->GetLanguage()->m_themoviedb).substr(0, 2);
   if (sR.movie() ) {
 // movie
-//    sR.setTranslationAvailable(true); // we have no data, so we assume this for movies
-    sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(searchEventOrRec.m_db->GetMovieRuntime(sR.id() )) );
-// updateMatchText
     cNormedString normedMovieSearchString(searchEventOrRec.m_movieSearchString);
-// tagline
-    cSql sql_GetMovieTagline(searchEventOrRec.m_db, "select movie_tagline from movie_runtime2 where movie_id = ?", sR.id() );
-    cSv movieTagline = sql_GetMovieTagline.getStringView(0);
-    if (!movieTagline.empty()) sR.updateMatchText(normedMovieSearchString.sentence_distance(movieTagline));
+    cSql sql_movieEnhance(searchEventOrRec.m_db, "select movie_runtime, movie_tagline, movie_director, movie_writer, movie_languages from movie_runtime2 where movie_id = ?", sR.id() );
+    if (!sql_movieEnhance.readRow() ) {
+// we just called enhance1, so data should be available ...
+      esyslog("tvscraper, ERROR in cSearchEventOrRec::enhance1, no data in movie_runtime2 for movie id %d", sR.id() );
+    } else {
+// entry in movie_runtime2 was found
+      sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(sql_movieEnhance.getInt(0)) );
+      cSv movieTagline = sql_movieEnhance.getStringView(1);
+      if (!movieTagline.empty()) sR.updateMatchText(normedMovieSearchString.sentence_distance(movieTagline));
+      searchEventOrRec.getDirectorWriterMatches(sR, sql_movieEnhance.getCharS(2), sql_movieEnhance.getCharS(3));
+      sR.setTranslationAvailable(sql_movieEnhance.getStringView(4).find(cToSvConcat('|', lang_themoviedb) ) != std::string_view::npos);
+    }
+// actors
+    actors.finalizePrepareBindStep("SELECT actor_name, actor_role FROM actors, actor_movie WHERE actor_movie.actor_id = actors.actor_id AND actor_movie.movie_id = ?", sR.id());
 // alternative titles
     for (cSql &sql_title: cSql(searchEventOrRec.m_db, "SELECT alternative_title FROM alternative_titles WHERE external_database = 1 AND id = ?",  sR.id()) ) {
       sR.updateMatchText(normedMovieSearchString.sentence_distance(sql_title.getStringView(0) ));
-    }
-// actors
-    actors.finalizePrepareBindStep("select actor_name, actor_role from actors, actor_movie where actor_movie.actor_id = actors.actor_id and actor_movie.movie_id = ?", sR.id());
-    cSql sqlI(searchEventOrRec.m_db,
-      "select movie_director, movie_writer from movie_runtime2 where movie_id = ?");
-    if (sqlI.resetBindStep(sR.id() ).readRow()) {
-      searchEventOrRec.getDirectorWriterMatches(sR, sqlI.getCharS(0), sqlI.getCharS(1));
     }
   } else {
 // tv show
@@ -710,15 +711,18 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
     sR.setDuration(searchEventOrRec.GetTvDurationDistance(sR.id() ) );
     if (debug) esyslog("tvscraper: enhance1 (2)" );
     sR.setDirectorWriter(0);
+    cSql stmtScore(searchEventOrRec.m_db, "SELECT tv_score, tv_languages FROM tv_score WHERE tv_id = ?", sR.id() );
+    if (!stmtScore.readRow() ) {
+      esyslog("tvscraper: ERROR cSearchEventOrRec::enhance1, no data in tv_score, tv_id = %i",  sR.id() );
+      sR.setTranslationAvailable(false);
+    }
     if (sR.id() < 0) {
 // tv show from TheTVDB
-      cSql stmtScore(searchEventOrRec.m_db, "SELECT tv_score, tv_languages FROM tv_score WHERE tv_id = ?", sR.id() );
-      if (!stmtScore.readRow() ) {
-        esyslog("tvscraper: ERROR cSearchEventOrRec::enhance1, no data in tv_score, tv_id = %i",  sR.id() );
-      } else {
+      if (stmtScore.readRow() ) {
         sR.setScore(stmtScore.getInt(0) );
         cSplit transSplit(stmtScore.getCharS(1), '|');
         if (transSplit.find(searchEventOrRec.m_sEventOrRecording->GetLanguage()->m_thetvdb) == transSplit.end() ) sR.setTranslationAvailable(false);
+        else sR.setTranslationAvailable(true);
       }
       if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
       actors.finalizePrepareBindStep("SELECT actor_name, actor_role FROM series_actors WHERE actor_series_id = ?", sR.id() * (-1));
@@ -726,13 +730,15 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
       if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
     } else {
 // tv show from The Movie Database (TMDB)
-//      sR.setTranslationAvailable(true); // we have no data, so we assume theis for movies
+      if (stmtScore.readRow() ) {
+        sR.setTranslationAvailable(stmtScore.getStringView(1).find(cToSvConcat('|', lang_themoviedb) ) != std::string_view::npos);
+      }
       cNormedString normedSearchString(searchEventOrRec.m_TVshowSearchString);
 // alternative titles
       for (cSql &sql_title: cSql(searchEventOrRec.m_db, "SELECT alternative_title FROM alternative_titles WHERE external_database = 2 AND id = ?",  sR.id()) ) {
         sR.updateMatchText(normedSearchString.sentence_distance(sql_title.getStringView(0) ));
       }
-      actors.finalizePrepareBindStep("select actor_name, actor_role from actors, actor_tv where actor_tv.actor_id = actors.actor_id and actor_tv.tv_id = ?", sR.id());
+      actors.finalizePrepareBindStep("SELECT actor_name, actor_role FROM actors, actor_tv WHERE actor_tv.actor_id = actors.actor_id AND actor_tv.tv_id = ?", sR.id());
     }
   }
   if (debug) esyslog("tvscraper: enhance1 (6)" );

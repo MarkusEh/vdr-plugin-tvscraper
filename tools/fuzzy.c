@@ -182,6 +182,8 @@ std::set<cSv> const_ignoreWords = {"der", "die", "das", "the", "I", "-", "in", "
 class cNormedString {
   public:
     cNormedString(int malus = 0): m_malus(malus) {}
+template<std::size_t N>
+    cNormedString(const char (&s)[N], int malus = 0): m_malus(malus) { reset(s); }
     cNormedString(cSv s, int malus = 0): m_malus(malus) { reset(s); }
     cNormedString(const cNormedString&) = delete;
     cNormedString &operator= (const cNormedString &other) {

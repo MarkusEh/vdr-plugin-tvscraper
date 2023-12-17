@@ -277,33 +277,53 @@ inline int StringRemoveTrailingWhitespace(const char *str, int len) {
   return 0;
 }
 
-inline int StringRemoveLastPartWithP(const char *str, int len) {
-// remove part with (...)
-// return -1 if nothing can be removed
-// otherwise length of string without ()
-  len = StringRemoveTrailingWhitespace(str, len);
+inline utf8_iterator utf8LastLetter(cSv s) {
+// return position directly after the last letter
+  utf8_iterator it = s.utf8_end();
+  while (it != s.utf8_begin() ) {
+    --it;
+    wint_t cp = it.codepoint();
+    if (isdigit(cp)) continue;
+    if (std::iswalnum(cp)) { ++it; return it; }
+  }
+  return it;
+}
+
+inline int lenWithoutLastPartWithP(cSv sv) {
+// search part with (...)
+// return -1 if nothing was found
+// otherwise length of sv without ()
+  int len = StringRemoveTrailingWhitespace(sv.data(), sv.length() );
   if (len < 3) return -1;
-  if (str[len -1] != ')') return -1;
+  if (sv[len -1] != ')') return -1;
   for (int i = len -2; i; i--) {
-    if (!isdigit(str[i]) && str[i] != '/') {
-      if (str[i] != '(') return -1;
-      int len2 = StringRemoveLastPartWithP(str, i);
-      if (len2 == -1 ) return StringRemoveTrailingWhitespace(str, i);
+    if (!isdigit(sv[i]) && sv[i] != '/') {
+      if (sv[i] != '(') return -1;
+      int len2 = lenWithoutLastPartWithP(sv.substr(0, i));
+      if (len2 == -1 ) return StringRemoveTrailingWhitespace(sv.data(), i);
       return len2;
     }
   }
   return -1;
 }
 
+inline int lenWithoutPartToIgnoreInSearch(cSv sv) {
+// we keep the last letter and all digits directly following this letter
+  utf8_iterator it = utf8LastLetter(sv);
+  for (; it != sv.utf8_end() && isdigit(*it); ++it);
+  if (sv.substr(it.pos(), 2) == ": ") return it.pos();
+  return lenWithoutLastPartWithP(sv);
+}
+
 inline bool StringRemoveLastPartWithP(std::string &str) {
 // remove part with (...)
-  int len = StringRemoveLastPartWithP(str.c_str(), str.length() );
+  int len = lenWithoutPartToIgnoreInSearch(str);
   if (len < 0) return false;
   str.erase(len);
   return true;
 }
 inline cSv removeLastPartWithP(cSv str) {
-  int l = StringRemoveLastPartWithP(str.data(), str.length() );
+  int l = lenWithoutPartToIgnoreInSearch(str);
   if (l < 0) return str;
   return cSv(str.data(), l);
 }

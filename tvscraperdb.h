@@ -470,7 +470,7 @@ private:
 // manipulate tables
     bool TableExists(const char *table);
     bool TableColumnExists(const char *table, const char *column);
-    void AddCulumnIfNotExists(const char *table, const char *column, const char *type);
+    void AddColumnIfNotExists(const char *table, const char *column, const char *type);
 // others
     int LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int isSave);
     bool CreateTables(void);
@@ -492,7 +492,7 @@ public:
 // allow sql statments from outside this class
 // see also class cSql
     template<typename... Args>
-    void exec(const char *query, Args&&... args) const {
+    void exec(cSv query, Args&&... args) const {
 // just execute the sql statement, with the given parameters
       cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
     }
@@ -521,9 +521,8 @@ public:
     void ClearOutdated() const;
     bool CheckMovieOutdatedEvents(int movieID, int season_number, int episode_number) const;
     bool CheckMovieOutdatedRecordings(int movieID, int season_number, int episode_number) const;
-    void DeleteMovie(int movieID, string movieDir) const;
     int DeleteMovie(int movieID) const;
-    void DeleteSeries(int seriesID, const string &movieDir, const string &seriesDir) const;
+    void DeleteMovieCache(int movieID) const;
     int DeleteSeries(int seriesID) const;
     void DeleteSeriesCache(int seriesID) const;
     void InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy, const char *languages);

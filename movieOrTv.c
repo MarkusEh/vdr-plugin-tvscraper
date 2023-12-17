@@ -132,11 +132,8 @@ bool cTv::getSingleImage(eImageLevel level, eOrientation orientation, string *re
 
 // implementation of cMovieMoviedb  *********************
 void cMovieMoviedb::DeleteMediaAndDb() {
-  std::string base = concatenate(config.GetBaseDirMovies(), m_id);
-  DeleteFile(base + "_backdrop.jpg");
-  DeleteFile(base + "_poster.jpg");
   m_db->DeleteMovie(m_id);
-} 
+}
 
 std::string cMovieMoviedb::getCollectionName() {
   const char *sql = "select movie_collection_name from movies3 where movie_id = ?";
@@ -438,7 +435,6 @@ void cTvTvdb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
 
 // implemntation of cTvMoviedb  *********************
 void cTvMoviedb::DeleteMediaAndDb() {
-  DeleteAll(concatenate(config.GetBaseDirMovieTv(), m_id));
   m_db->DeleteSeries(m_id);
 }
 
@@ -522,9 +518,7 @@ bool cTvMoviedb::getSingleImageEpisode(eOrientation orientation, string *relPath
 
 // implemntation of cTvTvdb  *********************
 void cTvTvdb::DeleteMediaAndDb() {
-  CONCATENATE(folder, config.GetBaseDirSeries(), m_id);
-  DeleteAll(folder);
-  m_db->DeleteSeries(m_id * -1);
+  m_db->DeleteSeries(-m_id);
 }
 
 std::vector<cActor> cTvTvdb::GetActors(bool fullPath) {
