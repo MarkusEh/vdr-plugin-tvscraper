@@ -85,7 +85,7 @@ void removeTeil(char *s, cSv teil) {
   cSv sv(s);
   size_t found = sv.rfind(teil);
   if (found == std::string_view::npos) return; // not found
-  if (found < 5) return; // wee need some minimum entropy for search
+  if (found < 5) return; // we need some minimum entropy for search
   if (sv[found-1] != ' ') return;     // begin word
   size_t p = found + teil.length();
   if (p < sv.length() && s[p] != ' ') return;  // end word
@@ -395,7 +395,7 @@ template<std::size_t N>
 class cNormedStringsDelim;
 class cCompareStrings {
   public:
-    cCompareStrings(cSv searchString);
+    cCompareStrings(cSv searchString, cSv shortText = cSv() );
     void add(cSv searchString, char delim);
     class iterator {
       private:
@@ -410,12 +410,14 @@ class cCompareStrings {
     iterator end()   const { return iterator(m_normedStringsDelim.end()); }
 
     int minDistance(char delim, const cNormedString &compareString, int curDistance = 1000) const;
+    size_t len() const { return m_len; }
   private:
+    size_t m_len;
     std::vector<cNormedStringsDelim> m_normedStringsDelim;
 };
 class cNormedStringsDelim {
   public:
-    cNormedStringsDelim(cSv searchString, char delim = 0);
+    cNormedStringsDelim(cSv searchString, char delim = 0, cSv shortText = cSv() );
     int minDistance(const cNormedString &compareString, int curDistance = 1000) const;
   private:
     std::vector<std::optional<cNormedString>> m_normedStrings;
@@ -424,19 +426,23 @@ class cNormedStringsDelim {
 };
 
 // implementation cNormedStringsDelim
-cNormedStringsDelim::cNormedStringsDelim(cSv searchString, char delim):
+cNormedStringsDelim::cNormedStringsDelim(cSv searchString, char delim, cSv shortText):
   m_normedStrings(5), m_delim(delim)
 {
 // input: searchString: string to search for
-  m_normedStrings[0].emplace(searchString);
-  cSv searchString1 = SecondPart(searchString, ": ", 4);
-  if (!searchString1.empty() ) m_normedStrings[1].emplace(searchString1, 50);
-  cSv searchString2 = SecondPart(searchString, "'s ", 4);
-  if (!searchString2.empty() ) m_normedStrings[2].emplace(searchString2, 50);
-  bool split = splitString(searchString, " - ", 4, searchString1, searchString2);
-  if (split) {
-    if (searchString1.length() > 5) m_normedStrings[3].emplace(searchString1, 70);
-    if (searchString2.length() > 5) m_normedStrings[4].emplace(searchString2, 70);
+  if (shortText.empty() ) {
+    m_normedStrings[0].emplace(searchString);
+    cSv searchString1 = SecondPart(searchString, ": ", 4);
+    if (!searchString1.empty() ) m_normedStrings[1].emplace(searchString1, 50);
+    cSv searchString2 = SecondPart(searchString, "'s ", 4);
+    if (!searchString2.empty() ) m_normedStrings[2].emplace(searchString2, 50);
+    bool split = splitString(searchString, " - ", 4, searchString1, searchString2);
+    if (split) {
+      if (searchString1.length() > 5) m_normedStrings[3].emplace(searchString1, 70);
+      if (searchString2.length() > 5) m_normedStrings[4].emplace(searchString2, 70);
+    }
+  } else {
+    m_normedStrings[0].emplace(cToSvConcat(searchString, " ", shortText) );
   }
 }
 int cNormedStringsDelim::minDistance(const cNormedString &compareString, int curDistance) const {
@@ -449,10 +455,13 @@ cCompareStrings::iterator &cCompareStrings::iterator::operator++() { ++m_it; ret
 bool cCompareStrings::iterator::operator!=(iterator other) const { return m_it != other.m_it; }
 char cCompareStrings::iterator::operator*() const { return m_it->m_delim; }
 
-cCompareStrings::cCompareStrings(cSv searchString)
+cCompareStrings::cCompareStrings(cSv searchString, cSv shortText)
 {
+  m_len = searchString.length();
   m_normedStringsDelim.emplace_back(searchString, 0);
-} 
+  if (!shortText.empty() )
+    m_normedStringsDelim.emplace_back(searchString, 's', shortText);
+}
 void cCompareStrings::add(cSv searchString, char delim) {
   cSv TVshowName, episodeSearchString;
   if (!splitString(searchString, delim, 4, TVshowName, episodeSearchString) ) return;

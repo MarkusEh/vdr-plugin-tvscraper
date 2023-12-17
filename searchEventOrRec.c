@@ -18,6 +18,7 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
     m_TVshowSearchString = m_baseNameOrTitle;
     initSearchString3dots(m_TVshowSearchString);
     initSearchString3dots(m_movieSearchString);
+    m_num_parts = Number2InLastPartWithP(m_movieSearchString);
     initSearchString(m_TVshowSearchString);
     initSearchString(m_movieSearchString);
     m_sEventOrRecording->AddYears(m_years);
@@ -405,7 +406,7 @@ void cSearchEventOrRec::SearchNew(vector<searchResultTvMovie> &resultSet) {
     if (type_override != scrapMovie) addSearchResults(m_movieDbTvScraper, resultSet, m_TVshowSearchString, compareStrings, lang);
   }
   if (m_movieSearchString != m_originalTitle) {
-    cCompareStrings compareStrings(m_movieSearchString);
+    cCompareStrings compareStrings(m_movieSearchString, m_sEventOrRecording->ShortText() );
     if (type_override != scrapSeries) addSearchResults(m_movieDbMovieScraper, resultSet, m_movieSearchString, compareStrings, lang);
     compareStrings.add(m_movieSearchString, ':');
     compareStrings.add(m_movieSearchString, '-');
@@ -423,10 +424,10 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
   cSv searchString1 = SecondPart(searchString_f, "'s ", 6);
   size_t size0 = resultSet.size();
   if (!searchString1.empty()) {
-    extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+    extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
     if (resultSet.size() > size0) return true;
   }
-  extMovieTvDb->addSearchResults(resultSet, searchString_f, true, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+  extMovieTvDb->addSearchResults(resultSet, searchString_f, true, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
   if (resultSet.size() > size0) {
     cNormedString normedSearchString(searchString);
     for (size_t i = size0; i < resultSet.size(); i++)
@@ -434,12 +435,12 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
   }
   cSv searchString2;
   if (splitString(searchString_f, ": ", 3, searchString1, searchString2) ) {
-    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
-    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
   }
   if (splitString(searchString_f, " - ", 3, searchString1, searchString2)) {
-    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
-    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
   }
   return resultSet.size() > size0;
 }
@@ -693,7 +694,11 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
       esyslog("tvscraper, ERROR in cSearchEventOrRec::enhance1, no data in movie_runtime2 for movie id %d", sR.id() );
     } else {
 // entry in movie_runtime2 was found
-      sR.setDuration(searchEventOrRec.m_sEventOrRecording->DurationDistance(sql_movieEnhance.getInt(0)) );
+      int movie_runtime = sql_movieEnhance.getInt(0);
+      int durationDistance = searchEventOrRec.m_sEventOrRecording->DurationDistance(movie_runtime);
+      if (searchEventOrRec.m_num_parts > 0) durationDistance =
+        std::min(durationDistance, searchEventOrRec.m_sEventOrRecording->DurationDistance(movie_runtime/searchEventOrRec.m_num_parts));
+      sR.setDuration(durationDistance);
       cSv movieTagline = sql_movieEnhance.getStringView(1);
       if (!movieTagline.empty()) sR.updateMatchText(normedMovieSearchString.sentence_distance(movieTagline));
       searchEventOrRec.getDirectorWriterMatches(sR, sql_movieEnhance.getCharS(2), sql_movieEnhance.getCharS(3));

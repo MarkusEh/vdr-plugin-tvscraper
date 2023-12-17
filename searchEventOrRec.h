@@ -48,6 +48,7 @@ private:
   std::string m_TVshowSearchString;
   cSv m_originalTitle;
   cYears m_years;
+  int m_num_parts;
   bool m_baseNameEquShortText = false;
   searchResultTvMovie m_searchResult_Movie;
   bool extDbConnected = false; // true, if request to rate limited internet db was required. Otherwise, false

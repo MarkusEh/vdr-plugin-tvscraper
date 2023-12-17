@@ -72,12 +72,8 @@ class cTvDbTvScraper: public iExtMovieTvDb {
         m_TVDBScraper->StoreSeriesJson(-searchResultTvMovie.id(), true);
         return;
       }
-// check: was translation not available on last update, but might be available now?
       if (!config.isUpdateFromExternalDbRequired(stmt.getInt64(1) )) return;
-      cSplit transSplit(stmt.getCharS(0), '|');
-      if (transSplit.find(lang->m_thetvdb) != transSplit.end() ) return; // translation in needed language available, no need for update
-      if (config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 force update, languages %s, lang %s, seriesID %i",
-        stmt.getCharS(0), lang->getNames().c_str(), searchResultTvMovie.id() );
+// we also need to update the episode runtimes, so update regularily
       int res = m_TVDBScraper->downloadEpisodes(-searchResultTvMovie.id(), true, lang); // this will not update the actors, which is not required here
       if (res == 1 && config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 lang %s not available, id %i",  lang->getNames().c_str(), searchResultTvMovie.id() );
     }
@@ -92,7 +88,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
         m_TVDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang) {
       m_TVDBScraper->AddResults4(resultSet, searchString, compareStrings, lang);
     }
   private:

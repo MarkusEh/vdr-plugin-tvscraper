@@ -310,9 +310,9 @@ inline int lenWithoutLastPartWithP(cSv sv) {
 inline int lenWithoutPartToIgnoreInSearch(cSv sv) {
 // we keep the last letter and all digits directly following this letter
   utf8_iterator it = utf8LastLetter(sv);
-  for (; it != sv.utf8_end() && isdigit(*it); ++it);
-  if (sv.substr(it.pos(), 2) == ": ") return it.pos();
-  return lenWithoutLastPartWithP(sv);
+  size_t found = sv.find(": ", it.pos());
+  if (found == std::string_view::npos) return lenWithoutLastPartWithP(sv);
+  return found;
 }
 
 inline bool StringRemoveLastPartWithP(std::string &str) {
@@ -344,6 +344,20 @@ inline int NumberInLastPartWithP(cSv str) {
   if (str.length() < 3 ) return 0;
   if (str[str.length() - 1] != ')') return 0;
   std::size_t found = str.find_last_of("(");
+  if (found == std::string::npos) return 0;
+  for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
+    if (!isdigit(str[i])) return 0; // we ignore (asw), and return only number with digits only
+  }
+  return parse_unsigned_internal<int>(str.substr(found + 1));
+}
+
+inline int Number2InLastPartWithP(cSv str) {
+// return second number n in last part with (../n), 0 if not found / invalid
+  if (str.length() < 3 ) return 0;
+  if (str[str.length() - 1] != ')') return 0;
+  std::size_t found = str.find_last_of("(");
+  if (found == std::string::npos) return 0;
+  found = str.find("/", found+1);
   if (found == std::string::npos) return 0;
   for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
     if (!isdigit(str[i])) return 0; // we ignore (asw), and return only number with digits only

@@ -25,9 +25,9 @@ class cMovieDBScraper {
     cOverRides *overrides;
     bool parseJSON(const rapidjson::Value &root);
     bool AddTvResults(vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
-    void AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang);
-    int AddMovieResultsForUrl(const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cLanguage *lang);
-    void AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
+    void AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, const char *description, bool setMinTextMatch, const cLanguage *lang);
+    int AddMovieResultsForUrl(const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, const char *description, bool setMinTextMatch, const cLanguage *lang);
+    void AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
 
     void StoreMovie(int movieID, bool forceUpdate = false);
     bool DownloadFile(cSv urlBase, const cSv urlFileName, cSv destDir, int destID, const char * destFileName, bool movie);
@@ -54,9 +54,9 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
     virtual int downloadEpisodes(int id, const cLanguage *lang) { return 0; }
 
     virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
-      if (cSql(m_movieDBScraper->db, "SELECT movie_data_available FROM movie_runtime2 WHERE movie_id = ?", searchResultTvMovie.id() ).getInt(0) >= 4) return;
-// Data are missing for this movie, download now
-      m_movieDBScraper->StoreMovie(searchResultTvMovie.id(), true);
+      cSql sql_data_available(m_movieDBScraper->db, "SELECT movie_last_update, movie_data_available FROM movie_runtime2 WHERE movie_id = ?", searchResultTvMovie.id() );
+      if (sql_data_available.getInt(1) < 4 || config.isUpdateFromExternalDbRequired(sql_data_available.getInt64(0) ))
+        m_movieDBScraper->StoreMovie(searchResultTvMovie.id(), true);
     }
 
     virtual int downloadImages(int id, int seasonNumber = 0, int episodeNumber = 0) {
@@ -64,8 +64,8 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
       m_movieDBScraper->DownloadActors(id, true);
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
-      m_movieDBScraper->AddMovieResults(resultSet, searchString, compareStrings, description, isFullSearchString, years, lang);
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang) {
+      m_movieDBScraper->AddMovieResults(resultSet, searchString, compareStrings, shortText, description, isFullSearchString, years, lang);
     }
   private:
     cMovieDBScraper *m_movieDBScraper;
@@ -91,8 +91,9 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
       cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
       tv.SetTvID(searchResultTvMovie.id() );
       tv.downloadEpisodes(false, lang);
-      if (cSql(m_movieDBScraper->db, "SELECT movie_data_available FROM movie_runtime2 WHERE movie_id = ?", searchResultTvMovie.id() ).getInt(0) >= 4) return;
-      tv.UpdateDb(true);
+      cSql sql_data_available(m_movieDBScraper->db, "SELECT tv_actors_last_update, tv_data_available FROM tv_score WHERE tv_id = ?", searchResultTvMovie.id() );
+      if (sql_data_available.getInt(1) < 4 || config.isUpdateFromExternalDbRequired(sql_data_available.getInt64(0) ))
+        tv.UpdateDb(true);
     }
 
     virtual int downloadImages(int id, int seasonNumber, int episodeNumber) {
@@ -105,7 +106,7 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
         m_movieDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *description, const cYears &years, const cLanguage *lang) {
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang) {
       m_movieDBScraper->AddTvResults(resultSet, searchString, compareStrings, lang);
     }
   private:
