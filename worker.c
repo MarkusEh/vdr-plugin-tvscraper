@@ -124,7 +124,6 @@ vector<tEventID> eventIDs;
   return eventIDs;
 }
 
-
 bool cTVScraperWorker::ScrapEPG(void) {
 // true if one or more new events were scraped
   bool newEvent = false;
@@ -486,47 +485,68 @@ bool cTVScraperWorker::StartScrapping(bool &fullScan) {
   return true;
 }
 
+void release(cSql **stmt) {
+  if (!*stmt) return;
+  (*stmt)->reset();
+}
+void release_db_locks() {
+  if (!config.GetReadOnlyClient() ) return;
+  cLockDB lock_;
+//  release(&config.selectRecRuntime);
+  release(&config.selectEventRuntime);
+  release(&config.selectMoviewOverview);
+  release(&config.selectTvOverview);
+  release(&config.selectTvEpisode);
+  release(&config.selectTvEpisodeLanguage);
+}
+
 void cTVScraperWorker::Action(void) {
   if (!startLoop) return;
-  if (config.GetReadOnlyClient() ) return;
 
   mutex.Lock();
-  dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
-  waitCondition.TimedWait(mutex, initSleep);
+  if (config.GetReadOnlyClient() ) {
+    while (Running()) {
+      waitCondition.TimedWait(mutex, 2 * 1000);
+      release_db_locks();
+    }
+  } else {
+    dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
+    waitCondition.TimedWait(mutex, initSleep);
 
-  while (Running()) {
-    if (scanVideoDir) {
-      dsyslog("tvscraper: scanning video dir");
-      if (ConnectScrapers()) {
-        ScrapRecordings();
-        scanVideoDir = false;
-        m_recording.clear();
-        dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
-        TouchFile(config.GetRecordingsUpdateFileName().c_str());
+    while (Running()) {
+      if (scanVideoDir) {
+        dsyslog("tvscraper: scanning video dir");
+        if (ConnectScrapers()) {
+          ScrapRecordings();
+          scanVideoDir = false;
+          m_recording.clear();
+          dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
+          TouchFile(config.GetRecordingsUpdateFileName().c_str());
+        }
+        dsyslog("tvscraper: scanning video dir done");
+        continue;
       }
-      dsyslog("tvscraper: scanning video dir done");
-      continue;
-    }
-    bool newRec = CheckRunningTimers();
-    if (newRec) backup_requested = true;
-    if (!Running() ) break;
-    bool fullScan = false;
-    if (StartScrapping(fullScan)) {
-      dsyslog("tvscraper: start scraping epg");
-      if (ConnectScrapers()) {
-        bool newEvents = ScrapEPG();
-        if (newEvents) TouchFile(config.GetEPG_UpdateFileName().c_str());
-        if (newEvents && Running() ) cMovieOrTv::DeleteAllIfUnused(db);
-        if (fullScan && Running()) backup_requested = true;
-      }
-      dsyslog("tvscraper: epg scraping done");
+      bool newRec = CheckRunningTimers();
+      if (newRec) backup_requested = true;
       if (!Running() ) break;
-      if (config.getEnableAutoTimers() ) timersForEvents(*db);
+      bool fullScan = false;
+      if (StartScrapping(fullScan)) {
+        dsyslog("tvscraper: start scraping epg");
+        if (ConnectScrapers()) {
+          bool newEvents = ScrapEPG();
+          if (newEvents) TouchFile(config.GetEPG_UpdateFileName().c_str());
+          if (newEvents && Running() ) cMovieOrTv::DeleteAllIfUnused(db);
+          if (fullScan && Running()) backup_requested = true;
+        }
+        dsyslog("tvscraper: epg scraping done");
+        if (!Running() ) break;
+        if (config.getEnableAutoTimers() ) timersForEvents(*db);
+      }
+      if (backup_requested) {
+        int rc = db->BackupToDisc();
+        if (rc == SQLITE_OK) backup_requested = false;
+      }
+      waitCondition.TimedWait(mutex, loopSleep);
     }
-    if (backup_requested) {
-      int rc = db->BackupToDisc();
-      if (rc == SQLITE_OK) backup_requested = false;
-    }
-    waitCondition.TimedWait(mutex, loopSleep);
   }
 }

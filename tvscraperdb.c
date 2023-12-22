@@ -83,7 +83,7 @@ bool cTVScraperDB::Connect(void) {
         bool readFromPhys = timePhys > timeMem;
         int rc;
         if (config.GetReadOnlyClient() )
-          rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_NOMUTEX  , nullptr);
+          rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_FULLMUTEX, nullptr);
         else
           rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
         if (rc != SQLITE_OK) {
@@ -102,7 +102,7 @@ bool cTVScraperDB::Connect(void) {
     } else {
         int rc;
         if (config.GetReadOnlyClient() )
-          rc = sqlite3_open_v2(dbPathPhys.c_str(), &db, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_NOMUTEX  , nullptr);
+          rc = sqlite3_open_v2(dbPathPhys.c_str(), &db, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_FULLMUTEX, nullptr);
         else
           rc = sqlite3_open_v2(dbPathPhys.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
         if (rc != SQLITE_OK) {
@@ -135,10 +135,10 @@ int cTVScraperDB::LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int is
 
     if (isSave) {
       esyslog("tvscraper: access %s for write", zFilename);
-      rc = sqlite3_open_v2(zFilename, &pFile, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX  , nullptr);
+      rc = sqlite3_open_v2(zFilename, &pFile, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
     } else {
       esyslog("tvscraper: access %s for read", zFilename);
-      rc = sqlite3_open_v2(zFilename, &pFile, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_NOMUTEX  , nullptr);
+      rc = sqlite3_open_v2(zFilename, &pFile, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_FULLMUTEX, nullptr);
     }
     if( rc==SQLITE_OK ){
         pFrom = (isSave ? pInMemory : pFile);
@@ -970,10 +970,11 @@ bool cTVScraperDB::CheckStartScrapping(int minimumDistance) {
 bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime, int *duration_deviation) const {
   if (!recording || !recording->Info() || !recording->Info()->GetEvent()) return false;
   csRecording sRecording(recording);
-  cLockDB lock(this);
-  if (!config.selectRecRuntime) config.selectRecRuntime = new cSql(this, "select movie_tv_id, season_number, episode_number, runtime, duration_deviation from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?");
+  cSelectRecRuntime pre_stmt(this);
+//  cLockDB lock(this);
+//  if (!config.selectRecRuntime) config.selectRecRuntime = new cSql(this, "select movie_tv_id, season_number, episode_number, runtime, duration_deviation from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?");
 //  config.timeSelectFromRecordings.start();
-  config.selectRecRuntime->resetBindStep(sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
+  pre_stmt.stmt()->resetBindStep(sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
 /*
   config.timeSelectFromRecordings.stop();
   if ( config.timeSelectFromRecordings.getNumCalls() >= 1964) {
@@ -981,22 +982,22 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
     config.timeSelectFromRecordings.reset();
   }
 */
-  if (!config.selectRecRuntime->readRow()) return false;
+  if (!pre_stmt.stmt()->readRow()) return false;
   if (duration_deviation) {
     if (recording->IsEdited() ) *duration_deviation = 0;  // assume who ever cut the recording, checked for completness
     else {
-      if (config.selectRecRuntime->valueInitial(4)) {
+      if (pre_stmt.stmt()->valueInitial(4)) {
         *duration_deviation = -2; // no information
       } else {
   // get from cache
-        *duration_deviation = config.selectRecRuntime->getInt(4);
+        *duration_deviation = pre_stmt.stmt()->getInt(4);
       }
     }
   }
   if (runtime) {
-    return config.selectRecRuntime->readRow(movie_tv_id, season_number, episode_number, *runtime);
+    return pre_stmt.stmt()->readRow(movie_tv_id, season_number, episode_number, *runtime);
   } else {
-    return config.selectRecRuntime->readRow(movie_tv_id, season_number, episode_number);
+    return pre_stmt.stmt()->readRow(movie_tv_id, season_number, episode_number);
   }
 }
 bool cTVScraperDB::SetDurationDeviation(const cRecording *recording, int duration_deviation) const {
@@ -1271,6 +1272,27 @@ void cTVScraperDB::setSimilar(int tv_id1, int tv_id2) {
   if (equalId1 == 0 && equalId2 != 0) { exec(sqlInsert, tv_id1, equalId2); return; }
 // both are in the table, but with different IDs
   exec("UPDATE tv_similar set equal_id = ? WHERE equal_id = ?", equalId1, equalId2);
+}
+void cTVScraperDB::setEqual(int themoviedb_id, int thetvdb_id) {
+// use this method, and don't exec INSERT OR REPLACE INTO tv_equal ...
+// to make sure that it alsow will work if we add fields to tv_equal
+
+  if (themoviedb_id <= 0 || thetvdb_id >= 0) {
+    esyslog("tvscraper: ERROR cTVScraperDB::setEqual, themoviedb_id %d, thetvdb_id %d", themoviedb_id, thetvdb_id);
+    return;
+  }
+  exec("INSERT OR REPLACE INTO tv_equal (themoviedb_id, thetvdb_id) VALUES(?, ?)", themoviedb_id, thetvdb_id);
+}
+
+int cTVScraperDB::getNormedTvId(int tv_id) {
+// Input: ID of series from TMDb (>0) or TheTVDB (<0)
+//        Do NOT call with movie ID from TMDb!!!
+// Output: Same ID or equal ID from other ext. database
+//   Current implementation: Use TheTVDB if available.
+//   This might change!!
+  if (tv_id < 0) return tv_id;
+  int id = cSql(this, "SELECT thetvdb_id FROM tv_equal WHERE themoviedb_id = ?", tv_id).getInt(0);
+  return id<0 ? id:tv_id;
 }
 // cSql =========================================================
 bool cSql::prepareInt() {

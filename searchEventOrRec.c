@@ -336,8 +336,8 @@ inline void swap(searchResultTvMovie &a, searchResultTvMovie &b) {
 scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResults, cSv &foundName, cSv &episodeSearchString) {
 //  bool debug = m_TVshowSearchString == "james cameron's dark angel";
   bool debug = false;
-  foundName = "";
-  episodeSearchString = "";
+  foundName = cSv();
+  episodeSearchString = cSv();
   SearchNew(searchResults);
   if (searchResults.size() == 0) return scrapNone; // nothing found
 // something was found. Add all information which is available for free
@@ -361,6 +361,22 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   if (debug) esyslog("tvscraper: ScrapFind, found: %i, title: \"%s\"", searchResults[0].id(), m_TVshowSearchString.c_str() );
   if (searchResults[0].getMatch() < config.minMatchFinal) return scrapNone; // nothing good enough found
   if (searchResults[0].movie() ) { foundName = m_movieSearchString; return scrapMovie;}
+  int n_tv_id = m_db->getNormedTvId(searchResults[0].id());
+  if (searchResults[0].id() != n_tv_id) {
+    for (auto &i :searchResults) {
+      if (i.id() == n_tv_id) {
+        if (config.enableDebug) {
+          esyslog("tvscraper: use tv ID %d instead of tv ID %d", n_tv_id, searchResults[0].id() );
+          cSv f,e;
+          if (searchResults[0].delim() ) splitString(m_movieSearchString, searchResults[0].delim(), 4, f, e);
+          else f = m_TVshowSearchString;
+          searchResults[0].log(f);
+        }
+        std::swap(searchResults[0], i);
+        break;
+      }
+    }
+  }
   if (searchResults[0].delim() ) splitString(m_movieSearchString, searchResults[0].delim(), 4, foundName, episodeSearchString);
   else foundName = m_TVshowSearchString;
   return scrapSeries;
@@ -489,9 +505,8 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
 // also, we must do it here the same way we do it in ScrapFindAndStore(),
 // where we also have no min_distance for episode match
     }
+    if (Store(movieOrTv) == -1) return false;
   }
-
-  if (Store(movieOrTv) == -1) return false;
 /*
   if (!config.enableDebug) return true;
   switch (movieOrTv.type) {

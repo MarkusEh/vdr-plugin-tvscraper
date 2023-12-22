@@ -86,7 +86,7 @@ bool cMovieDbTv::ReadTv(bool exits_in_db) {
     rapidjson::Value::ConstMemberIterator jCredits_it = tv.FindMember("credits");
     if (jCredits_it != tv.MemberEnd() && jCredits_it->value.IsObject() )
       readAndStoreMovieDbActors(m_db, jCredits_it->value, m_tvID, false);
-  if (m_thetvdb_id) m_db->exec("INSERT OR REPLACE INTO tv_equal (themoviedb_id, thetvdb_id) VALUES(?, ?)", m_tvID, -m_thetvdb_id);
+  if (m_thetvdb_id) m_db->setEqual(m_tvID, -m_thetvdb_id);
   }
   return ret;
 }

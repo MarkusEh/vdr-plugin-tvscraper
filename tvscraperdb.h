@@ -182,6 +182,14 @@ class cSql {
       return *this;
     }
 
+    cSql & reset() {
+      if (m_statement) {
+        sqlite3_reset(m_statement);
+        sqlite3_clear_bindings(m_statement);
+      }
+      return *this;
+    }
+
 // =======================================================================
 //   finalizePrepareBindStep:
 //     - if query differs from old query, finalize old query.
@@ -570,6 +578,8 @@ public:
     void DeleteActorDownload (int tvID, bool movie) const;
     int GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
     void setSimilar(int tv_id1, int tv_id2);
+    void setEqual(int themoviedb_id, int thetvdb_id);
+    int getNormedTvId(int tv_id);
 };
 
 /*
@@ -592,8 +602,28 @@ public:
 //    if (!m_mutex) esyslog("tvscraper: ERROR in cLockDB, sqlite3_db_mutex returned 0");
     sqlite3_mutex_enter(config.getDbMutex() );
   }
-  ~cLockDB() { sqlite3_mutex_leave(config.getDbMutex() ); }
+  cLockDB() {
+    sqlite3_mutex_enter(config.getDbMutex() );
+  }
+  virtual ~cLockDB() { sqlite3_mutex_leave(config.getDbMutex() ); }
 private:
 //  sqlite3_mutex *m_mutex;
+};
+class cPreparedStmt: public cLockDB {
+  public:
+    cPreparedStmt() { }
+    cSql *stmt() const { return m_stmt; }
+    virtual ~cPreparedStmt() {
+      if (m_stmt) m_stmt->reset();
+    }
+  protected:
+    cSql *m_stmt = nullptr;
+};
+class cSelectRecRuntime: public cPreparedStmt {
+  public:
+    cSelectRecRuntime(const cTVScraperDB *db) {
+      if (!config.selectRecRuntime) config.selectRecRuntime = new cSql(db, "SELECT movie_tv_id, season_number, episode_number, runtime, duration_deviation FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ?");
+      m_stmt = config.selectRecRuntime;
+    }
 };
 #endif //__TVSCRAPER_TVSCRAPPERDB_H
