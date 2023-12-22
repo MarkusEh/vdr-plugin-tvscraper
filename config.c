@@ -49,9 +49,12 @@ std::set<tChannelID> getDefaultChannels() {
 cTVScraperConfig::cTVScraperConfig() {
     enableDebug = 0;
     m_enableAutoTimers = 0;
+    m_sqlite3_mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_RECURSIVE);
+    if (!m_sqlite3_mutex) esyslog("tvscraper: ERROR in cTVScraperConfig::cTVScraperConfig, sqlite3_mutex_alloc returned 0");
 }
 
 cTVScraperConfig::~cTVScraperConfig() {
+  sqlite3_mutex_free(m_sqlite3_mutex);
 }
 
 void cTVScraperConfig::SetBaseDir(const string &dir) {

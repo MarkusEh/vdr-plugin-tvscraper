@@ -54,6 +54,7 @@ public:
   int year() const { return m_year; }
   int m_yearMatch = 0;
   cNormedString m_normedName;
+  int m_other_id = 0; // if m_id is theTVDB -> m_other_id  is in TMDb; and vice verse
 private:
   int m_id;
   bool m_movie;

@@ -64,15 +64,28 @@ class cTvDbTvScraper: public iExtMovieTvDb {
 //   If yes, it will just download path (if the file is not available)
       cSql stmt(m_TVDBScraper->db,
         "SELECT tv_languages, tv_languages_last_update, tv_actors_last_update, tv_data_available integer FROM tv_score WHERE tv_id = ?", searchResultTvMovie.id() );
-      if (!stmt.readRow() || stmt.getInt(2) == 0) {
+      if (!stmt.readRow() || stmt.valueInitial(1) || stmt.valueInitial(2) || stmt.getInt(3) < 5) {
 // no cache at all, or missing actors => complete download
-        if (config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 force update, reason %s, lang %s, seriesID %i",
+        if (config.enableDebug) isyslog("tvscraper: cTvDbTvScraper::enhance1 force update, reason %s, lang %s, seriesID %i",
           stmt.readRow()?"actors missing":"does not exist", lang->getNames().c_str(), searchResultTvMovie.id() );
 
         m_TVDBScraper->StoreSeriesJson(-searchResultTvMovie.id(), true);
         return;
       }
-      if (!config.isUpdateFromExternalDbRequired(stmt.getInt64(1) )) return;
+      bool update_required = config.isUpdateFromExternalDbRequired(stmt.getInt64(1));
+      if (!update_required && config.isUpdateFromExternalDbRequiredMR(stmt.getInt64(1) )){
+// check: do we have a runtime?
+        bool found = false;
+        for (cSql &sql_rt: cSql(m_TVDBScraper->db, "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?", searchResultTvMovie.id() )) {
+          if (sql_rt.getInt(0) > 0) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) update_required = true; // no runtime found
+      }
+
+      if (!update_required) return;
 // we also need to update the episode runtimes, so update regularily
       int res = m_TVDBScraper->downloadEpisodes(-searchResultTvMovie.id(), true, lang); // this will not update the actors, which is not required here
       if (res == 1 && config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 lang %s not available, id %i",  lang->getNames().c_str(), searchResultTvMovie.id() );

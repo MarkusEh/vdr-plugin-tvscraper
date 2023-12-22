@@ -254,7 +254,15 @@ bool cTVScraperWorker::ScrapEPG(void) {
           return newEvent;
         }
         bool newRec = CheckRunningTimers();
-        if (newRec) db->BackupToDisc();
+        if (newRec) backup_requested = true;
+        if (backup_requested) {
+          int rc = db->BackupToDisc();
+          if (rc == SQLITE_OK) backup_requested = false;
+          if (!Running() ) {
+            for (auto &event: currentEvents) delete event.second;
+            return newEvent;
+          }
+        }
       }
     }  // end loop over all events
   } // end loop over all channels
@@ -319,7 +327,7 @@ void cTVScraperWorker::ScrapRecordings(void) {
     if (!Running() ) break;
     bool newRec = CheckRunningTimers();
     if (!Running() ) break;
-    if (newRec) db->BackupToDisc();
+    if (newRec) backup_requested = true;
     if (!Running() ) break;
   }
   deleteOutdatedRecordingImages(db);
@@ -495,14 +503,12 @@ void cTVScraperWorker::Action(void) {
         m_recording.clear();
         dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
         TouchFile(config.GetRecordingsUpdateFileName().c_str());
-//      db->BackupToDisc();
       }
       dsyslog("tvscraper: scanning video dir done");
       continue;
     }
     bool newRec = CheckRunningTimers();
-    if (!Running() ) break;
-    if (newRec) db->BackupToDisc();
+    if (newRec) backup_requested = true;
     if (!Running() ) break;
     bool fullScan = false;
     if (StartScrapping(fullScan)) {
@@ -511,11 +517,15 @@ void cTVScraperWorker::Action(void) {
         bool newEvents = ScrapEPG();
         if (newEvents) TouchFile(config.GetEPG_UpdateFileName().c_str());
         if (newEvents && Running() ) cMovieOrTv::DeleteAllIfUnused(db);
-        if (fullScan && Running()) db->BackupToDisc();
+        if (fullScan && Running()) backup_requested = true;
       }
       dsyslog("tvscraper: epg scraping done");
       if (!Running() ) break;
       if (config.getEnableAutoTimers() ) timersForEvents(*db);
+    }
+    if (backup_requested) {
+      int rc = db->BackupToDisc();
+      if (rc == SQLITE_OK) backup_requested = false;
     }
     waitCondition.TimedWait(mutex, loopSleep);
   }

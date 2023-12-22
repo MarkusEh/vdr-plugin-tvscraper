@@ -261,28 +261,28 @@ class cJsonDocumentFromUrl: public cJsonDocument {
   public:
     cJsonDocumentFromUrl() { }
 template<typename... Args>
-    cJsonDocumentFromUrl(const char *url, Args... args) {
+    cJsonDocumentFromUrl(cStr url, Args... args) {
       download_and_parse(url, std::forward<Args>(args)...);
     }
 template<typename... Args>
-    bool download_and_parse(const char *url, Args... args) {
+    bool download_and_parse(cStr url, Args... args) {
       struct curl_slist *headers = NULL;
       headers = curl_slistAppend(headers, std::forward<Args>(args)...);
-      bool result = download_and_parse_int(url, headers);
+      bool result = download_and_parse_int(url.c_str(), headers);
       if (headers) curl_slist_free_all(headers);
       return result;
     }
-    bool download_and_parse_int(const char *url, struct curl_slist *headers) {
-      if (m_enableDebug) esyslog("tvscraper: calling %s", url);
+    bool download_and_parse_int(cStr url, struct curl_slist *headers) {
+      if (m_enableDebug) esyslog("tvscraper: calling %s", url.c_str() );
       headers = curl_slistAppend(headers, "Accept: application/json");
-      if (!CurlGetUrl(url, m_data, headers)) {
+      if (!CurlGetUrl(url.c_str(), m_data, headers)) {
 // CurlGetUrl already writes the syslog entry. We create an empty (valid) document
         SetObject();
         return false;
       }
       ParseInsitu(m_data.data() );
       if (HasParseError() ) {
-        esyslog("tvscraper: ERROR cJsonDocumentFromUrl, url %s parse error %s, doc %s", url, rapidjson::GetParseError_En(GetParseError()), zeroToPercent(cSv(m_data).substr(0, 100)).c_str() );
+        esyslog("tvscraper: ERROR cJsonDocumentFromUrl, url %s parse error %s, doc %s", url.c_str() , rapidjson::GetParseError_En(GetParseError()), zeroToPercent(cSv(m_data).substr(0, 100)).c_str() );
         SetObject();
         return false;
       }
@@ -300,18 +300,18 @@ class cJsonDocumentFromFile: public cJsonDocument {
 // if file does     exist, but is not valid json: error in syslog (you can check with document.HasParseError()
 // if file does     exist, but is not valid json and backup_invalid_file == true: rename the invalid file to .bak, and return an empty (valid) document. Write Error message to syslog
   public:
-    cJsonDocumentFromFile(const char *filename, bool backup_invalid_file = false): m_jfile(filename) {
+    cJsonDocumentFromFile(cStr filename, bool backup_invalid_file = false): m_jfile(filename) {
       if (cSv(m_jfile).empty() ) {
         SetObject();
         return;
       }
       ParseInsitu(m_jfile.data() );
       if (HasParseError() ) {
-        esyslog("tvscraper: ERROR cJsonDocumentFromFile, file %s size %zu parse error %s, doc %s", filename, cSv(m_jfile).length(), rapidjson::GetParseError_En(GetParseError()), zeroToPercent(cSv(m_jfile).substr(0, 100)).c_str() );
+        esyslog("tvscraper: ERROR cJsonDocumentFromFile, file %s size %zu parse error %s, doc %s", filename.c_str(), cSv(m_jfile).length(), rapidjson::GetParseError_En(GetParseError()), zeroToPercent(cSv(m_jfile).substr(0, 100)).c_str() );
         if (backup_invalid_file) {
           std::error_code ec;
-          fs::rename(filename, concat(filename, ".bak"), ec);
-          if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to rename \"%s\" to \"%s\"", ec.message().c_str(), ec.value(), filename, concat(filename, ".bak").c_str());
+          fs::rename(filename.c_str(), cToSvConcat(filename, ".bak").c_str(), ec);
+          if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  tried to rename \"%s\" to \"%s\"", ec.message().c_str(), ec.value(), filename.c_str(), concat(filename, ".bak").c_str());
         }
         SetObject();
       }
@@ -323,12 +323,12 @@ class cJsonDocumentFromFile: public cJsonDocument {
     cToSvFile m_jfile;
 };
 
-int jsonWriteFile(rapidjson::Document &document, const char *filename) {
+int jsonWriteFile(rapidjson::Document &document, cStr filename) {
 // return 1, if it is not possible to write file
 // return 0, in case of no error
-  std::ofstream ofs(filename);
+  std::ofstream ofs(filename.c_str() );
   if (!ofs.is_open() ) {
-    esyslog("tvscraper: ERROR jsonWriteFile, could not open file %s for writing", filename);
+    esyslog("tvscraper: ERROR jsonWriteFile, could not open file %s for writing", filename.c_str() );
     return 1;
   }
 

@@ -81,12 +81,18 @@ bool cTVScraperDB::Connect(void) {
         time_t timeMem = LastModifiedTime(dbPathMem.c_str() );
         time_t timePhys = LastModifiedTime(dbPathPhys.c_str() );
         bool readFromPhys = timePhys > timeMem;
-        if (sqlite3_open_v2(dbPathMem.c_str(),&db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr)!=SQLITE_OK) {
+        int rc;
+        if (config.GetReadOnlyClient() )
+          rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_NOMUTEX  , nullptr);
+        else
+          rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
+        if (rc != SQLITE_OK) {
             esyslog("tvscraper: failed to open or create %s", dbPathMem.c_str());
             return false;
         }
+        esyslog("tvscraper: connecting to db %s", dbPathMem.c_str());
         if (readFromPhys) {
-          esyslog("tvscraper: connecting to db %s", dbPathMem.c_str());
+          esyslog("tvscraper: update data from %s", dbPathPhys.c_str());
           int rc = LoadOrSaveDb(db, dbPathPhys.c_str(), false);
           if (rc != SQLITE_OK) {
               esyslog("tvscraper: error while loading data from %s, errorcode %d", dbPathPhys.c_str(), rc);
@@ -94,7 +100,12 @@ bool cTVScraperDB::Connect(void) {
           }
         }
     } else {
-        if (sqlite3_open(dbPathPhys.c_str(),&db)!=SQLITE_OK) {
+        int rc;
+        if (config.GetReadOnlyClient() )
+          rc = sqlite3_open_v2(dbPathPhys.c_str(), &db, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_NOMUTEX  , nullptr);
+        else
+          rc = sqlite3_open_v2(dbPathPhys.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
+        if (rc != SQLITE_OK) {
             esyslog("tvscraper: failed to open or create %s", dbPathPhys.c_str());
             return false;
         }
@@ -104,12 +115,17 @@ bool cTVScraperDB::Connect(void) {
     return CreateTables();
 }
 
-void cTVScraperDB::BackupToDisc(void) {
-    if (inMem) {
-        LoadOrSaveDb(db, dbPathPhys.c_str(), true);
-    }
+int cTVScraperDB::BackupToDisc(void) {
+  int rc = SQLITE_OK;
+  if (inMem) rc = LoadOrSaveDb(db, dbPathPhys.c_str(), true);
+  return rc;
 }
 
+void write_backup_error(const char *context, const char *filename, int rc, sqlite3 *db = nullptr) {
+  int extendedErrCode = db?sqlite3_extended_errcode(db):0;
+  const char *err = db?sqlite3_errmsg(db):sqlite3_errstr(rc);
+  esyslog("tvscraper: ERROR %s, filename %s, error: %s, error code %i extendedErrCode %i", context, filename, err?err:"no error message", rc, extendedErrCode);
+}
 int cTVScraperDB::LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int isSave) {
     int rc;                   /* Function return code */
     sqlite3 *pFile;           /* Database connection opened on zFilename */
@@ -117,23 +133,32 @@ int cTVScraperDB::LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int is
     sqlite3 *pTo;             /* Database to copy to (pFile or pInMemory) */
     sqlite3 *pFrom;           /* Database to copy from (pFile or pInMemory) */
 
-
-    if (isSave) esyslog("tvscraper: access %s for write", zFilename);
-    else esyslog("tvscraper: access %s for read", zFilename);
-    rc = sqlite3_open(zFilename, &pFile);
+    if (isSave) {
+      esyslog("tvscraper: access %s for write", zFilename);
+      rc = sqlite3_open_v2(zFilename, &pFile, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX  , nullptr);
+    } else {
+      esyslog("tvscraper: access %s for read", zFilename);
+      rc = sqlite3_open_v2(zFilename, &pFile, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_NOMUTEX  , nullptr);
+    }
     if( rc==SQLITE_OK ){
         pFrom = (isSave ? pInMemory : pFile);
         pTo   = (isSave ? pFile     : pInMemory);
         pBackup = sqlite3_backup_init(pTo, "main", pFrom, "main");
         if( pBackup ){
-            (void)sqlite3_backup_step(pBackup, -1);
-            (void)sqlite3_backup_finish(pBackup);
+            int rc_s = sqlite3_backup_step(pBackup, -1);
+            if (rc_s != SQLITE_DONE) write_backup_error("sqlite3_backup_step", zFilename, rc_s, pTo);
+            rc = sqlite3_backup_finish(pBackup);
+            if (rc != SQLITE_OK) write_backup_error("sqlite3_backup_finish", zFilename, rc, pTo);
+            else if (rc_s != SQLITE_DONE) rc = rc_s;
+        } else {
+          write_backup_error("sqlite3_backup_init", zFilename, sqlite3_errcode(pTo), pTo);
         }
-        rc = sqlite3_errcode(pTo);
+    } else {
+      write_backup_error("opening database", zFilename, rc, pFile);
     }
-
-    (void)sqlite3_close(pFile);
-    esyslog("tvscraper: access to %s finished", zFilename);
+    int rc_c = sqlite3_close(pFile);
+    if (rc_c != SQLITE_OK) write_backup_error("closing database", zFilename, rc_c, pFile);
+    esyslog("tvscraper: access to %s finished, rc = %d", zFilename, rc);
     return rc;
 }
 
@@ -161,6 +186,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "tv_status text, ";
     sql << "tv_last_season integer, ";
     sql << "tv_number_of_episodes integer, ";
+    sql << "tv_number_of_episodes_in_specials integer, ";
     sql << "tv_display_language integer, ";
     sql << "tv_last_updated integer"; // time stamp: external DB was contacted, and checked for new episodes
     sql << "tv_last_changed integer"; // time stamp: last time when new episodes were added to tv_s_e
@@ -196,7 +222,7 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "tv_languages nvarchar, ";
     sql << "tv_languages_last_update integer, ";
     sql << "tv_actors_last_update integer, ";
-    sql << "tv_data_available integer);"; // 0 no data; 1: score; 2: languages; 3: actors; 4: alternative_titles
+    sql << "tv_data_available integer);"; // 0 no data; 1: score; 2: languages; 3: actors; 4: alternative_titles; 5: equal ids
 // check actors the TMDB
 // for TMDB: &append_to_response=credits,translations,alternative_titles
 //    if translation is missing in "get movie detail": overview == "", tagline == "", and title == original_title
@@ -336,6 +362,12 @@ for thetvdb:
     sql << "equal_id integer);";
     sql << "CREATE INDEX IF NOT EXISTS idx1 on tv_similar (equal_id); ";
 
+// ID mapping TheTVDB /TMDb series IDs
+    sql << "CREATE TABLE IF NOT EXISTS tv_equal (";
+    sql << "themoviedb_id integer primary key, "; // always > 0!
+    sql << "thetvdb_id integer);";                // always < 0!
+    sql << "CREATE INDEX IF NOT EXISTS idx_tv_equal ON tv_equal (thetvdb_id); ";
+
 // data for movies from The Movie Database
     sql << "DROP TABLE IF EXISTS movies;";
     sql << "DROP TABLE IF EXISTS movies2;";
@@ -447,6 +479,7 @@ for thetvdb:
     AddColumnIfNotExists("tv_score", "tv_languages_last_update", "integer");
     AddColumnIfNotExists("tv_score", "tv_actors_last_update", "integer");
     AddColumnIfNotExists("tv_score", "tv_data_available", "integer");
+    AddColumnIfNotExists("tv2", "tv_number_of_episodes_in_specials", "integer");
     AddColumnIfNotExists("tv2", "tv_display_language", "integer");
     AddColumnIfNotExists("movie_runtime2", "movie_director", "nvarchar");
     AddColumnIfNotExists("movie_runtime2", "movie_writer", "nvarchar");
@@ -563,9 +596,11 @@ void cTVScraperDB::DeleteSeriesCache(int seriesID) const {
 // only TMDb
     exec("DELETE FROM actor_tv           WHERE tv_id = ?", seriesID);
     exec("DELETE FROM alternative_titles WHERE external_database = 2 AND id = ?", seriesID);
+    exec("DELETE FROM tv_equal           WHERE themoviedb_id = ?", seriesID);
   } else {
 // only TheTVDB
     exec("DELETE FROM series_actors      WHERE actor_series_id = ?", -seriesID);
+    exec("DELETE FROM tv_equal           WHERE thetvdb_id = ?", seriesID);
   }
   exec("DELETE FROM tv_similar           WHERE tv_id = ?", seriesID);
   exec("DELETE FROM cache                WHERE movie_tv_id = ? and season_number != -100", seriesID);
@@ -617,31 +652,34 @@ void cTVScraperDB::InsertTv(int tvID, const char *name, const char *originalName
 
     InsertTvEpisodeRunTimes(tvID, EpisodeRunTimes);
 // note: we call InsertTv only in case of reading all data (includeing actors, even if they are updated elsewhere)
-    exec("INSERT OR REPLACE INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update, tv_actors_last_update, tv_data_available) VALUES (?, ?, ?, ?, ?, ?)", tvID, popularity, languages, time(0), time(0), 4);
+    exec("INSERT OR REPLACE INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update, tv_actors_last_update, tv_data_available) VALUES (?, ?, ?, ?, ?, ?)", tvID, popularity, languages, time(0), time(0), 5);
 }
 
 void cTVScraperDB::InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes) {
-  if (EpisodeRunTimes.size() == 0) {
-    esyslog("tvscraper: ERROR in InsertTvEpisodeRunTimes, EpisodeRunTimes.size() == 0, tvID = %d", tvID);
-    return;
-  }
+  if (EpisodeRunTimes.size() == 0) return;
   cSql stmt(this, "INSERT OR REPLACE INTO tv_episode_run_time (tv_id, episode_run_time) VALUES (?, ?);");
   for (const int episodeRunTime: EpisodeRunTimes)
     stmt.resetBindStep(tvID, episodeRunTime);
+}
+bool cTVScraperDB::TvRuntimeAvailable(int tvID) {
+  for (cSql &stmt: cSql(this, "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?", tvID)) {
+    if (stmt.getInt(0) > 0) return true;
+  }
+  return false;
 }
 
 void cTVScraperDB::TvSetEpisodesUpdated(int tvID) {
   exec("UPDATE tv2 set tv_last_updated = ? where tv_id= ?", time(0), tvID);
 }
 
-void cTVScraperDB::TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes) {
-  exec("UPDATE tv2 set tv_last_season = ? , tv_number_of_episodes = ? where tv_id= ?",
-    LastSeason, NumberOfEpisodes, tvID);
+void cTVScraperDB::TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes, int NumberOfEpisodesInSpecials) {
+  exec("UPDATE tv2 SET tv_last_season = ? , tv_number_of_episodes = ? , tv_number_of_episodes_in_specials = ? where tv_id= ?",
+    LastSeason, NumberOfEpisodes, NumberOfEpisodesInSpecials, tvID);
 }
 
-bool cTVScraperDB::TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes) {
-  cSql sql(this, "select tv_last_season, tv_number_of_episodes from tv2 where tv_id = ?", tvID);
-  return sql.readRow(LastSeason, NumberOfEpisodes);
+bool cTVScraperDB::TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes, int &NumberOfEpisodesInSpecials) {
+  cSql sql(this, "select tv_last_season, tv_number_of_episodes, tv_number_of_episodes_in_specials from tv2 where tv_id = ?", tvID);
+  return sql.readRow(LastSeason, NumberOfEpisodes, NumberOfEpisodesInSpecials);
 }
 
 bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {

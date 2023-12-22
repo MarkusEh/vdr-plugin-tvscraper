@@ -488,7 +488,7 @@ public:
     cTVScraperDB(void);
     virtual ~cTVScraperDB(void);
     bool Connect(void);
-    void BackupToDisc(void);
+    int BackupToDisc(void);
 // allow sql statments from outside this class
 // see also class cSql
     template<typename... Args>
@@ -527,9 +527,10 @@ public:
     void DeleteSeriesCache(int seriesID) const;
     void InsertTv(int tvID, const char *name, const char *originalName, const char *overview, const char *firstAired, const char *networks, const string &genres, float popularity, float vote_average, int vote_count, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *status, const set<int> &EpisodeRunTimes, const char *createdBy, const char *languages);
     void InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunTimes);
+    bool TvRuntimeAvailable(int tvID);
     void TvSetEpisodesUpdated(int tvID);
-    void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes);
-    bool TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes);
+    void TvSetNumberOfEpisodes(int tvID, int LastSeason, int NumberOfEpisodes, int NumberOfEpisodesInSpecials);
+    bool TvGetNumberOfEpisodes(int tvID, int &LastSeason, int &NumberOfEpisodes, int &NumberOfEpisodesInSpecials);
     void InsertEvent(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
     void DeleteEventOrRec(csEventOrRecording *sEventOrRecording);
     void InsertActor(int seriesID, const char *name, const char *role, const char *path);
@@ -587,12 +588,12 @@ public:
 class cLockDB {
 public:
   cLockDB(const cTVScraperDB *db) {
-    m_mutex = sqlite3_db_mutex(db->db);
-    if (!m_mutex) esyslog("tvscraper: ERROR in cLockDB, sqlite3_db_mutex returned 0");
-    sqlite3_mutex_enter(m_mutex);
+//    m_mutex = sqlite3_db_mutex(db->db);
+//    if (!m_mutex) esyslog("tvscraper: ERROR in cLockDB, sqlite3_db_mutex returned 0");
+    sqlite3_mutex_enter(config.getDbMutex() );
   }
-  ~cLockDB() { sqlite3_mutex_leave(m_mutex); }
+  ~cLockDB() { sqlite3_mutex_leave(config.getDbMutex() ); }
 private:
-  sqlite3_mutex *m_mutex;
+//  sqlite3_mutex *m_mutex;
 };
 #endif //__TVSCRAPER_TVSCRAPPERDB_H

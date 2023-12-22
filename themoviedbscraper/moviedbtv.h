@@ -26,8 +26,13 @@ private:
    const char *m_status = NULL;
    const char *m_tvBackdropPath = NULL;
    const char *m_tvPosterPath = NULL;
+   const char *m_imdb_id = nullptr;
+   int m_thetvdb_id;
+
    int m_tvNumberOfSeasons = 0;
    int m_tvNumberOfEpisodes = 0;
+   int m_tvNumberOfEpisodesInSpecials = 0;
+   set<int> m_tvSeasons;
    int m_seasonNumber = 0;
    int m_episodeNumber = 0;
    set<int> m_episodeRunTimes;

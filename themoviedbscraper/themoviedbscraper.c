@@ -40,7 +40,7 @@ bool cMovieDBScraper::parseJSON(const rapidjson::Value &root) {
 
 void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
   cSql stmtDo(db, "SELECT actor_id, actor_path FROM actor_download WHERE movie_id = ? and is_movie = ?");
-  for (cSql &stmt: stmtDo.resetBindStep(tvID,  movie)) {
+  for (cSql &stmt: stmtDo.resetBindStep(tvID, movie)) {
     const char *actor_path = stmt.getCharS(1);
     if (!actor_path || !*actor_path) continue;
     CONCATENATE(actorsFullUrl, m_actorsBaseUrl, actor_path);
@@ -84,10 +84,10 @@ bool cMovieDBScraper::DownloadFile(cSv urlBase, cSv urlFileName, cSv destDir, in
 // download urlBase urlFileName to destDir destID destFileName
 // for tv shows (movie == false), create the directory destDir destID
   if(urlFileName.empty() ) return false;
-  cToSvConcat destFullPath (destFullPath, destDir, destID);
+  cToSvConcat destFullPath (destDir, destID);
   if (!movie) CreateDirectory(destFullPath.c_str() );
   destFullPath.append(destFileName);
-  return DownloadImg(cToSvConcat(urlBase, urlFileName).c_str(), destFullPath.c_str() );
+  return DownloadImg(cToSvConcat(urlBase, urlFileName), destFullPath);
 }
 
 void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode) {

@@ -69,10 +69,14 @@ bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries, const cLangu
   genres = getValueArrayConcatenated(jSeries, "genres", "name");
 // IMDB_ID
   IMDB_ID = NULL;
+  int themoviedb_id = 0;
   for (const rapidjson::Value &remoteid: cJsonArrayIterator(jSeries, "remoteIds")) {
-    if (getValueInt(remoteid, "type") == 2) IMDB_ID = getValueCharS(remoteid, "id");
-    if (IMDB_ID && *IMDB_ID) break;
+    int type = getValueInt(remoteid, "type");
+    if (type == 2) IMDB_ID = getValueCharS(remoteid, "id");
+    else if (type == 12) themoviedb_id = parse_int<int>(getValueCharS(remoteid, "id"));
+    if (IMDB_ID && *IMDB_ID && themoviedb_id) break;
   }
+  if (themoviedb_id) m_db->exec("INSERT OR REPLACE INTO tv_equal (themoviedb_id, thetvdb_id) VALUES(?, ?)", themoviedb_id, -m_seriesID);
 // translations (name, overview)
   rapidjson::Value::ConstMemberIterator translations_it = getTag(jSeries, "translations", "cTVDBSeries::ParseJson_Series", nullptr);
   if (translations_it != jSeries.MemberEnd() && translations_it->value.IsObject() ) {

@@ -168,7 +168,7 @@ void cSearchEventOrRec::initSearchString(std::string &searchString) {
     m_overrides->RemovePrefix(searchString);
     StringRemoveLastPartWithP(searchString); // always remove this: Year, number of season/episode, ... but not a part of the name
   }
-  searchString = stringToLower(searchString, g_locale);
+  searchString = std::string(cToSvToLower(searchString, g_locale));
 }
 
 cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
@@ -369,20 +369,14 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
 int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
   int finalDurationDistance = -1; // default, no data available
   cSql stmt(m_db, "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?", tvID);
-  if (!stmt.readRow() ) {
-    esyslog("tvscraper: ERROR, cSearchEventOrRec::GetTvDurationDistance, no runtime tvID = %d", tvID);
-// we call iExtMovieTvDb->enhance1() before this, so data should be available
-  }
+  if (!stmt.readRow() ) return finalDurationDistance;
 // Done / checked: also write episode runtimes to episode_run_time, for each episode
-  int n_col = 0;
   for (cSql &stm: stmt) {
-    n_col++;
     int rt = stm.getInt(0);
     if (rt < 1) continue; // ignore 0 and -1: -1-> no value in ext. db. 0-> value 0 in ext. db
     int durationDistance = m_sEventOrRecording->DurationDistance(rt);
     if (finalDurationDistance == -1 || durationDistance < finalDurationDistance) finalDurationDistance = durationDistance;
   }
-  if (n_col == 0) esyslog("tvscraper: ERROR, no runtime in cSearchEventOrRec::GetTvDurationDistance, tvID = %d", tvID);
   return finalDurationDistance;
 }
 
@@ -435,7 +429,7 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
   }
   cSv searchString2;
   if (splitString(searchString_f, ": ", 3, searchString1, searchString2) ) {
-    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString1.length() >= 5) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
     if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
   }
   if (splitString(searchString_f, " - ", 3, searchString1, searchString2)) {
@@ -619,19 +613,31 @@ bool cSearchEventOrRec::selectBestAndEnhanceIfRequired(std::vector<searchResultT
   new_end = end;
   if (begin == end) return false; // empty list
   if (begin + 1 == end) { func(*begin, *this); return false;} // list with one element, always enhance first (currently best) result
+  cSql stmt_get_theTVDB_id(m_db, "SELECT thetvdb_id FROM tv_equal WHERE themoviedb_id = ?");
+  cSql stmt_get_TMDb_id   (m_db, "SELECT themoviedb_id FROM tv_equal WHERE thetvdb_id = ?");
+  std::vector<searchResultTvMovie>::iterator i;
+  for (i = begin; i != end; i++) {
+    if (i->m_other_id != 0 || i->movie() ) continue;
+    if (i->id() > 0) {
+      i->m_other_id = stmt_get_theTVDB_id.resetBindStep(i->id()).getInt(0);
+    } else {
+      i->m_other_id = stmt_get_TMDb_id.resetBindStep(i->id()).getInt(0);
+    }
+  }
   std::sort(begin, end);
   float bestMatch = begin->getMatch();
   bool bestMatchMovie = begin->movie();
-  std::vector<searchResultTvMovie>::iterator i;
+  int bestMatch_other_id = begin->m_other_id;
   float diffSame = 2.;
   float diffALt  = 2.;
-  for (i = begin + 1; i != end; i++) if (i->movie() != bestMatchMovie) { diffALt  = bestMatch - i->getMatch(); break; }
-  for (i = begin + 1; i != end; i++) if (i->movie() == bestMatchMovie) { diffSame = bestMatch - i->getMatch(); break; }
+  for (i = begin + 1; i != end; i++) if (i->movie() != bestMatchMovie && i->id() != bestMatch_other_id) { diffALt  = bestMatch - i->getMatch(); break; }
+  for (i = begin + 1; i != end; i++) if (i->movie() == bestMatchMovie && i->id() != bestMatch_other_id) { diffSame = bestMatch - i->getMatch(); break; }
   if (debug) esyslog("tvscraper: selectBestAndEnhanceIfRequired, minDiffSame %f, minDiffOther %f, diffALt %f, diffSame %f", minDiffSame, minDiffOther, diffALt, diffSame);
   if (diffSame > minDiffSame && diffALt > minDiffOther) { func(*begin, *this); return false;}
   bool matchAlt = !(diffALt <= diffALt); // set this to false, if still a match to an "alternative" finding is required
   for (i = begin; i != end; i++) {
 //    debug = debug || i->id() == -353808 || i->id() == -250822 || i->id() == 440757;
+//    if (i->id() == bestMatch_other_id) continue;
     float match = i->getMatch();
     if (debug) esyslog("tvscraper: selectBestAndEnhanceIfRequired(1), id = %i match = %f", i->id(), match );
     if (match < 0.3) break; // most likely not the match you are looking for, so no more work on this ...
@@ -759,7 +765,7 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   if (searchResult.movie() ) return;
 //  if (searchResult.movie() ) { searchResult.setMatchEpisode(1000); return; }
 //  Transporter - The Mission: Is a movie, and we should not give negative point for having no episode match
-  if (searchResult.simulateMatchEpisode(0) < config.minMatchFinal) return; // best possible distance is 0. If, with this distance, tha result will till not be selected, we don't need to calculate the distance
+  if (searchResult.simulateMatchEpisode(0) < config.minMatchFinal) return; // best possible distance is 0. If, with this distance, the result will till not be selected, we don't need to calculate the distance
   cSv foundName;
   cSv episodeSearchString;
   sMovieOrTv movieOrTv;

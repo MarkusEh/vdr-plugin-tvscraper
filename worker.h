@@ -10,6 +10,7 @@ private:
     bool scanVideoDir;
     std::string m_recording;
     bool manualScan;
+    bool backup_requested = true;
     cOverRides *overrides;
     int initSleep;
     int loopSleep;

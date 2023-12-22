@@ -22,22 +22,24 @@ bool cMovieDbTv::UpdateDb(bool forceUpdate) {
 // only update if not yet in db or forceUpdate == true. In this case, also episodes will be updated
   if (m_tvID == 0) return false;
   time_t tv_last_updated = 0;
-  cSql stmtLastUpdate(m_db, "SELECT tv_last_updated FROM tv2 WHERE tv_id = ?", m_tvID);
-  bool exists = stmtLastUpdate.readRow(tv_last_updated);
-  if (exists && !forceUpdate) return true; // already in db
   int numberOfEpisodes = 0;
-  int lastSeason = 0;
-  if (exists) m_db->TvGetNumberOfEpisodes(m_tvID, lastSeason, numberOfEpisodes);
+  int lastSeason = 1;
+  int numberOfEpisodesInSpecials = 0;
+  cSql stmtLastUpdate(m_db, "SELECT tv_last_updated, tv_last_season, tv_number_of_episodes, tv_number_of_episodes_in_specials FROM tv2 WHERE tv_id = ?", m_tvID);
+  bool exists = stmtLastUpdate.readRow(tv_last_updated, lastSeason, numberOfEpisodes, numberOfEpisodesInSpecials);
+  if (exists && !forceUpdate) return true; // already in db
 
-  if(!ReadTv(exists)) return false;
-  if(!exists || m_tvNumberOfEpisodes > numberOfEpisodes) {
+  if (!ReadTv(exists)) return false;
+  if (!exists || m_tvNumberOfEpisodes > numberOfEpisodes || m_tvNumberOfEpisodesInSpecials > numberOfEpisodesInSpecials || !m_db->TvRuntimeAvailable(m_tvID)) {
 //  if this is new (not yet in db), always search seasons. "number_of_episodes" is sometimes wrong :(
 //  there exist new episodes, update db with new episodes
-    for(m_seasonNumber = lastSeason; m_seasonNumber <= m_tvNumberOfSeasons; m_seasonNumber++) AddOneSeason();
+    if (m_tvNumberOfEpisodesInSpecials > numberOfEpisodesInSpecials) { m_seasonNumber = 0; AddOneSeason(); }
+    for (auto h: m_tvSeasons) if (h >= lastSeason) { m_seasonNumber = h; AddOneSeason(); }
+    m_db->InsertTvEpisodeRunTimes(m_tvID, m_episodeRunTimes);
     m_db->exec("UPDATE tv2 SET tv_last_changed = ? WHERE tv_id= ?", time(0), m_tvID);
     m_db->exec("INSERT OR REPLACE INTO tv_name (tv_id, language_id, tv_last_updated) VALUES (?, ?, ?)", m_tvID, config.GetDefaultLanguage()->m_id, time(0));
   }
-  m_db->TvSetNumberOfEpisodes(m_tvID, m_tvNumberOfSeasons, m_tvNumberOfEpisodes);
+  m_db->TvSetNumberOfEpisodes(m_tvID, m_tvNumberOfSeasons, m_tvNumberOfEpisodes, m_tvNumberOfEpisodesInSpecials);
   m_db->exec("UPDATE tv2 SET tv_last_updated = ? WHERE tv_id= ?", time(0), m_tvID);
   return true;
 }
@@ -60,14 +62,12 @@ int cMovieDbTv::downloadEpisodes(bool forceUpdate, const cLanguage *lang) {
     return 5;
   }
 /*
- * TODO: Find available language for themoviedb, where langualge list is missing
- *  https://api.themoviedb.org/3/tv/{series_id}/alternative_titles
- *  -> these titles have also languages assigned ...
  * for now: leave this out, and download whatever is available in the requested language
 */
   if (!UpdateDb(true)) return 5;  // full update, incl. episodes, to get all data
   if (config.enableDebug) esyslog("tvscraper: cMovieDbTv::downloadEpisodes lang %s, langMovieDbId %i, tvID %i", lang->getNames().c_str(), lang->m_id, m_tvID);
-  for(m_seasonNumber = 0; m_seasonNumber <= m_tvNumberOfSeasons; m_seasonNumber++) AddOneSeason(lang);
+  if (m_tvNumberOfEpisodesInSpecials > 0) { m_seasonNumber = 0; AddOneSeason(lang); }
+  for (auto h: m_tvSeasons)  { m_seasonNumber = h; AddOneSeason(lang); }
   m_db->exec("INSERT OR REPLACE INTO tv_name (tv_id, language_id, tv_last_updated) VALUES (?, ?, ?)", m_tvID, lang->m_id, time(0));
   return 0;
 }
@@ -75,25 +75,18 @@ int cMovieDbTv::downloadEpisodes(bool forceUpdate, const cLanguage *lang) {
 bool cMovieDbTv::ReadTv(bool exits_in_db) {
 // call themoviedb api, get data
   const char *lang = config.GetDefaultLanguage()->m_themoviedb;
-  cToSvConcat url(m_baseURL, "/tv/", m_tvID, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&include_image_language=en,null&append_to_response=translations,alternative_titles");
-  if(!exits_in_db) url.append(",credits");
+  cToSvConcat url(m_baseURL, "/tv/", m_tvID, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&include_image_language=en,null&append_to_response=translations,alternative_titles,credits,external_ids");
   cJsonDocumentFromUrl tv;
   tv.set_enableDebug(config.enableDebug);
-  if (!tv.download_and_parse(url.c_str() )) return false;
+  if (!tv.download_and_parse(url)) return false;
   bool ret = ReadTv(tv);
   if (ret) {
-    if (m_episodeRunTimes.empty() ) m_episodeRunTimes.insert(-1); // empty episodeRunTimes results in re-reading it from external db. And there is no data on external db ...
-    if (!exits_in_db) {
-// no database entry for tvID, create the db entry
-      m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks.c_str(), m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, nullptr, m_status, m_episodeRunTimes, m_createdBy.c_str(), m_languages.c_str() );
+    m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks.c_str(), m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, m_imdb_id, m_status, m_episodeRunTimes, m_createdBy.c_str(), m_languages.c_str() );
 // credits
-      rapidjson::Value::ConstMemberIterator jCredits_it = tv.FindMember("credits");
-      if (jCredits_it != tv.MemberEnd() && jCredits_it->value.IsObject() )
-        readAndStoreMovieDbActors(m_db, jCredits_it->value, m_tvID, false);
-    } else {
-      m_db->InsertTvEpisodeRunTimes(m_tvID, m_episodeRunTimes);
-      m_db->exec("INSERT OR REPLACE INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update, tv_actors_last_update, tv_data_available) VALUES (?, ?, ?, ?, ?, ?)", m_tvID, m_popularity, m_languages, time(0), time(0), 4);
-    }
+    rapidjson::Value::ConstMemberIterator jCredits_it = tv.FindMember("credits");
+    if (jCredits_it != tv.MemberEnd() && jCredits_it->value.IsObject() )
+      readAndStoreMovieDbActors(m_db, jCredits_it->value, m_tvID, false);
+  if (m_thetvdb_id) m_db->exec("INSERT OR REPLACE INTO tv_equal (themoviedb_id, thetvdb_id) VALUES(?, ?)", m_tvID, -m_thetvdb_id);
   }
   return ret;
 }
@@ -119,6 +112,9 @@ bool cMovieDbTv::ReadTv(const rapidjson::Value &tv) {
     int rt = jElement.GetInt();
     if (rt != 0) m_episodeRunTimes.insert(rt);
   }
+// external IDs
+  m_imdb_id = getValueCharS2(tv, "external_ids", "imdb_id");
+  m_thetvdb_id = parse_int<int>(getValueCharS2(tv, "external_ids", "tvdb_id"));
 // alternative titles
   cSql sql_titles(m_db, "INSERT OR REPLACE INTO alternative_titles (external_database, id, alternative_title, iso_3166_1) VALUES (?, ?, ?, ?);");
   rapidjson::Value::ConstMemberIterator alternative_titles_it = tv.FindMember("alternative_titles");
@@ -144,6 +140,25 @@ bool cMovieDbTv::ReadTv(const rapidjson::Value &tv) {
     }
   }
   m_languages = std::string(l_languages);
+// check seasons
+// assumption: first season is 1, and last season is number_of_seasons
+  m_tvNumberOfEpisodesInSpecials = 0;
+//  int number_of_episodes = 0;
+  for (const rapidjson::Value &season: cJsonArrayIterator(tv, "seasons")) {
+    int season_number = getValueInt(season, "season_number");
+    if (season_number == 0) {
+// episodes in season 0 do not count for number_of_episodes !!!
+// season 0 does not count for number_of_seasons !!!
+      int number_of_episodes_in_specials = getValueInt(season, "episode_count");
+      if (number_of_episodes_in_specials > 0)  m_tvNumberOfEpisodesInSpecials = number_of_episodes_in_specials;
+    } else {
+      m_tvSeasons.insert(season_number);
+//    number_of_episodes += getValueInt(season, "episode_count");
+    }
+  }
+//  if (m_tvNumberOfEpisodes != number_of_episodes)
+//    isyslog("tvscraper, ERROR in cMovieDbTv::ReadTv, inconsistent number_of_episodes %i, counted over seasons %i, tv_id %i", m_tvNumberOfEpisodes, number_of_episodes, m_tvID);
+
 // download poster & backdrop
   m_db->insertTvMedia(m_tvID, m_tvPosterPath,   mediaPoster);
   m_db->insertTvMedia(m_tvID, m_tvBackdropPath, mediaFanart);
@@ -156,12 +171,11 @@ bool cMovieDbTv::AddOneSeason() {
   url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << config.GetDefaultLanguage()->m_themoviedb;
   cJsonDocumentFromUrl root;
   root.set_enableDebug(config.enableDebug);
-  if (!root.download_and_parse(url.c_str())) return false;
-//  if (!jsonCallRest(root, url.getCharS(), config.enableDebug)) return false;
+  if (!root.download_and_parse(url)) return false;
 // posterPath
   m_db->insertTvMediaSeasonPoster(m_tvID, getValueCharS(root, "poster_path"), mediaSeason, m_seasonNumber);
 // episodes
-  cSql stmtInsertTv_s_e(m_db, "INSERT OR REPLACE INTO tv_s_e (tv_id, season_number, episode_number, episode_id, episode_name, episode_air_date, episode_vote_average, episode_vote_count, episode_overview, episode_director, episode_writer, episode_still_path, episode_run_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0);");
+  cSql stmtInsertTv_s_e(m_db, "INSERT OR REPLACE INTO tv_s_e (tv_id, season_number, episode_number, episode_id, episode_name, episode_air_date, episode_vote_average, episode_vote_count, episode_overview, episode_director, episode_writer, episode_still_path, episode_run_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);");
   cSql stmtInsert_tv_s_e_name(m_db, "INSERT OR REPLACE INTO tv_s_e_name_moviedb (episode_id, language_id, episode_name) VALUES (?, ?, ?);");
   for (const rapidjson::Value &episode: cJsonArrayIterator(root, "episodes")) {
 // episode number
@@ -174,6 +188,7 @@ bool cMovieDbTv::AddOneSeason() {
     const char *airDate = getValueCharS(episode, "air_date");
     float vote_average = getValueDouble(episode, "vote_average");
     int vote_count = getValueInt(episode, "vote_count");
+    int runtime = getValueInt(episode, "runtime");
 // episode overview
     const char *overview = getValueCharS(episode, "overview");
 // stillPath
@@ -181,8 +196,9 @@ bool cMovieDbTv::AddOneSeason() {
     std::string director;
     std::string writer;
     getDirectorWriter(director, writer, episode);
-    stmtInsertTv_s_e.resetBindStep(m_tvID, m_seasonNumber, m_episodeNumber, id, episodeName, airDate, vote_average, vote_count, overview, director, writer, episodeStillPath);
+    stmtInsertTv_s_e.resetBindStep(m_tvID, m_seasonNumber, m_episodeNumber, id, episodeName, airDate, vote_average, vote_count, overview, director, writer, episodeStillPath, runtime);
     stmtInsert_tv_s_e_name.resetBindStep(id, config.GetDefaultLanguage()->m_id, episodeName);
+    if (runtime != 0) m_episodeRunTimes.insert(runtime);
 //  add actors
     readAndStoreMovieDbActors(m_db, episode, id, false, true);
   }
@@ -195,7 +211,7 @@ bool cMovieDbTv::AddOneSeason(const cLanguage *lang) {
   url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb;
   cJsonDocumentFromUrl root;
   root.set_enableDebug(config.enableDebug);
-  if (!root.download_and_parse(url.c_str())) return false;
+  if (!root.download_and_parse(url)) return false;
 // episodes
   cSql stmtInsert_tv_s_e_name(m_db, "INSERT OR REPLACE INTO tv_s_e_name_moviedb (episode_id, language_id, episode_name) VALUES (?, ?, ?);");
   for (const rapidjson::Value &episode: cJsonArrayIterator(root, "episodes")) {

@@ -113,19 +113,13 @@ SELECT( CONCATENATE_END, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
 // deprecated
 
 namespace ns_concat {
-  template<class T> inline int numCharsUg0(T i) {
-// note: i must be > 0!!!!
-    int numChars;
-    for (numChars = 0; i; i /= 10) numChars++;
-    return numChars;
-  }
   inline int numChars(std::string_view s) { return s.length(); }
   inline int numChars(const std::string &s) { return s.length(); }
   inline int numChars(const char *s) { return s?strlen(s):0; }
   inline int numChars(int i) {
     if (i == 0) return 1;
-    if (i > 0 ) return numCharsUg0(i);
-    return numCharsUg0(-i) + 1;
+    if (i > 0 ) return stringhelpers_internal::numCharsUg0(i);
+    return stringhelpers_internal::numCharsUg0(-i) + 1;
   }
   inline void addChars(char *b, int l, int i) { stringhelpers_internal::addCharsIbe(b+l, i); }
   inline void addChars(char *b, int l, const std::string_view &s) { memcpy(b, s.data(), l); }
@@ -311,8 +305,10 @@ inline int lenWithoutPartToIgnoreInSearch(cSv sv) {
 // we keep the last letter and all digits directly following this letter
   utf8_iterator it = utf8LastLetter(sv);
   size_t found = sv.find(": ", it.pos());
-  if (found == std::string_view::npos) return lenWithoutLastPartWithP(sv);
-  return found;
+  if (found != std::string_view::npos) return found;
+  found = sv.find(" #", it.pos());
+  if (found != std::string_view::npos) return found;
+  return lenWithoutLastPartWithP(sv);
 }
 
 inline bool StringRemoveLastPartWithP(std::string &str) {
@@ -342,13 +338,19 @@ inline int NumberInLastPartWithPS(cSv str) {
 inline int NumberInLastPartWithP(cSv str) {
 // return number in last part with (...), 0 if not found / invalid
   if (str.length() < 3 ) return 0;
-  if (str[str.length() - 1] != ')') return 0;
-  std::size_t found = str.find_last_of("(");
-  if (found == std::string::npos) return 0;
-  for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
-    if (!isdigit(str[i])) return 0; // we ignore (asw), and return only number with digits only
+  if (str[str.length() - 1] == ')') {
+    std::size_t found = str.find_last_of("(");
+    if (found == std::string::npos) return 0;
+    for (std::size_t i = found + 1; i < str.length() - 1; i ++) {
+      if (!isdigit(str[i])) return 0; // we ignore (asw), and return only number with digits only
+    }
+    return parse_unsigned_internal<int>(str.substr(found + 1));
+  } else {
+    size_t pos = str.length() - 1;
+    for (; pos > 0 && isdigit(str[pos]); --pos);
+    if (str[pos] == '#') return parse_unsigned_internal<int>(str.substr(pos + 1));
+    return 0;
   }
-  return parse_unsigned_internal<int>(str.substr(found + 1));
 }
 
 inline int Number2InLastPartWithP(cSv str) {

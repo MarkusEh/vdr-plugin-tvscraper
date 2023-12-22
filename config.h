@@ -5,6 +5,7 @@
 #include <vector>
 #include <set>
 #include <map>
+#include <sqlite3.h>
 #include <vdr/thread.h>
 
 using namespace std;
@@ -192,6 +193,7 @@ class cTVScraperConfig {
         bool GetReadOnlyClient() const { return readOnlyClient; }
         bool GetTimersOnNumberOfTsFiles() const { return m_timersOnNumberOfTsFiles; }
         bool isUpdateFromExternalDbRequired(time_t lastUpdate) { return difftime(time(0), lastUpdate) >= 60*60*24*14; }
+        bool isUpdateFromExternalDbRequiredMR(time_t lastUpdate) { return difftime(time(0), lastUpdate) >= 60*60*24*7; }
 // Methods to access parameters (lists) that can be changed in setup menu
 // These methods are thread save
         set<tChannelID> GetScrapeAndEpgChannels() const;
@@ -218,7 +220,9 @@ class cTVScraperConfig {
           for (auto &extEpg: m_extEpgs) if (extEpg->myDescription(description)) return true;
           return false;
         }
+        sqlite3_mutex *getDbMutex() const { return m_sqlite3_mutex; }
         mutable cStateLock stateSelectRecRuntime;
+        sqlite3_mutex *m_sqlite3_mutex;
         cSql *selectRecRuntime = 0;
         cSql *selectEventRuntime = 0;
         cSql *selectMoviewOverview = 0;
