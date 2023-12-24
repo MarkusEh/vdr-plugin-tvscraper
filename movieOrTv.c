@@ -143,17 +143,13 @@ std::string cMovieMoviedb::getCollectionName() {
 bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
 // return false if no data are available. In this case, paramters will NOT change
   m_collectionId = 0;
-  cLockDB lock(m_db);
-  if (!config.selectMoviewOverview) config.selectMoviewOverview =
-    new cSql(m_db, "select movie_title, movie_collection_id, movie_collection_name, " \
-    "movie_release_date, movie_runtime, movie_IMDB_ID from movies3 where movie_id = ?");
-  config.selectMoviewOverview->resetBindStep(dbID() );
-  if (!config.selectMoviewOverview->readRow(title, m_collectionId, collectionName, releaseDate, runtime, imdbId) ) return false;
+  cUseStmt_select_movies3_overview stmt(m_db);
+  stmt.stmt()->resetBindStep(dbID() );
+  if (!stmt.stmt()->readRow(title, m_collectionId, collectionName, releaseDate, runtime, imdbId) ) return false;
   if (collectionId) *collectionId = m_collectionId;
   if (episodeName) *episodeName = "";
   return true;
 }
-
 
 std::vector<cActor> cMovieMoviedb::GetActors(bool fullPath) {
   std::vector<cActor> actors;
@@ -340,28 +336,20 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
 // never available (only for movies): collectionId, collectionName
 
   bool episodeDataAvailable = false, episodeImdbIdAvailable = false, episodeReleaseDateAvailable = false;
-  cLockDB lock(m_db);
-  if (!config.selectTvOverview) config.selectTvOverview = new cSql(m_db, "SELECT tv_name, tv_first_air_date, tv_IMDB_ID, tv_display_language FROM tv2 WHERE tv_id = ?");
-  config.selectTvOverview->resetBindStep(dbID() );
+  cUseStmt_select_tv2_overview stmt_s_o(m_db);
+  cUseStmt_select_tv_s_e_overview stmt_select_tv_s_e_overview(m_db);
+  cUseStmt_select_tv_s_e_name2_tv_s_e stmt_select_tv_s_e_name2_tv_s_e(m_db);
+  stmt_s_o.stmt()->resetBindStep(dbID() );
   if ((m_seasonNumber != 0 || m_episodeNumber != 0) &&
     (episodeName != NULL || imdbId != NULL || releaseDate != NULL || runtime != NULL)) {
     cSql *stmt;
-    if (config.selectTvOverview->readRow() && !config.selectTvOverview->valueInitial(3) ) {
-      int langInt = config.selectTvOverview->getInt(3);
-      if (!config.selectTvEpisodeLanguage) config.selectTvEpisodeLanguage = new cSql(m_db,
-        "SELECT tv_s_e_name2.episode_name, tv_s_e.episode_air_date, tv_s_e.episode_run_time, tv_s_e.episode_IMDB_ID " \
-        "FROM tv_s_e, tv_s_e_name2 " \
-        "WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id " \
-        "AND tv_s_e.tv_id = ? AND tv_s_e.season_number = ? AND tv_s_e.episode_number = ? " \
-        "AND tv_s_e_name2.language_id = ?");
-      config.selectTvEpisodeLanguage->resetBindStep(dbID(), m_seasonNumber, m_episodeNumber, langInt);
-      stmt = config.selectTvEpisodeLanguage;
+    if (stmt_s_o.stmt()->readRow() && !stmt_s_o.stmt()->valueInitial(3) ) {
+      int langInt = stmt_s_o.stmt()->getInt(3);
+      stmt_select_tv_s_e_name2_tv_s_e.stmt()->resetBindStep(dbID(), m_seasonNumber, m_episodeNumber, langInt);
+      stmt = stmt_select_tv_s_e_name2_tv_s_e.stmt();
     } else {
-      if (!config.selectTvEpisode) config.selectTvEpisode = new cSql(m_db,
-        "SELECT episode_name, episode_air_date, episode_run_time, episode_IMDB_ID " \
-        "FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?");
-      config.selectTvEpisode->resetBindStep(dbID(), m_seasonNumber, m_episodeNumber);
-      stmt = config.selectTvEpisode;
+      stmt_select_tv_s_e_overview.stmt()->resetBindStep(dbID(), m_seasonNumber, m_episodeNumber);
+      stmt = stmt_select_tv_s_e_overview.stmt();
     }
     if (stmt->readRow(episodeName, releaseDate, runtime, imdbId) ) {
       episodeDataAvailable = true;
@@ -377,22 +365,22 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
     if (collectionName) *collectionName = "";
     return true;
   }
-  if (!config.selectTvOverview->readRow() ) {
+  if (!stmt_s_o.stmt()->readRow() ) {
     if (!episodeDataAvailable) return false;
     if (title) *title = "";
     if (collectionId) *collectionId = 0;
     if (collectionName) *collectionName = "";
     return true;
   }
-  if (title) *title = config.selectTvOverview->getStringView(0);
+  if (title) *title = stmt_s_o.stmt()->getStringView(0);
   if (episodeDataAvailable) {
 // dont't overide data available from episode
-    if (releaseDate && releaseDate->empty() ) *releaseDate = config.selectTvOverview->getStringView(1);
-    if (imdbId && imdbId->empty() ) *imdbId = config.selectTvOverview->getStringView(2);
+    if (releaseDate && releaseDate->empty() ) *releaseDate = stmt_s_o.stmt()->getStringView(1);
+    if (imdbId && imdbId->empty() ) *imdbId = stmt_s_o.stmt()->getStringView(2);
   } else {
 // no episode data. Read as much as possible not episode related, and set the others to 0/""
-    *releaseDate = config.selectTvOverview->getStringView(1);
-    *imdbId = config.selectTvOverview->getStringView(2);
+    *releaseDate = stmt_s_o.stmt()->getStringView(1);
+    *imdbId = stmt_s_o.stmt()->getStringView(2);
     if (episodeName) *episodeName = "";
     if (runtime) *runtime = 0;
   }

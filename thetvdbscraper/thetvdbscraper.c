@@ -343,6 +343,21 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
 }
 
 int cTVDBScraper::CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog) {
+  int i = 0;
+  int rc;
+  do {
+    rc = CallRestJson_int(document, data, url, disableLog);
+    if (rc != 100) return rc;
+// rc == 100 -> Internal Server Error
+    if (++i > 5) break;
+    if (config.enableDebug) esyslog("tvscraper: Internal Server Error calling \"%s\", i = %i", url, i);
+    sleep(2 + 3*i);
+  } while (true);
+
+  esyslog("tvscraper: ERROR Internal Server Error calling \"%s\", i = %i, giving up", url, i);
+  return rc;
+}
+int cTVDBScraper::CallRestJson_int(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog) {
 // return 0 on success. In this case, "data" exists, and can be accessed with document["data"].
 //  1: error: In this case, an ERROR message is written in syslog
 // -1: "Not Found" (no message in syslog, just the reqested object does not exist)
@@ -362,6 +377,7 @@ int cTVDBScraper::CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::
     if (strcmp(status, "failure") == 0) {
       if (message && strcmp(message, "Not Found") == 0) return -1;
       if (message && strncmp(message, "NotFoundException", 17) == 0) return -1;
+      if (message && strncmp(message, "Internal Server Error", 21) == 0) return 100;
     }
     esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, status = %s, message = %s, doc %s", url, status, message?message:"no message", document.context() );
     return 1;

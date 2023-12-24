@@ -13,27 +13,42 @@ using namespace std;
 
 cTVScraperDB::cTVScraperDB(void):
     m_stmt_cache1(this, "SELECT year, episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
-                   "FROM cache WHERE movie_name_cache = ? AND recording = ? AND duration BETWEEN ? and ? " \
+                   "FROM cache WHERE movie_name_cache = ? AND recording = ? AND duration BETWEEN ? AND ? " \
                    "AND year != ?"),
-    m_stmt_cache2(this, "select episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
-                    "from cache WHERE movie_name_cache = ? AND recording = ? and duration BETWEEN ? and ? " \
-                    "AND year = ?")
+    m_stmt_cache2(this, "SELECT episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
+                    "FROM cache WHERE movie_name_cache = ? AND recording = ? AND duration BETWEEN ? AND ? " \
+                    "AND year = ?"),
+    m_select_tv2_overview(this, "SELECT tv_name, tv_first_air_date, tv_IMDB_ID, tv_display_language FROM tv2 WHERE tv_id = ?"),
+    m_select_tv_s_e_overview(this, "SELECT episode_name, episode_air_date, episode_run_time, episode_IMDB_ID " \
+        "FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?"),
+    m_select_tv_s_e_name2_tv_s_e(this, "SELECT tv_s_e_name2.episode_name, " \
+        "tv_s_e.episode_air_date, tv_s_e.episode_run_time, tv_s_e.episode_IMDB_ID " \
+        "FROM tv_s_e, tv_s_e_name2 " \
+        "WHERE tv_s_e_name2.episode_id = tv_s_e.episode_id " \
+        "AND tv_s_e.tv_id = ? AND tv_s_e.season_number = ? AND tv_s_e.episode_number = ? " \
+        "AND tv_s_e_name2.language_id = ?"),
+    m_select_movies3_overview(this, "SELECT movie_title, movie_collection_id, movie_collection_name, " \
+                    "movie_release_date, movie_runtime, movie_IMDB_ID FROM movies3 where movie_id = ?"),
+    m_select_event(this, "SELECT movie_tv_id, season_number, episode_number, runtime " \
+                    "FROM event WHERE event_id = ? and channel_id = ?"),
+    m_select_recordings2(this, "SELECT movie_tv_id, season_number, episode_number, runtime, duration_deviation " \
+                    "FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ?")
  {
+    m_sqlite3_mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_RECURSIVE);
+    if (!m_sqlite3_mutex) esyslog("tvscraper: ERROR in cTVScraperDB::cTVScraperDB, sqlite3_mutex_alloc returned 0");
+
     db = NULL;
-    string memHD = "/dev/shm/";
-    inMem = !config.GetReadOnlyClient() && CheckDirExistsRam(memHD.c_str());
+    const char *memHD = "/dev/shm/";
+    inMem = !config.GetReadOnlyClient() && CheckDirExistsRam(memHD);
     if (inMem) {
-        stringstream sstrDbFileMem;
-        sstrDbFileMem << memHD << "tvscraper2.db";
-        dbPathMem = sstrDbFileMem.str();
+      dbPathMem = concat(memHD, "tvscraper2.db");
     }
-    stringstream sstrDbFile;
-    sstrDbFile << config.GetBaseDir() << "tvscraper2.db";
-    dbPathPhys = sstrDbFile.str();
+    dbPathPhys = concat(config.GetBaseDir(), "tvscraper2.db");
 }
 
 cTVScraperDB::~cTVScraperDB() {
-    sqlite3_close(db);
+  sqlite3_mutex_free(m_sqlite3_mutex);
+  sqlite3_close(db);
 }
 
 int cTVScraperDB::printSqlite3Errmsg(cSv query) const {
@@ -452,10 +467,10 @@ for thetvdb:
     sql << "event_id integer, ";
     sql << "event_start_time integer, ";
     sql << "channel_id nvarchar(255), ";
-    sql << "runtime integer, ";       // runtime of thetvdb, which does best match to runtime of recording
     sql << "movie_tv_id integer, ";   // movie if season_number == -100. Otherwisse, tv
     sql << "season_number integer, ";
     sql << "episode_number integer, ";
+    sql << "runtime integer, ";       // runtime of thetvdb, which does best match to runtime of recording
     sql << "duration_deviation integer);";
     sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_recordings2 on recordings2 (event_id, event_start_time, channel_id); ";
 
@@ -566,8 +581,8 @@ void cTVScraperDB::DeleteMovieCache(int movieID) const {
 }
 bool cTVScraperDB::CheckMovieOutdatedEvents(int movieID, int season_number, int episode_number) const {
 // check if there is still an event for which movieID is required
-  const char sql_m[] = "select count(event_id) from event where season_number  = ? and movie_tv_id = ? and valid_till > ?";
-  const char sql_t[] = "select count(event_id) from event where season_number != ? and movie_tv_id = ? and valid_till > ?";
+  const char *sql_m = "select count(event_id) from event where season_number  = ? and movie_tv_id = ? and valid_till > ?";
+  const char *sql_t = "select count(event_id) from event where season_number != ? and movie_tv_id = ? and valid_till > ?";
   if (season_number == -100) return queryInt(sql_m, -100, movieID, time(0) ) > 0;
                 else         return queryInt(sql_t, -100, movieID, time(0) ) > 0;
 }
@@ -970,10 +985,9 @@ bool cTVScraperDB::CheckStartScrapping(int minimumDistance) {
 bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime, int *duration_deviation) const {
   if (!recording || !recording->Info() || !recording->Info()->GetEvent()) return false;
   csRecording sRecording(recording);
-  cSelectRecRuntime pre_stmt(this);
-//  cLockDB lock(this);
-//  if (!config.selectRecRuntime) config.selectRecRuntime = new cSql(this, "select movie_tv_id, season_number, episode_number, runtime, duration_deviation from recordings2 where event_id = ? and event_start_time = ? and channel_id = ?");
+
 //  config.timeSelectFromRecordings.start();
+  cUseStmt pre_stmt(m_select_recordings2);
   pre_stmt.stmt()->resetBindStep(sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
 /*
   config.timeSelectFromRecordings.stop();
@@ -982,23 +996,13 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
     config.timeSelectFromRecordings.reset();
   }
 */
-  if (!pre_stmt.stmt()->readRow()) return false;
+  if (!pre_stmt.stmt()->readRow() ) return false;
+  if (runtime) *runtime = pre_stmt.stmt()->getInt(3);
   if (duration_deviation) {
     if (recording->IsEdited() ) *duration_deviation = 0;  // assume who ever cut the recording, checked for completness
-    else {
-      if (pre_stmt.stmt()->valueInitial(4)) {
-        *duration_deviation = -2; // no information
-      } else {
-  // get from cache
-        *duration_deviation = pre_stmt.stmt()->getInt(4);
-      }
-    }
+    else *duration_deviation = pre_stmt.stmt()->getInt(4, -2, -2);  // -2 if there is no entry in db
   }
-  if (runtime) {
-    return pre_stmt.stmt()->readRow(movie_tv_id, season_number, episode_number, *runtime);
-  } else {
-    return pre_stmt.stmt()->readRow(movie_tv_id, season_number, episode_number);
-  }
+  return pre_stmt.stmt()->readRow(movie_tv_id, season_number, episode_number);
 }
 bool cTVScraperDB::SetDurationDeviation(const cRecording *recording, int duration_deviation) const {
   if (!recording || duration_deviation < 0 || config.GetReadOnlyClient() ) return false;
@@ -1011,14 +1015,11 @@ bool cTVScraperDB::GetMovieTvID(const cEvent *event, int &movie_tv_id, int &seas
   if (!event) return false;
   cToSvChannel channelIDs(event->ChannelID() );
   if (cSv(channelIDs).empty() ) esyslog("tvscraper: ERROR in cTVScraperDB::GetMovieTvID (event), !channelIDs");
-  cLockDB lock(this);
-  if (!config.selectEventRuntime) config.selectEventRuntime = new cSql(this, "select movie_tv_id, season_number, episode_number, runtime from event where event_id = ? and channel_id = ?");
-  config.selectEventRuntime->resetBindStep(event->EventID(), channelIDs);
-  if (runtime) {
-    return config.selectEventRuntime->readRow(movie_tv_id, season_number, episode_number, *runtime);
-  } else {
-    return config.selectEventRuntime->readRow(movie_tv_id, season_number, episode_number);
-  }
+  cUseStmt stmt(m_select_event);
+  m_select_event.resetBindStep(event->EventID(), channelIDs);
+  if (!m_select_event.readRow() ) return false;
+  if (runtime) *runtime = m_select_event.getInt(3);
+  return m_select_event.readRow(movie_tv_id, season_number, episode_number);
 }
 
 std::string cTVScraperDB::GetEpisodeName(int tvID, int seasonNumber, int episodeNumber) const {
@@ -1117,38 +1118,32 @@ bool cTVScraperDB::GetFromCache(const string &movieNameCache, csEventOrRecording
     cYears years;
     bool first = true;
     m_cache_time.start();
-/*
-    cSql sql(this, "SELECT year, episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
-                   "FROM cache WHERE movie_name_cache = ? AND recording = ? AND duration BETWEEN ? and ? " \
-                   "AND year != ?");
-*/
-    for (auto &stmt: m_stmt_cache1.resetBindStep(cStringRef(movieNameCache), recording, durationInSecLow, durationInSec + 300, 0)) {
-      stmt.readRow(movieOrTv.year, movieOrTv.episodeSearchWithShorttext,
-                   movieOrTv.id, movieOrTv.season, movieOrTv.episode);
-// there was a year match. Check: do we have a year match?
-      if (first) {
-        sEventOrRecording->AddYears(years);
-        years.addYears(movieNameCache.c_str() );
-        years.finalize();
-        first = false;
-      }
-      bool yearMatch;
-      if (movieOrTv.year < 0) yearMatch = years.find2(-1 * movieOrTv.year) == 1; // 1 near match
-      else yearMatch = years.find2(movieOrTv.year) == 2; // 2: exact match
-      if (yearMatch) {
-        if      (movieOrTv.id     == 0)    movieOrTv.type = scrapNone;
-        else if (movieOrTv.season == -100) movieOrTv.type = scrapMovie;
-        else                               movieOrTv.type = scrapSeries;
-        m_cache_time.stop();
-        return true;
+    {
+      cUseStmt stmt_cache1(m_stmt_cache1);
+      for (auto &stmt: m_stmt_cache1.resetBindStep(cStringRef(movieNameCache), recording, durationInSecLow, durationInSec + 300, 0)) {
+        stmt.readRow(movieOrTv.year, movieOrTv.episodeSearchWithShorttext,
+                     movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+  // there was a year match. Check: do we have a year match?
+        if (first) {
+          sEventOrRecording->AddYears(years);
+          years.addYears(movieNameCache.c_str() );
+          years.finalize();
+          first = false;
+        }
+        bool yearMatch;
+        if (movieOrTv.year < 0) yearMatch = years.find2(-1 * movieOrTv.year) == 1; // 1 near match
+        else yearMatch = years.find2(movieOrTv.year) == 2; // 2: exact match
+        if (yearMatch) {
+          if      (movieOrTv.id     == 0)    movieOrTv.type = scrapNone;
+          else if (movieOrTv.season == -100) movieOrTv.type = scrapMovie;
+          else                               movieOrTv.type = scrapSeries;
+          m_cache_time.stop();
+          return true;
+        }
       }
     }
 // search for cache entry without year match
-/*
-    cSql sqlI(this, "select episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
-                    "from cache WHERE movie_name_cache = ? AND recording = ? and duration BETWEEN ? and ? " \
-                    "AND year = ?");
-*/
+    cUseStmt stmt_cache2(m_stmt_cache2);
     m_stmt_cache2.resetBindStep(movieNameCache, recording, durationInSecLow, durationInSec + 300, 0);
     m_cache_time.stop();
     if (m_stmt_cache2.readRow(movieOrTv.episodeSearchWithShorttext, movieOrTv.id, movieOrTv.season, movieOrTv.episode)) {

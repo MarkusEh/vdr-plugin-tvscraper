@@ -99,6 +99,7 @@ class cSql {
 // remark: we assume it is only needed until the call to step ...
 
 
+  friend class cUseStmt;
   public:
     cSql(const cSql&) = delete;
     cSql &operator= (const cSql &) = delete;
@@ -377,13 +378,13 @@ class cSql {
       ///< s (char *) results will be valit until finalizePrepareBindStep or reset is called on this cSql,
       ///<            or this cSql is destroyed
     int getInt(int col, int row_not_found = 0, int col_empty = 0) {
+      return static_cast<int>(getInt64(col, row_not_found, col_empty) );
+    }
+    sqlite3_int64 getInt64(int col, int row_not_found = 0, int col_empty = 0) {
 // return value provided in row_not_found if the row was not found in db (m_last_step_result != SQLITE_ROW)
 // return value provided in col_empty if col is empty (there was never wirtten a value, or nullptr was written
       if (!preCheckRead(col) ) return row_not_found;
       if (col_empty != 0 && sqlite3_column_type(m_statement, col) == SQLITE_NULL) return col_empty;
-      return static_cast<int>(sqlite3_column_int64(m_statement, col));
-    }
-    sqlite3_int64 getInt64(int col) {
       return preCheckRead(col)?sqlite3_column_int64(m_statement, col):0;
     }
     ~cSql() { finalize(); }
@@ -468,11 +469,24 @@ using namespace std;
 class cTVScraperDB {
   friend class cSql;
   friend class cLockDB;
+  friend class cUseStmt_select_tv2_overview;
+  friend class cUseStmt_select_tv_s_e_overview;
+  friend class cUseStmt_select_tv_s_e_name2_tv_s_e;
+  friend class cUseStmt_select_movies3_overview;
 private:
     sqlite3 *db;
-    string dbPathPhys;
-    string dbPathMem;
+    std::string dbPathPhys;
+    std::string dbPathMem;
     bool inMem;
+    sqlite3_mutex *m_sqlite3_mutex;
+    mutable cSql m_stmt_cache1;
+    mutable cSql m_stmt_cache2;
+    mutable cSql m_select_tv2_overview;
+    mutable cSql m_select_tv_s_e_overview;
+    mutable cSql m_select_tv_s_e_name2_tv_s_e;
+    mutable cSql m_select_movies3_overview;
+    mutable cSql m_select_event;
+    mutable cSql m_select_recordings2;
 // low level methods for sql
     int printSqlite3Errmsg(cSv query) const;
 // manipulate tables
@@ -488,8 +502,6 @@ public:
     cMeasureTime m_cache_episode_search_time;
     cMeasureTime m_cache_update_episode_time;
     cMeasureTime m_cache_update_similar_time;
-    cSql m_stmt_cache1;
-    cSql m_stmt_cache2;
 
     cTVScraperDB(const cTVScraperDB &) = delete;
     cTVScraperDB &operator= (const cTVScraperDB &) = delete;
@@ -598,32 +610,43 @@ public:
 class cLockDB {
 public:
   cLockDB(const cTVScraperDB *db) {
-//    m_mutex = sqlite3_db_mutex(db->db);
-//    if (!m_mutex) esyslog("tvscraper: ERROR in cLockDB, sqlite3_db_mutex returned 0");
-    sqlite3_mutex_enter(config.getDbMutex() );
+    m_mutex = db->m_sqlite3_mutex;
+    sqlite3_mutex_enter(m_mutex);
   }
-  cLockDB() {
-    sqlite3_mutex_enter(config.getDbMutex() );
-  }
-  virtual ~cLockDB() { sqlite3_mutex_leave(config.getDbMutex() ); }
+  virtual ~cLockDB() { sqlite3_mutex_leave(m_mutex); }
 private:
-//  sqlite3_mutex *m_mutex;
+  sqlite3_mutex *m_mutex;
 };
-class cPreparedStmt: public cLockDB {
+class cUseStmt: public cLockDB {
   public:
-    cPreparedStmt() { }
+    cUseStmt(cSql &stmt): cLockDB(stmt.m_db), m_stmt(&stmt) { }
     cSql *stmt() const { return m_stmt; }
-    virtual ~cPreparedStmt() {
+    virtual ~cUseStmt() {
       if (m_stmt) m_stmt->reset();
     }
   protected:
-    cSql *m_stmt = nullptr;
+    cSql *m_stmt;
 };
-class cSelectRecRuntime: public cPreparedStmt {
+
+class cUseStmt_select_tv2_overview: public cUseStmt {
   public:
-    cSelectRecRuntime(const cTVScraperDB *db) {
-      if (!config.selectRecRuntime) config.selectRecRuntime = new cSql(db, "SELECT movie_tv_id, season_number, episode_number, runtime, duration_deviation FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ?");
-      m_stmt = config.selectRecRuntime;
-    }
+    cUseStmt_select_tv2_overview(const cTVScraperDB *db):
+      cUseStmt(db->m_select_tv2_overview) { }
 };
+class cUseStmt_select_tv_s_e_overview: public cUseStmt {
+  public:
+    cUseStmt_select_tv_s_e_overview(const cTVScraperDB *db):
+      cUseStmt(db->m_select_tv_s_e_overview) { }
+};
+class cUseStmt_select_tv_s_e_name2_tv_s_e: public cUseStmt {
+  public:
+    cUseStmt_select_tv_s_e_name2_tv_s_e(const cTVScraperDB *db):
+      cUseStmt(db->m_select_tv_s_e_name2_tv_s_e) { }
+};
+class cUseStmt_select_movies3_overview: public cUseStmt {
+  public:
+    cUseStmt_select_movies3_overview(const cTVScraperDB *db):
+      cUseStmt(db->m_select_movies3_overview) { }
+};
+
 #endif //__TVSCRAPER_TVSCRAPPERDB_H

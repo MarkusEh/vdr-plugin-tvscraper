@@ -274,10 +274,10 @@ template<typename... Args>
     }
     bool download_and_parse_int(cStr url, struct curl_slist *headers) {
       if (m_enableDebug) esyslog("tvscraper: calling %s", url.c_str() );
+      SetObject();  // clear
       headers = curl_slistAppend(headers, "Accept: application/json");
       if (!CurlGetUrl(url.c_str(), m_data, headers)) {
 // CurlGetUrl already writes the syslog entry. We create an empty (valid) document
-        SetObject();
         return false;
       }
       ParseInsitu(m_data.data() );

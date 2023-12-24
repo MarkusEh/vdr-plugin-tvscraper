@@ -220,15 +220,6 @@ class cTVScraperConfig {
           for (auto &extEpg: m_extEpgs) if (extEpg->myDescription(description)) return true;
           return false;
         }
-        sqlite3_mutex *getDbMutex() const { return m_sqlite3_mutex; }
-        mutable cStateLock stateSelectRecRuntime;
-        sqlite3_mutex *m_sqlite3_mutex;
-        cSql *selectRecRuntime = 0;
-        cSql *selectEventRuntime = 0;
-        cSql *selectMoviewOverview = 0;
-        cSql *selectTvOverview = 0;
-        cSql *selectTvEpisode= 0;
-        cSql *selectTvEpisodeLanguage= 0;
         cMeasureTime timeSelectFromRecordings;
 };
 

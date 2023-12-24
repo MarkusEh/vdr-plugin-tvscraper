@@ -17,6 +17,7 @@ class cTVDBScraper {
     time_t tokenHeaderCreated = 0;
     cTVScraperDB *db;
     int CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog = false);
+    int CallRestJson_int(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog);
     bool GetToken(std::string &jsonResponse);
     bool AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
     void ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang);

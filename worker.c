@@ -485,6 +485,7 @@ bool cTVScraperWorker::StartScrapping(bool &fullScan) {
   return true;
 }
 
+/*
 void release(cSql **stmt) {
   if (!*stmt) return;
   (*stmt)->reset();
@@ -492,23 +493,23 @@ void release(cSql **stmt) {
 void release_db_locks() {
   if (!config.GetReadOnlyClient() ) return;
   cLockDB lock_;
-//  release(&config.selectRecRuntime);
-  release(&config.selectEventRuntime);
-  release(&config.selectMoviewOverview);
   release(&config.selectTvOverview);
   release(&config.selectTvEpisode);
   release(&config.selectTvEpisodeLanguage);
 }
+*/
 
 void cTVScraperWorker::Action(void) {
   if (!startLoop) return;
 
   mutex.Lock();
   if (config.GetReadOnlyClient() ) {
+/*
     while (Running()) {
       waitCondition.TimedWait(mutex, 2 * 1000);
       release_db_locks();
     }
+*/
   } else {
     dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
     waitCondition.TimedWait(mutex, initSleep);
