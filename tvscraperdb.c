@@ -18,6 +18,8 @@ cTVScraperDB::cTVScraperDB(void):
     m_stmt_cache2(this, "SELECT episode_search_with_shorttext, movie_tv_id, season_number, episode_number " \
                     "FROM cache WHERE movie_name_cache = ? AND recording = ? AND duration BETWEEN ? AND ? " \
                     "AND year = ?"),
+    m_select_tv_equal_get_theTVDB_id(this, "SELECT thetvdb_id FROM tv_equal WHERE themoviedb_id = ?"),
+    m_select_tv_equal_get_TMDb_id   (this, "SELECT themoviedb_id FROM tv_equal WHERE thetvdb_id = ?"),
     m_select_tv2_overview(this, "SELECT tv_name, tv_first_air_date, tv_IMDB_ID, tv_display_language FROM tv2 WHERE tv_id = ?"),
     m_select_tv_s_e_overview(this, "SELECT episode_name, episode_air_date, episode_run_time, episode_IMDB_ID " \
         "FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?"),
@@ -248,7 +250,8 @@ bool cTVScraperDB::CreateTables(void) {
     sql << "media_path nvarchar, ";
     sql << "media_type integer, ";
     sql << "media_number integer);";
-    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_media on tv_media (tv_id, media_path);";
+    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_tv_media  on tv_media (tv_id, media_path);";
+    sql << "CREATE        INDEX IF NOT EXISTS idx_tv_media2 on tv_media (tv_id, media_type, media_number);";
 // if mediaType == season_poster, media_number is the season
 // otherwise, it numbers the media (0, 1, ...)
 // for movies, media_number is < 0
@@ -423,6 +426,7 @@ for thetvdb:
     sql << "actor_id integer, ";
     sql << "actor_path nvarchar";
     sql << ");";
+    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_actor_download on actor_download (movie_id, is_movie, actor_id); ";
 
 // movie actors from The Movie Database
     sql << "CREATE TABLE IF NOT EXISTS actor_movie (";
@@ -1000,7 +1004,10 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
   if (runtime) *runtime = pre_stmt.stmt()->getInt(3);
   if (duration_deviation) {
     if (recording->IsEdited() ) *duration_deviation = 0;  // assume who ever cut the recording, checked for completness
-    else *duration_deviation = pre_stmt.stmt()->getInt(4, -2, -2);  // -2 if there is no entry in db
+    else {
+      if (cSv(recording->Info()->Aux()).find("<isEdited>true</isEdited>") != std::string_view::npos) *duration_deviation = 0;
+      else *duration_deviation = pre_stmt.stmt()->getInt(4, -2, -2);  // -2 if there is no entry in db
+    }
   }
   return pre_stmt.stmt()->readRow(movie_tv_id, season_number, episode_number);
 }
@@ -1219,10 +1226,10 @@ bool cTVScraperDB::existsTvMedia (int tvID, const char *path) {
 
 void cTVScraperDB::deleteTvMedia (int tvID, bool movie, bool keepSeasonPoster) const {
   cToSvConcat sql;
-  sql << "delete from tv_media where tv_id = ? ";
-  if (movie) sql << "and media_number <  0";
-  else {     sql << "and media_number >= 0";
-    if(keepSeasonPoster) sql << " and media_type != "  << (int)mediaSeason;
+  sql << "DELETE FROM tv_media WHERE tv_id = ? ";
+  if (movie) sql << "AND media_number <  0";
+  else {     sql << "AND media_number >= 0";
+    if(keepSeasonPoster) sql << " AND media_type != "  << (int)mediaSeason;
   }
   exec(sql, tvID);
 }
@@ -1279,14 +1286,20 @@ void cTVScraperDB::setEqual(int themoviedb_id, int thetvdb_id) {
   exec("INSERT OR REPLACE INTO tv_equal (themoviedb_id, thetvdb_id) VALUES(?, ?)", themoviedb_id, thetvdb_id);
 }
 
-int cTVScraperDB::getNormedTvId(int tv_id) {
+int cTVScraperDB::get_theTVDB_id(int tv_id) const {
+  return cUseStmt(m_select_tv_equal_get_theTVDB_id, tv_id).stmt()->getInt(0);
+}
+int cTVScraperDB::get_TMDb_id(int tv_id) const {
+  return cUseStmt(m_select_tv_equal_get_TMDb_id, tv_id).stmt()->getInt(0);
+}
+int cTVScraperDB::getNormedTvId(int tv_id) const {
 // Input: ID of series from TMDb (>0) or TheTVDB (<0)
 //        Do NOT call with movie ID from TMDb!!!
 // Output: Same ID or equal ID from other ext. database
 //   Current implementation: Use TheTVDB if available.
 //   This might change!!
   if (tv_id < 0) return tv_id;
-  int id = cSql(this, "SELECT thetvdb_id FROM tv_equal WHERE themoviedb_id = ?", tv_id).getInt(0);
+  int id = get_theTVDB_id(tv_id);
   return id<0 ? id:tv_id;
 }
 // cSql =========================================================
@@ -1314,6 +1327,11 @@ void cSql::stepInt() {
   if (!assertStatement("stepInt")) return;
   if (m_last_step_result == SQLITE_DONE) return;
   m_last_step_result = sqlite3_step(m_statement);
+  if (m_last_step_result == SQLITE_BUSY) {
+    isyslog("tvscraper: INFO in cSql::stepInt(): SQLITE_BUSY, rc = %d, repeat", m_last_step_result);
+    sleep(1);
+    m_last_step_result = sqlite3_step(m_statement);
+  }
   ++m_cur_row;
   const char *query = sqlite3_sql(m_statement);
   m_db->printSqlite3Errmsg(query?query:"cTVScraperDB::cSql::stepInt");

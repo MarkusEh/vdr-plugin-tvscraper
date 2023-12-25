@@ -481,6 +481,8 @@ private:
     sqlite3_mutex *m_sqlite3_mutex;
     mutable cSql m_stmt_cache1;
     mutable cSql m_stmt_cache2;
+    mutable cSql m_select_tv_equal_get_theTVDB_id;
+    mutable cSql m_select_tv_equal_get_TMDb_id;
     mutable cSql m_select_tv2_overview;
     mutable cSql m_select_tv_s_e_overview;
     mutable cSql m_select_tv_s_e_name2_tv_s_e;
@@ -591,7 +593,9 @@ public:
     int GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
     void setSimilar(int tv_id1, int tv_id2);
     void setEqual(int themoviedb_id, int thetvdb_id);
-    int getNormedTvId(int tv_id);
+    int get_theTVDB_id(int tv_id) const;
+    int get_TMDb_id(int tv_id) const;
+    int getNormedTvId(int tv_id) const;
 };
 
 /*
@@ -620,6 +624,10 @@ private:
 class cUseStmt: public cLockDB {
   public:
     cUseStmt(cSql &stmt): cLockDB(stmt.m_db), m_stmt(&stmt) { }
+template<typename... Args>
+    cUseStmt(cSql &stmt, Args&&... args): cLockDB(stmt.m_db), m_stmt(&stmt) {
+      stmt.prepareBindStep(std::forward<Args>(args)...);
+    }
     cSql *stmt() const { return m_stmt; }
     virtual ~cUseStmt() {
       if (m_stmt) m_stmt->reset();

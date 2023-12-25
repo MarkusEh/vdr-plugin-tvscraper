@@ -628,15 +628,13 @@ bool cSearchEventOrRec::selectBestAndEnhanceIfRequired(std::vector<searchResultT
   new_end = end;
   if (begin == end) return false; // empty list
   if (begin + 1 == end) { func(*begin, *this); return false;} // list with one element, always enhance first (currently best) result
-  cSql stmt_get_theTVDB_id(m_db, "SELECT thetvdb_id FROM tv_equal WHERE themoviedb_id = ?");
-  cSql stmt_get_TMDb_id   (m_db, "SELECT themoviedb_id FROM tv_equal WHERE thetvdb_id = ?");
   std::vector<searchResultTvMovie>::iterator i;
   for (i = begin; i != end; i++) {
     if (i->m_other_id != 0 || i->movie() ) continue;
     if (i->id() > 0) {
-      i->m_other_id = stmt_get_theTVDB_id.resetBindStep(i->id()).getInt(0);
+      i->m_other_id = m_db->get_theTVDB_id(i->id());
     } else {
-      i->m_other_id = stmt_get_TMDb_id.resetBindStep(i->id()).getInt(0);
+      i->m_other_id = m_db->get_TMDb_id(i->id() );
     }
   }
   std::sort(begin, end);

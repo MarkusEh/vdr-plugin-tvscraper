@@ -140,6 +140,12 @@ bool cTVScraperWorker::ScrapEPG(void) {
 // note: as a result, elso information from external EPG providers is only collected for these channels
 
 // to provide statistics:
+  std::chrono::duration<double> timeNeededExt;
+  std::chrono::duration<double> timeNeededDlMM;
+  std::chrono::duration<double> timeNeededDlMS;
+  std::chrono::duration<double> timeNeededDlTS;
+  std::chrono::duration<double> timeNeededOthers;
+  std::chrono::duration<double> timeNeededDl;
   int num0  = 0;
   int num1  = 0;
   int num11 = 0;
@@ -152,6 +158,9 @@ bool cTVScraperWorker::ScrapEPG(void) {
   std::chrono::duration<double> time11_max(0);
   moviedbScraper->apiCalls.reset();
   tvdbScraper->apiCalls.reset();
+  config.timeDownloadMedia.reset();
+  config.timeDownloadActorsMovie.reset();
+
   db->m_cache_time.reset();
   db->m_cache_episode_search_time.reset();
   db->m_cache_update_episode_time.reset();
@@ -181,6 +190,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
     std::string channelName;
     vector<tEventID> eventIDs = GetEventIDs(channelName, channelID, msg_cnt);
     for (const tEventID &eventID: eventIDs) {
+      auto begin = std::chrono::high_resolution_clock::now();
       if (!Running()) {
         for (auto &event: currentEvents) delete event.second;
         return newEvent;
@@ -202,15 +212,19 @@ bool cTVScraperWorker::ScrapEPG(void) {
           LOCK_SCHEDULES_READ;
 #endif
           cEvent *event = getEvent(eventID, channelID);
+          timeNeededOthers += std::chrono::high_resolution_clock::now() - begin;
           if (!event) continue;
 					if (extEpg) {
+            auto begin = std::chrono::high_resolution_clock::now();
             extEpg->enhanceEvent(event, extEpgImages);
             if (!extEpgImages.empty() ) extEpgImage = getEpgImagePath(event, true);
+            auto end = std::chrono::high_resolution_clock::now();
+            timeNeededExt += end - begin;
           }
 					if (!channelActive) continue;
           newEvent = true;
           if (!newEventSchedule) {
-            dsyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), cToSvChannel(channelID).c_str() );
+            isyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), cToSvChannel(channelID).c_str() );
             newEventSchedule = true;
           }
           csEventOrRecording sEvent(event);
@@ -240,11 +254,20 @@ bool cTVScraperWorker::ScrapEPG(void) {
             break;
         }
         waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
+        auto begin = std::chrono::high_resolution_clock::now();
         if (!extEpgImages.empty() ) {
           DownloadImg(extEpgImages[0].path, extEpgImage);
         }
+        timeNeededDl += std::chrono::high_resolution_clock::now() - begin;
         if (movieOrTv) {
+          begin = std::chrono::high_resolution_clock::now();
           movieOrTv->DownloadImages(m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, "");
+          if (movieOrTv->getType() == tMovie)
+            timeNeededDlMM += std::chrono::high_resolution_clock::now() - begin;
+          else if (movieOrTv->dbID() > 0)
+            timeNeededDlMS += std::chrono::high_resolution_clock::now() - begin;
+          else
+            timeNeededDlTS += std::chrono::high_resolution_clock::now() - begin;
           delete movieOrTv;
           movieOrTv = NULL;
         }
@@ -269,17 +292,25 @@ bool cTVScraperWorker::ScrapEPG(void) {
   for (auto &event: currentEvents) delete event.second;
   if (num0+num1+num11 > 0) {
 // write statistics
-    esyslog("tvscraper: statistics, over all, num = %5i, time = %9.5f, average %f, max = %f, movIdMax %i", num0+num1+num11, (time0+time1+time11).count(), (time0+time1+time11).count()/(num0+num1+num11), std::max(std::max(time0_max, time1_max), time11_max).count(), movieOrTvIdMaxTime);
+    isyslog("tvscraper: statistics, over all, num = %5i, time = %9.5f, average %f, max = %f, movIdMax %i", num0+num1+num11, (time0+time1+time11).count(), (time0+time1+time11).count()/(num0+num1+num11), std::max(std::max(time0_max, time1_max), time11_max).count(), movieOrTvIdMaxTime);
     if (config.enableDebug) {
-    esyslog("tvscraper: skip due to override, num = %5i, time = %9.5f, average %f, max = %f", num0, time0.count(), time0.count()/num0, time0_max.count());
-    esyslog("tvscraper: cache hit           , num = %5i, time = %9.5f, average %f, max = %f", num1, time1.count(), time1.count()/num1, time1_max.count());
-    esyslog("tvscraper: external database   , num = %5i, time = %9.5f, average %f, max = %f", num11, time11.count(), time11.count()/num11, time11_max.count());
-    moviedbScraper->apiCalls.print("moviedbScraper, api calls");
-       tvdbScraper->apiCalls.print("tvdbScraper   , api calls");
-    db->m_cache_time.print("select from cache        ");
-    db->m_cache_episode_search_time.print("cache_episode_search_time");
-    db->m_cache_update_episode_time.print("cache_update_episode_time");
-    db->m_cache_update_similar_time.print("cache_update_similar_time");
+      dsyslog("tvscraper: skip due to override, num = %5i, time = %9.5f, average %f, max = %f", num0, time0.count(), time0.count()/num0, time0_max.count());
+      dsyslog("tvscraper: cache hit           , num = %5i, time = %9.5f, average %f, max = %f", num1, time1.count(), time1.count()/num1, time1_max.count());
+      dsyslog("tvscraper: external database   , num = %5i, time = %9.5f, average %f, max = %f", num11, time11.count(), time11.count()/num11, time11_max.count());
+      moviedbScraper->apiCalls.print("moviedbScraper, api calls");
+         tvdbScraper->apiCalls.print("tvdbScraper   , api calls");
+      db->m_cache_time.print("select from cache        ");
+      db->m_cache_episode_search_time.print("cache_episode_search_time");
+      db->m_cache_update_episode_time.print("cache_update_episode_time");
+      db->m_cache_update_similar_time.print("cache_update_similar_time");
+      dsyslog("tvscraper: time for ext epg, time = %9.5f", timeNeededExt.count() );
+      dsyslog("tvscraper: timeNeededOthers, time = %9.5f", timeNeededOthers.count() );
+      dsyslog("tvscraper: timeNeededDl,     time = %9.5f", timeNeededDl.count() );
+      dsyslog("tvscraper: dl TMDb M       , time = %9.5f", timeNeededDlMM.count() );
+      dsyslog("tvscraper: dl TMDb S       , time = %9.5f", timeNeededDlMS.count() );
+      dsyslog("tvscraper: dl TheTVDB S    , time = %9.5f", timeNeededDlTS.count() );
+      config.timeDownloadActorsMovie.print("timeDownloadActorsMovie");
+      config.timeDownloadMedia.print      ("timeDownloadMediaMovie ");
     }
   }
   return newEvent;
@@ -501,53 +532,45 @@ void release_db_locks() {
 
 void cTVScraperWorker::Action(void) {
   if (!startLoop) return;
+  if (config.GetReadOnlyClient() ) return;
 
   mutex.Lock();
-  if (config.GetReadOnlyClient() ) {
-/*
-    while (Running()) {
-      waitCondition.TimedWait(mutex, 2 * 1000);
-      release_db_locks();
-    }
-*/
-  } else {
-    dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
-    waitCondition.TimedWait(mutex, initSleep);
+  dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
+  waitCondition.TimedWait(mutex, initSleep);
 
-    while (Running()) {
-      if (scanVideoDir) {
-        dsyslog("tvscraper: scanning video dir");
-        if (ConnectScrapers()) {
-          ScrapRecordings();
-          scanVideoDir = false;
-          m_recording.clear();
-          dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
-          TouchFile(config.GetRecordingsUpdateFileName().c_str());
-        }
-        dsyslog("tvscraper: scanning video dir done");
-        continue;
+  while (Running()) {
+    if (scanVideoDir) {
+      dsyslog("tvscraper: scanning video dir");
+      if (ConnectScrapers()) {
+        ScrapRecordings();
+        scanVideoDir = false;
+        m_recording.clear();
+        dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
+        TouchFile(config.GetRecordingsUpdateFileName().c_str());
       }
-      bool newRec = CheckRunningTimers();
-      if (newRec) backup_requested = true;
-      if (!Running() ) break;
-      bool fullScan = false;
-      if (StartScrapping(fullScan)) {
-        dsyslog("tvscraper: start scraping epg");
-        if (ConnectScrapers()) {
-          bool newEvents = ScrapEPG();
-          if (newEvents) TouchFile(config.GetEPG_UpdateFileName().c_str());
-          if (newEvents && Running() ) cMovieOrTv::DeleteAllIfUnused(db);
-          if (fullScan && Running()) backup_requested = true;
-        }
-        dsyslog("tvscraper: epg scraping done");
-        if (!Running() ) break;
-        if (config.getEnableAutoTimers() ) timersForEvents(*db);
-      }
-      if (backup_requested) {
-        int rc = db->BackupToDisc();
-        if (rc == SQLITE_OK) backup_requested = false;
-      }
-      waitCondition.TimedWait(mutex, loopSleep);
+      dsyslog("tvscraper: scanning video dir done");
+      continue;
     }
+    bool newRec = CheckRunningTimers();
+    if (newRec) backup_requested = true;
+    if (!Running() ) break;
+    bool fullScan = false;
+    if (StartScrapping(fullScan)) {
+      dsyslog("tvscraper: start scraping epg");
+      if (ConnectScrapers()) {
+        bool newEvents = ScrapEPG();
+        if (newEvents) TouchFile(config.GetEPG_UpdateFileName().c_str());
+        if (newEvents && Running() ) cMovieOrTv::DeleteAllIfUnused(db);
+        if (fullScan && Running()) backup_requested = true;
+      }
+      dsyslog("tvscraper: epg scraping done");
+      if (!Running() ) break;
+      if (config.getEnableAutoTimers() ) timersForEvents(*db);
+    }
+    if (backup_requested) {
+      int rc = db->BackupToDisc();
+      if (rc == SQLITE_OK) backup_requested = false;
+    }
+    waitCondition.TimedWait(mutex, loopSleep);
   }
 }

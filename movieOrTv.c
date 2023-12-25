@@ -741,6 +741,7 @@ for (const std::filesystem::directory_entry& dir_entry:
 void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check all movies in db
   CleanupTv_media(db);
+  db->exec("DELETE FROM actor_download");
   for (cSql &stmt: cSql(db, "select movie_id from movies3;") ) {
     cMovieMoviedb movieMoviedb(db, stmt.getInt(0) );
     movieMoviedb.DeleteIfUnused();

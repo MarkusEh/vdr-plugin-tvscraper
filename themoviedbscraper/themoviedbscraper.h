@@ -63,8 +63,12 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
     }
 
     virtual int downloadImages(int id, int seasonNumber = 0, int episodeNumber = 0) {
+      config.timeDownloadMedia.start();
       m_movieDBScraper->DownloadMedia(id);
+      config.timeDownloadMedia.stop();
+      config.timeDownloadActorsMovie.start();
       m_movieDBScraper->DownloadActors(id, true);
+      config.timeDownloadActorsMovie.stop();
       return 0;
     }
     virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang) {

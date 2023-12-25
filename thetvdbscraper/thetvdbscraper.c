@@ -429,7 +429,7 @@ void cTVDBScraper::StoreActors(int seriesID) {
     stringAppend(destDir, stmt.getInt(0), ".jpg");
     download(actor_path, destDir.c_str() );
   }
-  db->DeleteActorDownload (seriesID * -1, false);
+  db->DeleteActorDownload (-seriesID, false);
 }
 void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber, const char *episodeFilename) {
     if (!episodeFilename || !*episodeFilename) return;

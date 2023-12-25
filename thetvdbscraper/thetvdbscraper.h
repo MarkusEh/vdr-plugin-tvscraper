@@ -97,7 +97,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
       m_TVDBScraper->StoreActors(id);
       if (!seasonNumber && !episodeNumber) return 0;
       cSql stmt(m_TVDBScraper->db, "SELECT episode_still_path FROM tv_s_e WHERE tv_id = ? and season_number = ? and episode_number = ?");
-      const char *episodeStillPath = stmt.resetBindStep(-1*id, seasonNumber, episodeNumber).getCharS(0);
+      const char *episodeStillPath = stmt.resetBindStep(-id, seasonNumber, episodeNumber).getCharS(0);
       if (episodeStillPath && *episodeStillPath)
         m_TVDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;

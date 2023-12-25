@@ -221,6 +221,8 @@ class cTVScraperConfig {
           return false;
         }
         cMeasureTime timeSelectFromRecordings;
+        cMeasureTime timeDownloadMedia;
+        cMeasureTime timeDownloadActorsMovie;
 };
 
 #endif //__TVSCRAPER_CONFIG_H
