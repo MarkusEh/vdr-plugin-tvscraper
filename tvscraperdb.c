@@ -95,14 +95,14 @@ void cTVScraperDB::AddColumnIfNotExists(const char *table, const char *column, c
 
 bool cTVScraperDB::Connect(void) {
     if (inMem) {
+/*
         time_t timeMem = LastModifiedTime(dbPathMem.c_str() );
         time_t timePhys = LastModifiedTime(dbPathPhys.c_str() );
-        bool readFromPhys = timePhys > timeMem;
-        int rc;
-        if (config.GetReadOnlyClient() )
-          rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_FULLMUTEX, nullptr);
-        else
-          rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
+        bool readFromPhys = timePhys > timeMem;  // use Mem if exists. Note: Phys might have been modified from outside
+*/
+        struct stat buffer;
+        bool readFromPhys = stat (dbPathMem.c_str(), &buffer) != 0; // readFromPhys if dbPathMem does not exist
+        int rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
         if (rc != SQLITE_OK) {
             esyslog("tvscraper: failed to open or create %s", dbPathMem.c_str());
             return false;
@@ -709,23 +709,17 @@ bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {
     return true;
   }
   time_t tv2_tv_last_updated = stmt_tv2.getInt64(1);
-/*
-  if (config.enableDebug) {
-    long long te = queryInt64("SELECT tv_last_updated FROM tv2 WHERE tv_id = ?", tvID);
-    if (te != (long long)tv2_tv_last_updated) esyslog("tvscraper: ERROR cTVScraperDB::episodeNameUpdateRequired te %lli != tv2_tv_last_updated %lli", te, (long long)tv2_tv_last_updated);
-  }
-*/
 
   cSql stmt_tv_name_last_updated(this, "SELECT tv_last_updated FROM tv_name WHERE tv_id = ? AND language_id = ?", tvID, langId);
-  if (!stmt_tv_name_last_updated.readRow()) {
-//    if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired not found in tv_name, tvID %i, langId %i", tvID, langId);
+  if (!stmt_tv_name_last_updated.readRow() && (config.GetDefaultLanguage()->m_id != langId || tvID < 0) ) {
+//    if (config.enableDebug) dsyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired not found in tv_name, tvID %i, langId %i", tvID, langId);
     return true;
   }
 // check: additional episodes added, but not in langId?
 // Note: we cannot compare the number of episodes in tv_s_e with the number of episodes tv_s_e_name2 for lang:
 //       there just might be some texts missing, ...
-  if ( stmt_tv2.getInt64(0) > stmt_tv_name_last_updated.getInt64(0)) {
-    if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired tv2.tv_last_changed %lli > tv_name.tv_last_updated %lli, tvID %i, langId %i", (long long)stmt_tv2.getInt64(0), (long long)stmt_tv_name_last_updated.getInt64(0), tvID, langId);
+  if (stmt_tv2.getInt64(0) > stmt_tv_name_last_updated.getInt64(0) && (config.GetDefaultLanguage()->m_id != langId || tvID < 0)) {
+    if (config.enableDebug) dsyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired tv2.tv_last_changed %lli > tv_name.tv_last_updated %lli, tvID %i, langId %i", (long long)stmt_tv2.getInt64(0), (long long)stmt_tv_name_last_updated.getInt64(0), tvID, langId);
     return true;
   }
 
@@ -735,7 +729,7 @@ bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {
   if (status.compare("Ended") == 0) return false; // see https://thetvdb-api.readthedocs.io/api/series.html
   if (status.compare("Canceled") == 0) return false;
 // not documented for themoviedb, see https://developers.themoviedb.org/3/tv/get-tv-details . But test indicates the same values ("Ended" & "Canceled")...
-  if (config.enableDebug) esyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired tv2.tv_last_updated %lli, tvID %i, langId %i", (long long)tv2_tv_last_updated, tvID, langId);
+  if (config.enableDebug) dsyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired tv2.tv_last_updated %lli, tvID %i, langId %i", (long long)tv2_tv_last_updated, tvID, langId);
   return true;
 }
 

@@ -58,7 +58,7 @@ int cMovieDbTv::downloadEpisodes(bool forceUpdate, const cLanguage *lang) {
   if (!lang) return 3;
   if (!forceUpdate && !m_db->episodeNameUpdateRequired(m_tvID, lang->m_id)) return 0;
   if (config.GetDefaultLanguage()->m_id == lang->m_id) {
-    if (UpdateDb(forceUpdate)) return 0;
+    if (UpdateDb(true)) return 0;
     return 5;
   }
 /*

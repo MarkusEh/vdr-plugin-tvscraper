@@ -350,7 +350,7 @@ int cTVDBScraper::CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::
     if (rc != 100) return rc;
 // rc == 100 -> Internal Server Error
     if (++i > 5) break;
-    if (config.enableDebug) esyslog("tvscraper: Internal Server Error calling \"%s\", i = %i", url, i);
+    if (config.enableDebug) esyslog("tvscraper: INFO: Internal Server Error calling \"%s\", i = %i, trying again ...", url, i);
     sleep(2 + 3*i);
   } while (true);
 
