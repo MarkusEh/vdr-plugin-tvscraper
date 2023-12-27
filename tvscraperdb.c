@@ -426,7 +426,8 @@ for thetvdb:
     sql << "actor_id integer, ";
     sql << "actor_path nvarchar";
     sql << ");";
-//  sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_actor_download on actor_download (movie_id, is_movie, actor_id); ";
+    sql << "DELETE FROM actor_download;";
+    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_actor_download on actor_download (movie_id, is_movie, actor_id); ";
 
 // movie actors from The Movie Database
     sql << "CREATE TABLE IF NOT EXISTS actor_movie (";

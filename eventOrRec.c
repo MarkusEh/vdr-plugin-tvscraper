@@ -307,7 +307,8 @@ int csRecording::durationDeviation(int s_runtime) {
 // return -1 if no information is available
   if (!m_recording || !m_recording->FileName() || !m_recording->Info() || !m_recording->Info()->GetEvent() ) return -1;
   if (m_recording->IsEdited() ) return 0;  // we assume, who ever edited the recording checked for completeness
-  if (m_recording->IsInUse()&ruTimer == ruTimer) return -1;  // still recording => incomplete, this check is useless
+  int inUse = m_recording->IsInUse();
+  if ((inUse != ruNone) && (inUse != ruReplay)) return -1;  // still recording => incomplete, this check is useless
   if (!m_recording->Info()->GetEvent()->Vps() ) return durationDeviationNoVps();
 // event has VPS. Was VPS used?
   int vps_used_markad = getVpsLength();

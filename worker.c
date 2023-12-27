@@ -319,6 +319,21 @@ bool cTVScraperWorker::ScrapEPG(void) {
 void cTVScraperWorker::ScrapRecordings(void) {
   if (config.GetReadOnlyClient() ) return;
   if (m_recording.empty() ) db->ClearRecordings2();
+  else  {
+    LOCK_RECORDINGS_READ;
+    const cRecording *rec = Recordings->GetByName(m_recording.c_str() );
+    if (!rec) {
+      esyslog("tvscraper: recording %s does not exist, skip scan", m_recording.c_str());
+      return;
+    }
+    const cRecordingInfo *recInfo = rec->Info();
+    if (!recInfo || !recInfo->GetEvent() ) {
+      esyslog("tvscraper: recording %s does exist, but no recInfo or no GetEvent. skip scan", m_recording.c_str());
+      return;
+    }
+    csRecording sRecording(rec);
+    db->DeleteEventOrRec(&sRecording);
+  }
 
   cMovieOrTv *movieOrTv = NULL;
   vector<string> recordingFileNames;
@@ -341,8 +356,8 @@ void cTVScraperWorker::ScrapRecordings(void) {
 
       const cRecordingInfo *recInfo = rec->Info();
       if (recInfo && recInfo->GetEvent() ) {
-        csRecording csRecording(rec);
-        cSearchEventOrRec SearchEventOrRec(&csRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db);
+        csRecording sRecording(rec);
+        cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db);
         int statistics;
         movieOrTv = SearchEventOrRec.Scrape(statistics);
       }
@@ -356,8 +371,11 @@ void cTVScraperWorker::ScrapRecordings(void) {
     }
     if (!Running() ) break;
     bool newRec = CheckRunningTimers();
-    if (!Running() ) break;
     if (newRec) backup_requested = true;
+    if (backup_requested) {
+      int rc = db->BackupToDisc();
+      if (rc == SQLITE_OK) backup_requested = false;
+    }
     if (!Running() ) break;
   }
   deleteOutdatedRecordingImages(db);

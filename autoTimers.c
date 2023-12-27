@@ -163,12 +163,8 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
         cSql *runtime_sql;
         if (season_number == -100) { runtime_movie.resetBindStep(movie_tv_id); runtime_sql = &runtime_movie; }
         else { runtime_tv.resetBindStep(movie_tv_id, season_number, episode_number); runtime_sql = &runtime_tv; }
-        if (runtime_sql->readRow() && !runtime_sql->valueInitial(0)) {
-          runtime = runtime_sql->getInt(0);
-          if (runtime <= 0) runtime = runtime_guess;
-        } else {
-          runtime = runtime_guess;
-        }
+        runtime = runtime_sql->getInt(0, runtime_guess, runtime_guess);
+        if (runtime <= 0) runtime = runtime_guess;
         duration_deviation = sRecording.durationDeviation(runtime);
         if (duration_deviation >= 0) db.SetDurationDeviation(rec, duration_deviation);
         else duration_deviation = 0;
