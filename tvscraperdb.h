@@ -107,7 +107,7 @@ class cSql {
     template<typename... Args>
     cSql(const cTVScraperDB *db, cStringRef query, Args&&... args): m_db(db), m_query(query.m_sv) {
       if (!m_db || m_query.empty() )
-        esyslog("tvscraper: ERROR in cSql::cSql, m_db %s, query %.*s", m_db?"Avaliable":"Null", static_cast<int>(m_query.length()), m_query.data() );
+        esyslog("tvscraper: ERROR in cSql::cSql, m_db %s, query %.*s", m_db?"Available":"Null", static_cast<int>(m_query.length()), m_query.data() );
       else prepareBindStep(std::forward<Args>(args)...);
     }
 //  class iterator: public std::iterator<std::forward_iterator_tag, cSql, int, cSql*, cSql &>
@@ -168,7 +168,7 @@ class cSql {
     template<typename... Args>
     cSql & resetBindStep(Args&&... args) {
       if (!m_db || m_query.empty() ) {
-        esyslog("tvscraper: ERROR in cSql::resetBindStep, m_db %s, query %.*s", m_db?"Avaliable":"Null", static_cast<int>(m_query.length()), m_query.data());
+        esyslog("tvscraper: ERROR in cSql::resetBindStep, m_db %s, query %.*s", m_db?"Available":"Null", static_cast<int>(m_query.length()), m_query.data());
         setFailed();
         return *this;
       }
@@ -202,7 +202,7 @@ class cSql {
     cSql & finalizePrepareBindStep(cStringRef query, Args&&... args) {
       m_query = query.m_sv;
       if (!m_db || m_query.empty() ) {
-        esyslog("tvscraper: ERROR in cSql::finalizePrepareBindStep, m_db %s, query %.*s", m_db?"Avaliable":"Null", static_cast<int>(m_query.length()), m_query.data() );
+        esyslog("tvscraper: ERROR in cSql::finalizePrepareBindStep, m_db %s, query %.*s", m_db?"Available":"Null", static_cast<int>(m_query.length()), m_query.data() );
         setFailed();
         return *this;
       }
