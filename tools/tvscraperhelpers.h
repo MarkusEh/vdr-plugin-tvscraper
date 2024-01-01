@@ -25,48 +25,48 @@ fn(result, from);
 // deprectaed, use cToSvConcat, which is almost as fast
 #define CONCATENATE_START_2(result, s1, s2) \
 int result##concatenate_lvls = 0; \
-int result##concatenate_lvl1 = ns_concat::numChars(s1); \
+int result##concatenate_lvl1 = stringhelpers_internal::numChars(s1); \
 result##concatenate_lvls += result##concatenate_lvl1; \
-int result##concatenate_lvl2 = ns_concat::numChars(s2); \
+int result##concatenate_lvl2 = stringhelpers_internal::numChars(s2); \
 result##concatenate_lvls += result##concatenate_lvl2;
 
 #define CONCATENATE_START_3(result, s1, s2, s3) \
 CONCATENATE_START_2(result, s1, s2) \
-int result##concatenate_lvl3 = ns_concat::numChars(s3); \
+int result##concatenate_lvl3 = stringhelpers_internal::numChars(s3); \
 result##concatenate_lvls += result##concatenate_lvl3;
 
 #define CONCATENATE_START_4(result, s1, s2, s3, s4) \
 CONCATENATE_START_3(result, s1, s2, s3) \
-int result##concatenate_lvl4 = ns_concat::numChars(s4); \
+int result##concatenate_lvl4 = stringhelpers_internal::numChars(s4); \
 result##concatenate_lvls += result##concatenate_lvl4;
 
 #define CONCATENATE_START_5(result, s1, s2, s3, s4, s5) \
 CONCATENATE_START_4(result, s1, s2, s3, s4) \
-int result##concatenate_lvl5 = ns_concat::numChars(s5); \
+int result##concatenate_lvl5 = stringhelpers_internal::numChars(s5); \
 result##concatenate_lvls += result##concatenate_lvl5;
 
 #define CONCATENATE_START_6(result, s1, s2, s3, s4, s5, s6) \
 CONCATENATE_START_5(result, s1, s2, s3, s4, s5) \
-int result##concatenate_lvl6 = ns_concat::numChars(s6); \
+int result##concatenate_lvl6 = stringhelpers_internal::numChars(s6); \
 result##concatenate_lvls += result##concatenate_lvl6;
 
 #define CONCATENATE_START_7(result, s1, s2, s3, s4, s5, s6, s7) \
 CONCATENATE_START_6(result, s1, s2, s3, s4, s5, s6) \
-int result##concatenate_lvl7 = ns_concat::numChars(s7); \
+int result##concatenate_lvl7 = stringhelpers_internal::numChars(s7); \
 result##concatenate_lvls += result##concatenate_lvl7;
 
 #define CONCATENATE_START_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
 CONCATENATE_START_7(result, s1, s2, s3, s4, s5, s6, s7) \
-int result##concatenate_lvl8 = ns_concat::numChars(s8); \
+int result##concatenate_lvl8 = stringhelpers_internal::numChars(s8); \
 result##concatenate_lvls += result##concatenate_lvl8;
 
 #define CONCATENATE_START_9(result, s1, s2, s3, s4, s5, s6, s7, s8, s9) \
 CONCATENATE_START_8(result, s1, s2, s3, s4, s5, s6, s7, s8) \
-int result##concatenate_lvl9 = ns_concat::numChars(s9); \
+int result##concatenate_lvl9 = stringhelpers_internal::numChars(s9); \
 result##concatenate_lvls += result##concatenate_lvl9;
 
 #define CONCATENATE_END_ADDCHARS_B(result_concatenate_buf, lvl, s) \
-ns_concat::addChars(result_concatenate_buf, lvl, s); \
+stringhelpers_internal::addChars(result_concatenate_buf, lvl, s); \
 result_concatenate_buf += lvl;
 
 #define CONCATENATE_END_2(result, s1, s2) \
@@ -112,16 +112,12 @@ SELECT( CONCATENATE_END, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
 // methods for CONCATENATE
 // deprecated
 
-namespace ns_concat {
+namespace stringhelpers_internal {
   inline int numChars(std::string_view s) { return s.length(); }
   inline int numChars(const std::string &s) { return s.length(); }
   inline int numChars(const char *s) { return s?strlen(s):0; }
-  inline int numChars(int i) {
-    if (i == 0) return 1;
-    if (i > 0 ) return stringhelpers_internal::numCharsUg0(i);
-    return stringhelpers_internal::numCharsUg0(-i) + 1;
-  }
-  inline void addChars(char *b, int l, int i) { stringhelpers_internal::addCharsIbe(b+l, i); }
+template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+  inline void addChars(char *b, int l, T i) { stringhelpers_internal::itoa(b, i); }
   inline void addChars(char *b, int l, const std::string_view &s) { memcpy(b, s.data(), l); }
   inline void addChars(char *b, int l, const std::string &s) { memcpy(b, s.data(), l); }
   inline void addChars(char *b, int l, const char *s) { if(s) memcpy(b, s, l); }

@@ -69,10 +69,10 @@ bool CurlGetUrl(const char *url, T &sOutput, struct curl_slist *headers) {
   for(i=0; i < 20; i++) {
     sOutput.clear();
     ret = CurlGetUrl_int(url, sOutput, headers);
-    if (ret && sOutput.length() > 10) {
+    if (ret && sOutput.length() > 1) {  // [] is OK
       if(sOutput[0] == '{') return true; // json file, OK
       if(sOutput[0] == '[') return true; // json file, OK
-      if(strncmp(sOutput.data(), "<html>", 6) != 0 && sOutput[0] == '<') return true; // xml  file, OK
+      if(sOutput[0] == '<' && sOutput.length() > 6 && strncmp(sOutput.data(), "<html>", 6) != 0) return true; // xml  file, OK
 //    if("<html>"sv.compare(0, 6, sOutput) != 0 && sOutput[0] == '<') return true; // xml  file, OK
     }
     sleep(2 + 3*i);

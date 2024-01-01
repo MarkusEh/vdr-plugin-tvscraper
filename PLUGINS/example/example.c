@@ -31,20 +31,11 @@ void cTvspEpgOneDay::initJson(cSv extChannelId, time_t startTime) {
     startTime -= hourDayBegin*60*60;
     time = localtime_r(&startTime, &tm_r);
   }
-/*
-  std::stringstream date;
-  date << "http://live.tvspielfilm.de/static/broadcast/list/";
-  date << extChannelId << "/";
-  date << (time->tm_year + 1900) << '-'
-  << std::setfill('0') << std::setw(2) << (time->tm_mon + 1)
-  << '-' << std::setfill('0') << std::setw(2) << time->tm_mday;
-  std::string url = date.str();
-*/
   cToSvConcat url("http://live.tvspielfilm.de/static/broadcast/list/",
                   extChannelId, '/',
-                  cToSvInt(time->tm_year + 1900).setw(4), '-',
-                  cToSvInt(time->tm_mon + 1).setw(2), '-',
-                  cToSvInt(time->tm_mday).setw(2));
+                  cToSvInt(time->tm_year + 1900, 4), '-',
+                  cToSvInt(time->tm_mon + 1, 2), '-',
+                  cToSvInt(time->tm_mday, 2));
 // if (extChannelId[0] == 'A') esyslog("tvscraper epg about to download %s", url.c_str() );
 // calculate m_start: today 5 am
   time->tm_sec = 0;
@@ -54,6 +45,7 @@ void cTvspEpgOneDay::initJson(cSv extChannelId, time_t startTime) {
   m_end = m_start + 24*60*60;
 
 // download json file
+  m_document->set_enableDebug(true);
   if (!m_document->download_and_parse(url.c_str()) ) return; // no data
 //  if (!jsonCallRest(*m_document, *m_json, url.c_str(), false) ) return; // no data
   if (!m_document->IsArray() ) {
