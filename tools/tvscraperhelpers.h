@@ -253,10 +253,12 @@ template<class T>
 };
 
 inline bool splitString(cSv str, char delimiter, size_t minLengh, cSv &first, cSv &second) {
-  using namespace std::literals::string_view_literals;
-  if (delimiter == '-') return splitString(str, " - "sv, minLengh, first, second);
-  if (delimiter == ':') return splitString(str, ": "sv, minLengh, first, second);
-  std::string delim(1, delimiter);
+//  using namespace std::literals::string_view_literals;
+  if (delimiter == '-') return splitString(str, " - ", minLengh, first, second);
+  if (delimiter == ':') return splitString(str, ": ", minLengh, first, second);
+  char delim[2];
+  delim[0] = delimiter;
+  delim[1] = 0;
   return splitString(str, delim, minLengh, first, second);
 }
 

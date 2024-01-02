@@ -521,7 +521,7 @@ void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<s
       if (langVal) normedName.reset(removeLastPartWithP(langVal));
     }
   }
-  for (char delim: compareStrings) {
+  for (char delim: compareStrings) if (delim != 's') {
 // distance == deviation from search text
     int dist_a = 1000;
 // if search string is not in original language, consider name (== original name) same as alias

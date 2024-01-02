@@ -172,7 +172,7 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
       if (duration_deviation > 60) numberOfErrors = 1;  // in case of deviations > 1min, create timer ...
     }
     if (numberOfErrors == 0 && config.GetTimersOnNumberOfTsFiles() && GetNumberOfTsFiles(rec) != 1) numberOfErrors = 1;  //  in case of more ts files, create timer ...
-    cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, numberOfErrors);
+    cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, numberOfErrors, rec->Id() );
     auto found = recordings.find(scraperRec);
     if (found == recordings.end() ) recordings.insert(std::move(scraperRec)); // not in list -> insert
     else if (scraperRec.isBetter(*found)) {
@@ -466,12 +466,11 @@ const cEvent *getEvent2(const cTVScraperDB &db, const cEventMovieOrTv &scraperEv
 
 void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, const char *reason, const cScraperRec *recording) {
 // create timer for event, in same folder as existing recording
-#if VDRVERSNUM >= 20301
 // locking must always be done in the sequence Timers, Channels, Recordings, Schedules.
   LOCK_TIMERS_WRITE;
   LOCK_CHANNELS_READ;
+  LOCK_RECORDINGS_READ;
   LOCK_SCHEDULES_READ;
-#endif
   const cEvent *event = getEvent(scraperEvent.m_event_id, scraperEvent.m_channelid);
   if (!event) return;
   const cEvent *event2 = getEvent2(db, scraperEvent, event);
@@ -490,19 +489,45 @@ void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, co
     createTimer(Timers, scraperEvent, event, event2, getAux(db, recording, reason, event2) );
     return;
   }
+  cSv folderName(recording->name().substr(0, pos + 1) );
   if (recording->seasonNumber() == -100) {
-    createTimer(Timers, scraperEvent, event, event2, getAux(db, recording, reason, event2), (recording->name().substr(0, pos + 1) + event->Title()).c_str() );
+    createTimer(Timers, scraperEvent, event, event2, getAux(db, recording, reason, event2), cToSvConcat(folderName, event->Title()).c_str() );
     return;
   }
-// TV show. Test: Title~ShortText ?
-  size_t pos2 = recording->name().find_last_of('~', pos - 1);
-  if (pos2 == std::string::npos) pos2 = 0;
-  else pos2++;
-  if (recording->name().substr(pos2, pos-pos2).compare(event->Title() ) == 0) {
+// TV show. Test: Use short text (episodeName) as name?
+// we test whether the name of the recording is it's short text
+  bool useShortText = folderName.find(event->Title() ) != std::string_view::npos;
+  if (!useShortText) {
+    const cRecording *rec = Recordings->GetById(recording->id());
+    if (!rec || !rec->Info() ) {
+      if (!rec) esyslog("tvscraper: ERROR createTimer, rec not found, name %.*s", (int)recording->name().length(), recording->name().data());
+      else esyslog("tvscraper: ERROR createTimer, rec->Info not found, name %.*s", (int)recording->name().length(), recording->name().data());
+      return;
+    }
+    cSv recName = recording->name().substr(pos + 1);
+    if (recName.substr(0, 1) == "%") recName.remove_prefix(1);
+    const char *shortText = rec->Info()->ShortText();
+    if (!shortText || ! *shortText) shortText = rec->Info()->Description();
+    useShortText = recName == cSv(shortText);
+    if (!useShortText && shortText && *shortText) {
+      cNormedString nsBaseNameOrTitle(recName);
+      int distTitle     = nsBaseNameOrTitle.sentence_distance(rec->Info()->Title() );
+      int distShortText = nsBaseNameOrTitle.sentence_distance(shortText);
+      if (distTitle > 600 && distShortText > 600) useShortText = true;
+      else useShortText = distShortText <= distTitle;
+    }
+  }
+
+  if (useShortText) {
 // structure of old recording: title/episode_name
-    createTimer(Timers, scraperEvent, event, event2, getAux(db, recording, reason, event2), (recording->name().substr(0, pos + 1) + getEpisodeName(db, scraperEvent, event) ).c_str() );
+    if (event->ShortText() && *event->ShortText() )
+      createTimer(Timers, scraperEvent, event, event2, getAux(db, recording, reason, event2), cToSvConcat(folderName, event->ShortText() ).c_str() );
+    else if (event->Description() && *event->Description() )
+      createTimer(Timers, scraperEvent, event, event2, getAux(db, recording, reason, event2), cToSvConcat(folderName, cSv(event->Description()).substr(0, 50) ).c_str() );
+    else
+      createTimer(Timers, scraperEvent, event, event2, getAux(db, recording, reason, event2), cToSvConcat(folderName, getEpisodeName(db, scraperEvent, event) ).c_str() );
   } else // structure of old recording: title
-    createTimer(Timers, scraperEvent, event, event2, getAux(db, recording, reason, event2), (recording->name().substr(0, pos + 1) + event->Title()).c_str() );
+    createTimer(Timers, scraperEvent, event, event2, getAux(db, recording, reason, event2), cToSvConcat(folderName, event->Title()).c_str() );
   return;
 }
 
@@ -616,7 +641,7 @@ bool checkTimer(const cEventMovieOrTv &scraperEvent, std::set<cTimerMovieOrTv, s
 
 // timerForEvent ********************************
 bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, std::set<cTimerMovieOrTv, std::less<>> &myTimers, const std::set<cScraperRec, std::less<>> &recordings, const std::set<int> &collections) {
-// for the given even, check:
+// for the given event, check:
 //   is there a recording, which can be improved -> timer
 //   else:
 //      is event part of a collection, that shall be recorded -> timer

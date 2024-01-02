@@ -61,21 +61,23 @@ class cEventMovieOrTv: public cMovieOrTvAT {
 
 class cScraperRec: public cMovieOrTvAT {
   public:
-    cScraperRec(tEventID event_id, time_t event_start_time, const tChannelID &channel_id, const std::string &name, int movie_tv_id, int season_number, int episode_number, int numberOfErrors): cMovieOrTvAT(channel_id, movie_tv_id, season_number, episode_number)
-    { m_event_id = event_id; m_event_start_time = event_start_time; m_channelid = channel_id; m_name = name; m_numberOfErrors = numberOfErrors; }
+    cScraperRec(tEventID event_id, time_t event_start_time, const tChannelID &channel_id, const std::string &name, int movie_tv_id, int season_number, int episode_number, int numberOfErrors, int id): cMovieOrTvAT(channel_id, movie_tv_id, season_number, episode_number)
+    { m_event_id = event_id; m_event_start_time = event_start_time; m_channelid = channel_id; m_name = name; m_numberOfErrors = numberOfErrors; m_id = id; }
     bool isBetter(const cScraperRec &sec) const { return m_hd != sec.m_hd?m_hd > sec.m_hd: m_numberOfErrors < sec.m_numberOfErrors; }
     bool improvemntPossible() const { return m_hd < 1 || m_numberOfErrors != 0; }
     int numberOfErrors() const { return m_numberOfErrors; }
-    const std::string &name() const { return m_name; }
+    cSv name() const { return m_name; }
     tEventID EventID() const { return m_event_id; }
     time_t StartTime() const { return m_event_start_time; }
     tChannelID ChannelID() const { return m_channelid; }
+    int id() const { return m_id; }
   private:
     tChannelID m_channelid;
     tEventID m_event_id;
     time_t m_event_start_time;
     std::string m_name;
     int m_numberOfErrors;
+    int m_id;
 
     friend bool operator< (const cScraperRec &rec1, const cScraperRec &rec2);
     friend bool operator< (const cScraperRec &first, const cEventMovieOrTv &sec);

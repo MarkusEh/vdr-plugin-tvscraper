@@ -134,7 +134,7 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, cSv t
     if (id == 0) continue;
     cNormedString normedOriginalName(removeLastPartWithP(getValueCharS(result, "original_name")));
     cNormedString normedName(removeLastPartWithP(getValueCharS(result, "name")));
-    for (char delim: compareStrings) {
+    for (char delim: compareStrings) if (delim != 's') {
 // distance == deviation from search text
       int dist_a = compareStrings.minDistance(delim, normedOriginalName, 1000);
       if (lang) {

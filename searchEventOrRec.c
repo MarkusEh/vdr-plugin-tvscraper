@@ -259,7 +259,7 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
     movieOrTv.id = 0;
     if (config.enableDebug) {
       esyslog("tvscraper: nothing found for movie \"%s\" TV \"%s\"", m_movieSearchString.c_str(), m_TVshowSearchString.c_str() );
-      if (searchResults.size() > 0 ) searchResults[0].log(m_TVshowSearchString.c_str() );
+      if (searchResults.size() > 0 ) log(searchResults[0]);
     }
     m_db->InsertCache(m_movieSearchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
     m_db->InsertCache(m_TVshowSearchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
@@ -308,13 +308,8 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
       if (config.enableDebug) esyslog("tvscraper: %stv \"%.*s\", episode \"%.*s\" successfully scraped, id %i season %i episode %i", searchResults[0].id() > 0?"":"TV", static_cast<int>(foundName.length()), foundName.data(), static_cast<int>(episodeSearchString.length()), episodeSearchString.data(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
     }
     if (config.enableDebug) {
-      searchResults[0].log(foundName);
-      if (searchResults.size() > 1 ) {
-        if (searchResults[1].movie() ) foundName = m_movieSearchString;
-        else if (searchResults[1].delim() ) splitString(m_movieSearchString, searchResults[1].delim(), 4, foundName, episodeSearchString);
-        else foundName = m_TVshowSearchString;
-        searchResults[1].log(foundName);
-      }
+      log(searchResults[0], foundName);
+      if (searchResults.size() > 1 ) log(searchResults[1]);
     }
   }
   return 11;
@@ -332,7 +327,23 @@ int cSearchEventOrRec::Store(const sMovieOrTv &movieOrTv) {
 inline void swap(searchResultTvMovie &a, searchResultTvMovie &b) {
  std::swap(a, b);
 }
-
+void cSearchEventOrRec::log(const searchResultTvMovie &searchResult, cSv foundName) {
+  if (foundName.empty()) {
+    if (searchResult.movie() ) foundName = m_movieSearchString;
+    else {
+      if (searchResult.delim() == 0 || searchResult.delim() == 's') foundName = m_TVshowSearchString;
+      else {
+        cSv episodeSearchString;
+        splitString(m_movieSearchString, searchResult.delim(), 4, foundName, episodeSearchString);
+      }
+    }
+  }
+  if (searchResult.delim() == 's') {
+    searchResult.log(cToSvConcat(foundName, " ", m_sEventOrRecording->ShortText()) );
+  } else {
+    searchResult.log(foundName);
+  }
+}
 scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResults, cSv &foundName, cSv &episodeSearchString) {
 //  bool debug = m_TVshowSearchString == "james cameron's dark angel";
   bool debug = false;
@@ -344,7 +355,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   if (m_baseNameEquShortText) for (searchResultTvMovie &searchResult: searchResults) if (!searchResult.movie() && searchResult.delim() == 0) searchResult.setBaseNameEquShortText();
   for (searchResultTvMovie &searchResult: searchResults) searchResult.setMatchYear(m_years, m_sEventOrRecording->DurationInSec() );
   std::sort(searchResults.begin(), searchResults.end() );
-  if (debug) for (searchResultTvMovie &searchResult: searchResults) searchResult.log(m_TVshowSearchString.c_str() );
+  if (debug) for (searchResultTvMovie &searchResult: searchResults) log(searchResult);
   const float minMatchPre = config.minMatchFinal;
   std::vector<searchResultTvMovie>::iterator end = searchResults.begin();
   for (; end != searchResults.end(); end++) if (end->getMatch() < minMatchPre) break;
@@ -367,10 +378,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
       if (i.id() == n_tv_id) {
         if (config.enableDebug) {
           esyslog("tvscraper: use tv ID %d instead of tv ID %d", n_tv_id, searchResults[0].id() );
-          cSv f,e;
-          if (searchResults[0].delim() ) splitString(m_movieSearchString, searchResults[0].delim(), 4, f, e);
-          else f = m_TVshowSearchString;
-          searchResults[0].log(f);
+          log(searchResults[0]);
         }
         std::swap(searchResults[0], i);
         break;
@@ -700,7 +708,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
   debug = debug || searchEventOrRec.m_TVshowSearchString == "stargate";
 */
   bool debug = false;
-  if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
+  if (debug) searchEventOrRec.log(sR);
   searchEventOrRec.getExtMovieTvDb(sR)->enhance1(sR, searchEventOrRec.m_sEventOrRecording->GetLanguage() );
   cSql actors(searchEventOrRec.m_db);
   cSv lang_themoviedb = cSv(searchEventOrRec.m_sEventOrRecording->GetLanguage()->m_themoviedb).substr(0, 2);
@@ -748,10 +756,10 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
         if (transSplit.find(searchEventOrRec.m_sEventOrRecording->GetLanguage()->m_thetvdb) == transSplit.end() ) sR.setTranslationAvailable(false);
         else sR.setTranslationAvailable(true);
       }
-      if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
+      if (debug) searchEventOrRec.log(sR);
       actors.finalizePrepareBindStep("SELECT actor_name, actor_role FROM series_actors WHERE actor_series_id = ?", sR.id() * (-1));
       if (debug) esyslog("tvscraper: enhance1 (5)" );
-      if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
+      if (debug) searchEventOrRec.log(sR);
     } else {
 // tv show from The Movie Database (TMDB)
       if (stmtScore.readRow() ) {
@@ -766,9 +774,9 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
     }
   }
   if (debug) esyslog("tvscraper: enhance1 (6)" );
-  if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
+  if (debug) searchEventOrRec.log(sR);
   searchEventOrRec.getActorMatches(sR, actors);
-  if (debug) sR.log(searchEventOrRec.m_TVshowSearchString.c_str() );
+  if (debug) searchEventOrRec.log(sR);
 }
 void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEventOrRec &searchEventOrRec) {
   bool debug = searchResult.id() == -353808 || searchResult.id() == -250822 || searchResult.id() == 440757;

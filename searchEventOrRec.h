@@ -32,6 +32,7 @@ private:
   static void enhance2(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
   iExtMovieTvDb *getExtMovieTvDb(const searchResultTvMovie &sR) const;
   iExtMovieTvDb *getExtMovieTvDb(const sMovieOrTv &movieOrTv) const;
+  void log(const searchResultTvMovie &searchResult, cSv foundName = cSv() );
 
 // passed from constructor
   csEventOrRecording *m_sEventOrRecording;
