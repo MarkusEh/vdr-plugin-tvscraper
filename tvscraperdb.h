@@ -626,7 +626,7 @@ class cUseStmt: public cLockDB {
     cUseStmt(cSql &stmt): cLockDB(stmt.m_db), m_stmt(&stmt) { }
 template<typename... Args>
     cUseStmt(cSql &stmt, Args&&... args): cLockDB(stmt.m_db), m_stmt(&stmt) {
-      stmt.prepareBindStep(std::forward<Args>(args)...);
+      stmt.resetBindStep(std::forward<Args>(args)...);
     }
     cSql *stmt() const { return m_stmt; }
     virtual ~cUseStmt() {

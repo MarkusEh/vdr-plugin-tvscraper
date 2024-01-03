@@ -480,7 +480,7 @@ inline std::string vectorToString(const std::vector<std::string> &vec) {
 
 inline std::string objToString(const int &i) { return std::string(cToSvInt(i)); }
 inline std::string objToString(const std::string &i) { return i; }
-inline std::string objToString(const tChannelID &i) { return std::string(cToSvChannel(i)); }
+inline std::string objToString(const tChannelID &i) { return std::string(cToSvConcat(i)); }
 
 template<class T, class C=std::set<T>>
 std::string getStringFromSet(const C &in, char delim = ';') {

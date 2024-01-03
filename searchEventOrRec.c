@@ -178,14 +178,6 @@ cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
 // 0: did nothing, overrides
 // 1: cache hit
 // 11: external db
-/*
-  if (config.enableDebug) {
-    char buff[20];
-    time_t event_time = m_sEventOrRecording->StartTime();
-    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&event_time));
-    esyslog("tvscraper: Scrape: search string movie \"%s\", tv \"%s\", title \"%s\", start time: %s", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), buff);
-  }
-*/
   statistics = 0;
   if (m_overrides->Ignore(m_baseNameOrTitle)) return NULL;
   sMovieOrTv movieOrTv;
@@ -242,10 +234,7 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
 // 11: external db
   if (CheckCache(movieOrTv) ) return 1;
   if (config.enableDebug) {
-    char buff[20];
-    time_t event_time = m_sEventOrRecording->StartTime();
-    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&event_time));
-    esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", title \"%s\", orig. title \"%.*s\", start time: %s", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data(), buff);
+    esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", title \"%s\", orig. title \"%.*s\", start time: %s", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data(), cToSvDateTime("%Y-%m-%d %H:%M:%S", m_sEventOrRecording->StartTime() ).c_str() );
   }
   vector<searchResultTvMovie> searchResults;
   cSv episodeSearchString;

@@ -503,16 +503,20 @@ template<typename T> inline char *itoa16(char *b, T i) {
   itoa8w0(b, static_cast<uint32_t>(i%100000000));
   return b+8;
 }
+
+// max uint32_t 4294967295  (10 digits)
 template<typename T, std::enable_if_t<sizeof(T) <= 4, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
 inline char *itoa(char *b, T i) {
-  return itoa16(b, i);
+  if (i < 100000000) return itoa8(b, i);
+  b = itoa2(b, i/100000000);  // 4294967295/100000000 = 42;
+  itoa8w0(b, i%100000000);
+  return b+8;
 }
-// max uint32_t 4294967295  (10 digits)
+// max uint64_t 18446744073709551615  (20 digits)
 template<typename T, std::enable_if_t<sizeof(T) >= 5, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
 char *itoa(char *b, T i) {
-  if (i <= std::numeric_limits<uint32_t>::max()) return itoa16(b, static_cast<uint32_t>(i));
   if (i < 10000000000000000) return itoa16(b, i);
-  b = itoa16(b, static_cast<uint32_t>(i/10000000000000000));
+  b = itoa4(b, i/10000000000000000);   // 18446744073709551615/10000000000000000 = 1844
   T r = i%10000000000000000;
   itoa8w0(b + 8, static_cast<uint32_t>(r%100000000));
   itoa8w0(b    , static_cast<uint32_t>(r/100000000));
@@ -633,7 +637,6 @@ class cToSv {
     cToSv &operator= (const cToSv &) = delete;
     virtual ~cToSv() {}
     virtual operator cSv() const = 0;
-    operator std::string_view() const { return (cSv)*this; }
 };
 inline std::ostream& operator<<(std::ostream& os, cToSv const& sv )
 {
@@ -812,9 +815,9 @@ template<typename T> cToSvConcat &operator<<(T sv) { return concat(sv); }
 // =======================
 
 // =======================
-// append_int   append integer (with some format options)
+// appendInt   append integer (with some format options)
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
-    cToSvConcat &append_int(T i, size_t desired_width, char fill_char = '0') {
+    cToSvConcat &appendInt(T i, size_t desired_width, char fill_char = '0') {
       size_t len = stringhelpers_internal::numChars(i);
       if (desired_width <= len) return concat(i);
       if (m_pos_for_append + desired_width > m_be_data) ensure_free(desired_width);
@@ -827,25 +830,34 @@ template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
       m_pos_for_append = stringhelpers_internal::itoa(m_pos_for_append, i);
       return *this;
     }
+template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+    cToSvConcat &appendHex(T value, int width) {
+      if (m_pos_for_append + width > m_be_data) ensure_free(width);
+      stringhelpers_internal::addCharsHex(m_pos_for_append, width, value);
+      m_pos_for_append += width;
+      return *this;
+    }
 // =======================
-// append utf8
+// append_utf8 append utf8 codepoint
     cToSvConcat &append_utf8(wint_t codepoint) {
       if (m_pos_for_append + 4 > m_be_data) ensure_free(4);
       AppendUtfCodepoint(m_pos_for_append, codepoint);
       return *this;
     }
+// =======================
+// appendToLower
     void appendToLower(cSv sv, const std::locale &loc) {
       for (auto it = sv.utf8_begin(); it != sv.utf8_end(); ++it) {
         append_utf8(std::tolower<wchar_t>(*it, loc));
       }
     }
 // =======================
-// append formated
+// appendFormated append formated
 // __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with gcc 13.1
     template<typename... Args> cToSvConcat &appendFormated(const char *fmt, Args&&... args) {
-      int needed = snprintf (m_pos_for_append, m_be_data - m_pos_for_append, fmt, std::forward<Args>(args)...);
+      int needed = snprintf(m_pos_for_append, m_be_data - m_pos_for_append, fmt, std::forward<Args>(args)...);
       if (needed < 0) {
-        esyslog("live: ERROR, cToScCOncat::appendFormated needed = %d, fmt = %s", needed, fmt);
+        esyslog("live: ERROR, cToScConcat::appendFormated needed = %d, fmt = %s", needed, fmt);
         return *this; // error in snprintf
       }
       if (needed < m_be_data - m_pos_for_append) {
@@ -853,15 +865,48 @@ template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
         return *this;
       }
       ensure_free(needed + 1);
-      needed = sprintf (m_pos_for_append, fmt, std::forward<Args>(args)...);
+      needed = sprintf(m_pos_for_append, fmt, std::forward<Args>(args)...);
       if (needed < 0) {
-        esyslog("live: ERROR,  cToScCOncat::appendFormated needed (2) = %d, fmt = %s", needed, fmt);
+        esyslog("live: ERROR, cToScConcat::appendFormated needed (2) = %d, fmt = %s", needed, fmt);
         return *this; // error in sprintf
       }
       m_pos_for_append += needed;
       return *this;
     }
 // =======================
+// appendDateTime: append date/time formated with strftime
+    cToSvConcat &appendDateTime(const char *fmt, const std::tm *tp) {
+      size_t needed = std::strftime(m_pos_for_append, m_be_data - m_pos_for_append, fmt, tp);
+      if (needed == 0) {
+        ensure_free(1024);
+        needed = std::strftime(m_pos_for_append, m_be_data - m_pos_for_append, fmt, tp);
+        if (needed == 0) {
+          esyslog("live: ERROR, cToScConcat::appendDateTime needed = 0, fmt = %s", fmt);
+          return *this; // we did not expect to need more than 1024 chars for the formated time ...
+        }
+      }
+      m_pos_for_append += needed;
+      return *this;
+    }
+    cToSvConcat &appendDateTime(const char *fmt, time_t time) {
+      if (!time) return *this;
+      struct std::tm tm_r;
+      if (localtime_r( &time, &tm_r ) == 0 ) {
+        esyslog("live: ERROR, cToScConcat::appendDateTime localtime_r = 0, fmt = %s, time = %lld", fmt, (long long)time);
+        return *this; // we did not expect to need more than 1024 chars for the formated time ...
+        }
+      return appendDateTime(fmt, &tm_r);
+    }
+// =======================
+// #include <vdr/channels.h>
+
+// =========================================================
+// some performance improvemnt, to get string presentation for channel
+// you can also use channelID.ToString()
+// in struct tChannelID {  (in vdr):
+//   static tChannelID FromString(const char *s);
+//   cString ToString(void) const;
+// =========================================================
 // append tChannelID
     cToSvConcat &concat(const tChannelID &channelID) {
       int st_Mask = 0xFF000000;
@@ -928,7 +973,7 @@ template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
     cToSvInt (T i): cToSvConcat(i) { }
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
     cToSvInt (T i, size_t desired_width, char fill_char = '0') {
-      append_int(i, desired_width, fill_char);
+      appendInt(i, desired_width, fill_char);
     }
 };
 template<std::size_t N = 255> 
@@ -948,64 +993,32 @@ class cToSvFormated: public cToSvConcat<N> {
       this->appendFormated(fmt, std::forward<Args>(args)...);
     }
 };
-
-/*
- * channel helper functions (for vdr tChannelID)
- *
-*/
-// #include <vdr/channels.h>
-
-// =========================================================
-// some performance improvemnt, to get string presentation for channel
-// you can also use channelID.ToString()
-// in struct tChannelID {  (in vdr):
-//   static tChannelID FromString(const char *s);
-//   cString ToString(void) const;
-// =========================================================
-
-class cToSvChannel: public cToSvConcat<255> {
+class cToSvDateTime: public cToSvConcat<255> {
   public:
-    cToSvChannel(const tChannelID &channelID): cToSvConcat(channelID) { }
+    cToSvDateTime(const char *fmt, time_t time) {
+      this->appendDateTime(fmt, time);
+    }
 };
 
 // =========================================================
 // =========================================================
-// Chapter 5: change string: mainly: append to string
+// stringAppend: for std::string & cToSvConcat
 // =========================================================
 // =========================================================
 
-inline void StringRemoveTrailingWhitespace(std::string &str) {
-  str.erase(remove_trailing_whitespace(str).length());
+template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+inline void stringAppend(std::string &str, T i) {
+  char buf[20]; // unsigned int 64: max. 20. (18446744073709551615) signed int64: max. 19 (+ sign)
+  str.append(buf, stringhelpers_internal::itoa(buf, i) - buf);
+}
+template<std::size_t N, typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+inline void stringAppend(cToSvConcat<N> &s, T i) {
+  s.concat(i);
 }
 
-inline int stringAppendAllASCIICharacters(std::string &target, const char *str) {
-// append all characters > 31 (signed !!!!). Unsigned: 31 < character < 128
-// return number of appended characters
-  int i = 0;
-  for (; reinterpret_cast<const signed char*>(str)[i] > 31; i++);
-  target.append(str, i);
-  return i;
-}
-inline void stringAppendRemoveControlCharacters(std::string &target, const char *str) {
-// we replace control characters with " " and invalid UTF8 with "?"
-// and remove trailing whitespace
-  for(;;) {
-    str += stringAppendAllASCIICharacters(target, str);
-    wint_t cp = getNextUtfCodepoint(str);
-    if (cp == 0) { StringRemoveTrailingWhitespace(target); return; }
-    if (cp > 31) stringAppendUtfCodepoint(target, cp);
-    else target.append(" ");
-  }
-}
-inline void stringAppendRemoveControlCharactersKeepNl(std::string &target, const char *str) {
-  for(;;) {
-    str += stringAppendAllASCIICharacters(target, str);
-    wint_t cp = getNextUtfCodepoint(str);
-    if (cp == 0) { StringRemoveTrailingWhitespace(target); return; }
-    if (cp == '\n') { StringRemoveTrailingWhitespace(target); target.append("\n"); continue; }
-    if (cp > 31) stringAppendUtfCodepoint(target, cp);
-    else target.append(" ");
-  }
+template<std::size_t N, typename... Args>
+inline void stringAppendFormated(cToSvConcat<N> &s, const char *fmt, Args&&... args) {
+  s.appendFormated(fmt, std::forward<Args>(args)...);
 }
 
 // __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with gcc 13.1
@@ -1066,24 +1079,58 @@ void stringAppendFormated_slow(std::string &str, const char *fmt, Args&&... args
 // =========== stringAppend ==  for many data types
 // =========================================================
 
-template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
-inline void stringAppend(std::string &str, T i) {
-  char buf[20]; // unsigned int 64: max. 20. (18446744073709551615) signed int64: max. 19 (+ sign)
-  str.append(buf, stringhelpers_internal::itoa(buf, i) - buf);
-}
-
 // strings
 inline void stringAppend(std::string &str, const char *s) { if(s) str.append(s); }
 inline void stringAppend(std::string &str, const std::string &s) { str.append(s); }
 inline void stringAppend(std::string &str, std::string_view s) { str.append(s); }
 
 inline void stringAppend(std::string &str, const tChannelID &channelID) {
-  str.append(cToSvChannel(channelID));
+  str.append(cToSvConcat(channelID));
 }
 template<typename T, typename U, typename... Args>
 void stringAppend(std::string &str, const T &n, const U &u, Args&&... args) {
   stringAppend(str, n);
   stringAppend(str, u, std::forward<Args>(args)...);
+}
+
+// =========================================================
+// =========================================================
+// Chapter 5: change string: mainly: append to string
+// =========================================================
+// =========================================================
+
+inline void StringRemoveTrailingWhitespace(std::string &str) {
+  str.erase(remove_trailing_whitespace(str).length());
+}
+
+inline int stringAppendAllASCIICharacters(std::string &target, const char *str) {
+// append all characters > 31 (signed !!!!). Unsigned: 31 < character < 128
+// return number of appended characters
+  int i = 0;
+  for (; reinterpret_cast<const signed char*>(str)[i] > 31; i++);
+  target.append(str, i);
+  return i;
+}
+inline void stringAppendRemoveControlCharacters(std::string &target, const char *str) {
+// we replace control characters with " " and invalid UTF8 with "?"
+// and remove trailing whitespace
+  for(;;) {
+    str += stringAppendAllASCIICharacters(target, str);
+    wint_t cp = getNextUtfCodepoint(str);
+    if (cp == 0) { StringRemoveTrailingWhitespace(target); return; }
+    if (cp > 31) stringAppendUtfCodepoint(target, cp);
+    else target.append(" ");
+  }
+}
+inline void stringAppendRemoveControlCharactersKeepNl(std::string &target, const char *str) {
+  for(;;) {
+    str += stringAppendAllASCIICharacters(target, str);
+    wint_t cp = getNextUtfCodepoint(str);
+    if (cp == 0) { StringRemoveTrailingWhitespace(target); return; }
+    if (cp == '\n') { StringRemoveTrailingWhitespace(target); target.append("\n"); continue; }
+    if (cp > 31) stringAppendUtfCodepoint(target, cp);
+    else target.append(" ");
+  }
 }
 
 // =========================================================
