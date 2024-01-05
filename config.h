@@ -23,7 +23,7 @@ struct sMovieOrTv {
     int season;
     int episode;
     int year;
-    int episodeSearchWithShorttext;
+    int episodeSearchWithShorttext; // 0: no; 1: yes; 3: episode match required for cache match
 };
 class cLanguage {
   public:

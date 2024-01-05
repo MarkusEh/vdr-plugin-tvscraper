@@ -171,7 +171,7 @@ void cSearchEventOrRec::initSearchString(std::string &searchString) {
   searchString = std::string(cToSvToLower(searchString, g_locale));
 }
 
-cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
+cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics, cSv channelName) {
 // return NULL if no movie/tv was assigned to this event/recording
 // extDbConnected: true, if request to rate limited internet db was required. Otherwise, false
 // statistics:
@@ -181,7 +181,7 @@ cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
   statistics = 0;
   if (m_overrides->Ignore(m_baseNameOrTitle)) return NULL;
   sMovieOrTv movieOrTv;
-  statistics = ScrapFindAndStore(movieOrTv);
+  statistics = ScrapFindAndStore(movieOrTv, channelName);
   if(movieOrTv.type != scrapMovie && movieOrTv.type != scrapSeries) {
 // nothing found, try again with title
     if (m_baseNameOrTitle != m_sEventOrRecording->Title() ) {
@@ -192,46 +192,87 @@ cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
       m_episodeName = "";
       initSearchString(m_TVshowSearchString);
       initSearchString(m_movieSearchString);
-      statistics = ScrapFindAndStore(movieOrTv);
+      statistics = ScrapFindAndStore(movieOrTv, channelName);
     }
   }
   ScrapAssign(movieOrTv);
   return cMovieOrTv::getMovieOrTv(m_db, movieOrTv);
 }
 
-scrapType cSearchEventOrRec::ScrapCheckOverride(vector<searchResultTvMovie> &searchResults, cSv &foundName, cSv &episodeSearchString) {
+bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv, cSv channelName) {
+  movieOrTv.season = 0;
+  movieOrTv.year = 0;
+  
   cSv title = removeLastPartWithP(m_sEventOrRecording->Title() );
   int o_id = m_overrides->TheTVDB_SeriesID(title);
   if (o_id != 0) {
-    foundName = m_sEventOrRecording->Title();
-    episodeSearchString = m_sEventOrRecording->ShortText();
-    searchResultTvMovie l_searchResultTvMovie(-o_id, false, nullptr);
-    l_searchResultTvMovie.setMatchText(0);  // distance == 0 -> exact match
-    searchResults.push_back(std::move(l_searchResultTvMovie));
-    return scrapSeries;
+    movieOrTv.type = scrapSeries;
+    movieOrTv.id = -o_id;
+    movieOrTv.episodeSearchWithShorttext = 1;
+    cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
+    return true;
   }
   o_id = m_overrides->TheMovieDB_SeriesID(title);
   if (o_id != 0) {
-    foundName = m_sEventOrRecording->Title();
-    episodeSearchString = m_sEventOrRecording->ShortText();
-    searchResultTvMovie l_searchResultTvMovie(o_id, false, nullptr);
-    l_searchResultTvMovie.setMatchText(0);  // distance == 0 -> exact match
-    searchResults.push_back(std::move(l_searchResultTvMovie));
-    return scrapSeries;
+    movieOrTv.type = scrapSeries;
+    movieOrTv.id = o_id;
+    movieOrTv.episodeSearchWithShorttext = 1;
+    cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
+    return true;
   }
   o_id = m_overrides->TheMovieDB_MovieID(title);
   if (o_id != 0) {
-    foundName = m_sEventOrRecording->Title();
-    searchResultTvMovie l_searchResultTvMovie(o_id, true, nullptr);
-    l_searchResultTvMovie.setMatchText(0);  // distance == 0 -> exact match
-    searchResults.push_back(std::move(l_searchResultTvMovie));
-    return scrapMovie;
+    movieOrTv.type = scrapMovie;
+    movieOrTv.id = o_id;
+    movieOrTv.season = -100;
+    return true;
   }
-  return scrapNone;
+  int dbid, season, episode;
+  bool is_movie;
+  std::string episodeName;
+  eMatchPurpouse matchPurpouse;
+  if (m_overrides->regex(m_sEventOrRecording->Title(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), channelName, matchPurpouse, dbid, is_movie, season, episode, episodeName)) {
+    movieOrTv.id = dbid;
+    if (is_movie) {
+      movieOrTv.type = scrapMovie;
+      movieOrTv.season = -100;
+      return true;
+    }
+    movieOrTv.type = scrapSeries;
+    switch (matchPurpouse) {
+      case eMatchPurpouse::regexTitleChannel_id:
+        movieOrTv.episodeSearchWithShorttext = 1;
+        cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
+        if (config.enableDebug)
+          esyslog("tvscraper: overrides: title \"%s\", dbid %d", m_sEventOrRecording->Title(), dbid);
+        return true;
+      case eMatchPurpouse::regexTitleChannel_idEpisodeName:
+        movieOrTv.episodeSearchWithShorttext = 0;
+        cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeName, "", m_years, m_sEventOrRecording->GetLanguage(), nullptr, nullptr);
+        if (config.enableDebug)
+          esyslog("tvscraper: overrides: title \"%s\", episode \"%s\", dbid %d", m_sEventOrRecording->Title(), episodeName.c_str(), dbid);
+        return true;
+      case eMatchPurpouse::regexTitleShortTextChannel_idSeasonNumberEpisodeNumber:
+        movieOrTv.episodeSearchWithShorttext = 0;
+        movieOrTv.season = season;
+        movieOrTv.episode = episode;
+        if (config.enableDebug)
+          esyslog("tvscraper: overrides: title \"%s\", dbid %d, season %i, episode %i", m_sEventOrRecording->Title(), dbid, season, episode);
+        return true;
+// TODO case eMatchPurpouse::regexTitleChannel_idEpisodeAbsolutNumber
+      default:
+        esyslog("tvscraper, ERROR in cSearchEventOrRec::ScrapCheckOverride, matchPurpouse %d unknown", (int)matchPurpouse);
+    }
+  }
+  return false;
 }
-int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
+int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv, cSv channelName) {
 // 1: cache hit
 // 11: external db
+  if (ScrapCheckOverride(movieOrTv, channelName) ) {
+    if (Store(movieOrTv) != -1) return 1;
+    esyslog("tvscraper: ERROR movie/tv id %d given in override.conf does not exist", movieOrTv.id);
+  }
   if (CheckCache(movieOrTv) ) return 1;
   if (config.enableDebug) {
     esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", title \"%s\", orig. title \"%.*s\", start time: %s", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data(), cToSvDateTime("%Y-%m-%d %H:%M:%S", m_sEventOrRecording->StartTime() ).c_str() );
@@ -239,7 +280,8 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
   vector<searchResultTvMovie> searchResults;
   cSv episodeSearchString;
   cSv foundName;
-  scrapType sType = ScrapCheckOverride(searchResults, foundName, episodeSearchString);
+//  scrapType sType = ScrapCheckOverride(searchResults, foundName, episodeSearchString);
+  scrapType sType = scrapNone;
   if (sType == scrapNone) sType = ScrapFind(searchResults, foundName, episodeSearchString);
   if (searchResults.size() == 0) sType = scrapNone;
   movieOrTv.type = sType;

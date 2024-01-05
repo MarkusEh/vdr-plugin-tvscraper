@@ -3,9 +3,9 @@
 class cSearchEventOrRec {
 public:
   cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDbMovieScraper *movieDbMovieScraper, cMovieDbTvScraper *movieDbTvScraper, cTvDbTvScraper *tvDbTvScraper, cTVScraperDB *db);
-  cMovieOrTv *Scrape(int &statistics); // note: if nothing is found, NULL is returned. Otherwise, the images must be downloaded, and the returned cMovieOrTv must be deleted
+  cMovieOrTv *Scrape(int &statistics, cSv channelName); // note: if nothing is found, NULL is returned. Otherwise, the images must be downloaded, and the returned cMovieOrTv must be deleted
 private:
-  scrapType ScrapCheckOverride(vector<searchResultTvMovie> &searchResults, cSv &foundName, cSv &episodeSearchString);
+  bool ScrapCheckOverride(sMovieOrTv &movieOrTv, cSv channelName);
   scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, cSv &movieName, cSv &episodeSearchString);
   int Store(const sMovieOrTv &movieOrTv);
   void SearchNew(vector<searchResultTvMovie> &resultSet);
@@ -19,7 +19,7 @@ private:
   void initSearchString(std::string &searchString);
   void setFastMatch(searchResultTvMovie &searchResult);
   int GetTvDurationDistance(int tvID);
-  int ScrapFindAndStore(sMovieOrTv &movieOrTv);
+  int ScrapFindAndStore(sMovieOrTv &movieOrTv, cSv channelName);
   bool CheckCache(sMovieOrTv &movieOrTv);
   void ScrapAssign(const sMovieOrTv &movieOrTv);
   void getActorMatches(const char *actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, cContainer &alreadyFound);
