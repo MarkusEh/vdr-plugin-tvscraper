@@ -133,24 +133,24 @@ bool cOverRides::Substitute(string &title) {
 int cOverRides::TheTVDB_SeriesID(cSv title) {
   auto hit = m_TheTVDB_SeriesID.find(title);
   if (hit == m_TheTVDB_SeriesID.end()) return 0;
-  if (config.enableDebug)
-    esyslog("tvscraper: title \"%.*s\", use TheTVDB_SeriesID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
+//  if (config.enableDebug)
+//    esyslog("tvscraper: title \"%.*s\", use TheTVDB_SeriesID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
   return hit->second;
 }
 
 int cOverRides::TheMovieDB_SeriesID(cSv title) {
   auto hit = m_TheMovieDB_SeriesID.find(title);
   if (hit == m_TheMovieDB_SeriesID.end()) return 0;
-  if (config.enableDebug)
-    esyslog("tvscraper: title \"%.*s\", use TheMovieDB_SeriesID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
+//  if (config.enableDebug)
+//    esyslog("tvscraper: title \"%.*s\", use TheMovieDB_SeriesID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
   return hit->second;
 }
 
 int cOverRides::TheMovieDB_MovieID(cSv title) {
   auto hit = m_TheMovieDB_MovieID.find(title);
   if (hit == m_TheMovieDB_MovieID.end()) return 0;
-  if (config.enableDebug)
-    esyslog("tvscraper: title \"%.*s\", use TheMovieDB_MovieID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
+//  if (config.enableDebug)
+//    esyslog("tvscraper: title \"%.*s\", use TheMovieDB_MovieID %i override.conf", (int)title.length(), title.data(), (int)hit->second);
   return hit->second;
 }
 

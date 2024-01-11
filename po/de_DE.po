@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vdr-tvscrapper 0.0.1\n"
 "Report-Msgid-Bugs-To: <see README>\n"
-"POT-Creation-Date: 2023-04-03 21:29+0200\n"
+"POT-Creation-Date: 2024-01-10 20:49+0100\n"
 "PO-Revision-Date: 2013-08-20 08:27+0200\n"
 "Last-Translator: Stefan Braun <louis.braun@gmx.de>\n"
 "Language-Team:\n"
@@ -68,16 +68,6 @@ msgstr "Sprache für Kanäle auswählen"
 msgid "Create timers for missing episodes of this TV show?"
 msgstr "Timer für fehlende Folgen der Serie anlegen?"
 
-msgid "improve"
-msgstr "Verbessern von"
-
-msgid "collection"
-msgstr "Ergänzung zur Sammlung von Filmen"
-#msgstr "Sammlung, fehlender Film"
-
-msgid "TV show, missing episode"
-msgstr "Fehlende Folge"
-
 msgid "(name not available)"
 msgstr "(Name nicht verfügbar)"
 
@@ -92,6 +82,15 @@ msgstr "Folge der Serie %.*s, wegen der Aufzeichnung"
 msgid "Improve recording"
 msgstr "Verbessern der Aufzeichnung"
 
+#~ msgid "improve"
+#~ msgstr "Verbessern von"
+
+#~ msgid "collection"
+#~ msgstr "Ergänzung zur Sammlung von Filmen"
+
+# msgstr "Sammlung, fehlender Film"
+#~ msgid "TV show, missing episode"
+#~ msgstr "Fehlende Folge"
 
 #~ msgid "No"
 #~ msgstr "Nein"

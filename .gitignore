@@ -1,0 +1,14 @@
+CVS
+.#*
+*~
+*.o
+*.a
+*.so
+gen_version_suffix.h
+po/*.mo
+po/tvscraper.pot
+.dependencies
+.cvsignore
+.libs
+locale
+.*.edep
