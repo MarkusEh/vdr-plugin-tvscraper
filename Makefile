@@ -88,6 +88,10 @@ install-conf:
 	@mkdir -p $(DESTDIR)$(PLGCONFDIR)
 	@if [ ! -f $(DESTDIR)$(PLGCONFDIR)/override.conf ]; then cp conf/override.conf $(DESTDIR)$(PLGCONFDIR); fi;
 
+install-conf_tvs:
+	@mkdir -p $(DESTDIR)$(RESDIR)/plugins/$(PLUGIN)
+	@cp -a conf/override_tvs.conf $(DESTDIR)$(RESDIR)/plugins/$(PLUGIN)/
+
 install-plugins: plugins
 	mkdir -p "$(PLGDEST)"
 	mkdir -p "$(_PLGDEST)"
