@@ -627,8 +627,8 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const sMovieOrTv &m
   switch (movieOrTv.type) {
     case scrapMovie: return new cMovieMoviedb(db, movieOrTv.id);
     case scrapSeries:
-      if (movieOrTv.id > 0) return new cTvMoviedb(db, movieOrTv.id);
-            else            return new cTvTvdb(db, movieOrTv.id * -1);
+      if (movieOrTv.id > 0) return new cTvMoviedb(db, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+            else            return new cTvTvdb(db,   -movieOrTv.id, movieOrTv.season, movieOrTv.episode);
     case scrapNone: return NULL;
   }
   return NULL;
