@@ -280,9 +280,7 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv, cSv channelName)
   vector<searchResultTvMovie> searchResults;
   cSv episodeSearchString;
   cSv foundName;
-//  scrapType sType = ScrapCheckOverride(searchResults, foundName, episodeSearchString);
-  scrapType sType = scrapNone;
-  if (sType == scrapNone) sType = ScrapFind(searchResults, foundName, episodeSearchString);
+  scrapType sType = ScrapFind(searchResults, foundName, episodeSearchString);
   if (searchResults.size() == 0) sType = scrapNone;
   movieOrTv.type = sType;
   if (sType == scrapNone) {
@@ -387,10 +385,13 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   for (searchResultTvMovie &searchResult: searchResults) searchResult.setMatchYear(m_years, m_sEventOrRecording->DurationInSec() );
   std::sort(searchResults.begin(), searchResults.end() );
   if (debug) for (searchResultTvMovie &searchResult: searchResults) log(searchResult);
-  const float minMatchPre = config.minMatchFinal;
+  const float minMatchPre = 0.4;
   std::vector<searchResultTvMovie>::iterator end = searchResults.begin();
-  for (; end != searchResults.end(); end++) if (end->getMatch() < minMatchPre) break;
-  if (searchResults.begin() == end) return scrapNone; // nothing good enough found
+  for (; end != searchResults.end(); ++end) if (end->getMatch() < minMatchPre) break;
+  if (searchResults.begin() == end) {
+    if (end->getMatch() < 0.3) return scrapNone; // nothing good enough found
+    ++end; // enhance best match, so we can find at least one
+  }
   m_episodeFound = false;
   std::vector<searchResultTvMovie>::iterator new_end;
 // in case of results which are "similar" good, add more information to find the best one
