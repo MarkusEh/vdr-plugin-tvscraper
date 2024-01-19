@@ -39,7 +39,7 @@ public:
     bool ParseJson_Episode(const rapidjson::Value &jEpisode, cSql &insertEpisode2, cSql &insertRuntime, const cLanguage *lang, cSql &insertEpisodeLang);
     void StoreDB();
     bool ParseJson_Character(const rapidjson::Value &character);
-    bool ParseJson_Artwork(const rapidjson::Value &series);
+    bool ParseJson_Artwork(const rapidjson::Value &series, const cLanguage *displayLanguage);
 };
 
 #endif //__TVSCRAPER_TVDBSERIES_H

@@ -660,7 +660,7 @@ cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, 
       int movie_id = atoi(Option);
       db->DeleteMovieCache(movie_id);
       int del_entries = db->DeleteMovie(movie_id);
-      return cString::sprintf("%i movie entry/entries deleted", del_entries);
+      return cString::sprintf("local cache and %i movie entry/entries deleted", del_entries);
     }
     ReplyCode = 550;
     return cString("Option missing");

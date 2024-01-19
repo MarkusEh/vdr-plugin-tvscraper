@@ -193,7 +193,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
   }
 
 // we also add season images. Therefore, we do this after parsing the episodes
-  series.ParseJson_Artwork(*data);
+  series.ParseJson_Artwork(*data, displayLanguage);
 // store series here, as here information (incl. episode runtimes, poster URL, ...) is complete
   series.StoreDB();
   return seriesID;

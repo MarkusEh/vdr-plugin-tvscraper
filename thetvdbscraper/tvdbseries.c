@@ -179,7 +179,7 @@ bool operator< (const sImageScore &first, const sImageScore &second) {
   return first.score > second.score;
 }
 
-bool cTVDBSeries::ParseJson_Artwork(const rapidjson::Value &jSeries) {
+bool cTVDBSeries::ParseJson_Artwork(const rapidjson::Value &jSeries, const cLanguage *displayLanguage) {
 // return true if db was updated
   map<int,int> seasonIdNumber = ParseJson_Seasons(jSeries);
 
@@ -189,12 +189,24 @@ bool cTVDBSeries::ParseJson_Artwork(const rapidjson::Value &jSeries) {
   map<int,sImageScore> bestSeasonPoster;
 // 3 best "Background" / "Fanart"
   multiset<sImageScore> bestBackgrounds;
+  size_t displayLanguageLength = (displayLanguage && displayLanguage->m_thetvdb)?strlen(displayLanguage->m_thetvdb):0;
   for (const rapidjson::Value &jArtwork: cJsonArrayIterator(jSeries, "artworks")) {
     int type = getValueInt(jArtwork, "type");
     if (type == 0) continue;
-    int score = getValueInt(jArtwork, "score");
     const char *image = getValueCharS(jArtwork, "image");
     if (!image || !*image) continue;
+    int score = getValueInt(jArtwork, "score");
+// e.g. "score": 100007, and similar scores
+    int languageMatch = 1; // 1: artwork has no lang. 0: no match. 2: match
+    const char *language = getValueCharS(jArtwork, "language");
+    if (language) {
+      if (displayLanguageLength && strncmp(language, displayLanguage->m_thetvdb, displayLanguageLength) == 0) languageMatch = 2;
+      else languageMatch = 1;
+    }
+    int width = getValueInt(jArtwork, "width");
+    int hight = getValueInt(jArtwork, "hight");
+    score += languageMatch * 15;
+    score += (width + hight) / 100;
 
     if (type == 1) {
   // "Banner" / "series"
