@@ -165,72 +165,85 @@ void cTVDBSeries::StoreDB() {
   m_db->InsertTv(-m_seriesID, name, originalName, overview, firstAired, networks, genres, popularity, rating, ratingCount, cTVDBScraper::getDbUrl(poster), cTVDBScraper::getDbUrl(fanart), IMDB_ID, status, episodeRunTimes, nullptr, translations.c_str() );
 }
 
-struct sImageScore {
-  sImageScore():
-    score(-1),
-    image(NULL) {}
-  sImageScore(int score_i, const char *image_i):
-    score(score_i),
-    image(image_i) {}
-  int score = -1;
-  const char *image = NULL;
+class cImageScore {
+  friend bool operator< (const cImageScore &first, const cImageScore &second);
+  public:
+  cImageScore():
+    m_image(nullptr) {}
+  cImageScore(const char *image, int score=0, int languageMatch=0, int width=0, int height=0):
+    m_image(image),
+    m_score(score),
+    m_languageMatch(languageMatch),
+    m_res((width/32) * (height/32)) {}
+  const char *m_image;
+  private:
+  int m_score; // e.g. "score": 100007, and similar scores
+  int m_languageMatch;
+  int m_res;
 };
-bool operator< (const sImageScore &first, const sImageScore &second) {
-  return first.score > second.score;
+bool operator< (const cImageScore &first, const cImageScore &second) {
+// here, operator< means better
+// so after standard sort, best is on top
+  if (!first.m_image) return false;
+  if (!second.m_image) return true;
+  if (first.m_languageMatch != second.m_languageMatch) {
+    if (first.m_languageMatch == 0) return false;  //avoid wrong language;
+    if (second.m_languageMatch == 0) return true;  //avoid wrong language;
+  }
+  if (first.m_res != second.m_res) return first.m_res > second.m_res;
+  if (first.m_score != second.m_score) return first.m_score > second.m_score;
+  return first.m_languageMatch > second.m_languageMatch;
 }
 
 bool cTVDBSeries::ParseJson_Artwork(const rapidjson::Value &jSeries, const cLanguage *displayLanguage) {
 // return true if db was updated
   map<int,int> seasonIdNumber = ParseJson_Seasons(jSeries);
 
-  sImageScore bestBanner;
-  sImageScore bestPoster;
+//  vector<cImageScore> bestBanners;
+  cImageScore bestBanner;
+  cImageScore bestPoster;
 // first int in the map is the season number. Only one poster per season
-  map<int,sImageScore> bestSeasonPoster;
+  map<int,cImageScore> bestSeasonPoster;
 // 3 best "Background" / "Fanart"
-  multiset<sImageScore> bestBackgrounds;
+  multiset<cImageScore> bestBackgrounds;
   size_t displayLanguageLength = (displayLanguage && displayLanguage->m_thetvdb)?strlen(displayLanguage->m_thetvdb):0;
   for (const rapidjson::Value &jArtwork: cJsonArrayIterator(jSeries, "artworks")) {
     int type = getValueInt(jArtwork, "type");
     if (type == 0) continue;
     const char *image = getValueCharS(jArtwork, "image");
     if (!image || !*image) continue;
-    int score = getValueInt(jArtwork, "score");
-// e.g. "score": 100007, and similar scores
     int languageMatch = 1; // 1: artwork has no lang. 0: no match. 2: match
     const char *language = getValueCharS(jArtwork, "language");
-    if (language) {
+    if (language && *language) {
       if (displayLanguageLength && strncmp(language, displayLanguage->m_thetvdb, displayLanguageLength) == 0) languageMatch = 2;
-      else languageMatch = 1;
+      else languageMatch = 0;
     }
-    int width = getValueInt(jArtwork, "width");
-    int hight = getValueInt(jArtwork, "hight");
-    score += languageMatch * 15;
-    score += (width + hight) / 100;
+    cImageScore currentImage(image,
+      getValueInt(jArtwork, "score"),
+      languageMatch,
+      getValueInt(jArtwork, "width"),
+      getValueInt(jArtwork, "hight"));
 
     if (type == 1) {
   // "Banner" / "series"
   //    "width": 758,
   //    "height": 140,
-      if (score <= bestBanner.score) continue;
-      bestBanner.score = score;
-      bestBanner.image = image;
+      if (currentImage < bestBanner) bestBanner = currentImage;
+//      bestBanners.insert(currentImage);
       continue;
     }
     if (type == 2) {
   // "Poster" / "series" (not season specific)
   //    "width": 680,
   //    "height": 1000,
-      if (score <= bestPoster.score) continue;
-      bestPoster.score = score;
-      bestPoster.image = image;
+      if (currentImage < bestPoster) bestPoster = currentImage;
       continue;
     }
     if (type == 3) {
   // "Background" / "series"  ("Fanart", not season specific)
   //    "width": 1920,
   //    "height": 1080,
-      bestBackgrounds.insert(sImageScore(score, image));
+      bestBackgrounds.insert(currentImage);
       continue;
     }
     if (type == 5) {
@@ -257,11 +270,9 @@ bool cTVDBSeries::ParseJson_Artwork(const rapidjson::Value &jSeries, const cLang
       auto found = seasonIdNumber.find(seasonId);
       if (found == seasonIdNumber.end() ) continue;
       auto f = bestSeasonPoster.find(found->second); // found->second is the season number
-      if (f == bestSeasonPoster.end() ) bestSeasonPoster.insert({found->second, sImageScore(score, image)});
+      if (f == bestSeasonPoster.end() ) bestSeasonPoster.insert({found->second, currentImage});
       else {
-        if (score <= f->second.score) continue;
-        f->second.score = score;
-        f->second.image = image;
+        if (currentImage < f->second) f->second = currentImage;
       }
       continue;
     }
@@ -295,24 +306,24 @@ bool cTVDBSeries::ParseJson_Artwork(const rapidjson::Value &jSeries, const cLang
   //    "height": 310,
 
   }
-  if (bestBanner.score >= 0 && bestBanner.image && *bestBanner.image)
-    m_db->insertTvMedia (m_seriesID *-1, cTVDBScraper::getDbUrl(bestBanner.image), mediaBanner);
-  if (bestPoster.score >= 0) poster = bestPoster.image;
-  if (poster && *poster) m_db->insertTvMedia (m_seriesID *-1, cTVDBScraper::getDbUrl(poster), mediaPoster);
+  if (bestBanner.m_image && *bestBanner.m_image)
+    m_db->insertTvMedia (-m_seriesID, cTVDBScraper::getDbUrl(bestBanner.m_image), mediaBanner);
+  if (bestPoster.m_image) poster = bestPoster.m_image;
+  if (poster && *poster) m_db->insertTvMedia (-m_seriesID, cTVDBScraper::getDbUrl(poster), mediaPoster);
 // Backgrounds / Fanart
-  if (!bestBackgrounds.empty() ) fanart = bestBackgrounds.begin()->image;
-  else if (fanart && *fanart) bestBackgrounds.insert(sImageScore(10, fanart));
+  if (!bestBackgrounds.empty() ) fanart = bestBackgrounds.begin()->m_image;
+  else if (fanart && *fanart) bestBackgrounds.insert(cImageScore(fanart));
   int num = 1;
-  for (const sImageScore &imageScore: bestBackgrounds) {
+  for (const cImageScore &imageScore: bestBackgrounds) {
 //  if (config.enableDebug) esyslog("tvscraper: fanart number %i score %i image %s", num, imageScore.score, imageScore.image.c_str());
-    m_db->insertTvMedia (m_seriesID *-1, cTVDBScraper::getDbUrl(imageScore.image), mediaFanart);
+    m_db->insertTvMedia (-m_seriesID, cTVDBScraper::getDbUrl(imageScore.m_image), mediaFanart);
     if (++num > 3) break; // download up to 3 backgrounds
   }
 // season poster (max. 1 poster per season)
   cSql stmt(m_db, "INSERT OR REPLACE INTO tv_media (tv_id, media_path, media_type, media_number) VALUES (?, ?, ?, ?);");
   for (const auto &sPoster: bestSeasonPoster) {
-    const char *url = cTVDBScraper::getDbUrl(sPoster.second.image);
-    if (url && *url) stmt.resetBindStep(m_seriesID *-1, url, mediaSeason, sPoster.first);
+    const char *url = cTVDBScraper::getDbUrl(sPoster.second.m_image);
+    if (url && *url) stmt.resetBindStep(-m_seriesID, url, mediaSeason, sPoster.first);
   }
   return true;
 }
