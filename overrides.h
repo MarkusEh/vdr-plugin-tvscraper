@@ -11,10 +11,11 @@ enum class eMatchPurpouse {
 class cRegexAction {
   friend class cOverRides;
   private:
-    std::regex m_regex_title;
+    std::regex m_regexTitle;
     std::regex m_regexShortText;
     std::regex m_regexChannel;
     bool m_matchChannel;
+    bool m_matchShortText;
     int m_dbid;
     bool m_movie;
     eMatchPurpouse m_matchPurpouse;

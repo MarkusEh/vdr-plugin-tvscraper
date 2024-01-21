@@ -28,6 +28,19 @@ void cOverRides::ReadConfig(cSv confDir) {
   }
 }
 
+std::regex getRegex(cSv sv) {
+  try {
+    std::regex result;
+    result.imbue(g_locale);
+    result.assign(sv.data(), sv.length(), std::regex_constants::ECMAScript | std::regex_constants::optimize | std::regex_constants::collate);
+    return result;
+  } catch (const std::regex_error& e)
+  {
+    esyslog("%s", cToSvConcat("tvscraper, ERROR ", e.what(), " in regex ", sv).c_str() );
+    return std::regex();
+  }
+}
+
 void cOverRides::ReadConfigLine(const char *line) {
   vector<cSv> flds = getSetFromString<cSv, vector<cSv>>(line);
   if (flds.size() > 0) {
@@ -71,7 +84,8 @@ void cOverRides::ReadConfigLine(const char *line) {
     } else if (!flds[0].compare("regexTitleChannel->id")) {
       if (flds.size() == 5) {
         cRegexAction regexAction;
-        regexAction.m_regex_title = std::regex(flds[1].data(), flds[1].length());
+        regexAction.m_matchShortText = false;
+        regexAction.m_regexTitle = std::regex(flds[1].data(), flds[1].length());
         regexAction.m_matchChannel = !flds[2].empty();
         if (regexAction.m_matchChannel) regexAction.m_regexChannel = std::regex(flds[2].data(), flds[2].length());
         regexAction.m_dbid = parse_int<int>(flds[4]);
@@ -83,7 +97,8 @@ void cOverRides::ReadConfigLine(const char *line) {
     } else if (!flds[0].compare("regexTitleChannel->idEpisodeName")) {
       if (flds.size() == 5) {
         cRegexAction regexAction;
-        regexAction.m_regex_title = std::regex(flds[1].data(), flds[1].length());
+        regexAction.m_matchShortText = false;
+        regexAction.m_regexTitle = getRegex(flds[1]);
         regexAction.m_matchChannel = !flds[2].empty();
         if (regexAction.m_matchChannel) regexAction.m_regexChannel = std::regex(flds[2].data(), flds[2].length());
         regexAction.m_dbid = parse_int<int>(flds[4]);
@@ -92,10 +107,25 @@ void cOverRides::ReadConfigLine(const char *line) {
         regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleChannel_idEpisodeName;
         m_regex.push_back(regexAction);
       }
+    } else if (!flds[0].compare("regexTitleShortTextChannel->idEpisodeName")) {
+      if (flds.size() == 6) {
+        cRegexAction regexAction;
+        regexAction.m_regexTitle = std::regex(flds[1].data(), flds[1].length());
+        regexAction.m_matchShortText = true;
+        regexAction.m_regexShortText = std::regex(flds[2].data(), flds[2].length());
+        regexAction.m_matchChannel = !flds[3].empty();
+        if (regexAction.m_matchChannel) regexAction.m_regexChannel = std::regex(flds[3].data(), flds[3].length());
+        regexAction.m_dbid = parse_int<int>(flds[5]);
+        if (flds[4] == "TheTVDB_Series") regexAction.m_dbid = -regexAction.m_dbid;
+        regexAction.m_movie = false;
+        regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleChannel_idEpisodeName;
+        m_regex.push_back(regexAction);
+      }
     } else if (!flds[0].compare("regexTitleShortTextChannel->idSeasonNumberEpisodeNumber")) {
       if (flds.size() == 6) {
         cRegexAction regexAction;
-        regexAction.m_regex_title = std::regex(flds[1].data(), flds[1].length());
+        regexAction.m_regexTitle = std::regex(flds[1].data(), flds[1].length());
+        regexAction.m_matchShortText = true;
         regexAction.m_regexShortText = std::regex(flds[2].data(), flds[2].length());
         regexAction.m_matchChannel = !flds[3].empty();
         if (regexAction.m_matchChannel) regexAction.m_regexChannel = std::regex(flds[3].data(), flds[3].length());
@@ -167,18 +197,19 @@ bool regexGetSeasonEpisode(cSv text, const std::regex &regexShortText, int &seas
   return true;
 }
 bool cRegexAction::matches(cSv title, cSv shortText, cSv description, cSv channel, int &season, int &episode, std::string &episodeName) const {
-  std::cmatch base_match;
-  if (!std::regex_match(title.data(), title.data()+title.length(), base_match, m_regex_title)) return false;
+  std::cmatch title_match;
+  if (!std::regex_match(title.data(), title.data()+title.length(), title_match, m_regexTitle)) return false;
   if (m_matchChannel && !std::regex_match(channel.data(), channel.data()+channel.length(), m_regexChannel)) return false;
   switch (m_matchPurpouse) {
     case eMatchPurpouse::regexTitleChannel_id:
       return true;
     case eMatchPurpouse::regexTitleChannel_idEpisodeName:
-      if (base_match.size() != 2) {
-        esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpouse::regexTitleChannel_idEpisodeName, base_match.size() %zu", base_match.size());
+      if (m_matchShortText && !std::regex_match(shortText.data(), shortText.data()+shortText.length(), m_regexShortText)) return false;
+      if (title_match.size() != 2) {
+        esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpouse::regexTitleChannel_idEpisodeName, title_match.size() %zu", title_match.size());
         return false;
       }
-      episodeName = base_match[1].str();
+      episodeName = title_match[1].str();
       return true;
     case eMatchPurpouse::regexTitleShortTextChannel_idSeasonNumberEpisodeNumber:
       if (regexGetSeasonEpisode(shortText, m_regexShortText, season, episode)) return true;
