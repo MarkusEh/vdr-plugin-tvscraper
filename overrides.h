@@ -20,6 +20,7 @@ class cRegexAction {
     bool m_movie;
     eMatchPurpouse m_matchPurpouse;
   public:
+    bool set_dbid(cSv edb, cSv id, bool seriesRequired);
     bool matches(cSv title, cSv shortText, cSv description, cSv channel, int &season, int &episode, std::string &episodeName) const;
 };
 using namespace std;
