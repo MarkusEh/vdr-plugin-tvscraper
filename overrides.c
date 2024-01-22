@@ -28,6 +28,19 @@ void cOverRides::ReadConfig(cSv confDir) {
   }
 }
 
+std::regex getRegex(cSv sv) {
+  try {
+    std::regex result;
+    result.imbue(g_locale);
+    result.assign(sv.data(), sv.length(), std::regex_constants::ECMAScript | std::regex_constants::optimize | std::regex_constants::collate);
+    return result;
+  } catch (const std::regex_error& e)
+  {
+    esyslog("%s", cToSvConcat("tvscraper, ERROR ", e.what(), " in regex ", sv).c_str() );
+    return std::regex();
+  }
+}
+
 bool cRegexAction::set_dbid(cSv edb, cSv id, bool seriesRequired) {
 // true on success
   if (edb == "TheTVDB_Series") {
@@ -48,28 +61,25 @@ bool cRegexAction::set_dbid(cSv edb, cSv id, bool seriesRequired) {
   esyslog("tvscraper, ERROR in override.conf, %s", cToSvConcat(edb, " given, expected TheTVDB_Series or TheMovieDB_Series", !seriesRequired?" or TheMovieDB_Movie":"").c_str());
   return false;
 }
-std::regex getRegex(cSv sv) {
-  try {
-    std::regex result;
-    result.imbue(g_locale);
-    result.assign(sv.data(), sv.length(), std::regex_constants::ECMAScript | std::regex_constants::optimize | std::regex_constants::collate);
-    return result;
-  } catch (const std::regex_error& e)
-  {
-    esyslog("%s", cToSvConcat("tvscraper, ERROR ", e.what(), " in regex ", sv).c_str() );
-    return std::regex();
-  }
+void cRegexAction::set_channel(cSv channel) {
+  m_matchChannel = !channel.empty();
+  if (m_matchChannel) m_regexChannel = getRegex(channel);
 }
 
+bool assertFldsSize(const char *line, const vector<cSv> &flds, size_t requiredFields) {
+  if (flds.size() == requiredFields) return true;
+  esyslog("tvscraper, ERROR in override.conf, line %s, fields %zu, requiredFields %zu", line, flds.size(), requiredFields);
+  return false;
+}
 void cOverRides::ReadConfigLine(const char *line) {
   vector<cSv> flds = getSetFromString<cSv, vector<cSv>>(line);
   if (flds.size() > 0) {
     if (!flds[0].compare("ignore")) {
-      if (flds.size() == 2) {
+      if (assertFldsSize(line, flds, 2)) {
         ignores.push_back(string(flds[1]));
       }
     } else if (!flds[0].compare("settype")) {
-      if (flds.size() == 3) {
+      if (assertFldsSize(line, flds, 3)) {
         if (!flds[2].compare("series")) {
           searchTypes.insert(pair<string, scrapType>(flds[1], scrapSeries));
         } else if (!flds[2].compare("movie")) {
@@ -77,43 +87,44 @@ void cOverRides::ReadConfigLine(const char *line) {
         }
       }
     } else if (!flds[0].compare("substitute")) {
-      if (flds.size() == 3) {
+      if (assertFldsSize(line, flds, 3)) {
         substitutes.insert(pair<string, string>(flds[1], flds[2]));
       }
     } else if (!flds[0].compare("ignorePath")) {
-      if (flds.size() == 2) {
+      if (assertFldsSize(line, flds, 2)) {
         if (flds[1].find("/", flds[1].length()-1) != std::string::npos)
           ignorePath.push_back(string(flds[1]));
         else
           ignorePath.push_back(string(flds[1]) + "/");
       }
     } else if (!flds[0].compare("removePrefix")) {
+      if (assertFldsSize(line, flds, 2)) {
         removePrefixes.push_back(string(flds[1]));
+      }
     } else if (!flds[0].compare("TheTVDB_SeriesID")) {
-      if (flds.size() == 3) {
+      if (assertFldsSize(line, flds, 3)) {
         m_TheTVDB_SeriesID.insert(pair<std::string, int>(std::string(flds[1]), parse_int<int>(flds[2])));
       }
     } else if (!flds[0].compare("TheMovieDB_SeriesID")) {
-      if (flds.size() == 3) {
+      if (assertFldsSize(line, flds, 3)) {
         m_TheMovieDB_SeriesID.insert(pair<std::string, int>(std::string(flds[1]), parse_int<int>(flds[2])));
       }
     } else if (!flds[0].compare("TheMovieDB_MovieID")) {
-      if (flds.size() == 3) {
+      if (assertFldsSize(line, flds, 3)) {
         m_TheMovieDB_MovieID.insert(pair<std::string, int>(std::string(flds[1]), parse_int<int>(flds[2])));
       }
     } else if (!flds[0].compare("regexTitleChannel->id")) {
-      if (flds.size() == 5) {
+      if (assertFldsSize(line, flds, 5)) {
         cRegexAction regexAction;
         regexAction.m_matchShortText = false;
         regexAction.m_regexTitle = getRegex(flds[1]);
-        regexAction.m_matchChannel = !flds[2].empty();
-        if (regexAction.m_matchChannel) regexAction.m_regexChannel = getRegex(flds[2]);
+        regexAction.set_channel(flds[2]);
         regexAction.set_dbid(flds[3], flds[4], false);
         regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleChannel_id;
         m_regex.push_back(regexAction);
       }
     } else if (!flds[0].compare("regexTitleChannel->idEpisodeName")) {
-      if (flds.size() == 5) {
+      if (assertFldsSize(line, flds, 5)) {
         cRegexAction regexAction;
         regexAction.m_matchShortText = false;
         regexAction.m_regexTitle = getRegex(flds[1]);
@@ -121,16 +132,13 @@ void cOverRides::ReadConfigLine(const char *line) {
           esyslog("tvscraper, ERROR in regex %s", cToSvConcat(flds[1], ", expected 1 capture group, found ", regexAction.m_regexTitle.mark_count(), " capture groups").c_str());
           regexAction.m_regexTitle = std::regex();
         }
-        regexAction.m_matchChannel = !flds[2].empty();
-        if (regexAction.m_matchChannel) regexAction.m_regexChannel = getRegex(flds[2]);
-        regexAction.m_dbid = parse_int<int>(flds[4]);
-        if (flds[3] == "TheTVDB_Series") regexAction.m_dbid = -regexAction.m_dbid;
-        regexAction.m_movie = false;
+        regexAction.set_channel(flds[2]);
+        regexAction.set_dbid(flds[3], flds[4], true);
         regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleChannel_idEpisodeName;
         m_regex.push_back(regexAction);
       }
     } else if (!flds[0].compare("regexTitleShortTextChannel->idEpisodeName")) {
-      if (flds.size() == 6) {
+      if (assertFldsSize(line, flds, 6)) {
         cRegexAction regexAction;
         regexAction.m_regexTitle = getRegex(flds[1]);
         regexAction.m_matchShortText = true;
@@ -139,25 +147,19 @@ void cOverRides::ReadConfigLine(const char *line) {
           esyslog("tvscraper, ERROR in regex %s", cToSvConcat(flds[1], ", st regex ", flds[2], ", expected 1 capture group, found ", regexAction.m_regexTitle.mark_count(), " capture groups in title and ", regexAction.m_regexShortText.mark_count(), " capture groups in short text").c_str());
           regexAction.m_regexTitle = std::regex();
         }
-        regexAction.m_matchChannel = !flds[3].empty();
-        if (regexAction.m_matchChannel) regexAction.m_regexChannel = getRegex(flds[3]);
-        regexAction.m_dbid = parse_int<int>(flds[5]);
-        if (flds[4] == "TheTVDB_Series") regexAction.m_dbid = -regexAction.m_dbid;
-        regexAction.m_movie = false;
+        regexAction.set_channel(flds[3]);
+        regexAction.set_dbid(flds[4], flds[5], true);
         regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleChannel_idEpisodeName;
         m_regex.push_back(regexAction);
       }
     } else if (!flds[0].compare("regexTitleShortTextChannel->idSeasonNumberEpisodeNumber")) {
-      if (flds.size() == 6) {
+      if (assertFldsSize(line, flds, 6)) {
         cRegexAction regexAction;
         regexAction.m_regexTitle = getRegex(flds[1]);
         regexAction.m_matchShortText = true;
         regexAction.m_regexShortText = getRegex(flds[2]);
-        regexAction.m_matchChannel = !flds[3].empty();
-        if (regexAction.m_matchChannel) regexAction.m_regexChannel = getRegex(flds[3]);
-        regexAction.m_dbid = parse_int<int>(flds[5]);
-        if (flds[4] == "TheTVDB_Series") regexAction.m_dbid = -regexAction.m_dbid;
-        regexAction.m_movie = false;
+        regexAction.set_channel(flds[3]);
+        regexAction.set_dbid(flds[4], flds[5], true);
         regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleShortTextChannel_idSeasonNumberEpisodeNumber;
         m_regex.push_back(regexAction);
       }
@@ -230,6 +232,7 @@ bool cRegexAction::matches(cSv title, cSv shortText, cSv description, cSv channe
     case eMatchPurpouse::regexTitleChannel_id:
       return true;
     case eMatchPurpouse::regexTitleChannel_idEpisodeName:
+      if (shortText.empty() ) shortText = description;
       if (m_matchShortText && !std::regex_match(shortText.data(), shortText.data()+shortText.length(), shortText_match, m_regexShortText)) return false;
       if (title_match.size() == 2) {
         episodeName = title_match[1].str();
@@ -239,7 +242,7 @@ bool cRegexAction::matches(cSv title, cSv shortText, cSv description, cSv channe
         episodeName = shortText_match[1].str();
         return true;
       }
-      esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpouse::regexTitleChannel_idEpisodeName, title_match.size() %zu, shortText_match.size() %zu", title_match.size(), shortText_match.size() );
+      esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpouse::regexTitleChannel_idEpisodeName, title_match.size() %zu, shortText_match.size() %zu, title %.*s, shortText %.*s", title_match.size(), shortText_match.size(), (int)title.length(), title.data(), (int)shortText.length(), shortText.data() );
       return true;
     case eMatchPurpouse::regexTitleShortTextChannel_idSeasonNumberEpisodeNumber:
       if (regexGetSeasonEpisode(shortText, m_regexShortText, season, episode)) return true;
