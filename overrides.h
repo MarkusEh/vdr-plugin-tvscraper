@@ -3,10 +3,12 @@
 
 #include <regex>
 enum class eMatchPurpouse {
+  none,
   regexTitleChannel_id,
   regexTitleChannel_idEpisodeName,
   regexTitleChannel_idEpisodeAbsolutNumber, // TODO
   regexTitleShortTextChannel_idSeasonNumberEpisodeNumber,
+  regexTitleShortTextChannel_seasonNumberEpisodeNumber,
 };
 class cRegexAction {
   friend class cOverRides;
@@ -14,14 +16,15 @@ class cRegexAction {
     std::regex m_regexTitle;
     std::regex m_regexShortText;
     std::regex m_regexChannel;
-    bool m_matchChannel;
+    bool m_matchTitle;
     bool m_matchShortText;
+    bool m_matchChannel;
     int m_dbid;
     bool m_movie;
     eMatchPurpouse m_matchPurpouse;
   public:
     bool set_dbid(cSv edb, cSv id, bool seriesRequired);
-//    void set_title(cSv title);
+    void set_title(cSv title);
     void set_channel(cSv channel);
     bool matches(cSv title, cSv shortText, cSv description, cSv channel, int &season, int &episode, std::string &episodeName) const;
 };

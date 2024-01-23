@@ -49,6 +49,9 @@ private:
   std::string m_TVshowSearchString;
   cSv m_originalTitle;
   cYears m_years;
+  eMatchPurpouse m_matchPurpouse = eMatchPurpouse::none;
+  int m_season = -1;
+  int m_episode = -1;
   int m_num_parts;
   bool m_baseNameEquShortText = false;
   searchResultTvMovie m_searchResult_Movie;

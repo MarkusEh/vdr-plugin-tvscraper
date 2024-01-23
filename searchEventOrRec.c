@@ -259,6 +259,17 @@ bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv, cSv channelNam
         if (config.enableDebug)
           esyslog("tvscraper: overrides: title \"%s\", dbid %d, season %i, episode %i", m_sEventOrRecording->Title(), dbid, season, episode);
         return true;
+      case eMatchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber:
+        m_matchPurpouse = matchPurpouse;
+        m_season = season;
+        m_episode = episode;
+        if (config.enableDebug) {
+          const char *st = m_sEventOrRecording->ShortText();
+          if (!st) st = m_sEventOrRecording->Description();
+          if (!st) st = "ERROR: no short text / description";
+          esyslog("tvscraper: overrides: title \"%s\", short text \"%s\", season %i, episode %i", m_sEventOrRecording->Title(), st, season, episode);
+        }
+        return false;  // we still need to search for the series ID
 // TODO case eMatchPurpouse::regexTitleChannel_idEpisodeAbsolutNumber
       default:
         esyslog("tvscraper, ERROR in cSearchEventOrRec::ScrapCheckOverride, matchPurpouse %d unknown", (int)matchPurpouse);
@@ -327,7 +338,13 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv, cSv channelName)
             if (config.enableDebug) esyslog("tvscraper: setSimilar %i and %i", searchResults[0].id(), searchResult.id());
           }
         }
-        cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeSearchString, m_baseNameOrTitle, m_years, lang, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
+        if (m_matchPurpouse == eMatchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber) {
+          movieOrTv.season = m_season;
+          movieOrTv.episode = m_episode;
+        } else {
+          cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeSearchString, m_baseNameOrTitle, m_years, lang, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
+        }
+
         m_db->InsertCache(m_TVshowSearchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
       } else {
 // pattern in title: TV show name - episode name
@@ -409,7 +426,7 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
     for (auto &i :searchResults) {
       if (i.id() == n_tv_id) {
         if (config.enableDebug) {
-          esyslog("tvscraper: use tv ID %d instead of tv ID %d", n_tv_id, searchResults[0].id() );
+          isyslog("tvscraper: use tv ID %d instead of tv ID %d", n_tv_id, searchResults[0].id() );
           log(searchResults[0]);
         }
         std::swap(searchResults[0], i);
@@ -439,10 +456,11 @@ int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
 void cSearchEventOrRec::SearchNew(vector<searchResultTvMovie> &resultSet) {
   extDbConnected = true;
   scrapType type_override = m_overrides->Type(m_baseNameOrTitle);
+  if (m_matchPurpouse == eMatchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber) type_override = scrapSeries;
   if (!m_originalTitle.empty() ) {
     cCompareStrings compareStrings(m_originalTitle);
     if (type_override != scrapSeries) addSearchResults(m_movieDbMovieScraper, resultSet, m_originalTitle, compareStrings, nullptr);
-    if (m_originalTitle == m_movieSearchString) {
+    if (m_originalTitle == m_movieSearchString && m_matchPurpouse != eMatchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber) {
       compareStrings.add(m_originalTitle, ':');
       compareStrings.add(m_originalTitle, '-');
     }
@@ -458,8 +476,10 @@ void cSearchEventOrRec::SearchNew(vector<searchResultTvMovie> &resultSet) {
   if (m_movieSearchString != m_originalTitle) {
     cCompareStrings compareStrings(m_movieSearchString, m_sEventOrRecording->ShortText() );
     if (type_override != scrapSeries) addSearchResults(m_movieDbMovieScraper, resultSet, m_movieSearchString, compareStrings, lang);
-    compareStrings.add(m_movieSearchString, ':');
-    compareStrings.add(m_movieSearchString, '-');
+    if (m_matchPurpouse != eMatchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber) {
+      compareStrings.add(m_movieSearchString, ':');
+      compareStrings.add(m_movieSearchString, '-');
+    }
     if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_movieSearchString, compareStrings, lang);
     if (type_override != scrapMovie) addSearchResults(m_movieDbTvScraper, resultSet, m_movieSearchString, compareStrings, lang);
   }
@@ -516,6 +536,10 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
 // do we have to search the episode?
     if (movieOrTv.season != -100 && movieOrTv.episodeSearchWithShorttext) {
 // a TV show was found, and we have to use the subtitle to find the episode
+      if (movieOrTv.episodeSearchWithShorttext != 3 && m_matchPurpouse == eMatchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber) {
+        movieOrTv.season = m_season;
+        movieOrTv.episode = m_episode;
+      } else {
       m_db->m_cache_episode_search_time.start();
 // delete cached season / episode information: if we cannot get this information from short text -> no episode found
       movieOrTv.season = 0;
@@ -539,11 +563,16 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
       if (movieOrTv.episodeSearchWithShorttext == 3 && min_distance > 650) return false;
 // episode match required for cache, but not found (ignore coincidence matches with distance > 650)
 
-      if (min_distance < 1000) movieOrTv = movieOrTv_best; // otherwise, there was no episode match
+      if (m_matchPurpouse == eMatchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber) {
+        movieOrTv.season = m_season;
+        movieOrTv.episode = m_episode;
+      } else if (min_distance < 1000) movieOrTv = movieOrTv_best; // otherwise, there was no episode match
+
 // was (min_distance < 950). But, this results in episode = 0 and season = 0.
 // so, better to use the episode / season found, even if it is a very weak match.
 // also, we must do it here the same way we do it in ScrapFindAndStore(),
 // where we also have no min_distance for episode match
+    }
     }
     if (Store(movieOrTv) == -1) return false;
   }
