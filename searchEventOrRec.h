@@ -49,7 +49,7 @@ private:
   std::string m_TVshowSearchString;
   cSv m_originalTitle;
   cYears m_years;
-  eMatchPurpouse m_matchPurpouse = eMatchPurpouse::none;
+  eMatchPurpose m_matchPurpose = eMatchPurpose::none;
   int m_season = -1;
   int m_episode = -1;
   int m_num_parts;

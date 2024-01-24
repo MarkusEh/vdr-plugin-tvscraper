@@ -2,7 +2,7 @@
 #define __TVSCRAPER_OVERRIDES_H
 
 #include <regex>
-enum class eMatchPurpouse {
+enum class eMatchPurpose {
   none,
   regexTitleChannel_id,
   regexTitleChannel_idEpisodeName,
@@ -21,7 +21,7 @@ class cRegexAction {
     bool m_matchChannel;
     int m_dbid;
     bool m_movie;
-    eMatchPurpouse m_matchPurpouse;
+    eMatchPurpose m_matchPurpose;
   public:
     bool set_dbid(cSv edb, cSv id, bool seriesRequired);
     void set_title(cSv title);
@@ -47,7 +47,7 @@ class cOverRides {
   public:
     cOverRides(void);
     virtual ~cOverRides(void);
-    void ReadConfig(cSv confDir);
+    void ReadConfig(cSv dir, cSv file);
     bool Ignore(cSv title);
     bool Substitute(string &title);
     void RemovePrefix(string &title);
@@ -55,7 +55,7 @@ class cOverRides {
     int TheTVDB_SeriesID(cSv title);
     int TheMovieDB_SeriesID(cSv title);
     int TheMovieDB_MovieID(cSv title);
-    bool regex(cSv title, cSv shortText, cSv description, cSv channel, eMatchPurpouse &matchPurpouse, int &dbid, bool &movie, int &season, int &episode, std::string &episodeName);
+    bool regex(cSv title, cSv shortText, cSv description, cSv channel, eMatchPurpose &matchPurpose, int &dbid, bool &movie, int &season, int &episode, std::string &episodeName);
     bool IgnorePath(cSv path);
     void Dump(void);
 };

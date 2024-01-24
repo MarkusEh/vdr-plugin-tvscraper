@@ -9,8 +9,8 @@ cOverRides::cOverRides(void) {
 cOverRides::~cOverRides() {
 }
 
-void cOverRides::ReadConfig(cSv confDir) {
-  cToSvConcat confFile(confDir, "/override.conf");
+void cOverRides::ReadConfig(cSv dir, cSv file) {
+  cToSvConcat confFile(dir, "/", file);
   dsyslog("tvscraper: reading overrides from %s", confFile.c_str());
   if (access(confFile.c_str(), F_OK) == 0) {
     FILE *f = fopen(confFile.c_str(), "r");
@@ -18,8 +18,7 @@ void cOverRides::ReadConfig(cSv confDir) {
       char *s;
       cReadLine ReadLine;
       while ((s = ReadLine.Read(f)) != NULL) {
-        char *p = strchr(s, '#');
-        if (p) *p = 0;
+        if (*s == '#') *s = 0;
         stripspace(s);
         if (!isempty(s)) ReadConfigLine(s);
       }
@@ -125,7 +124,7 @@ void cOverRides::ReadConfigLine(const char *line) {
         regexAction.set_title(flds[1]);
         regexAction.set_channel(flds[2]);
         regexAction.set_dbid(flds[3], flds[4], false);
-        regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleChannel_id;
+        regexAction.m_matchPurpose = eMatchPurpose::regexTitleChannel_id;
         m_regex.push_back(regexAction);
       }
     } else if (!flds[0].compare("regexTitleChannel->idEpisodeName")) {
@@ -141,7 +140,7 @@ void cOverRides::ReadConfigLine(const char *line) {
         }
         regexAction.set_channel(flds[2]);
         regexAction.set_dbid(flds[3], flds[4], true);
-        regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleChannel_idEpisodeName;
+        regexAction.m_matchPurpose = eMatchPurpose::regexTitleChannel_idEpisodeName;
         m_regex.push_back(regexAction);
       }
     } else if (!flds[0].compare("regexTitleShortTextChannel->idEpisodeName")) {
@@ -158,7 +157,7 @@ void cOverRides::ReadConfigLine(const char *line) {
         }
         regexAction.set_channel(flds[3]);
         regexAction.set_dbid(flds[4], flds[5], true);
-        regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleChannel_idEpisodeName;
+        regexAction.m_matchPurpose = eMatchPurpose::regexTitleChannel_idEpisodeName;
         m_regex.push_back(regexAction);
       }
     } else if (!flds[0].compare("regexTitleShortTextChannel->idSeasonNumberEpisodeNumber")) {
@@ -169,11 +168,12 @@ void cOverRides::ReadConfigLine(const char *line) {
         regexAction.m_regexShortText = getRegex(flds[2]);
         regexAction.set_channel(flds[3]);
         regexAction.set_dbid(flds[4], flds[5], true);
-        regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleShortTextChannel_idSeasonNumberEpisodeNumber;
+        regexAction.m_matchPurpose = eMatchPurpose::regexTitleShortTextChannel_idSeasonNumberEpisodeNumber;
         m_regex.push_back(regexAction);
       }
     } else if (!flds[0].compare("regexTitleShortTextChannel->seasonNumberEpisodeNumber")) {
-      if (assertFldsSize(line, flds, 4)) {
+      if (flds.size() != 3 && flds.size() != 4) assertFldsSize(line, flds, 4);
+      else {
         cRegexAction regexAction;
         regexAction.set_title(flds[1]);
         regexAction.m_matchShortText = !flds[2].empty();
@@ -185,8 +185,9 @@ void cOverRides::ReadConfigLine(const char *line) {
           regexAction.m_matchTitle = true;
           regexAction.m_regexTitle = std::regex();
         }
-        regexAction.set_channel(flds[3]);
-        regexAction.m_matchPurpouse = eMatchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber;
+        if (flds.size() == 4) regexAction.set_channel(flds[3]);
+        else regexAction.m_matchChannel = false;
+        regexAction.m_matchPurpose = eMatchPurpose::regexTitleShortTextChannel_seasonNumberEpisodeNumber;
         regexAction.m_dbid = 0;
         regexAction.m_movie = false;
         m_regex.push_back(regexAction);
@@ -256,10 +257,10 @@ bool cRegexAction::matches(cSv title, cSv shortText, cSv description, cSv channe
   std::cmatch title_match, shortText_match;
   if (m_matchTitle && !std::regex_match(title.data(), title.data()+title.length(), title_match, m_regexTitle)) return false;
   if (m_matchChannel && !std::regex_match(channel.data(), channel.data()+channel.length(), m_regexChannel)) return false;
-  switch (m_matchPurpouse) {
-    case eMatchPurpouse::regexTitleChannel_id:
+  switch (m_matchPurpose) {
+    case eMatchPurpose::regexTitleChannel_id:
       return true;
-    case eMatchPurpouse::regexTitleChannel_idEpisodeName:
+    case eMatchPurpose::regexTitleChannel_idEpisodeName:
       if (shortText.empty() ) shortText = description;
       if (m_matchShortText && !std::regex_match(shortText.data(), shortText.data()+shortText.length(), shortText_match, m_regexShortText)) return false;
       if (title_match.size() == 2) {
@@ -270,13 +271,13 @@ bool cRegexAction::matches(cSv title, cSv shortText, cSv description, cSv channe
         episodeName = shortText_match[1].str();
         return true;
       }
-      esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpouse::regexTitleChannel_idEpisodeName, title_match.size() %zu, shortText_match.size() %zu, title %.*s, shortText %.*s", title_match.size(), shortText_match.size(), (int)title.length(), title.data(), (int)shortText.length(), shortText.data() );
+      esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpose::regexTitleChannel_idEpisodeName, title_match.size() %zu, shortText_match.size() %zu, title %.*s, shortText %.*s", title_match.size(), shortText_match.size(), (int)title.length(), title.data(), (int)shortText.length(), shortText.data() );
       return true;
-    case eMatchPurpouse::regexTitleShortTextChannel_idSeasonNumberEpisodeNumber:
+    case eMatchPurpose::regexTitleShortTextChannel_idSeasonNumberEpisodeNumber:
       if (regexGetSeasonEpisode(shortText, m_regexShortText, season, episode)) return true;
       if (regexGetSeasonEpisode(description, m_regexShortText, season, episode)) return true;
       return false;
-    case eMatchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber:
+    case eMatchPurpose::regexTitleShortTextChannel_seasonNumberEpisodeNumber:
       if (shortText.empty() ) shortText = description;
       if (m_matchShortText && !std::regex_match(shortText.data(), shortText.data()+shortText.length(), shortText_match, m_regexShortText)) return false;
       if (m_matchTitle && title_match.size() == 3) {
@@ -289,19 +290,19 @@ bool cRegexAction::matches(cSv title, cSv shortText, cSv description, cSv channe
         episode = parse_int<int>(shortText_match[2].str());
         return true;
       }
-      esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpouse::regexTitleShortTextChannel_seasonNumberEpisodeNumber, title_match.size() %zu, shortText_match.size() %zu, title %.*s, shortText %.*s", title_match.size(), shortText_match.size(), (int)title.length(), title.data(), (int)shortText.length(), shortText.data() );
+      esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpose::regexTitleShortTextChannel_seasonNumberEpisodeNumber, title_match.size() %zu, shortText_match.size() %zu, title %.*s, shortText %.*s", title_match.size(), shortText_match.size(), (int)title.length(), title.data(), (int)shortText.length(), shortText.data() );
       return false;
 
-// TODO case eMatchPurpouse::regexTitleChannel_idEpisodeAbsolutNumber
+// TODO case eMatchPurpose::regexTitleChannel_idEpisodeAbsolutNumber
 // # regexTitleChannel->idEpisodeAbsolutNumber;regexTitle;regexChannel or empty;TheMovieDB_Series or TheTVDB_Series;id  // first match of regexTitle will be used as episode absolut number
     default:
-      esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpouse %d unknown", (int)m_matchPurpouse);
+      esyslog("tvscraper, ERROR in cRegexAction::matches, matchPurpose %d unknown", (int)m_matchPurpose);
   }
   return false;
 }
-bool cOverRides::regex(cSv title, cSv shortText, cSv description, cSv channel, eMatchPurpouse &matchPurpouse, int &dbid, bool &movie, int &season, int &episode, std::string &episodeName) {
+bool cOverRides::regex(cSv title, cSv shortText, cSv description, cSv channel, eMatchPurpose &matchPurpose, int &dbid, bool &movie, int &season, int &episode, std::string &episodeName) {
   for (const cRegexAction &r: m_regex) if (r.matches(title, shortText, description, channel, season, episode, episodeName)) {
-    matchPurpouse = r.m_matchPurpouse;
+    matchPurpose = r.m_matchPurpose;
     dbid = r.m_dbid;
     movie = r.m_movie;
 //    if (config.enableDebug)

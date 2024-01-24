@@ -94,10 +94,9 @@ cTVScraperConfig config;
 #include "setup.c"
 #include "images.c"
 #include "autoTimers.c"
-// #include "PLUGINS/example/extEpg.c"
 #include "services.c"
 
-static const char *VERSION        = "1.2.6";
+static const char *VERSION        = "1.2.7";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 
 //***************************************************************************
@@ -238,7 +237,8 @@ bool cPluginTvscraper::Start(void) {
         return false;
     };
     overrides = new cOverRides();
-    overrides->ReadConfig(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N));
+    overrides->ReadConfig(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N), "override.conf");
+    overrides->ReadConfig(cPlugin::ResourceDirectory(PLUGIN_NAME_I18N), "override_tvs.conf");
     workerThread = new cTVScraperWorker(db, overrides);
     workerThread->SetDirectories();
     workerThread->Start();

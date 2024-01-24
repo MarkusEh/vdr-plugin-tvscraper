@@ -101,7 +101,7 @@ install-plugins: plugins
       (cd "$$i" && $(MAKE) install);\
   done;
 
-install: install-lib install-i18n install-conf
+install: install-lib install-i18n install-conf install-conf_tvs
 
 dist: $(I18Npo) clean
 	@-rm -rf $(TMPDIR)/$(ARCHIVE)
