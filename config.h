@@ -155,7 +155,9 @@ class cTVScraperConfig {
 {32, "mon", "mn-MN", "монгол"},  // Mongolian, note: not supported in themoviedb, "mn-MN" is a guess
 {33, "pol", "pl-PL", "język polski"},  // Polish
 {34, "msa", "ms-MY", "bahasa Melayu"},  //  Malay
-{35, "ukr", "uk-UA", "українська мова"},  //  Ukrainian
+{35, "ukr", "uk-UA", "українська мова"}, //  Ukrainian
+{36, "tgl", "tl-PH", "Wikang Tagalog"},  //  Tagalog
+{37, "tam", "ta-IN", "தமிழ்"},  /// Tamil
 // {30, "", "", ""},  //
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
