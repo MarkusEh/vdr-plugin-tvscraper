@@ -1,6 +1,6 @@
 #include "searchEventOrRec.h"
 
-cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDbMovieScraper *movieDbMovieScraper, cMovieDbTvScraper *movieDbTvScraper, cTvDbTvScraper *tvDbTvScraper, cTVScraperDB *db):
+cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDbMovieScraper *movieDbMovieScraper, cMovieDbTvScraper *movieDbTvScraper, cTvDbTvScraper *tvDbTvScraper, cTVScraperDB *db, cSv channelName):
   m_sEventOrRecording(sEventOrRecording),
   m_overrides(overrides),
   m_movieDbMovieScraper(movieDbMovieScraper),
@@ -13,6 +13,84 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
       esyslog("tvscraper: ERROR in cSearchEventOrRec: recording->Info() == NULL, Name = %s", m_sEventOrRecording->Recording()->Name() );
       return;
     }
+    m_network = channelName.empty()?csEventOrRecording::m_unknownChannel:channelName;
+    StringRemoveSuffix(m_network, " Köln");
+    StringRemoveSuffix(m_network, " HD");
+    StringRemoveSuffix(m_network, " Süd");
+    StringRemoveSuffix(m_network, " Nord");
+    StringRemoveSuffix(m_network, " Fernsehen");
+    StringRemoveSuffix(m_network, " Sachsen");
+    StringRemoveSuffix(m_network, " NDS");
+    StringRemoveSuffix(m_network, " BW");
+    StringRemoveSuffix(m_network, " Lon");
+    StringRemoveSuffix(m_network, "+1");
+    if (cSv(m_network).compareLowerCase("WDR", g_locale) == 0) m_network = "Westdeutscher Rundfunk (WDR)";
+    if (cSv(m_network).compareLowerCase("NDR FS", g_locale) == 0) m_network = "Norddeutscher Rundfunk (NDR)";
+    if (cSv(m_network).compareLowerCase("RTLZWEI", g_locale) == 0) m_network = "RTL Zwei";
+    if (cSv(m_network).compareLowerCase("Pro7 MAXX", g_locale) == 0) m_network = "ProSieben Maxx";
+    if (cSv(m_network).compareLowerCase("zdf_neo", g_locale) == 0) m_network = "ZDFneo";
+    if (cSv(m_network).compareLowerCase("ONE", g_locale) == 0) m_network = "Das Erste";
+    if (cSv(m_network).compareLowerCase("ARD alpha", g_locale) == 0) m_network = "Das Erste";
+    if (cSv(m_network).compareLowerCase("hr-fernsehen", g_locale) == 0) m_network = "Das Erste";
+    if (cSv(m_network).compareLowerCase("rbb Berlin", g_locale) == 0) m_network = "Das Erste";
+    if (cSv(m_network).compareLowerCase("SR Fernsehen", g_locale) == 0) m_network = "Das Erste";
+    if (cSv(m_network).compareLowerCase("SAT.1 Gold", g_locale) == 0) m_network = "SAT.1";
+    if (cSv(m_network).compareLowerCase("Film4", g_locale) == 0) m_network = "Channel 4";
+    if (cSv(m_network).compareLowerCase("5SELECT", g_locale) == 0) m_network = "Channel 5";
+    if (cSv(m_network).compareLowerCase("5ACTION", g_locale) == 0) m_network = "Channel 5";
+    if (cSv(m_network).compareLowerCase("5 USA", g_locale) == 0) m_network = "Channel 5";
+    if (cSv(m_network).compareLowerCase("5USA", g_locale) == 0) m_network = "Channel 5";
+// theTVDB networks:
+// Das Erste 77
+// ZDF 315
+// BR 44
+// RTL Television 193
+// RTL Zwei 1006
+// RTLup 1237
+// Super RTL 47831
+// Nitro 1238
+// SAT.1 373 
+// ProSieben 374
+// ProSieben Maxx 984
+// Kabel eins 963
+// VOX 727
+// Tele 5 617
+// Disney Channel (DE) 785
+// Disney Channel 1304   (aber United States of America)
+// 3sat 1
+// Arte 378
+// Phoenix 166
+// ZDFneo 517
+// Sixx 854
+// ZDFinfo 980
+// DF1 not found, see also https://en.wikipedia.org/wiki/Sky_Deutschland
+// Crime Time not found
+// SERIEN+ not found
+// Xplore not found
+// Red adventure not found
+// MDR 139
+// Norddeutscher Rundfunk (NDR) 148
+// SWR 252
+// Westdeutscher Rundfunk (WDR) 310
+// KIKA 128
+// BBC One 37
+// BBC Two 40
+// BBC Three 39
+// BBC Four 34
+// BBC News 36
+// Channel 4 60
+// More4 634
+// E4 89
+// Channel 5 599
+// 5Star 1271
+// ITV1 321
+// ITV2 324
+// ITV3 325
+// ITV4 326
+// Talking Pictures not found
+
+
+
     initOriginalTitle();
     initBaseNameOrTitle();
     m_TVshowSearchString = m_baseNameOrTitle;
@@ -286,7 +364,7 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv, cSv channelName)
   }
   if (CheckCache(movieOrTv) ) return 1;
   if (config.enableDebug) {
-    esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", title \"%s\", orig. title \"%.*s\", start time: %s", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data(), cToSvDateTime("%Y-%m-%d %H:%M:%S", m_sEventOrRecording->StartTime() ).c_str() );
+    esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", title \"%s\", orig. title \"%.*s\", network %s, start time: %s", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data(), m_network.c_str(), cToSvDateTime("%Y-%m-%d %H:%M:%S", m_sEventOrRecording->StartTime() ).c_str() );
   }
   vector<searchResultTvMovie> searchResults;
   cSv episodeSearchString;
@@ -322,10 +400,9 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv, cSv channelName)
 //    in short text: episode name
         episodeSearchString = m_baseNameEquShortText?m_episodeName:m_sEventOrRecording->EpisodeSearchString();
         if (searchResults[0].getMatchEpisode() < 1000) {
-          if (searchResults[0].getMatchEpisode() < 340) movieOrTv.episodeSearchWithShorttext = 3;
+          if (searchResults[0].getMatchEpisode() <= 650) movieOrTv.episodeSearchWithShorttext = 3;
 // we request an episode match of the cached data only if there was a text match.
 // a number after the text is just too week, and if there was a year match this is reflected / checked in the cache anyway
-// note: we use episiode distance / 2, so distance <= 325 (roughly) is required for text match
           float bestMatchText = searchResults[0].getMatchText();
           std::string tv_name;
           for (const searchResultTvMovie &searchResult: searchResults) {
@@ -494,10 +571,10 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
   cSv searchString1 = SecondPart(searchString_f, "'s ", 6);
   size_t size0 = resultSet.size();
   if (!searchString1.empty()) {
-    extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
+    extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
     if (resultSet.size() > size0) return true;
   }
-  extMovieTvDb->addSearchResults(resultSet, searchString_f, true, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
+  extMovieTvDb->addSearchResults(resultSet, searchString_f, true, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
   if (resultSet.size() > size0) {
     cNormedString normedSearchString(searchString);
     for (size_t i = size0; i < resultSet.size(); i++)
@@ -505,12 +582,12 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
   }
   cSv searchString2;
   if (splitString(searchString_f, ": ", 3, searchString1, searchString2) ) {
-    if (searchString1.length() >= 5) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
-    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString1.length() >= 5) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
+    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
   }
   if (splitString(searchString_f, " - ", 3, searchString1, searchString2)) {
-    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
-    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang);
+    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
+    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
   }
   return resultSet.size() > size0;
 }
@@ -845,9 +922,8 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   if (debug) esyslog("tvscraper: enhance2 (1)" );
 
   if (searchResult.movie() ) return;
-//  if (searchResult.movie() ) { searchResult.setMatchEpisode(1000); return; }
 //  Transporter - The Mission: Is a movie, and we should not give negative point for having no episode match
-  if (searchResult.simulateMatchEpisode(0) < config.minMatchFinal) return; // best possible distance is 0. If, with this distance, the result will till not be selected, we don't need to calculate the distance
+  if (searchResult.simulateMatchEpisode(0) < config.minMatchFinal) return; // best possible distance is 0. If, with this distance, the result will still not be selected, we don't need to calculate the distance
   cSv foundName;
   cSv episodeSearchString;
   sMovieOrTv movieOrTv;
@@ -861,6 +937,5 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   const cLanguage *lang = searchEventOrRec.m_sEventOrRecording->GetLanguage();
   int distance = cMovieOrTv::searchEpisode(searchEventOrRec.m_db, movieOrTv, searchEventOrRec.getExtMovieTvDb(movieOrTv), episodeSearchString, searchEventOrRec.m_baseNameOrTitle, searchEventOrRec.m_years, lang, searchEventOrRec.m_sEventOrRecording->ShortText(), searchEventOrRec.m_sEventOrRecording->Description() );
   searchEventOrRec.m_episodeFound = distance != 1000;
-  if (searchEventOrRec.m_episodeFound) distance /= 2; // reduce the distance here, found episode is always positive
   searchResult.setMatchEpisode(distance);
 }

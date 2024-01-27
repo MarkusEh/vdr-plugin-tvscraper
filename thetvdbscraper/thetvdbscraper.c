@@ -474,7 +474,7 @@ void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
 }
 
 // Search series
-bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
+bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang, cSv network) {
   std::string url; url.reserve(300);
   url.append(baseURL4Search);
   stringAppendCurlEscape(url, SearchString);
@@ -487,12 +487,12 @@ bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, cSv Searc
     return false;
   }
   for (const rapidjson::Value &result: data->GetArray() ) {
-    ParseJson_searchSeries(result, resultSet, compareStrings, lang);
+    ParseJson_searchSeries(result, resultSet, compareStrings, lang, network);
   }
   return true;
 }
 
-void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang) {// add search results to resultSet
+void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang, cSv network) {// add search results to resultSet
   if (!data.IsObject() ) {
     esyslog("tvscraper: ERROR cTVDBScraper::ParseJson_searchSeries, data is not an object");
     return;
@@ -556,6 +556,7 @@ void cTVDBScraper::ParseJson_searchSeries(const rapidjson::Value &data, vector<s
         sRes.setPositionInExternalResult(resultSet.size() );
         sRes.setDelim(delim);
         sRes.setMatchText(dist_a);
+        sRes.setNetworkMatch(network.compareLowerCase(getValueCharS(data, "network"), g_locale) == 0);
 // main purpose of sRes.m_normedName: figure out if two TV shows are similar
 // TODO: We could improve this, may be 2 normedName, or explicitly mark normedOriginalName
 // on the other hand side: the current implementation might be good enough, so wait for

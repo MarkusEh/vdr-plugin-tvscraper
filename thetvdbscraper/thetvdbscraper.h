@@ -19,8 +19,8 @@ class cTVDBScraper {
     int CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog = false);
     int CallRestJson_int(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog);
     bool GetToken(std::string &jsonResponse);
-    bool AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
-    void ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang);
+    bool AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang, cSv network);
+    void ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang, cSv network);
     int StoreSeriesJson(int seriesID, bool forceUpdate);
     int downloadEpisodes(int seriesID, bool forceUpdate, const cLanguage *lang, bool langIsIntendedDisplayLanguage = false, const cLanguage **displayLanguage = nullptr);
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const char *episodeFilename);
@@ -28,7 +28,6 @@ class cTVDBScraper {
     void DownloadMedia (int tvID);
     void DownloadMedia (int tvID, eMediaType mediaType, const string &destDir);
     void DownloadMediaBanner (int tvID, const string &destPath);
-//    bool AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cLanguage *lang);
     static const char *getDbUrl(const char *url);
     void download(const char *url, const char *localPath);
 
@@ -102,8 +101,8 @@ class cTvDbTvScraper: public iExtMovieTvDb {
         m_TVDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang) {
-      m_TVDBScraper->AddResults4(resultSet, searchString, compareStrings, lang);
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, cSv network) {
+      m_TVDBScraper->AddResults4(resultSet, searchString, compareStrings, lang, network);
     }
   private:
     cTVDBScraper *m_TVDBScraper;

@@ -2,7 +2,7 @@
 
 class cSearchEventOrRec {
 public:
-  cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDbMovieScraper *movieDbMovieScraper, cMovieDbTvScraper *movieDbTvScraper, cTvDbTvScraper *tvDbTvScraper, cTVScraperDB *db);
+  cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDbMovieScraper *movieDbMovieScraper, cMovieDbTvScraper *movieDbTvScraper, cTvDbTvScraper *tvDbTvScraper, cTVScraperDB *db, cSv channelName);
   cMovieOrTv *Scrape(int &statistics, cSv channelName); // note: if nothing is found, NULL is returned. Otherwise, the images must be downloaded, and the returned cMovieOrTv must be deleted
 private:
   bool ScrapCheckOverride(sMovieOrTv &movieOrTv, cSv channelName);
@@ -49,6 +49,7 @@ private:
   std::string m_TVshowSearchString;
   cSv m_originalTitle;
   cYears m_years;
+  std::string m_network;
   eMatchPurpose m_matchPurpose = eMatchPurpose::none;
   int m_season = -1;
   int m_episode = -1;

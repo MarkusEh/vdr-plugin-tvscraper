@@ -158,6 +158,7 @@ class cTVScraperConfig {
 {35, "ukr", "uk-UA", "українська мова"}, //  Ukrainian
 {36, "tgl", "tl-PH", "Wikang Tagalog"},  //  Tagalog
 {37, "tam", "ta-IN", "தமிழ்"},  /// Tamil
+{38, "swa", "sw-SW", "Kiswahili"},  // Swahili
 // {30, "", "", ""},  //
 };
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};

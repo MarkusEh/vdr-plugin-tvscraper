@@ -269,6 +269,12 @@ inline int StringRemoveTrailingWhitespace(const char *str, int len) {
   return 0;
 }
 
+inline void StringRemoveSuffix(std::string &str, cSv suffix) {
+  if (str.length() < suffix.length()) return;
+  if (cSv(str).substr(str.length()-suffix.length()) != suffix) return;
+  str.erase(str.length()-suffix.length());
+}
+
 inline utf8_iterator utf8LastLetter(cSv s) {
 // return position directly after the last letter
   utf8_iterator it = s.utf8_end();

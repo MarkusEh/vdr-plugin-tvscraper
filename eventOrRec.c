@@ -35,6 +35,26 @@ cSv csEventOrRecording::EpisodeSearchString() const {
   }
   return cSv();
 }
+ 
+std::string csEventOrRecording::ChannelName() const {
+ tChannelID channelID = ChannelID();
+ if (!channelID.Valid() ) {
+   esyslog("tvscraper, csEventOrRecording::ChannelName, invalid channel ID, title %s", Title() );
+   return m_unknownChannel;
+ }
+
+#if APIVERSNUM < 20301
+  const cChannel *channel = Channels.GetByChannelID(channelID);
+#else
+  LOCK_CHANNELS_READ;
+  const cChannel *channel = Channels->GetByChannelID(channelID);
+#endif
+  if (!channel) {
+    esyslog("tvscraper, csEventOrRecording::ChannelName, no channel for channel ID %s, title %s", ChannelIDs().c_str(), Title() );
+    return m_unknownChannel;
+  }
+  return channel->Name();
+}
 
 // Recording
 

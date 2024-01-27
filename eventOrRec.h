@@ -14,18 +14,20 @@ public:
   virtual time_t StartTime() const { return m_event->StartTime(); }
   virtual time_t EndTime() const { return m_event->EndTime(); }
   virtual int DurationInSec() const { return m_event->Duration(); }
-  virtual const std::string ChannelIDs() const { return std::string(cToSvConcat(ChannelID() )); }
   virtual const cRecording *Recording() const { return NULL; }
   virtual void AddYears(cYears &years) const;
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
   int DurationDistance(int DurationInMin);
   virtual cSv EpisodeSearchString() const;
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
+  virtual const std::string ChannelIDs() const { return std::string(cToSvConcat(ChannelID() )); }
+  virtual std::string ChannelName() const; // Warning: This locks the channels, so ensure correct lock order !!!!
   virtual const char *Title() const { return m_event->Title(); }
   virtual const char *ShortText() const { return m_event->ShortText(); }
   virtual const char *Description() const { return m_event->Description(); }
   const cLanguage *GetLanguage() const { return config.GetLanguage(ChannelID()); }
   virtual int durationDeviation(int s_runtime) { return 6000; }
+  static constexpr const char *m_unknownChannel = "Channel name unknown";
 protected:
   virtual int DurationWithoutMarginSec(void) const { return m_event->Duration(); }
   virtual int DurationLowSec(void) const { return m_event->Vps()?DurationWithoutMarginSec():RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: for recording only if not cut, and no valid marks
@@ -45,6 +47,7 @@ public:
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }
   virtual const std::string ChannelIDs() const { return (EventID()&&ChannelID().Valid())?std::string(cToSvConcat(ChannelID() )):m_recording->Name(); } // if there is no eventID or no ChannelID(), use Name instead
+  virtual std::string ChannelName() const { const char *cn = m_recording->Info()->ChannelName(); return (cn&&*cn)?cn:m_unknownChannel; }
   virtual const char *Title() const { return m_recording->Info()->Title(); }
   virtual const char *ShortText() const { return m_recording->Info()->ShortText(); }
   virtual const char *Description() const { return m_recording->Info()->Description(); }

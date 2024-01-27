@@ -18,6 +18,7 @@ searchResultTvMovie::searchResultTvMovie(int id, bool movie, const char *year):
   m_matches[7].weight = 0.3; // baseNameEquShortText -> extra points for series
   m_matches[8].weight = 0.0001; // positionInExternalResult
   m_matches[9].weight = 0.2; // translation available
+  m_matches[10].weight = 0.2; // networkMatch
 }
 searchResultTvMovie::~searchResultTvMovie() {
 //  if (m_id == 80605) log("un-homme-amoureux");
@@ -51,6 +52,7 @@ void searchResultTvMovie::log(cSv title) const {
       case 7: d = "BaseNameEquShortText"; break;
       case 8: d = "PositionInExternalResult"; break;
       case 9: d = "TranslationAvailable"; break;
+      case 10: d = "NetworkMatch"; break;
       default: d = "ERROR!!!!";
     }
     esyslog("tvscraper: searchResultTvMovie::log, i: %zu, match: %f, weight %f, desc: %s", i, m_matches[i].match, m_matches[i].weight, d);
@@ -102,9 +104,6 @@ Enterprise: 50616
   m_matches[2].match = normMatch(score / 400.);
 }
 
-void setScore(int score);
-
-
 void searchResultTvMovie::setMatchYear(const cYears &years, int durationInSec) {
 // input: years: list of years in texts
   if (m_year <= 0) { m_matches[1].match = 0.; return; }
@@ -114,6 +113,17 @@ void searchResultTvMovie::setMatchYear(const cYears &years, int durationInSec) {
   if (f == 2 ) { m_yearMatch =  1; m_matches[1].match = 1.; return; }
   if (f == 1 ) { m_yearMatch = -1; m_matches[1].match = .8; return; }
   m_matches[1].match = .3; // some points for the existing year ...
+}
+
+void searchResultTvMovie::setMatchEpisode(int distance) {
+//   distance <= 650: Text match
+//   distance == 700: year match, and number after ...
+//   distance == 950: only number after ...
+  m_episode_distance = distance;
+  if (distance >= 950) return;
+  float match = (1000.0 - distance) / 1000.0;
+  float cur_match = getMatch();
+  m_matches[6].match = cur_match + (1.0 - cur_match) * match; // episode match will improve result
 }
 
 float searchResultTvMovie::getMatch() const {

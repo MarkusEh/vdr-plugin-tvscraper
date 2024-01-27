@@ -88,7 +88,7 @@ class iExtMovieTvDb
       // call with isFullSearchString == true if searchString is the complete searchString
       // you should split searchString to several parts, and call with each part to find more results.
       //   In this case, set isFullSearchString == false
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang) = 0;
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, cSv network) = 0;
 };
 
 

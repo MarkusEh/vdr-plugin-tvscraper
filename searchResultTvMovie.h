@@ -36,16 +36,14 @@ public:
   void setActors(int numMatches)  { m_matches[4].match = normMatch(numMatches/16.); }
   void setDirectorWriter(int numMatches)  { m_matches[5].match = normMatch(numMatches/2.); }
   void setMatchYear(const cYears &years, int durationInSec);
-  float simulateMatchEpisode(int distance) { float old = m_matches[6].match; setMatchEpisode(distance); float r = getMatch(); m_matches[6].match = old; return r; }
-  void setMatchEpisode(int distance) { m_matches[6].match = (1000 - distance) / 1000.; }
-//   distance <= 650: Text match
-//   distance == 700: year match, and number after ...
-//   distance == 950: only number after ...
-  int getMatchEpisode() const { return 1000 - m_matches[6].match * 1000; }
+  float simulateMatchEpisode(int distance) { int o_dist = m_episode_distance; float old = m_matches[6].match; setMatchEpisode(distance); float r = getMatch(); m_matches[6].match = old; m_episode_distance = o_dist; return r; }
+  void setMatchEpisode(int distance);
+  int getMatchEpisode() const { return m_episode_distance; }
   float getMatchText() const { return m_matches[0].match; }
   void setBaseNameEquShortText() { m_matches[7].match = 1.0; }
   void setPositionInExternalResult(int positionInExternalResult) { m_matches[8].match = 1.0 - normMatch(positionInExternalResult); }
   void setTranslationAvailable(bool translationAvailable) { m_matches[9].match = translationAvailable?1.0:0.0; }
+  void setNetworkMatch(bool networkMatch) { m_matches[10].match = networkMatch?1.0:-1.; }
 
   void setDelim(char delim) { m_delim = delim; }
   int delim(void) const { return m_delim; }
@@ -59,6 +57,7 @@ private:
   int m_id;
   bool m_movie;
   int m_year;
-  sMatchWeight m_matches[10];
+  int m_episode_distance;
+  sMatchWeight m_matches[11];
   char m_delim = 0;
 };

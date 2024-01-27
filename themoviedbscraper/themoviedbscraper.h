@@ -13,10 +13,10 @@ class cMovieDBScraper {
   private:
     const char *apiKey = "abb01b5a277b9c2c60ec0302d83c5ee9";
     const char *baseURL = "api.themoviedb.org/3";
-    const char *posterSize = "w780";
-    const char *stillSize = "w300";
-    const char *backdropSize = "w1280";
-    const char *actorthumbSize = "h632";
+    const char *posterSize = "original";
+    const char *stillSize = "original";
+    const char *backdropSize = "original";
+    const char *actorthumbSize = "original";
     std::string m_posterBaseUrl;
     std::string m_backdropBaseUrl;
     std::string m_stillBaseUrl;
@@ -71,7 +71,7 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
       config.timeDownloadActorsMovie.stop();
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang) {
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, cSv network) {
       m_movieDBScraper->AddMovieResults(resultSet, searchString, compareStrings, shortText, description, isFullSearchString, years, lang);
     }
   private:
@@ -118,7 +118,7 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
         m_movieDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang) {
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, cSv network) {
       m_movieDBScraper->AddTvResults(resultSet, searchString, compareStrings, lang);
     }
   private:

@@ -228,7 +228,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
             newEventSchedule = true;
           }
           csEventOrRecording sEvent(event);
-          cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db);
+          cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, channelName);
           auto begin = std::chrono::high_resolution_clock::now();
           movieOrTv = SearchEventOrRec.Scrape(statistics, channelName);
           auto end = std::chrono::high_resolution_clock::now();
@@ -357,7 +357,7 @@ void cTVScraperWorker::ScrapRecordings(void) {
       const cRecordingInfo *recInfo = rec->Info();
       if (recInfo && recInfo->GetEvent() ) {
         csRecording sRecording(rec);
-        cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db);
+        cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, recInfo->ChannelName() );
         int statistics;
         movieOrTv = SearchEventOrRec.Scrape(statistics, recInfo->ChannelName() );
       }
@@ -486,7 +486,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         std::string channelIDs = sRecording.ChannelIDs();
         esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
         if (ConnectScrapers() ) { 
-          cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db);
+          cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, recording->Info()->ChannelName() );
           int statistics;
           movieOrTv = SearchEventOrRec.Scrape(statistics, recording->Info()->ChannelName() );
           if (movieOrTv) newRecData = true;
