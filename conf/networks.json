@@ -1,0 +1,445 @@
+[
+  {
+    "TheTVDB company ID" : 77,
+    "TheTVDB company name" : "Das Erste",
+    "TV channel names": [
+      "Das Erste",
+      "ONE",
+      "ARD alpha",
+      "hr-fernsehen",
+      "rbb Berlin",
+      "rbb Brandenburg",
+      "SR Fernsehen",
+      "SR FS",
+      "tagesschau24"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 315,
+    "TheTVDB company name" : "ZDF",
+    "TV channel names": [
+      "ZDF"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 1,
+    "TheTVDB company name" : "3sat",
+    "TV channel names": [
+      "3sat"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 378,
+    "TheTVDB company name" : "Arte",
+    "TV channel names": [
+      "Arte"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 166,
+    "TheTVDB company name" : "Phoenix",
+    "TV channel names": [
+      "Phoenix"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 517,
+    "TheTVDB company name" : "ZDFneo",
+    "TV channel names": [
+      "ZDFneo",
+      "zdf_neo"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 980,
+    "TheTVDB company name" : "ZDFinfo",
+    "TV channel names": [
+      "ZDFinfo"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 128,
+    "TheTVDB company name" : "KIKA",
+    "TV channel names": [
+      "KIKA"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 44,
+    "TheTVDB company name" : "BR",
+    "TV channel names": [
+      "BR",
+      "BR Fernsehen Süd",
+      "BR Fernsehen Nord"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 139,
+    "TheTVDB company name" : "MDR",
+    "TV channel names": [
+      "MDR",
+      "MDR Sachsen",
+      "MDR S-Anhalt",
+      "MDR Thüringen"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 148,
+    "TheTVDB company name" : "Norddeutscher Rundfunk (NDR)",
+    "TV channel names": [
+      "Norddeutscher Rundfunk (NDR)",
+      "NDR FS NDS",
+      "NDR FS MV",
+      "NDR FS HH",
+      "NDR FS SH"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 252,
+    "TheTVDB company name" : "SWR",
+    "TV channel names": [
+      "SWR",
+      "SWR BW",
+      "SWR RP",
+      "SWR Fernsehen RP"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 310,
+    "TheTVDB company name" : "Westdeutscher Rundfunk (WDR)",
+    "TV channel names": [
+      "Westdeutscher Rundfunk (WDR)",
+      "WDR Köln",
+      "WDR Aachen",
+      "WDR Bielefeld",
+      "WDR Bonn",
+      "WDR Dortmund",
+      "WDR Duisburg",
+      "WDR Düsseldorf",
+      "WDR Essen",
+      "WDR Münster",
+      "WDR Siegen",
+      "WDR Wuppertal",
+      "WDR Mediathek (Internet)"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 193,
+    "TheTVDB company name" : "RTL Television",
+    "TV channel names": [
+      "RTL Television",
+      "RTL Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 1006,
+    "TheTVDB company name" : "RTL Zwei",
+    "TV channel names": [
+      "RTL Zwei",
+      "RTLZWEI",
+      "RTLZWEI Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 1237,
+    "TheTVDB company name" : "RTLup",
+    "TV channel names": [
+      "RTLup",
+      "RTLup Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 47831,
+    "TheTVDB company name" : "Super RTL",
+    "TV channel names": [
+      "Super RTL",
+      "TOGGO plus"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 1238,
+    "TheTVDB company name" : "Nitro",
+    "TV channel names": [
+      "Nitro",
+      "NITRO Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 373,
+    "TheTVDB company name" : "SAT.1",
+    "TV channel names": [
+      "SAT.1",
+      "SAT.1 Austria",
+      "SAT.1 Bayern",
+      "SAT.1 NRW",
+      "SAT.1 Gold",
+      "SAT.1 Gold Österreich",
+      "SAT.1 Gold Austria",
+      "SAT.1 emotions"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 374,
+    "TheTVDB company name" : "ProSieben",
+    "TV channel names": [
+      "ProSieben",
+      "ProSieben Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 984,
+    "TheTVDB company name" : "ProSieben Maxx",
+    "TV channel names": [
+      "ProSieben Maxx",
+      "Pro7 MAXX",
+      "Pro7 MAXX Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 963,
+    "TheTVDB company name" : "Kabel eins",
+    "TV channel names": [
+      "Kabel eins",
+      "Kabel Eins Doku",
+      "Kabel 1 Doku Austria",
+      "kabel1 Doku austria",
+      "kabel eins classics"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 727,
+    "TheTVDB company name" : "VOX",
+    "TV channel names": [
+      "VOX",
+      "VOX Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 617,
+    "TheTVDB company name" : "Tele 5",
+    "TV channel names": [
+      "Tele 5"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 785,
+    "TheTVDB company name" : "Disney Channel (DE)",
+    "TV channel names": [
+      "Disney Channel (DE)",
+      "Disney Channel Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 1304,
+    "TheTVDB company name" : "Disney Channel",
+    "TV channel names": [
+      "Disney Channel"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 854,
+    "TheTVDB company name" : "Sixx",
+    "TV channel names": [
+      "Sixx",
+      "sixx Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 822,
+    "TheTVDB company name" : "Pop TV",
+    "TV channel names": [
+      "Pop TV",
+      "Pop"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 468,
+    "TheTVDB company name" : "ATV (AT)",
+    "TV channel names": [
+      "ATV (AT)",
+      "ATV",
+      "ATV2"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 470,
+    "TheTVDB company name" : "Servus TV",
+    "TV channel names": [
+      "Servus TV",
+      "ServusTV Oesterreich",
+      "DF1"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 469,
+    "TheTVDB company name" : "Puls 4",
+    "TV channel names": [
+      "Puls 4",
+      "PULS 4 Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 1300,
+    "TheTVDB company name" : "Comedy Central",
+    "TV channel names": [
+      "Comedy Central",
+      "Nick/Comedy Central Austria"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 1425,
+    "TheTVDB company name" : "Comedy Central (DE)",
+    "TV channel names": [
+      "Comedy Central (DE)"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 898,
+    "TheTVDB company name" : "Comedy Central (UK)",
+    "TV channel names": [
+      "Comedy Central (UK)"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 37,
+    "TheTVDB company name" : "BBC One",
+    "TV channel names": [
+      "BBC One",
+      "BBC One Lon"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 40,
+    "TheTVDB company name" : "BBC Two",
+    "TV channel names": [
+      "BBC Two"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 39,
+    "TheTVDB company name" : "BBC Three",
+    "TV channel names": [
+      "BBC Three"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 34,
+    "TheTVDB company name" : "BBC Four",
+    "TV channel names": [
+      "BBC Four"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 36,
+    "TheTVDB company name" : "BBC News",
+    "TV channel names": [
+      "BBC News"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 60,
+    "TheTVDB company name" : "Channel 4",
+    "TV channel names": [
+      "Channel 4",
+      "Film4",
+      "4seven"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 634,
+    "TheTVDB company name" : "More4",
+    "TV channel names": [
+      "More4"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 89,
+    "TheTVDB company name" : "E4",
+    "TV channel names": [
+      "E4"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 599,
+    "TheTVDB company name" : "Channel 5",
+    "TV channel names": [
+      "Channel 5",
+      "5SELECT",
+      "5 USA",
+      "5USA",
+      "5ACTION"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 1271,
+    "TheTVDB company name" : "5Star",
+    "TV channel names": [
+      "5Star"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 321,
+    "TheTVDB company name" : "ITV1",
+    "TV channel names": [
+      "ITV1"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 324,
+    "TheTVDB company name" : "ITV2",
+    "TV channel names": [
+      "ITV2"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 325,
+    "TheTVDB company name" : "ITV3",
+    "TV channel names": [
+      "ITV3"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 326,
+    "TheTVDB company name" : "ITV4",
+    "TV channel names": [
+      "ITV4"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 909,
+    "TheTVDB company name" : "CITV",
+    "TV channel names": [
+      "CITV"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 682,
+    "TheTVDB company name" : "MTV (UK)",
+    "TV channel names": [
+      "MTV (UK)"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 1312,
+    "TheTVDB company name" : "MTV",
+    "TV channel names": [
+      "MTV"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 53,
+    "TheTVDB company name" : "CBBC",
+    "TV channel names": [
+      "CBBC"
+    ]
+  },
+  {
+    "TheTVDB company ID" : 99,
+    "TheTVDB company name" : "Eurosport",
+    "TV channel names": [
+      "Eurosport",
+      "Eurosport 1",
+      "Eurosport 1 Austria"
+    ]
+  }
+]

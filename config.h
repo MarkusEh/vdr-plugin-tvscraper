@@ -97,15 +97,17 @@ class cTVScraperConfig {
 // list of data that can be changed in the setup menu
 // we make these private, as access from several threads is possible. The methods to access the lists provide proper protection
 // our friend cTVScraperSetup can still access the private members, and needs to take care of proper locking
-        set<tChannelID> m_channels;  // channels to be scraped
-        map<tChannelID,int> m_HD_Channels;  // int = 0->SD, 1->HD, 2->UHD
-        set<string> m_excludedRecordingFolders;
-        set<int> m_TV_Shows;  // TV_Shows where missing episodes will be recorded
-        set<int> m_AdditionalLanguages;
+        std::set<tChannelID> m_channels;  // channels to be scraped
+        std::map<tChannelID,int> m_HD_Channels;  // int = 0->SD, 1->HD, 2->UHD
+        std::set<std::string> m_excludedRecordingFolders;
+        std::set<int> m_TV_Shows;  // TV_Shows where missing episodes will be recorded
+        std::set<int> m_AdditionalLanguages;
         int m_enableAutoTimers;
-        map<tChannelID, int> m_channel_language; // if a channel is not in this map, it has the default language
+        std::map<tChannelID, int> m_channel_language; // if a channel is not in this map, it has the default language
 // End of list of data that can be changed in the setup menu
         bool m_HD_ChannelsModified = false;
+        std::map<std::string,int,std::less<>> m_TheTVDB_company_name_networkID;
+        std::map<std::string,int,std::less<>> m_channelName_networkID;
         friend class cTVScraperConfigLock;
         friend class cTVScraperLastMovieLock;
         friend class cTVScraperSetup;
@@ -170,6 +172,9 @@ class cTVScraperConfig {
         int enableDebug;
 // End of list of data that can be changed in the setup menu
         void Initialize(); // This is called during plugin initialize
+        void readNetworks();
+        int Get_TheTVDB_company_ID_from_TheTVDB_company_name(cSv TheTVDB_company_name);
+        int Get_TheTVDB_company_ID_from_channel_name(cSv channel_name);
         void setDefaultLanguage(); // set the default language from locale
 // set values from VDRs config file
         bool SetupParse(const char *Name, const char *Value);

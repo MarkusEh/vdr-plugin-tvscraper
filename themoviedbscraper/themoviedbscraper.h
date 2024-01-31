@@ -71,7 +71,7 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
       config.timeDownloadActorsMovie.stop();
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, cSv network) {
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, int network_id) {
       m_movieDBScraper->AddMovieResults(resultSet, searchString, compareStrings, shortText, description, isFullSearchString, years, lang);
     }
   private:
@@ -118,7 +118,7 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
         m_movieDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, cSv network) {
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, int network_id) {
       m_movieDBScraper->AddTvResults(resultSet, searchString, compareStrings, lang);
     }
   private:

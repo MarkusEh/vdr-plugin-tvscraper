@@ -269,6 +269,12 @@ inline int StringRemoveTrailingWhitespace(const char *str, int len) {
   return 0;
 }
 
+inline cSv removeSuffix(cSv sv, cSv suffix) {
+  if (sv.length() < suffix.length()) return sv;
+  if (sv.substr(sv.length()-suffix.length()) != suffix) return sv;
+  return sv.substr(0, sv.length()-suffix.length());
+}
+
 inline void StringRemoveSuffix(std::string &str, cSv suffix) {
   if (str.length() < suffix.length()) return;
   if (cSv(str).substr(str.length()-suffix.length()) != suffix) return;

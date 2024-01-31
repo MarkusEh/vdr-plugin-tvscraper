@@ -3,9 +3,9 @@
 class cSearchEventOrRec {
 public:
   cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOverRides *overrides, cMovieDbMovieScraper *movieDbMovieScraper, cMovieDbTvScraper *movieDbTvScraper, cTvDbTvScraper *tvDbTvScraper, cTVScraperDB *db, cSv channelName);
-  cMovieOrTv *Scrape(int &statistics, cSv channelName); // note: if nothing is found, NULL is returned. Otherwise, the images must be downloaded, and the returned cMovieOrTv must be deleted
+  cMovieOrTv *Scrape(int &statistics); // note: if nothing is found, NULL is returned. Otherwise, the images must be downloaded, and the returned cMovieOrTv must be deleted
 private:
-  bool ScrapCheckOverride(sMovieOrTv &movieOrTv, cSv channelName);
+  bool ScrapCheckOverride(sMovieOrTv &movieOrTv);
   scrapType ScrapFind(vector<searchResultTvMovie> &searchResults, cSv &movieName, cSv &episodeSearchString);
   int Store(const sMovieOrTv &movieOrTv);
   void SearchNew(vector<searchResultTvMovie> &resultSet);
@@ -19,7 +19,7 @@ private:
   void initSearchString(std::string &searchString);
   void setFastMatch(searchResultTvMovie &searchResult);
   int GetTvDurationDistance(int tvID);
-  int ScrapFindAndStore(sMovieOrTv &movieOrTv, cSv channelName);
+  int ScrapFindAndStore(sMovieOrTv &movieOrTv);
   bool CheckCache(sMovieOrTv &movieOrTv);
   void ScrapAssign(const sMovieOrTv &movieOrTv);
   void getActorMatches(const char *actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, cContainer &alreadyFound);
@@ -41,6 +41,7 @@ private:
   iExtMovieTvDb *m_movieDbTvScraper;
   iExtMovieTvDb *m_tvDbTvScraper;
   cTVScraperDB *m_db; 
+  std::string m_channelName;
 // "calculated"
   cString m_baseName;
   cSv m_baseNameOrTitle;
@@ -49,7 +50,7 @@ private:
   std::string m_TVshowSearchString;
   cSv m_originalTitle;
   cYears m_years;
-  std::string m_network;
+  int m_network_id;
   eMatchPurpose m_matchPurpose = eMatchPurpose::none;
   int m_season = -1;
   int m_episode = -1;

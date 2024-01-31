@@ -189,6 +189,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
     bool newEventSchedule = false;
     std::string channelName;
     vector<tEventID> eventIDs = GetEventIDs(channelName, channelID, msg_cnt);
+    int network_id = config.Get_TheTVDB_company_ID_from_channel_name(channelName);
     for (const tEventID &eventID: eventIDs) {
       auto begin = std::chrono::high_resolution_clock::now();
       if (!Running()) {
@@ -224,13 +225,13 @@ bool cTVScraperWorker::ScrapEPG(void) {
 					if (!channelActive) continue;
           newEvent = true;
           if (!newEventSchedule) {
-            isyslog("tvscraper: scraping Channel %s %s", channelName.c_str(), cToSvConcat(channelID).c_str() );
+            isyslog("tvscraper: scraping Channel %s %s TheTVDB company ID %d", channelName.c_str(), cToSvConcat(channelID).c_str(), network_id);
             newEventSchedule = true;
           }
           csEventOrRecording sEvent(event);
           cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, channelName);
           auto begin = std::chrono::high_resolution_clock::now();
-          movieOrTv = SearchEventOrRec.Scrape(statistics, channelName);
+          movieOrTv = SearchEventOrRec.Scrape(statistics);
           auto end = std::chrono::high_resolution_clock::now();
           timeNeeded = end - begin;
 
@@ -359,7 +360,7 @@ void cTVScraperWorker::ScrapRecordings(void) {
         csRecording sRecording(rec);
         cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, recInfo->ChannelName() );
         int statistics;
-        movieOrTv = SearchEventOrRec.Scrape(statistics, recInfo->ChannelName() );
+        movieOrTv = SearchEventOrRec.Scrape(statistics);
       }
     }
 // here, the read lock is released, so wait a short time, in case someone needs a write lock
@@ -488,7 +489,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         if (ConnectScrapers() ) { 
           cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, recording->Info()->ChannelName() );
           int statistics;
-          movieOrTv = SearchEventOrRec.Scrape(statistics, recording->Info()->ChannelName() );
+          movieOrTv = SearchEventOrRec.Scrape(statistics);
           if (movieOrTv) newRecData = true;
         }
       }

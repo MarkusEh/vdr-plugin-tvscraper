@@ -110,6 +110,45 @@ bool cTVScraperConfig::loadPlugins()
    closedir(dir);
    return true;
 }
+void cTVScraperConfig::readNetworks() {
+  cJsonDocumentFromFile j_networks(cToSvConcat(cPlugin::ResourceDirectory(PLUGIN_NAME_I18N), "/networks.json"));
+  for (auto &j_network: j_networks.GetArray()) {
+    int TheTVDB_company_ID = getValueInt(j_network, "TheTVDB company ID");
+    const char *TheTVDB_company_name = getValueCharS(j_network, "TheTVDB company name");
+    if (!TheTVDB_company_ID || !TheTVDB_company_name || !*TheTVDB_company_name) {
+      esyslog("tvscraper: ERROR in networks.json, TheTVDB company ID %d and/or TheTVDB company name %s missing", TheTVDB_company_ID, TheTVDB_company_name?TheTVDB_company_name:"missing");
+      continue;
+    }
+    m_TheTVDB_company_name_networkID.insert({std::string(cToSvToLower(TheTVDB_company_name, g_locale)), TheTVDB_company_ID});
+    for (auto &j_channelName: cJsonArrayIterator(j_network, "TV channel names")) {
+      m_channelName_networkID.insert({std::string(cToSvToLower(j_channelName.GetString(), g_locale)), TheTVDB_company_ID});
+    }
+  }
+}
+int cTVScraperConfig::Get_TheTVDB_company_ID_from_TheTVDB_company_name(cSv TheTVDB_company_name) {
+  if (TheTVDB_company_name.empty() ) return 0;
+  auto f = m_TheTVDB_company_name_networkID.find(std::string_view(cToSvToLower(TheTVDB_company_name, g_locale)));
+  if (f == m_TheTVDB_company_name_networkID.end()) return 0;
+  return f->second;
+}
+
+int cTVScraperConfig::Get_TheTVDB_company_ID_from_channel_name(cSv channel_name) {
+  channel_name = removeSuffix(channel_name, "+1");
+  channel_name = removeSuffix(channel_name, " HD");
+  channel_name = removeSuffix(channel_name, " UHD");
+  if (channel_name.empty() ) return 0;
+  cToSvConcat cn_lc;
+  auto f_HD = channel_name.find(" HD ");
+  if (f_HD == std::string_view::npos) {
+    auto f_UHD = channel_name.find(" UHD ");
+    if (f_UHD == std::string_view::npos) cn_lc.appendToLower(channel_name, g_locale);
+    else cn_lc.appendToLower(channel_name.substr(0, f_UHD), g_locale).appendToLower(channel_name.substr(f_UHD+4), g_locale);
+  } else cn_lc.appendToLower(channel_name.substr(0, f_HD), g_locale).appendToLower(channel_name.substr(f_HD+3), g_locale);
+  auto f = m_channelName_networkID.find(std::string_view(cn_lc));
+  if (f == m_channelName_networkID.end()) return 0;
+  return f->second;
+}
+
 void cTVScraperConfig::Initialize() {
 // we don't lock here. This is called during plugin initialize, and there are no other threads at this point in time
 
@@ -122,6 +161,7 @@ void cTVScraperConfig::Initialize() {
 //  m_extEpgs.push_back(std::make_shared<cExtEpgTvsp>());
 // read from /var/lib/vdr/plugins/tvscraper/channelmap.conf
   loadChannelmap(m_channelMap, m_extEpgs);
+  readNetworks();
 }
 void cTVScraperConfig::SetAutoTimersPath(const string &option) {
   m_autoTimersPathSet = true;

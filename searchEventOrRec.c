@@ -7,12 +7,15 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
   m_movieDbTvScraper(movieDbTvScraper),
   m_tvDbTvScraper(tvDbTvScraper),
   m_db(db),
+  m_channelName(channelName),
   m_searchResult_Movie(0, true, "")
   {
     if (m_sEventOrRecording->Recording() && !m_sEventOrRecording->Recording()->Info() ) {
       esyslog("tvscraper: ERROR in cSearchEventOrRec: recording->Info() == NULL, Name = %s", m_sEventOrRecording->Recording()->Name() );
       return;
     }
+    m_network_id = config.Get_TheTVDB_company_ID_from_channel_name(m_channelName);
+/*
     m_network = channelName.empty()?csEventOrRecording::m_unknownChannel:channelName;
     StringRemoveSuffix(m_network, " Köln");
     StringRemoveSuffix(m_network, " HD");
@@ -40,6 +43,7 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
     if (cSv(m_network).compareLowerCase("5ACTION", g_locale) == 0) m_network = "Channel 5";
     if (cSv(m_network).compareLowerCase("5 USA", g_locale) == 0) m_network = "Channel 5";
     if (cSv(m_network).compareLowerCase("5USA", g_locale) == 0) m_network = "Channel 5";
+*/
 // theTVDB networks:
 // Das Erste 77
 // ZDF 315
@@ -88,7 +92,6 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
 // ITV3 325
 // ITV4 326
 // Talking Pictures not found
-
 
 
     initOriginalTitle();
@@ -249,7 +252,7 @@ void cSearchEventOrRec::initSearchString(std::string &searchString) {
   searchString = std::string(cToSvToLower(searchString, g_locale));
 }
 
-cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics, cSv channelName) {
+cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
 // return NULL if no movie/tv was assigned to this event/recording
 // extDbConnected: true, if request to rate limited internet db was required. Otherwise, false
 // statistics:
@@ -259,7 +262,7 @@ cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics, cSv channelName) {
   statistics = 0;
   if (m_overrides->Ignore(m_baseNameOrTitle)) return NULL;
   sMovieOrTv movieOrTv;
-  statistics = ScrapFindAndStore(movieOrTv, channelName);
+  statistics = ScrapFindAndStore(movieOrTv);
   if(movieOrTv.type != scrapMovie && movieOrTv.type != scrapSeries) {
 // nothing found, try again with title
     if (m_baseNameOrTitle != m_sEventOrRecording->Title() ) {
@@ -270,14 +273,14 @@ cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics, cSv channelName) {
       m_episodeName = "";
       initSearchString(m_TVshowSearchString);
       initSearchString(m_movieSearchString);
-      statistics = ScrapFindAndStore(movieOrTv, channelName);
+      statistics = ScrapFindAndStore(movieOrTv);
     }
   }
   ScrapAssign(movieOrTv);
   return cMovieOrTv::getMovieOrTv(m_db, movieOrTv);
 }
 
-bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv, cSv channelName) {
+bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv) {
   movieOrTv.season = 0;
   movieOrTv.year = 0;
   
@@ -309,7 +312,7 @@ bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv, cSv channelNam
   bool is_movie;
   std::string episodeName;
   eMatchPurpose matchPurpose;
-  if (m_overrides->regex(m_sEventOrRecording->Title(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), channelName, matchPurpose, dbid, is_movie, season, episode, episodeName)) {
+  if (m_overrides->regex(m_sEventOrRecording->Title(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_channelName, matchPurpose, dbid, is_movie, season, episode, episodeName)) {
     movieOrTv.id = dbid;
     if (is_movie) {
       movieOrTv.type = scrapMovie;
@@ -355,16 +358,16 @@ bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv, cSv channelNam
   }
   return false;
 }
-int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv, cSv channelName) {
+int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
 // 1: cache hit
 // 11: external db
-  if (ScrapCheckOverride(movieOrTv, channelName) ) {
+  if (ScrapCheckOverride(movieOrTv) ) {
     if (Store(movieOrTv) != -1) return 1;
     esyslog("tvscraper: ERROR movie/tv id %d given in override.conf does not exist", movieOrTv.id);
   }
   if (CheckCache(movieOrTv) ) return 1;
   if (config.enableDebug) {
-    esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", title \"%s\", orig. title \"%.*s\", network %s, start time: %s", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data(), m_network.c_str(), cToSvDateTime("%Y-%m-%d %H:%M:%S", m_sEventOrRecording->StartTime() ).c_str() );
+    esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", title \"%s\", orig. title \"%.*s\", network id %d, start time: %s", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data(), m_network_id, cToSvDateTime("%Y-%m-%d %H:%M:%S", m_sEventOrRecording->StartTime() ).c_str() );
   }
   vector<searchResultTvMovie> searchResults;
   cSv episodeSearchString;
@@ -571,10 +574,10 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
   cSv searchString1 = SecondPart(searchString_f, "'s ", 6);
   size_t size0 = resultSet.size();
   if (!searchString1.empty()) {
-    extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
+    extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
     if (resultSet.size() > size0) return true;
   }
-  extMovieTvDb->addSearchResults(resultSet, searchString_f, true, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
+  extMovieTvDb->addSearchResults(resultSet, searchString_f, true, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
   if (resultSet.size() > size0) {
     cNormedString normedSearchString(searchString);
     for (size_t i = size0; i < resultSet.size(); i++)
@@ -582,12 +585,12 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
   }
   cSv searchString2;
   if (splitString(searchString_f, ": ", 3, searchString1, searchString2) ) {
-    if (searchString1.length() >= 5) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
-    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
+    if (searchString1.length() >= 5) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
+    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
   }
   if (splitString(searchString_f, " - ", 3, searchString1, searchString2)) {
-    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
-    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network);
+    if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
+    if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
   }
   return resultSet.size() > size0;
 }
