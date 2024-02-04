@@ -10,7 +10,7 @@ searchResultTvMovie::searchResultTvMovie(int id, bool movie, const char *year):
   for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) m_matches[i].match = -1.;
   m_matches[0].weight = 0.6; // match text
   m_matches[1].weight = 0.2; // match year
-  m_matches[2].weight = 0.2; // match popularity, vote and vote_count
+  m_matches[2].weight = 0.15;// match popularity, vote and vote_count
   m_matches[3].weight = 0.2; // match duration
   m_matches[4].weight = 0.3; // match actors
   m_matches[5].weight = 0.1; // match director writer
