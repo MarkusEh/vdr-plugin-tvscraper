@@ -12,6 +12,7 @@ public:
 
   virtual tEventID EventID() const { return m_event->EventID(); }
   virtual time_t StartTime() const { return m_event->StartTime(); }
+  virtual time_t RecordingStartTime() const { return 0; }
   virtual time_t EndTime() const { return m_event->EndTime(); }
   virtual int DurationInSec() const { return m_event->Duration(); }
   virtual const cRecording *Recording() const { return NULL; }
@@ -33,6 +34,7 @@ protected:
   virtual int DurationLowSec(void) const { return m_event->Vps()?DurationWithoutMarginSec():RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: for recording only if not cut, and no valid marks
   virtual int DurationHighSec(void) const { return m_event->Duration(); } // note: for recording only if not cut, and no valid marks
   const cEvent *m_event;
+  bool m_debug = false;
 private:
   int RemoveAdvTimeSec(int durationSec) const { return durationSec - durationSec / 3 - 2*60; } // 33% adds, 2 mins extra adds
 };
@@ -43,6 +45,7 @@ public:
   csRecording(const cRecording *recording);
   virtual const cRecording *Recording() const { return m_recording; }
   virtual time_t StartTime() const { return m_event->StartTime()?m_event->StartTime(): m_recording->Start(); } // Timervorlauf, die Aufzeichnung startet 2 min früher
+  virtual time_t RecordingStartTime() const { return m_recording->Start(); }
   virtual int DurationInSec() const { return m_event->Duration()?m_event->Duration():m_recording->FileName() ? m_recording->LengthInSeconds() : 0; }
   virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }

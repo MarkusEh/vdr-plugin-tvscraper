@@ -73,6 +73,8 @@ csRecording::csRecording(const cRecording *recording) :
   if (!recording->Info()->GetEvent() ) {
     esyslog("tvscraper: ERROR: csRecording::csRecording !recording->Info()->GetEvent()");
   }
+//  if (cSv(recording->Info()->Title()) == "A Fish Called Wanda") m_debug = true;
+  if (m_debug) esyslog("tvscraper, debug recording %s", recording->Info()->Title());
 }
 
 bool csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
@@ -303,10 +305,12 @@ bool csRecording::getEpgsearchTimerInfo(bool &vps, int &lengthInSeconds) {
 }
 int csRecording::durationDeviationNoVps() {
 // vps was NOT used.
+  if (m_debug) esyslog("tvscraper: csRecording::durationDeviationNoVps");
   bool vps;
   int lengthInSeconds;
   if (getTvscraperTimerInfo(vps, lengthInSeconds) ) {
     if (vps) esyslog("tvscraper: ERROR, inconsistent VPS data in %s", m_recording->FileName() );
+    if (m_debug) esyslog("tvscraper: csRecording::durationDeviationNoVps, getTvscraperTimerInfo lengthInSeconds = %d, m_recording->LengthInSeconds() = %d", lengthInSeconds, m_recording->LengthInSeconds());
     return std::max(0, lengthInSeconds - m_recording->LengthInSeconds());
   } else if (getEpgsearchTimerInfo(vps, lengthInSeconds) ) {
     if (vps) esyslog("tvscraper: ERROR, inconsistent VPS data (epgsearch) in %s", m_recording->FileName() );
@@ -326,10 +330,12 @@ int csRecording::durationDeviation(int s_runtime) {
 // return deviation between actual reording length, and planned duration (timer / vps)
 // return -1 if no information is available
   if (!m_recording || !m_recording->FileName() || !m_recording->Info() || !m_recording->Info()->GetEvent() ) return -1;
-  if (m_recording->IsEdited() ) return 0;  // we assume, who ever edited the recording checked for completeness
+  if (m_recording->IsEdited() || cSv(m_recording->Info()->Aux()).find("<isEdited>true</isEdited>") != std::string_view::npos) return 0;  // we assume, who ever edited the recording checked for completeness
   int inUse = m_recording->IsInUse();
   if ((inUse != ruNone) && (inUse != ruReplay)) return -1;  // still recording => incomplete, this check is useless
+  if (m_debug) esyslog("tvscraper: csRecording::durationDeviation 1, s_runtime %d", s_runtime);
   if (!m_recording->Info()->GetEvent()->Vps() ) return durationDeviationNoVps();
+  if (m_debug) esyslog("tvscraper: csRecording::durationDeviation event has VPS, s_runtime %d", s_runtime);
 // event has VPS. Was VPS used?
   int vps_used_markad = getVpsLength();
   if (vps_used_markad == -2) return durationDeviationNoVps();

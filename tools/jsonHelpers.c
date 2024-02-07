@@ -32,6 +32,17 @@ bool checkIsObject(const rapidjson::Value &json, const char *tag, const char *co
 }
 
 inline
+rapidjson::Value::MemberIterator getTag(rapidjson::Value &json, const char *tag, const char *context, cJsonDocument *doc) {
+// like Value.FindMember: But: create syslog ERROR entry, if tag was not found && context != NULL
+// context is used only for error message. Should be filename (if possible)
+  rapidjson::Value::MemberIterator res = json.FindMember(tag);
+  if (context && res == json.MemberEnd() ) {
+    esyslog("tvscraper: ERROR, getTag, tag %s not found, context %s, doc %s", tag, context, doc?doc->context():"no doc");
+  }
+  return res;
+}
+
+inline
 rapidjson::Value::ConstMemberIterator getTag(const rapidjson::Value &json, const char *tag, const char *context, cJsonDocument *doc) {
 // like Value.FindMember: But: create syslog ERROR entry, if tag was not found && context != NULL
 // context is used only for error message. Should be filename (if possible)

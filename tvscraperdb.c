@@ -34,7 +34,7 @@ cTVScraperDB::cTVScraperDB(void):
     m_select_event(this, "SELECT movie_tv_id, season_number, episode_number, runtime " \
                     "FROM event WHERE event_id = ? and channel_id = ?"),
     m_select_recordings2(this, "SELECT movie_tv_id, season_number, episode_number, runtime, duration_deviation " \
-                    "FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ?")
+                    "FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND (recording_start_time is NULL OR recording_start_time = ?) AND channel_id = ?")
  {
     m_sqlite3_mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_RECURSIVE);
     if (!m_sqlite3_mutex) esyslog("tvscraper: ERROR in cTVScraperDB::cTVScraperDB, sqlite3_mutex_alloc returned 0");
@@ -471,13 +471,14 @@ for thetvdb:
     sql << "CREATE TABLE IF NOT EXISTS recordings2 (";
     sql << "event_id integer, ";
     sql << "event_start_time integer, ";
+    sql << "recording_start_time integer, ";
     sql << "channel_id nvarchar(255), ";
     sql << "movie_tv_id integer, ";   // movie if season_number == -100. Otherwisse, tv
     sql << "season_number integer, ";
     sql << "episode_number integer, ";
     sql << "runtime integer, ";       // runtime of thetvdb, which does best match to runtime of recording
     sql << "duration_deviation integer);";
-    sql << "CREATE UNIQUE INDEX IF NOT EXISTS idx_recordings2 on recordings2 (event_id, event_start_time, channel_id); ";
+    sql << "DROP INDEX IF EXISTS idx_recordings2;";
 
     sql << "CREATE TABLE IF NOT EXISTS scrap_checker (";
     sql << "last_scrapped integer ";
@@ -510,6 +511,8 @@ for thetvdb:
     AddColumnIfNotExists("event", "runtime", "integer");
     AddColumnIfNotExists("recordings2", "runtime", "integer");
     AddColumnIfNotExists("recordings2", "duration_deviation", "integer");
+    AddColumnIfNotExists("recordings2", "recording_start_time", "integer");
+    exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_recordings2b on recordings2 (event_id, event_start_time, recording_start_time, channel_id);");
 
     AddColumnIfNotExists("tv_s_e", "episode_run_time", "integer");
     if (!TableColumnExists("tv2", "tv_last_changed") ) {
@@ -750,7 +753,7 @@ void cTVScraperDB::DeleteEventOrRec(csEventOrRecording *sEventOrRecording) {
     exec("DELETE FROM event where event_id = ? and channel_id = ?;", eventID, channelIDs);
   } else {
     time_t eventStartTime = sEventOrRecording->StartTime();
-    exec("DELETE FROM recordings2 where event_id = ? and channel_id = ? and event_start_time = ?;", eventID, channelIDs, eventStartTime);
+    exec("DELETE FROM recordings2 where event_id = ? and channel_id = ? and event_start_time = ? AND (recording_start_time is NULL OR recording_start_time = ?);", eventID, channelIDs, eventStartTime, sEventOrRecording->RecordingStartTime() );
   }
 }
 
@@ -855,13 +858,13 @@ int cTVScraperDB::InsertRecording2(csEventOrRecording *sEventOrRecording, int mo
   tEventID eventID = sEventOrRecording->EventID();
   time_t eventStartTime = sEventOrRecording->StartTime();
   std::string channelIDs = sEventOrRecording->ChannelIDs();
-  const char *sql= "SELECT COUNT(*) FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ? AND movie_tv_id = ? AND season_number = ? AND episode_number = ?";
-  if (queryInt(sql, eventID, eventStartTime, channelIDs, movie_tv_id, season_number, episode_number) > 0) return 1;
+  const char *sql= "SELECT COUNT(*) FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND (recording_start_time is NULL OR recording_start_time = ?) AND channel_id = ? AND movie_tv_id = ? AND season_number = ? AND episode_number = ?";
+  if (queryInt(sql, eventID, eventStartTime, sEventOrRecording->RecordingStartTime(), channelIDs, movie_tv_id, season_number, episode_number) > 0) return 1;
 
 // movieTv was not yet assigned to the recording, assign it now
   int runtime = GetRuntime(sEventOrRecording, movie_tv_id, season_number, episode_number);
-  exec("INSERT or REPLACE INTO recordings2 (event_id, event_start_time, channel_id, runtime, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    eventID, eventStartTime, channelIDs, runtime, movie_tv_id, season_number, episode_number);
+  exec("INSERT or REPLACE INTO recordings2 (event_id, event_start_time, recording_start_time, channel_id, runtime, movie_tv_id, season_number, episode_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    eventID, eventStartTime, sEventOrRecording->RecordingStartTime(), channelIDs, runtime, movie_tv_id, season_number, episode_number);
 
   WriteRecordingInfo(sEventOrRecording->Recording(), movie_tv_id, season_number, episode_number);
 // copy images to recording folder will be done later, with cMovieOrTv->copyImagesToRecordingFolder(
@@ -986,7 +989,7 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
   csRecording sRecording(recording);
 
 //  config.timeSelectFromRecordings.start();
-  cUseStmt pre_stmt(m_select_recordings2, sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
+  cUseStmt pre_stmt(m_select_recordings2, sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
 /*
   config.timeSelectFromRecordings.stop();
   if ( config.timeSelectFromRecordings.getNumCalls() >= 1964) {
@@ -994,21 +997,20 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
     config.timeSelectFromRecordings.reset();
   }
 */
-  if (!pre_stmt.stmt()->readRow() ) return false;
-  if (runtime) *runtime = pre_stmt.stmt()->getInt(3);
-  if (duration_deviation) {
-    if (recording->IsEdited() ) *duration_deviation = 0;  // assume who ever cut the recording, checked for completness
-    else {
-      if (cSv(recording->Info()->Aux()).find("<isEdited>true</isEdited>") != std::string_view::npos) *duration_deviation = 0;
-      else *duration_deviation = pre_stmt.stmt()->getInt(4, -2, -2);  // -2 if there is no entry in db
+  for (cSql &stmt: *pre_stmt.stmt() ) {
+    if (runtime) *runtime = stmt.getInt(3);
+    if (duration_deviation) {
+      if (recording->IsEdited() || cSv(recording->Info()->Aux()).find("<isEdited>true</isEdited>") != std::string_view::npos) *duration_deviation = 0;  // assume who ever cut the recording, checked for completness
+      else *duration_deviation = stmt.getInt(4, -2, -2);  // -2 if there is no entry in db
     }
+    return stmt.readRow(movie_tv_id, season_number, episode_number);
   }
-  return pre_stmt.stmt()->readRow(movie_tv_id, season_number, episode_number);
+  return false;
 }
 bool cTVScraperDB::SetDurationDeviation(const cRecording *recording, int duration_deviation) const {
   if (!recording || duration_deviation < 0 || config.GetReadOnlyClient() ) return false;
   csRecording sRecording(recording);
-  exec("UPDATE recordings2 SET duration_deviation = ? WHERE event_id = ? and event_start_time = ? and channel_id = ?", duration_deviation, sRecording.EventID(), sRecording.StartTime(), sRecording.ChannelIDs() );
+  exec("UPDATE recordings2 SET duration_deviation = ? WHERE event_id = ? and event_start_time = ? AND (recording_start_time is NULL OR recording_start_time = ?) and channel_id = ?", duration_deviation, sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
   return true;
 }
 

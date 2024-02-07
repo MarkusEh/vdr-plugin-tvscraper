@@ -399,21 +399,31 @@ bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
 }
 
 void writeTimerInfo(const cTimer *timer, const char *pathName) {
-  CONCATENATE(filename, pathName, "/tvscraper.json");
+  cToSvConcat filename(pathName, "/tvscraper.json");
 
   cJsonDocumentFromFile document(filename);
   if (document.HasParseError() ) return;
-  if (document.HasMember("timer") ) return;  // timer information already available
+  rapidjson::Value::MemberIterator ji_timer = document.FindMember("timer");
+  if (ji_timer != document.MemberEnd() ) {
+    rapidjson::Value::MemberIterator ji_stop_time = ji_timer->value.FindMember("stop_time");
+    if (ji_stop_time == ji_timer->value.MemberEnd() ) {
+      esyslog("tvscraper, ERROR in worker.c, writeTimerInfo: \"stop_time\" missing in tvscraper.json");
+      ji_timer->value.AddMember("stop_time", rapidjson::Value().SetInt64(timer->StopTime()), document.GetAllocator());
+    } else {
+      if (ji_stop_time->value.GetInt64() == timer->StopTime() ) return;
+      ji_stop_time->value.SetInt64(timer->StopTime());
+//      if (ji_stop_time != ji_timer->value.MemberEnd() ) ji_timer->value.RemoveMember(ji_stop_time);
+    }
+  } else {
+    rapidjson::Value timer_j;
+    timer_j.SetObject();
 
-  rapidjson::Value timer_j;
-  timer_j.SetObject();
+    timer_j.AddMember("vps", rapidjson::Value().SetBool(timer->HasFlags(tfVps)), document.GetAllocator());
+    timer_j.AddMember("start_time", rapidjson::Value().SetInt64(timer->StartTime()), document.GetAllocator());
+    timer_j.AddMember("stop_time", rapidjson::Value().SetInt64(timer->StopTime()), document.GetAllocator());
 
-  timer_j.AddMember("vps", rapidjson::Value().SetBool(timer->HasFlags(tfVps)), document.GetAllocator());
-  timer_j.AddMember("start_time", rapidjson::Value().SetInt(timer->StartTime()), document.GetAllocator());
-  timer_j.AddMember("stop_time", rapidjson::Value().SetInt(timer->StopTime()), document.GetAllocator());
-
-  document.AddMember("timer", timer_j, document.GetAllocator());
-
+    document.AddMember("timer", timer_j, document.GetAllocator());
+  }
   jsonWriteFile(document, filename);
 }
 
@@ -440,10 +450,9 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
         continue;
       }
-      CONCATENATE(filename, rc->FileName(), "/tvscraper.json");
-      if (stat(filename, &buffer) != 0) {
+      writeTimerInfo(timer, rc->FileName() );
+      if (stat(cToSvConcat(rc->FileName(), "/tvscraper.json").c_str(), &buffer) != 0) {
         recordingFileNames.push_back(rc->FileName() );
-        writeTimerInfo(timer, rc->FileName() );
       }
     }
   } // timer lock is released
