@@ -450,10 +450,10 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
         continue;
       }
-      writeTimerInfo(timer, rc->FileName() );
       if (stat(cToSvConcat(rc->FileName(), "/tvscraper.json").c_str(), &buffer) != 0) {
         recordingFileNames.push_back(rc->FileName() );
       }
+      writeTimerInfo(timer, rc->FileName() );
     }
   } // timer lock is released
   for (const string &filename: recordingFileNames) {
