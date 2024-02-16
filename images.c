@@ -130,7 +130,8 @@ inline std::string getExistingEpgImagePath(tEventID eventID, time_t eventStartTi
   return concatenate(config.GetBaseDirEpg(), eventStartTime, "/", channelID, "/", eventID, ".jpg");
 }
 
-std::string getEpgImagePath(const cEvent *event, bool createPaths) {
+template<class T>
+std::string getEpgImagePath(const T *event, bool createPaths) {
   if (!event) return "";
   if (!createPaths) return getExistingEpgImagePath(event->EventID(), event->StartTime(), event->ChannelID() );
   std::string path;
@@ -142,6 +143,9 @@ std::string getEpgImagePath(const cEvent *event, bool createPaths) {
   stringAppend(path, "/", event->EventID(), ".jpg");
   return path;
 }
+template std::string getEpgImagePath<cEvent>(const cEvent *event, bool createPaths);
+template std::string getEpgImagePath<cStaticEvent>(const cStaticEvent *event, bool createPaths);
+
 extern "C" std::string getCreateEpgImagePath(const cEvent *event) {
   return getEpgImagePath(event, true);
 }

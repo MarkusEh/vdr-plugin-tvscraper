@@ -3,6 +3,8 @@
 #include "../../rapidjson/document.h"
 #include "../../tools/stringhelpers.h"
 #include "../../tools/jsonHelpers.c"
+#include "../../config.h"
+#include "../../sEvent.h"
 
 class cTvspEvent
 {
@@ -18,11 +20,11 @@ class cTvspEpgOneDay
 {
   public:
     cTvspEpgOneDay(cSv extChannelId, time_t startTime);
-    bool enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgImages); // return true if the event is in "my" time frame (one day )
+    bool enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages); // return true if the event is in "my" time frame (one day )
   private:
     void initJson(cSv extChannelId, time_t startTime);
-    int eventMatch(std::vector<cTvspEvent>::const_iterator event_it, const cEvent *event) const;
-    bool findTvspEvent(std::vector<cTvspEvent>::const_iterator &event_it, const cEvent *event) const;
+    int eventMatch(std::vector<cTvspEvent>::const_iterator event_it, const cStaticEvent *event) const;
+    bool findTvspEvent(std::vector<cTvspEvent>::const_iterator &event_it, const cStaticEvent *event) const;
 
     time_t m_start;
     time_t m_end;
@@ -37,8 +39,9 @@ class cTvspEpg: public iExtEpgForChannel
     cTvspEpg(cSv extChannelId):
       iExtEpgForChannel(),
       m_extChannelId(extChannelId) {};
-    virtual void enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgImages) {
+    virtual void enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages) {
       if (event->StartTime() > time(0) + 7*24*60*60) return; // only one week supported
+      if (event->StartTime() < time(0) - 60*60) return; // no events in the past
       for (auto &tvspEpgOneDay: m_tvspEpgOneDayS) if (tvspEpgOneDay.enhanceEvent(event, extEpgImages)) return;
       cTvspEpgOneDay tvspEpgOneDay(m_extChannelId, event->StartTime());
       tvspEpgOneDay.enhanceEvent(event, extEpgImages);

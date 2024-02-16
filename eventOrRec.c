@@ -19,7 +19,7 @@ int csEventOrRecording::DurationDistance(int DurationInMin) {
 }
 bool csEventOrRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
 // return true, if data is available
-  if (!m_event->Duration() ) return false;
+  if (!EventDuration() ) return false;
   durationInMinLow  = DurationLowSec() / 60 - 1;
   durationInMinHigh = DurationHighSec() / 60 + (10 * DurationHighSec())  / 60 / 60;  // add 10 mins for 60 min duration, more for longer durations. This is because often a cut version of the movie is broadcasted
 //  if (Recording() && Title() && strcmp("The Expendables 3", Title() ) == 0) 
@@ -80,7 +80,7 @@ csRecording::csRecording(const cRecording *recording) :
 bool csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
 // return true, if data is available
   if (!m_recording->FileName() ) return false;
-  if (!m_event->Duration() && !m_recording->LengthInSeconds() ) return false;
+  if (!EventDuration() && !m_recording->LengthInSeconds() ) return false;
 
   if (m_recording->IsEdited() || DurationInSecMarks() != -1) {
 // length of recording without adds
@@ -126,10 +126,10 @@ int csRecording::DurationInSecMarks_int(void) {
 
   if (numSequences == 1) {
 // no adds found, just recording margin at start / stop
-    if (m_event->Duration() ) {
+    if (EventDuration() ) {
 // event duration is available, and should be equal to duration of cut recording
-      if (abs(m_event->Duration() - durationInSeconds) < 4*60) m_durationInSecMarks = durationInSeconds;
-        else esyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 4 mins difference to event length. Event  length %i length of cut out of recording %i filename \"%s\"", m_event->Duration(), durationInSeconds, m_recording->FileName() );
+      if (abs(EventDuration() - durationInSeconds) < 4*60) m_durationInSecMarks = durationInSeconds;
+        else esyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 4 mins difference to event length. Event  length %i length of cut out of recording %i filename \"%s\"", EventDuration(), durationInSeconds, m_recording->FileName() );
     } else {
 // event duration is not available, cut recording sould be recording - timer margin at start / stop
       if (DurationWithoutMarginSec() < durationInSeconds) m_durationInSecMarks = durationInSeconds;

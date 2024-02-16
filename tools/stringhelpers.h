@@ -729,12 +729,13 @@ class cToSvFile: public cToSv {
       }
       size_t num_read = 0;
       ssize_t num_read1 = 1;
-      for (; num_read1 > 0 && num_read < length; num_read += num_read1) {
+      for (int num_errors = 0; num_errors < 3 && num_read < length; num_read += num_read1) {
         num_read1 = read(fd, m_s + num_read, length - num_read);
+        if (num_read1 == 0) ++num_errors; // should not happen, because fstat reported file size >= length
         if (num_read1 == -1) {
-          esyslog("cToSvFile::load, ERROR: read failed, errno %d, filename %s\n", errno, filename);
-          m_s[0] = 0;
-          return;
+          esyslog("cToSvFile::load, ERROR: read failed, errno %d, filename %s, file size = %zu, num_read = %zu\n", errno, filename, (size_t)buffer.st_size, num_read);
+          ++num_errors;
+          num_read1 = 0;
         }
       }
       m_result = cSv(m_s, num_read);

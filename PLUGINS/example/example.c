@@ -61,7 +61,7 @@ void cTvspEpgOneDay::initJson(cSv extChannelId, time_t startTime) {
   if (m_events->size() != 0) std::sort(m_events->begin(), m_events->end());
 }
 
-int cTvspEpgOneDay::eventMatch(std::vector<cTvspEvent>::const_iterator event_it, const cEvent *event) const {
+int cTvspEpgOneDay::eventMatch(std::vector<cTvspEvent>::const_iterator event_it, const cStaticEvent *event) const {
   int deviationStart = std::abs(event_it->m_startTime - event->StartTime() );
   int deviationEnd   = std::abs(event_it->m_endTime - event->EndTime() );
   int deviation = deviationStart + deviationEnd;
@@ -75,7 +75,7 @@ int cTvspEpgOneDay::eventMatch(std::vector<cTvspEvent>::const_iterator event_it,
   if (sd > 600) return c_never_accepted_deviation;
   return c_always_accepted_deviation + (deviation - c_always_accepted_deviation) * sd / 600;
 }
-bool cTvspEpgOneDay::findTvspEvent(std::vector<cTvspEvent>::const_iterator &event_it, const cEvent *event) const {
+bool cTvspEpgOneDay::findTvspEvent(std::vector<cTvspEvent>::const_iterator &event_it, const cStaticEvent *event) const {
 // return true if event was found
   if (m_events->size() == 0) return false;
 //  esyslog("tvscraper: cTvspEpgOneDay::findTvspEvent, event->StartTime() %d", (int)event->StartTime() );
@@ -95,7 +95,7 @@ bool cTvspEpgOneDay::findTvspEvent(std::vector<cTvspEvent>::const_iterator &even
   return dl < c_never_accepted_deviation;
 }
 
-bool cTvspEpgOneDay::enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgImages) {
+bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages) {
 // return true if the event is in "my" time frame (one day )
   if (event->StartTime() <  m_start) return false;
   if (event->StartTime() >= m_end) return false;

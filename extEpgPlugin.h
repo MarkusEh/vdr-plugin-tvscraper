@@ -4,6 +4,7 @@
 
 #include "services.h"
 #include <vdr/epg.h>
+#include "sEvent.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -17,7 +18,7 @@ class iExtEpgForChannel
   public:
     iExtEpgForChannel() {}
     virtual ~iExtEpgForChannel() {}
-    virtual void enhanceEvent(cEvent *event, std::vector<cTvMedia> &extEpgImages) = 0;
+    virtual void enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages) = 0;
 };
 class iExtEpg
 {

@@ -93,9 +93,9 @@ bool cTVScraperWorker::ConnectScrapers(void) {
   return true;
 }
 
-vector<tEventID> GetEventIDs(std::string &channelName, const tChannelID &channelid, int &msg_cnt) {
-// Return a list of event IDs (in vector<tEventID> eventIDs)
-vector<tEventID> eventIDs;
+bool GetChannelName(std::string &channelName, const tChannelID &channelid, int &msg_cnt) {
+// return false if channel does not exist in Channels
+// Get Channel Name
 #if APIVERSNUM < 20301
   const cChannel *channel = Channels.GetByChannelID(channelid);
 #else
@@ -106,21 +106,27 @@ vector<tEventID> eventIDs;
     msg_cnt++;
     if (msg_cnt < 5) dsyslog("tvscraper: Channel %s is not availible, skipping. Most likely this channel does not exist. To get rid of this message, goto tvscraper settings and edit the channel list.", (const char *)channelid.ToString());
     if (msg_cnt == 5) dsyslog("tvscraper: Skipping further messages: Channel %s is not availible, skipping. Most likely this channel does not exist. To get rid of this message, goto tvscraper settings and edit the channel list.", (const char *)channelid.ToString());
-    return eventIDs;
+    return false;
   }
   channelName = channel->Name();
-// now get and lock the schedule
+  return true;
+}
+vector<tEventID> GetEventIDs(const tChannelID &channelid, const std::string &channelName) {
+// Return a list of event IDs (in vector<tEventID> eventIDs)
+vector<tEventID> eventIDs;
+  time_t now = time(0);
+// get and lock the schedule
 #if APIVERSNUM < 20301
   cSchedulesLock schedulesLock;
   const cSchedules *Schedules = cSchedules::Schedules(schedulesLock);
 #else
   LOCK_SCHEDULES_READ;
 #endif
-  const cSchedule *Schedule = Schedules->GetSchedule(channel);
+  const cSchedule *Schedule = Schedules->GetSchedule(channelid);
   if (Schedule) {
     for (const cEvent *event = Schedule->Events()->First(); event; event = Schedule->Events()->Next(event))
-      if (event->EndTime() >= time(0) ) eventIDs.push_back(event->EventID());
-  } else dsyslog("tvscraper: Schedule for channel %s %s is not availible, skipping", channel->Name(), (const char *)channelid.ToString() );
+      if (event->EndTime() >= now) eventIDs.push_back(event->EventID());
+  } else dsyslog("tvscraper: Schedule for channel %s %s is not availible, skipping", channelName.c_str(), (const char *)channelid.ToString() );
   return eventIDs;
 }
 
@@ -173,10 +179,13 @@ bool cTVScraperWorker::ScrapEPG(void) {
   int msg_cnt = 0;
   int i_channel_num = 0;
   for (const tChannelID &channelID: config.GetScrapeAndEpgChannels() ) { // GetScrapeAndEpgChannels creates a copy, thread save
-    if (i_channel_num++ > 1000) {
+    if (++i_channel_num > 1000) {
       esyslog("tvscraper: ERROR: don't scrape more than 1000 channels");
       break;
     }
+    std::string channelName;
+    if (!GetChannelName(channelName, channelID, msg_cnt)) continue;  // channel not found in Channels
+
     std::shared_ptr<iExtEpgForChannel> extEpg = config.GetExtEpgIf(channelID);
     bool channelActive = config.ChannelActive(channelID);
 
@@ -187,8 +196,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
     }
     map<tChannelID, set<tEventID>*>::iterator lastEventsCurrentChannelIT = lastEvents.find(channelID);
     bool newEventSchedule = false;
-    std::string channelName;
-    vector<tEventID> eventIDs = GetEventIDs(channelName, channelID, msg_cnt);
+    vector<tEventID> eventIDs = GetEventIDs(channelID, channelName);
     int network_id = config.Get_TheTVDB_company_ID_from_channel_name(channelName);
     for (const tEventID &eventID: eventIDs) {
       auto begin = std::chrono::high_resolution_clock::now();
@@ -208,34 +216,27 @@ bool cTVScraperWorker::ScrapEPG(void) {
         cMovieOrTv *movieOrTv = NULL;
         int statistics;
         std::chrono::duration<double> timeNeeded;
-        { // start locks
-#if VDRVERSNUM >= 20301
-          LOCK_SCHEDULES_READ;
-#endif
-          cEvent *event = getEvent(eventID, channelID);
-          timeNeededOthers += std::chrono::high_resolution_clock::now() - begin;
-          if (!event) continue;
-					if (extEpg) {
-            auto begin = std::chrono::high_resolution_clock::now();
-            extEpg->enhanceEvent(event, extEpgImages);
-            if (!extEpgImages.empty() ) extEpgImage = getEpgImagePath(event, true);
-            auto end = std::chrono::high_resolution_clock::now();
-            timeNeededExt += end - begin;
-          }
-					if (!channelActive) continue;
-          newEvent = true;
-          if (!newEventSchedule) {
-            isyslog("tvscraper: scraping Channel %s %s TheTVDB company ID %d", channelName.c_str(), cToSvConcat(channelID).c_str(), network_id);
-            newEventSchedule = true;
-          }
-          csEventOrRecording sEvent(event);
-          cSearchEventOrRec SearchEventOrRec(&sEvent, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, channelName);
+        const cEvent *event = getEvent(eventID, channelID);
+        if (!event || !event->StartTime() || !event->EventID() ) continue;
+        cStaticEvent sEvent(event); // event will be valid for 5 seconds. We might need longer, so we copy relevant event information to sEvent (where we control the lifetime, and no VDR locks are required
+        timeNeededOthers += std::chrono::high_resolution_clock::now() - begin;
+        if (extEpg) {
           auto begin = std::chrono::high_resolution_clock::now();
-          movieOrTv = SearchEventOrRec.Scrape(statistics);
-          auto end = std::chrono::high_resolution_clock::now();
-          timeNeeded = end - begin;
-
-        } // end of locks
+          extEpg->enhanceEvent(&sEvent, extEpgImages);
+          if (!extEpgImages.empty() ) extEpgImage = getEpgImagePath(&sEvent, true);
+          timeNeededExt += std::chrono::high_resolution_clock::now() - begin;
+        }
+        if (!channelActive) continue;
+        newEvent = true;
+        if (!newEventSchedule) {
+          isyslog("tvscraper: scraping Channel %s %s TheTVDB company ID %d", channelName.c_str(), cToSvConcat(channelID).c_str(), network_id);
+          newEventSchedule = true;
+        }
+        csStaticEvent sEoR(&sEvent);
+        cSearchEventOrRec SearchEventOrRec(&sEoR, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, channelName);
+        auto begin_scrape = std::chrono::high_resolution_clock::now();
+        movieOrTv = SearchEventOrRec.Scrape(statistics);
+        timeNeeded = std::chrono::high_resolution_clock::now() - begin_scrape;
         if (timeNeeded > std::max(std::max(time0_max, time1_max), time11_max)) movieOrTvIdMaxTime = movieOrTv?movieOrTv->dbID():0;
         switch (statistics) {
           case 0:
@@ -547,20 +548,6 @@ bool cTVScraperWorker::StartScrapping(bool &fullScan) {
   }
   return true;
 }
-
-/*
-void release(cSql **stmt) {
-  if (!*stmt) return;
-  (*stmt)->reset();
-}
-void release_db_locks() {
-  if (!config.GetReadOnlyClient() ) return;
-  cLockDB lock_;
-  release(&config.selectTvOverview);
-  release(&config.selectTvEpisode);
-  release(&config.selectTvEpisodeLanguage);
-}
-*/
 
 void cTVScraperWorker::Action(void) {
   if (!startLoop) return;
