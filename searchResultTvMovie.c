@@ -7,7 +7,7 @@ searchResultTvMovie::searchResultTvMovie(int id, bool movie, const char *year):
   m_year = cYears::yearToInt(year);
 //  if (id ==	1161242) esyslog("tvscraper: movie 1161242 Vika, year s %s, year i %d", year?year:"no year", m_year);
 // defaults for m_matches
-  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) m_matches[i].match = -1.;
+  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) m_matches[i].match = -2.;
   m_matches[0].weight = 0.6; // match text
   m_matches[1].weight = 0.2; // match year
   m_matches[2].weight = 0.15;// match popularity, vote and vote_count
@@ -131,7 +131,7 @@ float searchResultTvMovie::getMatch() const {
 // higher values are better match
   float sumWeight = 0.;
   float sumMatch  = 0.;
-  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) if (m_matches[i].match >= 0) {
+  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) if (m_matches[i].match >= -1.1) {
     sumWeight += m_matches[i].weight;
     sumMatch  += m_matches[i].match  * m_matches[i].weight;
   }
