@@ -39,7 +39,7 @@ searchResultTvMovie::~searchResultTvMovie() {
 
 void searchResultTvMovie::log(cSv title) const {
   esyslog("tvscraper: searchResultTvMovie::log, id: %i, title: \"%.*s\"", m_id, static_cast<int>(title.length()), title.data() );
-  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) if (m_matches[i].match >= 0) {
+  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) if (m_matches[i].match >= -1.1) {
     const char *d;
     switch (i) {
       case 0: d = "Text"; break;

@@ -16,7 +16,8 @@ private:
   bool isVdrDate(cSv baseName);
   bool isVdrDate2(cSv baseName);
   void initSearchString3dots(std::string &searchString);
-  void initSearchString(std::string &searchString);
+  void initSearchString(std::string &searchString, bool removeLastPartWithP = true);
+  bool splitNameEpisodeName(char delim, cSv &foundName, cSv &episodeSearchString, bool errorIfNotFound = false);
   void setFastMatch(searchResultTvMovie &searchResult);
   int GetTvDurationDistance(int tvID);
   int ScrapFindAndStore(sMovieOrTv &movieOrTv);
@@ -47,6 +48,7 @@ private:
   cSv m_baseNameOrTitle;
   std::string m_episodeName;
   std::string m_movieSearchString;
+  std::string m_movieSearchString_with_p;
   std::string m_TVshowSearchString;
   cSv m_originalTitle;
   cYears m_years;

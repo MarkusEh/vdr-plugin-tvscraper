@@ -44,7 +44,7 @@ public:
   void setBaseNameEquShortText() { m_matches[7].match = 1.0; }
   void setPositionInExternalResult(int positionInExternalResult) { m_matches[8].match = 1.0 - normMatch(positionInExternalResult); }
   void setTranslationAvailable(bool translationAvailable) { m_matches[9].match = translationAvailable?1.0:0.0; }
-  void setNetworkMatch(bool networkMatch) { m_matches[10].match = networkMatch?1.0:-1.; }
+  void setNetworkMatch(bool networkMatch) { m_matches[10].match = networkMatch?1.0:-2.; }
 
   void setDelim(char delim) { m_delim = delim; }
   int delim(void) const { return m_delim; }
@@ -58,7 +58,7 @@ private:
   int m_id;
   bool m_movie;
   int m_year;
-  int m_episode_distance;
+  int m_episode_distance = 1000;
   sMatchWeight m_matches[11];
   char m_delim = 0;
 };

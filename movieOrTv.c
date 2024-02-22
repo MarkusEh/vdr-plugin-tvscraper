@@ -279,7 +279,9 @@ int cTv::searchEpisode(cSv tvSearchEpisodeString_i, const cYears &years, const c
   debug = debug || (tvSearchEpisodeString_i.length() > 0 && tvSearchEpisodeString_i[0] == 0);
   debug = debug || (tvSearchEpisodeString_i.length() > 1 && tvSearchEpisodeString_i[1] == 0);
   debug = dbID() == -248837;
+  debug = dbID() == -420669;
   debug = false;
+  if (dbID() == -420669 && tvSearchEpisodeString_i == "Rudolph") tvSearchEpisodeString_i = "Rudolf";
   if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string_i length %zu, \"%.*s\", dbid %i", tvSearchEpisodeString_i.length(), std::min(100, static_cast<int>(tvSearchEpisodeString_i.length())), tvSearchEpisodeString_i.data(), dbID());
   cNormedString tvSearchEpisodeString(tvSearchEpisodeString_i);
   if (debug) esyslog("tvscraper:DEBUG cTv::searchEpisode search string \"%s\", dbid %i", tvSearchEpisodeString.m_normedString.c_str(), dbID());

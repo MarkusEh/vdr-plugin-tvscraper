@@ -396,7 +396,7 @@ class cNormedStringsDelim;
 class cCompareStrings {
   public:
     cCompareStrings(cSv searchString, cSv shortText = cSv() );
-    void add(cSv searchString, char delim);
+    void add2(cSv TVshowName, char delim);
     class iterator {
       private:
         std::vector<cNormedStringsDelim>::const_iterator m_it;
@@ -462,9 +462,7 @@ cCompareStrings::cCompareStrings(cSv searchString, cSv shortText)
   if (!shortText.empty() )
     m_normedStringsDelim.emplace_back(searchString, 's', shortText);
 }
-void cCompareStrings::add(cSv searchString, char delim) {
-  cSv TVshowName, episodeSearchString;
-  if (!splitString(searchString, delim, 4, TVshowName, episodeSearchString) ) return;
+void cCompareStrings::add2(cSv TVshowName, char delim) {
   m_normedStringsDelim.emplace_back(TVshowName, delim);
 }
 int cCompareStrings::minDistance(char delim, const cNormedString &compareString, int curDistance) const {

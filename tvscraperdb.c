@@ -1172,7 +1172,7 @@ void cTVScraperDB::InsertCache(cSv movieNameCache, csEventOrRecording *sEventOrR
       movieOrTv.season, movieOrTv.episode, time(0) );
 }
 void cTVScraperDB::DeleteOutdatedCache() const {
-    time_t outdated = time(0) - 2*7*24*60*60;  // entries older than two weeks
+    time_t outdated = time(0) - 7*24*60*60;  // entries older than one week
     exec("delete from cache where cache_entry_created_at < ?", outdated);
 }
 int cTVScraperDB::DeleteFromCache(const char *movieNameCache) { // return number of deleted entries
