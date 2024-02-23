@@ -403,7 +403,10 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
           cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeSearchString, m_baseNameOrTitle, m_years, lang, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
         }
 
-        m_db->InsertCache(m_TVshowSearchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
+        if (m_movieSearchString == m_TVshowSearchString)
+          m_db->InsertCache(m_movieSearchString_with_p, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
+        else
+          m_db->InsertCache(m_TVshowSearchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
       } else {
 // pattern in title: TV show name - episode name
         cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeSearchString, "", m_years, lang, nullptr, nullptr);
