@@ -146,12 +146,12 @@ bool cTVScraperWorker::ScrapEPG(void) {
 // note: as a result, elso information from external EPG providers is only collected for these channels
 
 // to provide statistics:
-  std::chrono::duration<double> timeNeededExt;
-  std::chrono::duration<double> timeNeededDlMM;
-  std::chrono::duration<double> timeNeededDlMS;
-  std::chrono::duration<double> timeNeededDlTS;
-  std::chrono::duration<double> timeNeededOthers;
-  std::chrono::duration<double> timeNeededDl;
+  std::chrono::duration<double> timeNeededExt(0);
+  std::chrono::duration<double> timeNeededDlMM(0);
+  std::chrono::duration<double> timeNeededDlMS(0);
+  std::chrono::duration<double> timeNeededDlTS(0);
+  std::chrono::duration<double> timeNeededOthers(0);
+  std::chrono::duration<double> timeNeededDl(0);
   int num0  = 0;
   int num1  = 0;
   int num11 = 0;

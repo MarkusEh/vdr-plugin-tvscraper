@@ -359,7 +359,7 @@ std::string getAux(const cTVScraperDB &db, const cScraperRec *recording, const c
     result.append("</causedByIDs>");
   }
   if (reason) {
-    if (strcmp(reason, "collection") == 0) {
+    if (recording && strcmp(reason, "collection") == 0) {
       cSql stmt(&db, "select movie_collection_name from movies3 where movie_id = ?", recording->movieTvId() );
       if (stmt.readRow() ) {
         const char *nameCollection = stmt.getCharS(0);
@@ -370,7 +370,7 @@ std::string getAux(const cTVScraperDB &db, const cScraperRec *recording, const c
         }
       }
     }
-    if (strcmp(reason, "TV show, missing episode") == 0) {
+    if (recording && strcmp(reason, "TV show, missing episode") == 0) {
       cSql stmt(&db, "select tv_name from tv2 where tv_id = ?", recording->movieTvId() );
       if (stmt.readRow() ) {
         const char *nameSeries = stmt.getCharS(0);

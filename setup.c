@@ -58,7 +58,7 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
   m_allRecordingFolders = getAllRecordingFolders(m_recordings_width);
   for (const std::string &recordingFolder: m_allRecordingFolders)
     m_selectedRecordingFolders.push_back(config.recordingFolderSelected(recordingFolder)?1:0);
-  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after selectedRecordingFolders");
+//  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after selectedRecordingFolders");
 // languages  =============================================
   if (m_all_languages.size() == 0) {
     esyslog("tvscraper: ERROR cTVScraperSetup::cTVScraperSetup m_all_languages.size() == 0");
@@ -76,7 +76,7 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
 // menu for default language: just one entry, cannot be changed
   langDefault.addLanguage(defaultLanguage);
   langDefault.addLine(defaultLanguage);
-  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after langDefault / langAdditional");
+//  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after langDefault / langAdditional");
 // additional languages
   int defaultAdditionalLanguage = 0;
   for (const auto &l: m_all_languages)
@@ -96,7 +96,7 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
     for (; i < (int)m_all_languages.size() -1; i++) langAdditional.addLine(defaultAdditionalLanguage);
     m_NumberOfAdditionalLanguages = config.m_AdditionalLanguages.size();
   }
-  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after langAdditional / langChannels");
+//  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after langAdditional / langChannels");
   
   m_allChannels.clear();
   m_channelNames.clear();
@@ -131,13 +131,13 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
     if (!langChannels.m_osdMap.isSecond(lang)) langChannels.addLanguage(lang);
     langChannels.addLine(lang);
   }
-  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after ChannelActive / ChannelHD");
+//  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after ChannelActive / ChannelHD");
 // TV Shows
   m_allTV_Shows = getAllTV_Shows();
-  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after TV shows (get from db)");
+//  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after TV shows (get from db)");
   for (const int &TV_Show: m_allTV_Shows)
     m_selectedTV_Shows.push_back(config.TV_ShowSelected(TV_Show)?1:0);
-  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after TV shows (final)");
+//  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after TV shows (final)");
 
   Setup();
 }
