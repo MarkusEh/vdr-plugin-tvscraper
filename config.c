@@ -190,6 +190,7 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
         return true;
     } else if (strcmp(Name, "TV_Shows") == 0) {
         m_TV_Shows = getSetFromString<int>(Value);
+        for (int tv_show: m_TV_Shows) dsyslog("tvscraper, SetupParse, add tv show %d", tv_show);
         return true;
     } else if (strcmp(Name, "enableDebug") == 0) {
         enableDebug = atoi(Value);

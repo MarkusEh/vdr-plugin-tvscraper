@@ -508,7 +508,7 @@ std::string getStringFromSet(const C &in, char delim = ';') {
 template<class T> T stringToObj(const char *s, size_t len) {
   esyslog("tvscraper: ERROR: template<class T> T stringToObj called");
   return 5; }
-template<> inline int stringToObj<int>(const char *s, size_t len) { return parse_unsigned<int>(cSv(s, len)); }
+template<> inline int stringToObj<int>(const char *s, size_t len) { return parse_int<int>(cSv(s, len)); }
 template<> inline std::string stringToObj<std::string>(const char *s, size_t len) { return std::string(s, len); }
 template<> inline cSv stringToObj<cSv>(const char *s, size_t len) { return cSv(s, len); }
 template<> tChannelID stringToObj<tChannelID>(const char *s, size_t len) {

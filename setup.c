@@ -283,6 +283,7 @@ void cTVScraperSetup::Store(void) {
     config.m_channel_language = std::move(channel_language);
     config.m_excludedRecordingFolders = menuSelectionsToSet<string>(m_allRecordingFolders, m_selectedRecordingFolders, true);
     config.m_TV_Shows = menuSelectionsToSet<int>(m_allTV_Shows, m_selectedTV_Shows, false);
+//  for (int tv_show: config.m_TV_Shows) dsyslog("tvscraper, cTVScraperSetup::Store, add tv show %d", tv_show);
   }
 
   cTVScraperConfigLock lr;
