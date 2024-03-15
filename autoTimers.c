@@ -526,6 +526,14 @@ void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, co
   return;
 }
 
+bool canTimerBeDeleted(const cTimer *ti, const char *context = nullptr) {
+// return true except timer is recording or Matches (Matches: would be recording, but cannot as other timers have higher priorities)
+  time_t Now = time(NULL);
+  if (!ti || ti->Recording() || ti->Matches(Now, false, 0) || ti->InVpsMargin() || ti->Event()->StartTime() <= Now + 10*60) return false;
+  if (context && config.enableDebug) esyslog("tvscraper: %s, timer %s deleted", context, *(ti->ToDescr() ));
+  return true;
+}
+
 bool timerGetEvents(const cEvent *&event1, const cEvent *&event2, const cTimer *ti) {
 // return false if timer overlaps zero or one events
 // otherwise, return the two longest overlapping events
@@ -586,10 +594,8 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
 #endif
   {
     if (ti_del) {
-      if (!ti_del->Recording() ) {
-        if (config.enableDebug) esyslog("tvscraper: AdjustSpawnedScraperTimers, timer %s deleted", *(ti_del->ToDescr() ));
+      if (canTimerBeDeleted(ti_del, "AdjustSpawnedScraperTimers") )
         Timers->Del(ti_del);
-      }
       ti_del = NULL;
     }
     bool exists = false;
@@ -615,10 +621,8 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
     }
   }
   if (ti_del) {
-    if (!ti_del->Recording() ) {
-      if (config.enableDebug) esyslog("tvscraper: AdjustSpawnedScraperTimers 2, timer %s deleted", *(ti_del->ToDescr() ));
+    if (canTimerBeDeleted(ti_del, "AdjustSpawnedScraperTimers 2") )
       Timers->Del(ti_del);
-    }
     ti_del = NULL;
   }
   return TimersModified;
@@ -723,13 +727,12 @@ bool timersForEvents(const cTVScraperDB &db) {
 #if VDRVERSNUM >= 20301
     LOCK_TIMERS_WRITE;
     cTimer *ti = Timers->GetById(timerToDelete.m_timerId);
-    if (ti && !ti->Recording() && !ti->Matches(time(NULL), false, 0) ) {  // timer might not be recording because of another timer with higher priority
-      if (config.enableDebug) esyslog("tvscraper: timersForEvents, timer %s deleted", *(ti->ToDescr() ));
+    if (canTimerBeDeleted(ti, "timersForEvents") )
       Timers->Del(ti);
-    }
 #else
     cTimer *ti = Timers.GetById(timerToDelete.m_timerId);
-    if (ti && !ti->Recording() ) Timers.Del(ti);
+    if (canTimerBeDeleted(ti, "timersForEvents") )
+      Timers.Del(ti);
 #endif
   }
   return true;

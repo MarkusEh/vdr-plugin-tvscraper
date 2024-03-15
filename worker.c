@@ -510,7 +510,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
       delete movieOrTv;
       movieOrTv = NULL;
     }
-    std::string fanartImg = concat(filename, "/fanart.jpg");
+    cToSvConcat fanartImg(filename, "/fanart.jpg");
     if (!FileExistsImg(fanartImg) && !epgImagePath.empty() ) {
 //    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), fanartImg.c_str() );
       CopyFileImg(epgImagePath, fanartImg);

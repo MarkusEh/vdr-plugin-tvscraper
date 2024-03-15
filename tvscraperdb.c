@@ -557,7 +557,7 @@ for thetvdb:
 void cTVScraperDB::ClearOutdated() const {
 // delete all invalid events pointing to movies
 // and delete all invalid events pointing to series
-  exec("delete from event where valid_till < ?", time(0));
+  exec("DELETE FROM event WHERE valid_till < ?", time(0) - 5 * 60*60);  // keep events for 5 hours
   DeleteOutdatedCache();
   esyslog("tvscraper: Cleanup Done");
 }
@@ -955,7 +955,7 @@ int cTVScraperDB::SetRecording(csEventOrRecording *sEventOrRecording) {
 // sEventOrRecording used to be an event, is now a recording
 // only called in workers, if a timer is recording
   int movieTvId = 0, seasonNumber = 0, episodeNumber = 0;
-  cSql sqlI(this, "select movie_tv_id, season_number, episode_number from event where event_id = ? and channel_id = ?");
+  cSql sqlI(this, "SELECT movie_tv_id, season_number, episode_number FROM event WHERE event_id = ? AND channel_id = ?");
   sqlI.resetBindStep(sEventOrRecording->EventID(), sEventOrRecording->ChannelIDs());
   if (!sqlI.readRow(movieTvId, seasonNumber, episodeNumber)) return 0;
   return InsertRecording2(sEventOrRecording, movieTvId, seasonNumber, episodeNumber);

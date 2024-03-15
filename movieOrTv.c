@@ -730,14 +730,15 @@ for (const std::filesystem::directory_entry& dir_entry:
 
 void deleteOutdatedEpgImages() {
 // check event start time. Delete if older than yesterday
-if (!DirExists(config.GetBaseDirEpg().c_str() )) return;
+if (!DirExists(config.GetBaseDirEpg() )) return;
 std::error_code ec;
 for (const std::filesystem::directory_entry& dir_entry:
         std::filesystem::directory_iterator(config.GetBaseDirEpg(), ec) )
   {
     if (!dir_entry.is_directory() ) continue;
-    if (dir_entry.path().filename().string().find_first_not_of("0123456789") != std::string::npos) continue;
-    if (atoll(dir_entry.path().filename().string().c_str() ) + 24*60*60 < time(0) ) DeleteAll(config.GetBaseDirEpg() + dir_entry.path().filename().string());
+    std::string filename = dir_entry.path().filename().string();
+    if (filename.find_first_not_of("0123456789") != std::string::npos) continue;
+    if (parse_int<time_t>(filename) + 24*60*60 < time(0) ) DeleteAll(cToSvConcat(config.GetBaseDirEpg(), filename));
   }
 }
 void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
