@@ -529,7 +529,7 @@ void createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, co
 bool canTimerBeDeleted(const cTimer *ti, const char *context = nullptr) {
 // return true except timer is recording or Matches (Matches: would be recording, but cannot as other timers have higher priorities)
   time_t Now = time(NULL);
-  if (!ti || ti->Recording() || ti->Matches(Now, false, 0) || ti->InVpsMargin() || ti->Event()->StartTime() <= Now + 10*60) return false;
+  if (!ti || ti->Recording() || ti->Matches(Now, false, 0) || ti->InVpsMargin() || (ti->Event() && ti->Event()->StartTime() <= Now + 10*60) ) return false;
   if (context && config.enableDebug) esyslog("tvscraper: %s, timer %s deleted", context, *(ti->ToDescr() ));
   return true;
 }
