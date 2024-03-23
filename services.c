@@ -47,7 +47,7 @@ class cScraperVideoImp: public cScraperVideo {
     const cRecording *m_recording = NULL;
     cTVScraperDB *m_db;
     int m_runtime_guess = 0; // runtime of thetvdb, which does best match to runtime of recording. Ignore if <=0
-    int m_duration_deviation = -2; // -2: not checked
+    int m_duration_deviation = -4; // -4: not checked
     int m_runtime = -2;  // runtime of episode / movie. Most reliable. -2: not checked. -1, 0: checked, but not available
     int m_collectionId = -2; // collection ID. -2: not checked
     cMovieOrTv *m_movieOrTv = NULL;

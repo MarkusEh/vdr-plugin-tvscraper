@@ -11,20 +11,28 @@ void csEventOrRecording::AddYears(cYears &years) const {
   years.addYears(Title() );
 }
 int csEventOrRecording::DurationDistance(int DurationInMin) {
+// -1 : currently no data available, but should be available later (recording length unkown as recording is ongoing or destination of cut/copy/move
+// -2 : no data available
+// all others: distance ...
+
+  if (DurationInMin <=0 ) return -2; // no data
   int durationInMinLow, durationInMinHigh;
-  if (DurationInMin <=0 || !DurationRange(durationInMinLow, durationInMinHigh) ) return -2; // no data
+  int durationRange = DurationRange(durationInMinLow, durationInMinHigh);
+  if (durationRange < 0) return durationRange;
   if (DurationInMin > durationInMinHigh) return DurationInMin - durationInMinHigh;
   if (DurationInMin < durationInMinLow)  return durationInMinLow - DurationInMin;
   return 0;
 }
-bool csEventOrRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
-// return true, if data is available
-  if (!EventDuration() ) return false;
+int csEventOrRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
+//  0 : data available
+// -2 : no data available
+// OLD !!!!! return true, if data is available
+  if (!EventDuration() ) return -2;
   durationInMinLow  = DurationLowSec() / 60 - 1;
   durationInMinHigh = DurationHighSec() / 60 + (10 * DurationHighSec())  / 60 / 60;  // add 10 mins for 60 min duration, more for longer durations. This is because often a cut version of the movie is broadcasted
 //  if (Recording() && Title() && strcmp("The Expendables 3", Title() ) == 0) 
 //  esyslog("tvscraper: csEventOrRecording::DurationRange, title = %s, durationInMinLow  = %i,  durationInMinHigh = %i", Title(), durationInMinLow, durationInMinHigh);
-  return true;
+  return 0;
 }
 
 cSv csEventOrRecording::EpisodeSearchString() const {
@@ -77,17 +85,29 @@ csRecording::csRecording(const cRecording *recording) :
   if (m_debug) esyslog("tvscraper, debug recording %s", recording->Info()->Title());
 }
 
-bool csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
-// return true, if data is available
-  if (!m_recording->FileName() ) return false;
-  if (!EventDuration() && !m_recording->LengthInSeconds() ) return false;
+bool csRecording::recordingLengthIsChanging() {
+  int recordingUsage = m_recording->IsInUse();
+//   if ((recordingUsage | ruReplay) == ruReplay) return false;
+  if ((recordingUsage & (ruTimer | ruDst)) != 0) return true;
+  return false;
+}
+
+int csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {
+//  0 : data available
+// -1 : currently no data available, but should be available later (recording length unknown as recording is ongoing or destination of cut/copy/move
+// -2 : no data available
+// OLD !!!! return true, if data is available
+  if (recordingLengthIsChanging() ) return -1;
+  if (!m_recording->FileName() ) return -2;
+  
+  if (!EventDuration() && !m_recording->LengthInSeconds() ) return -2;
 
   if (m_recording->IsEdited() || DurationInSecMarks() != -1) {
 // length of recording without adds
     int durationInSec = m_recording->IsEdited()?m_recording->LengthInSeconds():DurationInSecMarks();
     durationInMinLow  = durationInSec / 60 - 2;  // 2 min for inaccuracies
     durationInMinHigh = durationInSec / 60 +  (15 * durationInSec)  / 60 / 60;  // add 15 mins for 60 min duration, more for longer durations. This is because often a cut version of the movie is broadcasted. Also, the markad results are not really reliable
-    return true;
+    return 0;
   } else {
     return csEventOrRecording::DurationRange(durationInMinLow, durationInMinHigh);
   }

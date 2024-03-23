@@ -509,6 +509,7 @@ int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
     int rt = stm.getInt(0);
     if (rt < 1) continue; // ignore 0 and -1: -1-> no value in ext. db. 0-> value 0 in ext. db
     int durationDistance = m_sEventOrRecording->DurationDistance(rt);
+    if (durationDistance < 0) continue; // no data
     if (finalDurationDistance == -1 || durationDistance < finalDurationDistance) finalDurationDistance = durationDistance;
   }
   return finalDurationDistance;
@@ -847,7 +848,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
 // entry in movie_runtime2 was found
       int movie_runtime = sql_movieEnhance.getInt(0);
       int durationDistance = searchEventOrRec.m_sEventOrRecording->DurationDistance(movie_runtime);
-      if (searchEventOrRec.m_num_parts > 0) durationDistance =
+      if (durationDistance > 0 && searchEventOrRec.m_num_parts > 0) durationDistance =
         std::min(durationDistance, searchEventOrRec.m_sEventOrRecording->DurationDistance(movie_runtime/searchEventOrRec.m_num_parts));
       sR.setDuration(durationDistance);
       cSv movieTagline = sql_movieEnhance.getStringView(1);

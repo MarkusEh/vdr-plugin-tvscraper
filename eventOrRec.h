@@ -20,7 +20,7 @@ public:
   virtual int DurationInSec() const { return EventDuration(); }
   virtual const cRecording *Recording() const { return NULL; }
   virtual void AddYears(cYears &years) const;
-  virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
+  virtual int DurationRange(int &durationInMinLow, int &durationInMinHigh);
   int DurationDistance(int DurationInMin);
   virtual cSv EpisodeSearchString() const;
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
@@ -50,7 +50,7 @@ public:
   virtual time_t StartTime() const { return m_event->StartTime()?m_event->StartTime(): m_recording->Start(); } // Timervorlauf, die Aufzeichnung startet 2 min früher
   virtual time_t RecordingStartTime() const { return m_recording->Start(); }
   virtual int DurationInSec() const { return m_event->Duration()?m_event->Duration():m_recording->FileName() ? m_recording->LengthInSeconds() : 0; }
-  virtual bool DurationRange(int &durationInMinLow, int &durationInMinHigh);
+  virtual int DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }
   virtual const std::string ChannelIDs() const { return (EventID()&&ChannelID().Valid())?std::string(cToSvConcat(ChannelID() )):m_recording->Name(); } // if there is no eventID or no ChannelID(), use Name instead
   virtual std::string ChannelName() const { const char *cn = m_recording->Info()->ChannelName(); return (cn&&*cn)?cn:m_unknownChannel; }
@@ -63,6 +63,7 @@ protected:
   virtual int DurationHighSec(void) const { return m_event->Duration()?m_event->Duration():m_recording->LengthInSeconds(); } // note: for recording only if not cut, and no valid marks
   int getVpsLength();
 private:
+  bool recordingLengthIsChanging();
   int DurationInSecMarks(void) { return m_durationInSecMarks?m_durationInSecMarks:DurationInSecMarks_int(); }
   int DurationInSecMarks_int(void);
   bool getTvscraperTimerInfo(bool &vps, int &lengthInSeconds);

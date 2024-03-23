@@ -488,6 +488,7 @@ private:
     mutable cSql m_select_tv_s_e_name2_tv_s_e;
     mutable cSql m_select_movies3_overview;
     mutable cSql m_select_event;
+    mutable cSql m_select_recordings2_rt;
     mutable cSql m_select_recordings2;
 // low level methods for sql
     int printSqlite3Errmsg(cSv query) const;
@@ -590,7 +591,7 @@ public:
     void addActorDownload (int tvID, bool movie, int actorId, const char *actorPath, cSql *stmt = NULL);
     int findUnusedActorNumber (int seriesID);
     void DeleteActorDownload (int tvID, bool movie) const;
-    int GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
+    int GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number) const;
     void setSimilar(int tv_id1, int tv_id2);
     void setEqual(int themoviedb_id, int thetvdb_id);
     int get_theTVDB_id(int tv_id) const;
