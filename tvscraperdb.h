@@ -473,6 +473,7 @@ class cTVScraperDB {
   friend class cUseStmt_select_tv_s_e_overview;
   friend class cUseStmt_select_tv_s_e_name2_tv_s_e;
   friend class cUseStmt_select_movies3_overview;
+  friend class cUseStmt_m_select_recordings2_rt;
 private:
     sqlite3 *db;
     std::string dbPathPhys;
@@ -656,6 +657,12 @@ class cUseStmt_select_movies3_overview: public cUseStmt {
   public:
     cUseStmt_select_movies3_overview(const cTVScraperDB *db):
       cUseStmt(db->m_select_movies3_overview) { }
+};
+class cUseStmt_m_select_recordings2_rt: public cUseStmt {
+  public:
+template<typename... Args>
+    cUseStmt_m_select_recordings2_rt(const cTVScraperDB *db, Args&&... args):
+      cUseStmt(db->m_select_recordings2_rt, std::forward<Args>(args)... ) { }
 };
 
 #endif //__TVSCRAPER_TVSCRAPPERDB_H

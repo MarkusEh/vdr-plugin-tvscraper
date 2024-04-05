@@ -436,7 +436,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
   lastTimerRecordingCheck = time(0);
   bool newRecData = false;
   std::vector<std::string> recordingFileNames; // filenames of recordings with running timers
-  struct stat buffer;
+//  struct stat buffer;
   { // in this block, we lock the timers
 #if APIVERSNUM < 20301
     for (cTimer *timer = Timers.First(); timer; timer = Timers.Next(timer))
@@ -451,9 +451,9 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
         continue;
       }
-      if (stat(cToSvConcat(rc->FileName(), "/tvscraper.json").c_str(), &buffer) != 0) {
-        recordingFileNames.push_back(rc->FileName() );
-      }
+//      if (stat(cToSvConcat(rc->FileName(), "/tvscraper.json").c_str(), &buffer) != 0) {
+      recordingFileNames.push_back(rc->FileName() );
+//      }
       writeTimerInfo(timer, rc->FileName() );
     }
   } // timer lock is released
@@ -477,31 +477,40 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: no recording->Info for file \"%s\"", filename.c_str() );
         continue;
       }
-      const cEvent *event = recording->Info()->GetEvent();
-      epgImagePath = event?getExistingEpgImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID()):"";
-      recordingImagePath = getRecordingImagePath(recording);
-
       csRecording sRecording(recording);
-      int r = db->SetRecording(&sRecording);
-      if (r == 2) {
-        newRecData = true;
-        movieOrTv = cMovieOrTv::getMovieOrTv(db, recording);
-        if (movieOrTv) {
-          movieOrTv->copyImagesToRecordingFolder(recording->FileName() );
-          delete movieOrTv;
-          movieOrTv = NULL;
+      cUseStmt_m_select_recordings2_rt pre_stmt_rt(db, sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
+      if (!(pre_stmt_rt.stmt()->readRow() ))  {
+// no movie/tv assigned to this recording. Do this now
+        const cEvent *event = recording->Info()->GetEvent();
+        epgImagePath = event?getExistingEpgImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID()):"";
+        recordingImagePath = getRecordingImagePath(recording);
+
+        int r = db->SetRecording(&sRecording);
+        if (r == 2) {
+          newRecData = true;
+          movieOrTv = cMovieOrTv::getMovieOrTv(db, recording);
+          if (movieOrTv) {
+            movieOrTv->copyImagesToRecordingFolder(recording->FileName() );
+            delete movieOrTv;
+            movieOrTv = NULL;
+          }
         }
-      }
-      if (r == 0) {
-        tEventID eventID = sRecording.EventID();
-        std::string channelIDs = sRecording.ChannelIDs();
-        esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
-        if (ConnectScrapers() ) { 
-          cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, recording->Info()->ChannelName() );
-          int statistics;
-          movieOrTv = SearchEventOrRec.Scrape(statistics);
-          if (movieOrTv) newRecData = true;
+        if (r == 0) {
+          tEventID eventID = sRecording.EventID();
+          std::string channelIDs = sRecording.ChannelIDs();
+          esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
+          if (ConnectScrapers() ) {
+            cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, recording->Info()->ChannelName() );
+            int statistics;
+            movieOrTv = SearchEventOrRec.Scrape(statistics);
+            if (movieOrTv) newRecData = true;
+            else
+              db->exec("INSERT or REPLACE INTO recordings2 (event_id, event_start_time, recording_start_time, channel_id, movie_tv_id, season_number) VALUES (?, ?, ?, ?, 0, -101)", sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
+          }
         }
+      } else {
+// entry in recordings2 does exist. Delete any cached runtime/duration deviation (still recording -> still changing runtime)
+        db->exec("UPDATE recordings2 SET runtime = -1, duration_deviation = -1 WHERE event_id = ? and event_start_time = ? AND (recording_start_time is NULL OR recording_start_time = ?) and channel_id = ?", sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
       }
     } // the locks are released
     waitCondition.TimedWait(mutex, 1);  // allow others to get the locks

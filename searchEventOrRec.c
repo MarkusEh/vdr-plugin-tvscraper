@@ -297,8 +297,8 @@ bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv) {
       case eMatchPurpose::regexTitleChannel_id:
         movieOrTv.episodeSearchWithShorttext = 1;
         cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
-        if (config.enableDebug)
-          esyslog("tvscraper: overrides: title \"%s\", dbid %d", m_sEventOrRecording->Title(), dbid);
+//        if (config.enableDebug)
+//          esyslog("tvscraper: overrides: title \"%s\", dbid %d", m_sEventOrRecording->Title(), dbid);
         return true;
       case eMatchPurpose::regexTitleChannel_idEpisodeName:
         movieOrTv.episodeSearchWithShorttext = 0;
@@ -485,9 +485,21 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   int n_tv_id = m_db->getNormedTvId(searchResults[0].id());
   if (searchResults[0].id() != n_tv_id) {
     for (auto &i :searchResults) {
-      if (i.id() == n_tv_id) {
+      if (i.id() == n_tv_id && i.delim() == searchResults[0].delim() ) {
         if (config.enableDebug) {
           isyslog("tvscraper: use tv ID %d instead of tv ID %d", n_tv_id, searchResults[0].id() );
+          log(searchResults[0]);
+        }
+        std::swap(searchResults[0], i);
+        break;
+      }
+    }
+  }
+  if (searchResults[0].id() != n_tv_id) {
+    for (auto &i :searchResults) {
+      if (i.id() == n_tv_id) {
+        if (config.enableDebug) {
+          isyslog("tvscraper: use tv ID %d delim %d instead of tv ID %d delim %d", n_tv_id, (int)i.delim(), searchResults[0].id(), (int)searchResults[0].delim() );
           log(searchResults[0]);
         }
         std::swap(searchResults[0], i);

@@ -78,45 +78,6 @@ private:
   int m_vps_start = 0; // only if m_vps_length > 0: timestamp of start mark. Note vdr starts recording at status 2 "starts in a few seconds", so recording length = m_vps_length + m_vps_start
 };
 
-class csStaticEvent_sik : public csEventOrRecording {
-
-public:
-  csStaticEvent_sik(const cEvent *event):
-    csEventOrRecording(nullptr),
-    m_eventID(event->EventID()),
-    m_startTime(event->StartTime()),
-    m_endTime(event->EndTime()),
-    m_eventVps(event->Vps()),
-    m_eventDuration(event->Duration()),
-    m_channelID(event->ChannelID()),
-    m_title(event->Title()),
-    m_shortText(event->ShortText()),
-    m_description(event->Description())
-   {}
-
-  virtual ~csStaticEvent_sik() {};
-  virtual tEventID EventID() const { return m_eventID; }
-  virtual time_t StartTime() const { return m_startTime; }
-  virtual time_t EndTime() const { return m_endTime; }
-  virtual time_t EventVps() const { return m_eventVps; }
-  virtual int EventDuration() const { return m_eventDuration; }
-  virtual const tChannelID ChannelID() const { return m_channelID; }
-  virtual const char *Title() const { return m_title.c_str(); }
-  virtual const char *ShortText() const { return m_shortText.c_str(); }
-  virtual const char *Description() const { return m_description.c_str(); }
-
-private:
-  tEventID m_eventID;
-  time_t m_startTime;
-  time_t m_endTime;
-  time_t m_eventVps;
-  int m_eventDuration;
-  tChannelID m_channelID;
-  std::string m_title;
-  std::string m_shortText;
-  std::string m_description;
-};
-
 class csStaticEvent : public csEventOrRecording {
 
 public:

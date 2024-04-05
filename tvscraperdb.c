@@ -476,7 +476,7 @@ for thetvdb:
     sql << "channel_id nvarchar(255), ";
     sql << "recording_start_time integer, ";
     sql << "movie_tv_id integer, ";   // movie if season_number == -100. Otherwisse, tv
-    sql << "season_number integer, ";
+    sql << "season_number integer, "; // -101 -> no movie or tv found
     sql << "episode_number integer, ";
     sql << "runtime integer, ";       // runtime of thetvdb, which does best match to runtime of recording
                                       // -2 : no data available; -1 : currently no data available, but should be available later
@@ -602,7 +602,7 @@ bool cTVScraperDB::CheckMovieOutdatedEvents(int movieID, int season_number, int 
 bool cTVScraperDB::CheckMovieOutdatedRecordings(int movieID, int season_number, int episode_number) const {
 // check if there is still a recording for which movieID is required
   const char *sql_m = "select count(event_id) from recordings2 where season_number  = ? and movie_tv_id = ?";
-  const char *sql_t = "select count(event_id) from recordings2 where season_number != ? and movie_tv_id = ?";
+  const char *sql_t = "select count(event_id) from recordings2 where season_number != ? and season_number != -101 and movie_tv_id = ?";
   if (season_number == -100) return queryInt(sql_m, -100, movieID) > 0;
                         else return queryInt(sql_t, -100, movieID) > 0;
 }
@@ -999,7 +999,7 @@ bool cTVScraperDB::CheckStartScrapping(int minimumDistance) {
 }
 
 bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime, int *duration_deviation) const {
-// true if recording is in db and mavie / tv was identified.
+// true if recording is in db and movie / tv was identified.
 // for runtime and duration_deviation:
 // -1 : currently no data available, but should be available later (recording length unkown as recording is ongoing or destination of cut/copy/move
 // -2 : no data available
@@ -1012,6 +1012,7 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
 
   cUseStmt pre_stmt_rt(m_select_recordings2_rt, sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), channelIDs);
   if (m_select_recordings2_rt.readRow(movie_tv_id, season_number, episode_number) ) {
+    if (season_number == -101 && movie_tv_id == 0) return false;
     if (runtime) *runtime = m_select_recordings2_rt.getInt(3);
     if (duration_deviation) *duration_deviation = m_select_recordings2_rt.getInt(4, -3, -3);  // -3 if there is no entry in db
   } else {
