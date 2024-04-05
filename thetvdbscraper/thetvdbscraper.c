@@ -148,11 +148,13 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
   if (rde == 1) {
     if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreSeriesJson displayLanguage %s not available, seriesID %i",  displayLanguage->getNames().c_str(), seriesID);
     displayLanguage = newDisplayLanguage;
-    rde = downloadEpisodes(seriesID, forceUpdate, displayLanguage, true);
+    rde = downloadEpisodes(seriesID, forceUpdate, displayLanguage, true, &newDisplayLanguage);
     if (rde == 1) {
       esyslog("tvscraper: ERROR cTVDBScraper::StoreSeriesJson newDisplayLanguage %s not available, seriesID %i", displayLanguage?displayLanguage->getNames().c_str():"no displayLanguage", seriesID);
       return 0;
     }
+    if (!displayLanguage) displayLanguage = newDisplayLanguage;
+    if (!displayLanguage) return 0;
   }
   if (!forceUpdate && stmtNameLang.readRow() && !stmtNameLang.getStringView(0).empty() ) return seriesID; // already in db
 
@@ -201,17 +203,17 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
   if (lang) {
     langTvdbId = config.GetLanguageThetvdb(lang)->m_id;
     if (!forceUpdate && !db->episodeNameUpdateRequired(-seriesID, langTvdbId)) return 0;
-  // check cached information: episodes available in lang?
+// check cached information: episodes available in lang?
     cSql stmtScore(db, "SELECT tv_languages, tv_languages_last_update FROM tv_score WHERE tv_id = ?", -seriesID);
     if (stmtScore.readRow() && !config.isUpdateFromExternalDbRequired(stmtScore.getInt64(1) )) {
       cSplit transSplit(stmtScore.getCharS(0), '|');
       if (transSplit.find(lang->m_thetvdb) == transSplit.end() ) {
-  // this language is not available
-        if (!displayLanguage)  return 1; // translation in needed language not available, available language not requested
-  // figure out displayLanguage
+// this language is not available
+        if (!displayLanguage) return 1; // translation in needed language not available, available language not requested
+// figure out displayLanguage
         *displayLanguage = displayLanguageTvdb(stmtScore.getCharS(0));
         if (*displayLanguage) return 1; // an additional language is available
-  // we have to continue to get original language ...
+// we have to continue to get original language ...
       }
     }
   }
@@ -246,6 +248,7 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
 // no language provided. Called API without lang
 // this reasults in a different output format, so data_episodes is within tag "series"
 // also, we set lang to original language assuming that the API without language returns data in original language
+        langIsDisplayLanguage = false;
         rapidjson::Value::ConstMemberIterator s_i = getTag(*data_episodes, "series", "cTVDBScraper::downloadEpisodes no lang", &episodes);
         if (s_i == data_episodes->MemberEnd() ) return 5;
         data_series = &s_i->value;
@@ -273,16 +276,15 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
         if (ol && strcmp(ol, lang->m_thetvdb) == 0) translationAvailable = true;
         esyslog("tvscraper: ERROR cTVDBScraper::downloadEpisodes nameTranslations attribute missing, seriesID %i", seriesID);
       }
-      if (!translationAvailable) {
-        if (!displayLanguage) return 1;
+      if (displayLanguage) {
 // figure out displayLanguage
         *displayLanguage = displayLanguageTvdb(translations);
         if (!*displayLanguage) {
           const char *ol = getValueCharS(*data_series, "originalLanguage", "cTVDBScraper::downloadEpisodes");
           *displayLanguage = languageTvdb(ol, "cTVDBScraper::downloadEpisodes original language");
         }
-        return 1;
       }
+      if (!translationAvailable) return 1;
 // check: is lang the display language, do we update description texts?
       if (!langIsDisplayLanguage && config.isDefaultLanguageThetvdb(lang)) langIsDisplayLanguage = true;
       if (!langIsDisplayLanguage) {
