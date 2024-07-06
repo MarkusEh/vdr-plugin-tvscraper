@@ -123,16 +123,16 @@ template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
   inline void addChars(char *b, int l, const char *s) { if(s) memcpy(b, s, l); }
 }
 
-inline cSv textAttributeValue(const char *text, const char *attributeName) {
+inline cSv textAttributeValue(cSv text, const char *attributeName) {
 // if attributeName is empty or not found in text: return ""
 // else, return text after attributeName to end of line
-  if (!text || !attributeName || !*attributeName) return cSv();
-  const char *found = strstr(text, attributeName);
-  if (!found) return cSv();
-  const char *avs = found + strlen(attributeName);
-  const char *ave = strchr(avs, '\n');
-  if (!ave) return cSv(avs);
-  return cSv(avs, ave-avs);
+  if (!attributeName || !*attributeName) return cSv();
+  size_t pos = text.find(attributeName);
+  if (pos == std::string::npos) return cSv();
+  size_t pos_a = pos + strlen(attributeName);
+  size_t pos_e = text.find('\n', pos_a);
+  if (pos_e == std::string::npos) return text.substr(pos_a);
+  return text.substr(pos_a, pos_e-pos_a);
 }
 
 // =========================================================
@@ -165,10 +165,11 @@ class cYears {
     void addYear(int year) {
       if (m_explicitFound) return;
       if (year <= 1920 || year >= 2100) return;
+ //   std::cout << "adding year " << year << "\n";
       addYearInt(year-1900);
     }
-    void addYears(const char *str) {
-      if (!str || m_explicitFound) return;
+    void addYears(cSv str) {
+      if (m_explicitFound) return;
       cSv year_sv = textAttributeValue(str, "Jahr: ");
       if (year_sv.length() == 4) {
         int y = yearToInt(year_sv.data() );
@@ -180,11 +181,14 @@ class cYears {
           return;
         }
       }
-      const char *last;
-      for (const char *first = firstDigit(str); *first; first = firstDigit(last) ) {
-        last = firstNonDigit(first);
-        if (last - first  == 4) addYear(first);
-      }
+      do {
+        size_t pos1 = firstDigit(str);
+        if (pos1 == std::string::npos) return;
+        str.remove_prefix(pos1);
+        size_t pos2 = firstNonDigit(str);
+        if (pos2 == 4) addYear(str.data() );
+        str.remove_prefix(pos2);
+      } while (true);
     }
     int find2(int year) const {
 // 0 not found
@@ -239,11 +243,13 @@ template<class T>
       m_years[m_years_p++] = year;
       m_years[m_years_p] = 0;
     }
-    static const char *firstDigit(const char *found) {
-      for (; ; found++) if (isdigit(*found) || ! *found) return found;
+    static size_t firstDigit(cSv str) {
+      for (size_t pos = 0; pos < str.length(); ++pos) if (isdigit(str[pos])) return pos;
+      return std::string::npos;
     }
-    static const char *firstNonDigit(const char *found) {
-      for (; ; found++) if (!isdigit(*found) || ! *found) return found;
+    static size_t firstNonDigit(cSv str) {
+      for (size_t pos = 0; pos < str.length(); ++pos) if (!isdigit(str[pos])) return pos;
+      return str.length();
     }
 
     char m_years[20];
@@ -447,6 +453,15 @@ inline const char *strstr_word (const char *haystack, const char *needle, size_t
     return f;
   }
   return NULL;
+}
+inline size_t strstr_word (cSv haystack, cSv needle) {
+  size_t pos, pos0;
+  for (pos0 = 0; (pos = haystack.find(needle, pos0)) != std::string::npos; pos0 = pos + 1) {
+    if (pos > 0 && isalpha(haystack[pos - 1])) continue;
+    if (pos + needle.length() < haystack.length() && isalpha(haystack[pos + needle.length()])) continue;
+    return pos;
+  }
+  return std::string::npos;
 }
 // =========================================================
 // special container:

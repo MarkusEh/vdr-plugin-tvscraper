@@ -212,12 +212,12 @@ bool cTv::IsUsed() {
   return config.TV_ShowSelected(dbID());
 }
 
-int cTv::searchEpisode(cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, const char *description) {
+int cTv::searchEpisode(cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description) {
 // return 1000, if no match was found
 // otherwise, distance
   int season_guess = -1; // -1: no season found (still, there might be an episode ..)
   int episode_guess = 0; //  0: nothing found
-  if (description) episodeSEp(season_guess, episode_guess, description, "S", "Ep");
+  if (!description.empty() ) episodeSEp(season_guess, episode_guess, description, "S", "Ep");
   if (episode_guess == 0 && shortText) episodeSEp(season_guess, episode_guess, shortText, "S", "Ep");
   int distance = searchEpisode(tvSearchEpisodeString, years, lang, season_guess, episode_guess);
   if (distance > 500 && episode_guess > 0 && season_guess >= 0 &&
@@ -381,8 +381,8 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
     if (imdbId && imdbId->empty() ) *imdbId = stmt_s_o.stmt()->getStringView(2);
   } else {
 // no episode data. Read as much as possible not episode related, and set the others to 0/""
-    *releaseDate = stmt_s_o.stmt()->getStringView(1);
-    *imdbId = stmt_s_o.stmt()->getStringView(2);
+    if (releaseDate) *releaseDate = stmt_s_o.stmt()->getStringView(1);
+    if (imdbId) *imdbId = stmt_s_o.stmt()->getStringView(2);
     if (episodeName) *episodeName = "";
     if (runtime) *runtime = 0;
   }
@@ -666,7 +666,7 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *r
 }
 
 // search episode
-int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, const char *description) {
+int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description) {
 // return 1000 if no episode was found
 // otherwise, return distance 0-999 (smaller numbers are better matches)
   bool debug = false;

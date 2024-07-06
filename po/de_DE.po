@@ -82,6 +82,18 @@ msgstr "Folge der Serie %.*s, wegen der Aufzeichnung"
 msgid "Improve recording"
 msgstr "Verbessern der Aufzeichnung"
 
+msgid "Name in external database:"
+msgstr "Name in externer Datenbank:"
+
+msgid "Episode Name:"
+msgstr "Name der Episode:"
+
+msgid "Season Number:"
+msgstr "Nummer der Staffel:"
+
+msgid "Episode Number:"
+msgstr "Nummer der Episode:"
+
 #~ msgid "improve"
 #~ msgstr "Verbessern von"
 

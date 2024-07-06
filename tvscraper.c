@@ -112,7 +112,17 @@ class cExtEpgHandler : public cEpgHandler
     virtual bool SetDescription(cEvent *Event, const char *Description) {
 // return true if we want to prevent a change of Event->Description()
       if (!Event->Description() ) return false;
-      return config.myDescription(Event->Description() );
+      if (config.myDescription(Event->Description() )) return true;
+
+      cSv eventDescription = Event->Description();
+      size_t pos = eventDescription.find(config.m_description_delimiter);
+      if (pos == std::string::npos) return false;
+
+      cToSvConcat description(Description);
+      description.concat("\n", eventDescription.substr(pos));
+
+      Event->SetDescription(description.c_str() );
+      return true;
     }
     virtual bool SetShortText(cEvent *Event, const char *ShortText) {
 // return true if we want to prevent a change of Event->ShortText()
@@ -236,6 +246,7 @@ bool cPluginTvscraper::Start(void) {
         esyslog("tvscraper: could not connect to Database. Aborting!");
         return false;
     };
+    config.m_db = db;
     overrides = new cOverRides();
     overrides->ReadConfig(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N), "override.conf");
     overrides->ReadConfig(cPlugin::ResourceDirectory(PLUGIN_NAME_I18N), "override_tvs.conf");

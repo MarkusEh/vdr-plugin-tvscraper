@@ -101,7 +101,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
         m_TVDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, int network_id) {
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, cSv description, const cYears &years, const cLanguage *lang, int network_id) {
       m_TVDBScraper->AddResults4(resultSet, searchString, compareStrings, lang, network_id);
     }
   private:

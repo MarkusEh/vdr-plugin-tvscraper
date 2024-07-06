@@ -25,9 +25,9 @@ class cMovieDBScraper {
     cOverRides *overrides;
     bool parseJSON(const rapidjson::Value &root);
     bool AddTvResults(vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
-    void AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, const char *description, bool setMinTextMatch, const cLanguage *lang);
-    int AddMovieResultsForUrl(const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, const char *description, bool setMinTextMatch, const cLanguage *lang);
-    void AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
+    void AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, cSv description, bool setMinTextMatch, const cLanguage *lang);
+    int AddMovieResultsForUrl(const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, cSv description, bool setMinTextMatch, const cLanguage *lang);
+    void AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *shortText, cSv description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
 
     void StoreMovie(int movieID, bool forceUpdate = false);
     bool DownloadFile(cSv urlBase, const cSv urlFileName, cSv destDir, int destID, const char * destFileName, bool movie);
@@ -71,7 +71,7 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
       config.timeDownloadActorsMovie.stop();
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, int network_id) {
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, cSv description, const cYears &years, const cLanguage *lang, int network_id) {
       m_movieDBScraper->AddMovieResults(resultSet, searchString, compareStrings, shortText, description, isFullSearchString, years, lang);
     }
   private:
@@ -118,7 +118,7 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
         m_movieDBScraper->StoreStill(id, seasonNumber, episodeNumber, episodeStillPath);
       return 0;
     }
-    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, const cYears &years, const cLanguage *lang, int network_id) {
+    virtual void addSearchResults(vector<searchResultTvMovie> &resultSet, cSv searchString, bool isFullSearchString, const cCompareStrings &compareStrings, const char *shortText, cSv description, const cYears &years, const cLanguage *lang, int network_id) {
       m_movieDBScraper->AddTvResults(resultSet, searchString, compareStrings, lang);
     }
   private:

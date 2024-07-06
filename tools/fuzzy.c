@@ -354,13 +354,16 @@ template<std::size_t N>
       int max_dist_lcsubstr = 1000;
       int dist_lcsubstr = 1000 - normMatch(slengt, upper);
       int dist_lcsubstr_norm = 1000 * dist_lcsubstr / max_dist_lcsubstr;
+//    std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << std::endl;
 
+      int dist_norm = dist_norm_fuzzy(other, maxLen);
+//    std::cout << "max1 = ul dist_norm = " << dist_norm << std::endl;
       int max1 = std::max(15, 2*minLen);
       int max2 = std::max( 9, 2*minLen);
-      int dist_norm = dist_norm_fuzzy(other, max1);
-//      std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
+      if (maxLen > max1) dist_norm = std::min(dist_norm, dist_norm_fuzzy(other, max1));
+//    std::cout << "max1 = " << max1 << " dist_norm = " << dist_norm << std::endl;
       if (maxLen > max2 && max1 != max2) dist_norm = std::min(dist_norm, dist_norm_fuzzy(other, max2));
-//      std::cout << "dist_lcsubstr_norm = " << dist_lcsubstr_norm << " dist_norm = " << dist_norm << std::endl;
+//    std::cout << "max2 = " << max2 << " dist_norm = " << dist_norm << std::endl;
       return std::min(curDistance, dist_norm / 2 + dist_lcsubstr_norm / 2 + m_malus + other.m_malus);
     }
     int minDistanceNormedStrings(const std::vector<std::optional<cNormedString>> &normedStrings, int curDistance) const {

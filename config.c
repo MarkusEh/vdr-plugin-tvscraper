@@ -46,7 +46,9 @@ std::set<tChannelID> getDefaultChannels() {
   return channels;
 }
 
-cTVScraperConfig::cTVScraperConfig() {
+cTVScraperConfig::cTVScraperConfig():
+  m_description_delimiter(tr("Name in external database:"))
+{
     enableDebug = 0;
     m_enableAutoTimers = 0;
 }

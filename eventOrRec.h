@@ -9,6 +9,8 @@ class csEventOrRecording {
 
 public:
   csEventOrRecording(const cEvent *event);
+  csEventOrRecording(const cRecordingInfo *info);
+  csEventOrRecording(const cStaticEvent *sEvent);
   virtual ~csEventOrRecording() {};
 
   virtual tEventID EventID() const { return m_event->EventID(); }
@@ -28,7 +30,7 @@ public:
   virtual std::string ChannelName() const; // Warning: This locks the channels, so ensure correct lock order !!!!
   virtual const char *Title() const { return m_event->Title(); }
   virtual const char *ShortText() const { return m_event->ShortText(); }
-  virtual const char *Description() const { return m_event->Description(); }
+  cSv Description() const { return m_description; }
   const cLanguage *GetLanguage() const { return config.GetLanguage(ChannelID()); }
   virtual int durationDeviation(int s_runtime) { return 6000; }
   static constexpr const char *m_unknownChannel = "Channel name unknown";
@@ -37,6 +39,7 @@ protected:
   virtual int DurationLowSec() const { return EventVps()?DurationWithoutMarginSec():RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: for recording only if not cut, and no valid marks
   virtual int DurationHighSec() const { return EventDuration(); } // note: for recording only if not cut, and no valid marks
   const cEvent *m_event;
+  const cSv m_description;
   bool m_debug = false;
 private:
   int RemoveAdvTimeSec(int durationSec) const { return durationSec - durationSec / 3 - 2*60; } // 33% adds, 2 mins extra adds
@@ -56,7 +59,6 @@ public:
   virtual std::string ChannelName() const { const char *cn = m_recording->Info()->ChannelName(); return (cn&&*cn)?cn:m_unknownChannel; }
   virtual const char *Title() const { return m_recording->Info()->Title(); }
   virtual const char *ShortText() const { return m_recording->Info()->ShortText(); }
-  virtual const char *Description() const { return m_recording->Info()->Description(); }
   virtual int durationDeviation(int s_runtime);
 protected:
   virtual int DurationWithoutMarginSec(void) const { return m_event->Duration()?m_event->Duration():(m_recording->LengthInSeconds() - 14*60); } // remove margin, 4 min at start, 10 min at stop
@@ -82,7 +84,7 @@ class csStaticEvent : public csEventOrRecording {
 
 public:
   csStaticEvent(const cStaticEvent *sEvent):
-    csEventOrRecording(nullptr),
+    csEventOrRecording(sEvent),
     m_sEvent(sEvent)
    {}
 
@@ -96,7 +98,6 @@ public:
   virtual const tChannelID ChannelID() const { return m_sEvent->ChannelID(); }
   virtual const char *Title() const { return m_sEvent->Title(); }
   virtual const char *ShortText() const { return m_sEvent->ShortText(); }
-  virtual const char *Description() const { return m_sEvent->Description(); }
 
 private:
   const cStaticEvent *m_sEvent;

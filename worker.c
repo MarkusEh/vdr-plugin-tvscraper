@@ -255,6 +255,17 @@ bool cTVScraperWorker::ScrapEPG(void) {
             time11_max = std::max(timeNeeded, time11_max);
             break;
         }
+        if (movieOrTv && movieOrTv->getType() == tSeries && movieOrTv->getEpisode() != 0) {
+          std::string title, episodeName;
+          if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr, nullptr)) {
+            cToSvConcat description(sEoR.Description() );
+            description.concat("\n", config.m_description_delimiter, " ", title);
+            description.concat("\n", tr("Episode Name:"), " ", episodeName);
+            description.concat("\n", tr("Season Number:"), " ", movieOrTv->getSeason() );
+            description.concat("\n", tr("Episode Number:"), " ", movieOrTv->getEpisode() );
+            sEvent.SetDescription(description.c_str() );
+          }
+        }
         waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
         auto begin = std::chrono::high_resolution_clock::now();
         if (!extEpgImages.empty() ) {

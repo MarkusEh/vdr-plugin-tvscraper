@@ -11,6 +11,7 @@
 using namespace std;
 class iExtEpg;
 class cSql;
+class cTVScraperDB;
 
 enum scrapType {
     scrapSeries,
@@ -121,6 +122,7 @@ class cTVScraperConfig {
 // see https://api.themoviedb.org/3/configuration/primary_translations?api_key=abb01b5a277b9c2c60ec0302d83c5ee9
 
 // static constant
+        const std::string m_description_delimiter;
         const std::set<cLanguage, std::less<>> m_languages =
 {
 { 1, "dan", "da-DK", "dansk"},
@@ -164,6 +166,7 @@ class cTVScraperConfig {
 {39, "vie", "vi-VN", "Tiếng Việt"},  // Vietnamese
 // {40, "", "", ""},  //
 };
+        cTVScraperDB *m_db = nullptr;
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
         const cLanguage *m_defaultLanguage = &m_emergencyLanguage;
 // static constant
@@ -228,6 +231,20 @@ class cTVScraperConfig {
         bool myDescription(const char *description) {
           for (auto &extEpg: m_extEpgs) if (extEpg->myDescription(description)) return true;
           return false;
+        }
+        cSv splitDescription(cSv description) {
+          size_t pos = description.find(m_description_delimiter);
+          if (pos == std::string::npos) return description;
+          return remove_trailing_whitespace(description.substr(0, pos));
+        }
+        cSv splitDescription(cSv description, cSv &secondPart) {
+          size_t pos = description.find(m_description_delimiter);
+          if (pos == std::string::npos) {
+            secondPart = cSv();
+            return description;
+          }
+          secondPart = description.substr(pos);
+          return remove_trailing_whitespace(description.substr(0, pos));
         }
         cMeasureTime timeSelectFromRecordings;
         cMeasureTime timeDownloadMedia;

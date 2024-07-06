@@ -94,6 +94,17 @@ void cSearchEventOrRec::initSearchString3dots(std::string &searchString) {
   if (len < 3) return;
   if (searchString.compare(len - 3, 3, "...") != 0) return;
 // "title" ends with ...
+  cSv shortText = m_sEventOrRecording->ShortText();
+  if (shortText.empty() ) shortText = m_sEventOrRecording->Description();
+  if (shortText.size() < 4) return;
+  if (shortText.substr(0, 3) != "...") return;
+  shortText.remove_prefix(3);
+  size_t pos_e = shortText.find_first_of(".,;!?:(");
+  searchString.erase(len - 3);
+  searchString.append(" ");
+  if (pos_e == std::string::npos) searchString.append(shortText);
+  else searchString.append(shortText, pos_e);
+/*
   const char *shortText = m_sEventOrRecording->ShortText();
   if (!shortText || ! *shortText) shortText = m_sEventOrRecording->Description();
   if (!shortText || ! *shortText) return; // no short text, no description -> cannot continue ...
@@ -107,6 +118,7 @@ void cSearchEventOrRec::initSearchString3dots(std::string &searchString) {
   searchString.erase(len - 3);
   searchString.append(" ");
   searchString.append(shortText, num_added);
+*/
 }
 
 void cSearchEventOrRec::initBaseNameOrTitle(void) {
@@ -150,9 +162,9 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
     return;
   }
 // get the short text. If not available: Use the description instead
-  const char *shortText = recording->Info()->ShortText();
-  if (!shortText || ! *shortText) shortText = recording->Info()->Description();
-  if (!shortText || ! *shortText) return; // no short text, no description -> go ahead with base name
+  cSv shortText = recording->Info()->ShortText();
+  if (shortText.empty() ) shortText = recording->Info()->Description();
+  if (shortText.empty() ) return; // no short text, no description -> go ahead with base name
   cNormedString nsBaseNameOrTitle(m_baseNameOrTitle);
   int distTitle     = nsBaseNameOrTitle.sentence_distance(recording->Info()->Title() );
   int distShortText = nsBaseNameOrTitle.sentence_distance(shortText);
@@ -318,10 +330,10 @@ bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv) {
         m_season = season;
         m_episode = episode;
         if (config.enableDebug) {
-          const char *st = m_sEventOrRecording->ShortText();
-          if (!st || !*st) st = m_sEventOrRecording->Description();
-          if (!st || !*st) st = "ERROR: no short text / description";
-          esyslog("tvscraper: overrides: title \"%s\", short text \"%s\", season %i, episode %i", m_sEventOrRecording->Title(), st, season, episode);
+          cSv st = m_sEventOrRecording->ShortText();
+          if (st.empty() ) st = m_sEventOrRecording->Description();
+          if (st.empty() ) st = "ERROR: no short text / description";
+          esyslog("tvscraper: overrides: title \"%s\", short text \"%.*s\", season %i, episode %i", m_sEventOrRecording->Title(), (int)st.length(), st.data(), season, episode);
         }
         return false;  // we still need to search for the series ID
 // TODO case eMatchPurpose::regexTitleChannel_idEpisodeAbsolutNumber
@@ -719,7 +731,7 @@ bool cSearchEventOrRec::addActor(cSv name, int &numMatches, cContainer &alreadyF
 // return true if found. Always. Even if numMatches is not increased
   if (name.length() < 3) return false; // ignore if name is too short
   if (const_ignoreWords.find(name) != const_ignoreWords.end() ) return false;
-  if (strstr_word(m_sEventOrRecording->Description(), name.data(), name.length() ) == NULL &&
+  if (strstr_word(m_sEventOrRecording->Description(), name                       ) == std::string::npos &&
       strstr_word(m_sEventOrRecording->ShortText()  , name.data(), name.length() ) == NULL) return false;   // name not found in text
   if (!alreadyFound.insert(name)) ++numMatches;
   return true;

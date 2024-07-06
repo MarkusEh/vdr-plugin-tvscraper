@@ -2,7 +2,18 @@
 #include <dirent.h>
 
 csEventOrRecording::csEventOrRecording(const cEvent *event):
-  m_event(event)
+  m_event(event),
+  m_description(event?config.splitDescription(event->Description()):cSv())
+{
+}
+csEventOrRecording::csEventOrRecording(const cStaticEvent *sEvent):
+  m_event(nullptr),
+  m_description(sEvent?config.splitDescription(sEvent->Description()):cSv())
+{
+}
+csEventOrRecording::csEventOrRecording(const cRecordingInfo *info):
+  m_event(info?info->GetEvent():nullptr),
+  m_description(info?config.splitDescription(info->Description()):cSv())
 {
 }
 void csEventOrRecording::AddYears(cYears &years) const {
@@ -37,11 +48,7 @@ int csEventOrRecording::DurationRange(int &durationInMinLow, int &durationInMinH
 
 cSv csEventOrRecording::EpisodeSearchString() const {
   if(ShortText() && *ShortText() ) return ShortText();
-  if(Description() ) {
-    if (strlen(Description() ) <= 100) return Description();
-    else return cSv(Description(), 100);
-  }
-  return cSv();
+  return Description().substr(0, 100);
 }
  
 std::string csEventOrRecording::ChannelName() const {
@@ -66,8 +73,8 @@ std::string csEventOrRecording::ChannelName() const {
 
 // Recording
 
-csRecording::csRecording(const cRecording *recording) :
-  csEventOrRecording((recording && recording->Info())?recording->Info()->GetEvent():NULL),
+csRecording::csRecording(const cRecording *recording):
+  csEventOrRecording(recording?recording->Info():(cRecordingInfo*)nullptr),
   m_recording(recording)
 {
   if (!recording ) {
@@ -397,7 +404,9 @@ int GetNumberOfTsFiles(const cRecording* recording) {
   struct dirent *ent;
   int number_ts_files = 0;
   while ((ent = readdir (dir)) != NULL)
-    if (ent->d_name && strlen(ent->d_name) == 8 && strcmp(ent->d_name + 5, ".ts") == 0) {
+// POSIX defines it as char d_name[], a character array of unspecified
+//       size, with at most NAME_MAX characters preceding the terminating null byte ('\0').
+    if (strlen(ent->d_name) == 8 && strcmp(ent->d_name + 5, ".ts") == 0) {
       bool only_digits = true;
       for (int i = 0; i < 5; i++) if (ent->d_name[i] < '0' || ent->d_name[i] > '9') only_digits = false;
       if (only_digits) ++number_ts_files;

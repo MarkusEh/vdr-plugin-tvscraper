@@ -163,7 +163,7 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, cSv t
   return true;
 }
 
-void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *shortText, const char *description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
+void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *shortText, cSv description, bool setMinTextMatch, const cYears &years, const cLanguage *lang) {
   if (SearchString.empty() ) {
     esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
     return;
@@ -196,7 +196,7 @@ void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, cS
   }
 }
 
-int cMovieDBScraper::AddMovieResultsForUrl(const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, const char *description, bool setMinTextMatch, const cLanguage *lang) {
+int cMovieDBScraper::AddMovieResultsForUrl(const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, cSv description, bool setMinTextMatch, const cLanguage *lang) {
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
   cJsonDocumentFromUrl root;
@@ -216,7 +216,7 @@ int cMovieDBScraper::AddMovieResultsForUrl(const char *url, vector<searchResultT
   AddMovieResults(root, resultSet, compareStrings, shortText, description, setMinTextMatch, lang);
   return getValueInt(root, "total_pages", 0, "cMovieDbMovie::AddMovieResultsForUrl", &root);
 }
-void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, const char *description, bool setMinTextMatch, const cLanguage *lang) {
+void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, cSv description, bool setMinTextMatch, const cLanguage *lang) {
   int res = -1;
   for (const rapidjson::Value &result: cJsonArrayIterator(root, "results")) {
     if (!result.IsObject() ) continue;
@@ -231,7 +231,7 @@ void cMovieDBScraper::AddMovieResults(const rapidjson::Document &root, vector<se
     cSv title = removeLastPartWithP(getValueCharS(result, "title"));
     int dist = compareStrings.minDistance(0, title, distOrigTitle);
     if (compareStrings.len() + 7 < title.length() ) dist = compareStrings.minDistance('s', title, dist); // compare with title+ShortText
-    if (dist > 300 && description && strlen(description) > 25) {
+    if (dist > 300 && description.length() > 25) {
       const char *overview = getValueCharS(result, "overview");
       if (overview && *overview) dist = cNormedString(description).sentence_distance(overview, dist);
     }
