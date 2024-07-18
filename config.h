@@ -164,7 +164,8 @@ class cTVScraperConfig {
 {37, "tam", "ta-IN", "தமிழ்"},  /// Tamil
 {38, "swa", "sw-SW", "Kiswahili"},  // Swahili
 {39, "vie", "vi-VN", "Tiếng Việt"},  // Vietnamese
-// {40, "", "", ""},  //
+{40, "tha", "th-TH", "ภาษาไทย"},  //  	Thai
+// {41, "", "", ""},  //
 };
         cTVScraperDB *m_db = nullptr;
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
