@@ -605,11 +605,14 @@ void cTVScraperWorker::Action(void) {
       dsyslog("tvscraper: epg scraping done");
       if (!Running() ) break;
       if (config.getEnableAutoTimers() ) timersForEvents(*db);
+      if (!Running() ) break;
     }
     if (backup_requested) {
+      if (!Running() ) break;
       int rc = db->BackupToDisc();
       if (rc == SQLITE_OK) backup_requested = false;
     }
+    if (!Running() ) break;
     waitCondition.TimedWait(mutex, loopSleep);
   }
 }

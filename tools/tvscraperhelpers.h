@@ -116,11 +116,100 @@ namespace stringhelpers_internal {
   inline int numChars(std::string_view s) { return s.length(); }
   inline int numChars(const std::string &s) { return s.length(); }
   inline int numChars(const char *s) { return s?strlen(s):0; }
+
+// numCharsM: pre-requisite, not checked:
+//         i has between N and M digits (10^(N-1) <= i < 10^M)
+//         for N == 1: 0 <= i < 10^M
+
+//         1 <= N <= M <= 20
+template<uint8_t N, uint8_t M, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N == M, int>::type numCharsM(T i) {
+  return N;
+}
+template<uint8_t N, uint8_t M, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<M >= N+1, int>::type numCharsM(T i) {
+  return numCharsM<N, M-1>(i) + (i>=powN<M-1>());
+}
+
+template<typename T, std::enable_if_t<sizeof(T) == 1, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+  inline int numChars(T i) {
+    return numCharsM<1, 3>(i);
+  }
+// max uint16_t 65535
+template<typename T, std::enable_if_t<sizeof(T) == 2, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+  inline int numChars(T i) {
+    return numCharsM<1, 5>(i);
+  }
+// max uint32_t 4294967295
+template<typename T, std::enable_if_t<sizeof(T) >= 3, bool> = true, std::enable_if_t<sizeof(T) <= 4, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+  inline int numChars(T i) {
+    if (i >= 100000u) { return numCharsM<6, 10>(i); }
+    return numCharsM<1, 5>(i);
+  }
+// max uint64_t 18446744073709551615
+template<typename T, std::enable_if_t<sizeof(T) >= 5, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+  inline int numChars(T i) {
+    if (i < 10000u) return numCharsM<1, 4>(i);
+    if (i < 1000000000000u) { return numCharsM<5, 12>(i); }
+    return numCharsM<13, 20>(i);
+  }
+template<typename T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
+  inline int numChars(T i) {
+    typedef std::make_unsigned_t<T> TU;
+    if (i >= 0) return numChars((TU)i);
+    return numChars(~(static_cast<TU>(i)) + static_cast<TU>(1)) + 1;
+  }
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
-  inline void addChars(char *b, int l, T i) { stringhelpers_internal::itoa(b, i); }
+  inline void addChars(char *b, int l, T i) { to_chars10_internal::itoa(b, i); }
   inline void addChars(char *b, int l, const std::string_view &s) { memcpy(b, s.data(), l); }
   inline void addChars(char *b, int l, const std::string &s) { memcpy(b, s.data(), l); }
   inline void addChars(char *b, int l, const char *s) { if(s) memcpy(b, s, l); }
+}
+
+typedef char* (*itoaNT64)(char *b, uint64_t i);
+static itoaNT64 fa[21] = {
+   &stringhelpers_internal::itoaN<0, uint64_t>,
+   &stringhelpers_internal::itoaN<1, uint64_t>,
+   &stringhelpers_internal::itoaN<2, uint64_t>,
+   &stringhelpers_internal::itoaN<3, uint64_t>,
+   &stringhelpers_internal::itoaN<4, uint64_t>,
+   &stringhelpers_internal::itoaN<5, uint64_t>,
+   &stringhelpers_internal::itoaN<6, uint64_t>,
+   &stringhelpers_internal::itoaN<7, uint64_t>,
+   &stringhelpers_internal::itoaN<8, uint64_t>,
+   &stringhelpers_internal::itoaN<9, uint64_t>,
+   &stringhelpers_internal::itoaN<10, uint64_t>,
+   &stringhelpers_internal::itoaN<11, uint64_t>,
+   &stringhelpers_internal::itoaN<12, uint64_t>,
+   &stringhelpers_internal::itoaN<13, uint64_t>,
+   &stringhelpers_internal::itoaN<14, uint64_t>,
+   &stringhelpers_internal::itoaN<15, uint64_t>,
+   &stringhelpers_internal::itoaN<16, uint64_t>,
+   &stringhelpers_internal::itoaN<17, uint64_t>,
+   &stringhelpers_internal::itoaN<18, uint64_t>,
+   &stringhelpers_internal::itoaN<19, uint64_t>,
+   &stringhelpers_internal::itoaN<20, uint64_t>
+};
+// max uint32_t 4294967295  (10 digits)
+template<typename T, std::enable_if_t<sizeof(T) <= 4, bool> = true, std::enable_if_t<sizeof(T) >= 3, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline char *itoa_fd(char *b, T i) {
+  if (i < 100) return to_chars10_internal::itoa1_2(b, i);
+  if (i < 10000) return to_chars10_internal::itoa3_4(b, i);
+  return fa[stringhelpers_internal::numCharsM<5, 10>(i)](b, i);
+}
+template<typename T, std::enable_if_t<sizeof(T) <= 8, bool> = true, std::enable_if_t<sizeof(T) >= 5, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline char *itoa_fd(char *b, T i) {
+  if (i < 100) return to_chars10_internal::itoa1_2(b, i);
+  if (i < 10000) return to_chars10_internal::itoa3_4(b, i);
+  if (i < 1000000000000u) { return fa[stringhelpers_internal::numCharsM<5, 12>(i)](b, i); }
+  return fa[stringhelpers_internal::numCharsM<13, 20>(i)](b, i);
+/*
+  if (i < 100) return to_chars10_internal::itoa1_2(b, i);
+  if (i < 10000) return to_chars10_internal::itoa3_4(b, i);
+  if (i < 100000000) return to_chars10_internal::itoa5_8(b, i);
+  if (i < 1000000000000000) return fa64[stringhelpers_internal::numCharsM<9, 15>(i)](b, i);
+  return fa64[stringhelpers_internal::numCharsM<16, 20>(i)](b, i);
+*/
 }
 
 inline cSv textAttributeValue(cSv text, const char *attributeName) {

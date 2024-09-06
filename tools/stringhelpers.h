@@ -1,10 +1,13 @@
 /*
- * version 0.9.2
- * general stringhelper functions
+ * version 0.9.3
+ * general string-helper functions
  * Note: currently, most up to date Version is in live!
  *
- * only depends on g++ -std=c++17 std:: standard headers and on esyslog (from VDR)
- * an on vdr channels :( .
+ * only depends on g++:
+ *    -std=c++17 std:: standard headers
+ *     on esyslog (from VDR)
+*     on VDR channels :( .
+*     on "to_chars10.h"
  *
  * no other dependencies, so it can be easily included in any other header
  *
@@ -13,6 +16,7 @@
 #ifndef __STRINGHELPERS_H
 #define __STRINGHELPERS_H
 
+#include "to_chars10.h"
 #include <cstdarg>
 #include <string>
 #include <string_view>
@@ -41,11 +45,11 @@ inline std::string charPointerToString(const char *s) {
 inline std::string charPointerToString(const unsigned char *s) {
   return s?reinterpret_cast<const char *>(s):std::string();
 }
-// challange:
+// challenge:
 //   method with importing parameter std::string_view called with const char * = nullptr
 //   undefined behavior, as std::string_view(nullptr) is undefined. In later c++ standard, it is even an abort
 // solution:
-//   a) be very carefull, check const char * for nullptr before calling a method with std::string_view as import parameter
+//   a) be very careful, check const char * for nullptr before calling a method with std::string_view as import parameter
 // or:
 //   b) replace all std::string_view with cSv
 //      very small performance impact if such a method if called with cSv
@@ -134,7 +138,7 @@ class utf8_iterator {
 
     explicit utf8_iterator(cSv sv, size_t pos): m_sv(sv) {
 // note: if pos is not begin/end, pos will be moved back to a valid utf8 start point
-//       i.e. to an ascii (bit 7 not set) or and utf8 start byte (bit 6&7 set)
+//       i.e. to an ASCII (bit 7 not set) or and utf8 start byte (bit 6&7 set)
       if (pos == 0) { m_pos = 0; return; }
       if (pos >= sv.length() ) { m_pos = sv.length(); return; }
 // to avoid a position in the middle of utf8:
@@ -416,7 +420,7 @@ template<class T> inline T parse_hex(cSv sv, size_t *num_digits = 0) {
   return value;
 }
 // =========================================================
-// split sting at delimiter in two parts
+// split string at delimiter in two parts
 // =========================================================
 
 inline bool splitString(cSv str, cSv delim, size_t minLengh, cSv &first, cSv &second) {
@@ -446,7 +450,7 @@ inline cSv SecondPart(cSv str, cSv delim, size_t minLengh) {
 
 inline cSv SecondPart(cSv str, cSv delim) {
 // if delim is not in str, return ""
-// Otherwise, return part of str after first occurence of delim
+// Otherwise, return part of str after first occurrence of delim
 //   remove leading blanks from result
   size_t found = str.find(delim);
   if (found == std::string::npos) return cSv();
@@ -458,7 +462,7 @@ inline cSv SecondPart(cSv str, cSv delim) {
 // =========================================================
 // =========================================================
 // Chapter 4: convert data to cSv:
-//   cToSv classes, with buffer containing text reprexentation of data
+//   cToSv classes, with buffer containing text representation of data
 // =========================================================
 // =========================================================
 
@@ -468,168 +472,89 @@ inline cSv SecondPart(cSv str, cSv delim) {
 
 namespace stringhelpers_internal {
 
-  static const char cDigitsLut[200] = {
-        '0','0','0','1','0','2','0','3','0','4','0','5','0','6','0','7','0','8','0','9',
-        '1','0','1','1','1','2','1','3','1','4','1','5','1','6','1','7','1','8','1','9',
-        '2','0','2','1','2','2','2','3','2','4','2','5','2','6','2','7','2','8','2','9',
-        '3','0','3','1','3','2','3','3','3','4','3','5','3','6','3','7','3','8','3','9',
-        '4','0','4','1','4','2','4','3','4','4','4','5','4','6','4','7','4','8','4','9',
-        '5','0','5','1','5','2','5','3','5','4','5','5','5','6','5','7','5','8','5','9',
-        '6','0','6','1','6','2','6','3','6','4','6','5','6','6','6','7','6','8','6','9',
-        '7','0','7','1','7','2','7','3','7','4','7','5','7','6','7','7','7','8','7','9',
-        '8','0','8','1','8','2','8','3','8','4','8','5','8','6','8','7','8','8','8','9',
-        '9','0','9','1','9','2','9','3','9','4','9','5','9','6','9','7','9','8','9','9'
-    };
-
-// max uint16_t 65535
-inline void itoa4w0(char *b, uint16_t i) {
-  memcpy(b+2, cDigitsLut + ((i%100) << 1), 2);
-  memcpy(b  , cDigitsLut + ((i/100) << 1), 2);
+//  ==== itoaN ===================================================================
+// itoaN: Template for fixed number of characters, left fill with 0
+// note: i must fit in N digits, this is not checked!
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N == 0, char*>::type itoaN(char *b, T i) {
+  return b;
 }
-inline void itoa8w0(char *b, uint32_t i) {
-  itoa4w0(b+4, i%10000);
-  itoa4w0(b  , i/10000);
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N == 1, char*>::type itoaN(char *b, T i) {
+  b[0] = i + '0';
+  return b+N;
 }
-inline char *itoa2(char *b, uint16_t i) {
-  if (i >= 10) {
-    memcpy(b, cDigitsLut + (i << 1), 2);
-    return b+2;
-  } else {
-    *b = i + '0';
-    return b+1;
-  }
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N == 2, char*>::type itoaN(char *b, T i) {
+  memcpy(b, to_chars10_internal::digits_100 + (i << 1), 2);
+  return b+N;
 }
 // max uint16_t 65535
-inline char *itoa4(char *b, uint16_t i) {
-  if (i < 100) return itoa2(b, i);
-  b = itoa2(b, i/100);
-  memcpy(b, cDigitsLut + ((i%100) << 1), 2);
-  return b+2;
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N == 3 || N == 4, char*>::type itoaN(char *b, T i) {
+  uint16_t q = ((uint32_t)i * 5243U) >> 19; // q = i/100; i < 43699
+  memcpy(b+N-2, to_chars10_internal::digits_100 + (((uint16_t)i - q*100) << 1), 2);
+  itoaN<N-2>(b, q);
+  return b+N;
 }
-// max uint32_t 4294967295  (10 digits)
-inline char *itoa8(char *b, uint32_t i) {
-  if (i < 10000) return itoa4(b, i);
-  b = itoa4(b, i/10000);
-  itoa4w0(b, i%10000);
-  return b+4;
+// max uint32_t 4294967295
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N >= 5 && N <= 9, char*>::type itoaN(char *b, T i) {
+  uint32_t q = (uint32_t)i/100;
+  memcpy(b+N-2, to_chars10_internal::digits_100 + (((uint32_t)i - q*100) << 1), 2);
+  itoaN<N-2>(b, q);
+  return b+N;
 }
-template<typename T> inline char *itoa16(char *b, T i) {
-  if (i < 100000000) return itoa8(b, static_cast<uint32_t>(i));
-  b = itoa8(b, static_cast<uint32_t>(i/100000000));
-  itoa8w0(b, static_cast<uint32_t>(i%100000000));
-  return b+8;
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N >= 10 && N != 18, char*>::type itoaN(char *b, T i) {
+  T q = i/100000000;
+  b = itoaN<N-8>(b, q);
+  return itoaN<8>(b, i - q*100000000);
 }
-
-// max uint32_t 4294967295  (10 digits)
-template<typename T, std::enable_if_t<sizeof(T) <= 4, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline char *itoa(char *b, T i) {
-  if (i < 100000000) return itoa8(b, i);
-  b = itoa2(b, i/100000000);  // 4294967295/100000000 = 42;
-  itoa8w0(b, i%100000000);
-  return b+8;
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N == 18, char*>::type itoaN(char *b, T i) {
+  T q = i/1000000000;
+  b = itoaN<N-9>(b, q);
+  return itoaN<9>(b, i - q*1000000000);
 }
-// max uint64_t 18446744073709551615  (20 digits)
-template<typename T, std::enable_if_t<sizeof(T) >= 5, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-char *itoa(char *b, T i) {
-  if (i < 10000000000000000) return itoa16(b, i);
-  b = itoa4(b, i/10000000000000000);   // 18446744073709551615/10000000000000000 = 1844
-  T r = i%10000000000000000;
-  itoa8w0(b + 8, static_cast<uint32_t>(r%100000000));
-  itoa8w0(b    , static_cast<uint32_t>(r/100000000));
-  return b+16;
-}
-template<typename T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
-char *itoa(char *b, T i) {
-  typedef std::conditional_t<sizeof(T) >= 5, uint64_t, uint32_t> TU;
-  TU u = static_cast<TU>(i);
-  if (i < 0) {
-      *b++ = '-';
-      u = ~u + 1;
-  }
-  return itoa(b, u);
+//  ==== powN ===============================
+template<uint8_t N>
+inline typename std::enable_if<N == 0, uint64_t>::type powN() { return 1; }
+template<uint8_t N>
+inline typename std::enable_if<N <= 19 && N >= 1, uint64_t>::type powN() {
+// return 10^N
+  return powN<N-1>() * 10;
 }
 
-template<typename T, std::enable_if_t<sizeof(T) >= 5, bool> = true>
-  inline int numCharsUg0(T i) {
-// note: i must be >= 0!!!!
-      int numChars = 1;
-      if (i >= 10000000000000000) { i /= 10000000000000000; numChars += 16; }
-      if (i >= 100000000) { i /= 100000000; numChars += 8; }
-      if (i >= 10000) { i /= 10000; numChars += 4; }
-      if (i >= 1000) return numChars+3;
-      if (i >= 100 ) return numChars+2;
-      if (i >= 10  ) return numChars+1;
-      return numChars;
-  }
-template<typename T, std::enable_if_t<sizeof(T) <= 4, bool> = true>
-  inline int numCharsUg0(T i) {
-// note: i must be >= 0!!!!
-      int numChars = 1;
-      if (i >= 100000000) { i /= 100000000; numChars += 8; }
-      if (i >= 10000) { i /= 10000; numChars += 4; }
-      if (i >= 1000) return numChars+3;
-      if (i >= 100 ) return numChars+2;
-      if (i >= 10  ) return numChars+1;
-      return numChars;
-  }
-template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-  inline int numChars(T i) {
-    return numCharsUg0(i);
-  }
-template<typename T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
-  inline int numChars(T i) {
-    if (i >= 0) return numCharsUg0(i);
-    return numCharsUg0(-i)+1;
-  }
-  template<class T> inline char *addCharsUg0be(char *be, T i) {
-// i > 0 must be ensured before calling!
-// make sure to have a large enough buffer size (20 + zero terminator if required)
-// be is buffer end. Last character is written to be-1
-// no zero terminator is written! You can make buffer large enough and set *be=0 before calling
-// position of first char is returned
-// length is be - returned value
-    const char *lt = cDigitsLut;
-    while (i >= 10) {
-      be -= 2;
-      memcpy(be, lt + ((i%100) << 1), 2);
-/* memcpy is about 4% faster
-       int r2 = (i%100) << 1;
-       *(--be) = lt[r2+1];
-       *(--be) = lt[r2];
-*/
-      i /= 100;
-    }
-    if (i>0) *(--be) = '0' + (i%10);
-    return be;
-  }
-  template<class T> inline char *addCharsIbe(char *be, T i) {
-// i can be any integer like type (signed, unsigned, ...)
-// only for internal use. Please use class cToSvInt instead
-//
-// make sure to have a large enough buffer size (20 + zero terminator if required)
-// be is buffer end. Last character is written to be-1
-// no zero terminator is written! You can make buffer large enough and set *be=0 before calling
-// position of first char is returned
-// length is be - returned value
-// Example:
-//  char buffer_i[21];
-//  buffer_i[20] = 0;
-//  std::cout << "\"" << stringhelpers_internal::addCharsIbe(buffer_i+20, 5) << "\"\n";
-// Example 2:
-//  char buffer2_i[20];
-//  char *result = stringhelpers_internal::addCharsIbe(buffer2_i+20, 6);
-//  std::cout << "\"" << cSv(result, buffer2_i + 20  - result)  << "\"\n";
+//  ==== itoa_min_width =====================
+template<size_t N, typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+inline typename std::enable_if<N == 0, char*>::type itoa_min_width(char *b, T i) {
+  return to_chars10_internal::itoa(b, i);
+}
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N >= 1 && N <= 19, char*>::type itoa_min_width(char *b, T i) {
+  if (i < powN<N>() ) return itoaN<N, T>(b, i);
+  T q = i/powN<N>();
+  b = to_chars10_internal::itoa(b, q);
+  return itoaN<N, T>(b, i - q*powN<N>() );
+}
 
-    if (i > 0) return addCharsUg0be(be, i);
-    if (i == 0) {
-      *(--be) = '0';
-      return be;
-    }
-    be = addCharsUg0be(be, -i);
-    *(--be) = '-';
-    return be;
-  }
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+inline typename std::enable_if<N >= 20, char*>::type itoa_min_width(char *b, T i) {
+// i < 10^20 is always true
+  memset(b, '0', N-20);
+  b += N-20;
+  return itoaN<20, T>(b, i);
+}
+template<size_t N, typename T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
+inline typename std::enable_if<N >= 1, char*>::type itoa_min_width(char *b, T i) {
+  typedef std::make_unsigned_t<T> TU;
+  if (i >= 0) return itoa_min_width<N, TU>(b, (TU)i);
+  *b = '-';
+  return itoa_min_width<N-1, TU>(b + 1, ~(TU(i)) + (TU)1);
+}
 
+//  ==== addCharsHex ========================
 template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
   inline T addCharsHex(char *buffer, size_t num_chars, T value) {
 // sizeof(buffer) must be >= num_chars. This is not checked !!!
@@ -637,7 +562,7 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
 // value is written with num_chars chars
 //   if value is too small -> left values filled with 0
 //   if value is too high  -> the highest numbers are not written. This is not checked!
-//           but, you can check: if the returnde value is != 0, some chars are not written
+//           but, you can check: if the returned value is != 0, some chars are not written
     const char *hex_chars = "0123456789ABCDEF";
     for (char *be = buffer + num_chars -1; be >= buffer; --be, value /= 16) *be = hex_chars[value%16];
   return value;
@@ -720,7 +645,7 @@ class cToSvFile: public cToSv {
       esyslog("cToSvFile::load, ERROR: give up after 3 tries, filename %s", filename);
     }
     bool load_int(const char *filename, size_t max_length) {
-// return false if an error occured, and we should try again
+// return false if an error occurred, and we should try again
       cOpen fd(filename, O_RDONLY);
       if (!fd.exists()) return true;
       struct stat buffer;
@@ -796,7 +721,7 @@ template<std::size_t N> class cToSvFileN: public cToSv {
 // =========================================================
 
 // N: number of bytes in buffer on stack
-template<std::size_t N = 255>
+template<size_t N = 255>
 class cToSvConcat: public cToSv {
   public:
     cToSvConcat() {}
@@ -819,8 +744,8 @@ class cToSvConcat: public cToSv {
 
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
     cToSvConcat &concat(T i) {
-      if (m_pos_for_append + 20 > m_be_data) ensure_free(20);
-      m_pos_for_append = stringhelpers_internal::itoa(m_pos_for_append, i);
+      if (!to_chars10_internal::to_chars10_range_check(m_pos_for_append, m_be_data, i)) ensure_free(20);
+      m_pos_for_append = to_chars10_internal::itoa(m_pos_for_append, i);
       return *this;
     }
 template<typename T> cToSvConcat &operator<<(T sv) { return concat(sv); }
@@ -848,18 +773,10 @@ template<typename T> cToSvConcat &operator<<(T sv) { return concat(sv); }
 
 // =======================
 // appendInt   append integer (with some format options)
-template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
-    cToSvConcat &appendInt(T i, size_t desired_width, char fill_char = '0') {
-      size_t len = stringhelpers_internal::numChars(i);
-      if (desired_width <= len) return concat(i);
-      if (m_pos_for_append + desired_width > m_be_data) ensure_free(desired_width);
-      if (i < 0 && fill_char == '0') {
-        *m_pos_for_append++ = '-';
-        i = -i;
-      }
-      memset(m_pos_for_append, fill_char, desired_width-len);
-      m_pos_for_append += desired_width-len;
-      m_pos_for_append = stringhelpers_internal::itoa(m_pos_for_append, i);
+template<size_t M, typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+    cToSvConcat &appendInt(T i) {
+      if (m_pos_for_append + std::max(M, (size_t)20) > m_be_data) ensure_free(std::max(M, (size_t)20));
+      m_pos_for_append = stringhelpers_internal::itoa_min_width<M, T>(m_pos_for_append, i);
       return *this;
     }
 template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
@@ -885,8 +802,8 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
       return *this;
     }
 // =======================
-// appendFormated append formated
-// __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with gcc 13.1
+// appendFormated append formatted
+// __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with GCC 13.1
     template<typename... Args> cToSvConcat &appendFormated(const char *fmt, Args&&... args) {
       int needed = snprintf(m_pos_for_append, m_be_data - m_pos_for_append, fmt, std::forward<Args>(args)...);
       if (needed < 0) {
@@ -907,7 +824,7 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
       return *this;
     }
 // =======================
-// appendDateTime: append date/time formated with strftime
+// appendDateTime: append date/time formatted with strftime
     cToSvConcat &appendDateTime(const char *fmt, const std::tm *tp) {
       size_t needed = std::strftime(m_pos_for_append, m_be_data - m_pos_for_append, fmt, tp);
       if (needed == 0) {
@@ -915,7 +832,7 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
         needed = std::strftime(m_pos_for_append, m_be_data - m_pos_for_append, fmt, tp);
         if (needed == 0) {
           esyslog("live: ERROR, cToScConcat::appendDateTime needed = 0, fmt = %s", fmt);
-          return *this; // we did not expect to need more than 1024 chars for the formated time ...
+          return *this; // we did not expect to need more than 1024 chars for the formatted time ...
         }
       }
       m_pos_for_append += needed;
@@ -926,7 +843,7 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
       struct std::tm tm_r;
       if (localtime_r( &time, &tm_r ) == 0 ) {
         esyslog("live: ERROR, cToScConcat::appendDateTime localtime_r = 0, fmt = %s, time = %lld", fmt, (long long)time);
-        return *this; // we did not expect to need more than 1024 chars for the formated time ...
+        return *this;
         }
       return appendDateTime(fmt, &tm_r);
     }
@@ -934,9 +851,9 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
 // #include <vdr/channels.h>
 
 // =========================================================
-// some performance improvemnt, to get string presentation for channel
+// some performance improvement, to get string presentation for channel
 // you can also use channelID.ToString()
-// in struct tChannelID {  (in vdr):
+// in struct tChannelID {  (in VDR):
 //   static tChannelID FromString(const char *s);
 //   cString ToString(void) const;
 // =========================================================
@@ -992,22 +909,29 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
     char  m_buffer_static[N+1];
     char *m_buffer_allocated = nullptr;
     char *m_buffer = m_buffer_static;
+  protected:
     char *m_pos_for_append = m_buffer;
     char *m_be_data = m_buffer + sizeof(m_buffer_static) - 1; // [m_buffer, m_be_data) is available for data.
 // It must be possible to write the 0 terminator to m_be_data: *m_be_data = 0.
 // m_pos_for_append <= m_be_data: must be always ensured.
 //   m_be_data - m_pos_for_append: Number of bytes available for write
+  private:
     mutable size_t m_reserve = 1024;
 };
 
-class cToSvInt: public cToSvConcat<20> {
+template<size_t N=0>
+class cToSvInt: public cToSvConcat<std::max(N, (size_t)20)> {
   public:
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
-    cToSvInt (T i): cToSvConcat(i) { }
+    cToSvInt(T i) {
+      this->m_pos_for_append = stringhelpers_internal::itoa_min_width<N>(this->m_pos_for_append, i);
+    }
+/*
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
     cToSvInt (T i, size_t desired_width, char fill_char = '0') {
-      appendInt(i, desired_width, fill_char);
+      this->appendInt(i, desired_width, fill_char);
     }
+*/
 };
 template<std::size_t N = 255> 
 class cToSvToLower: public cToSvConcat<N> {
@@ -1021,7 +945,7 @@ class cToSvToLower: public cToSvConcat<N> {
 template<std::size_t N = 255> 
 class cToSvFormated: public cToSvConcat<N> {
   public:
-// __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with gcc 13.1
+// __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with GCC 13.1
     template<typename... Args> cToSvFormated(const char *fmt, Args&&... args) {
       this->appendFormated(fmt, std::forward<Args>(args)...);
     }
@@ -1042,7 +966,7 @@ class cToSvDateTime: public cToSvConcat<255> {
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
 inline void stringAppend(std::string &str, T i) {
   char buf[20]; // unsigned int 64: max. 20. (18446744073709551615) signed int64: max. 19 (+ sign)
-  str.append(buf, stringhelpers_internal::itoa(buf, i) - buf);
+  str.append(buf, to_chars10_internal::itoa(buf, i) - buf);
 }
 template<std::size_t N, typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
 inline void stringAppend(cToSvConcat<N> &s, T i) {
@@ -1054,7 +978,7 @@ inline void stringAppendFormated(cToSvConcat<N> &s, const char *fmt, Args&&... a
   s.appendFormated(fmt, std::forward<Args>(args)...);
 }
 
-// __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with gcc 13.1
+// __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with GCC 13.1
 template<typename... Args>
 void stringAppendFormated(std::string &str, const char *fmt, Args&&... args) {
   size_t size = 1024;
@@ -1211,7 +1135,7 @@ inline std::string concat(Args&&... args) {
 }
 
 // =========================================================
-// parse string_view for xml
+// parse string_view for XML
 // =========================================================
 
 template<std::size_t N> cSv partInXmlTag(cSv sv, const char (&tag)[N], bool *exists = nullptr) {

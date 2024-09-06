@@ -113,7 +113,18 @@ bool cTVScraperConfig::loadPlugins()
    return true;
 }
 void cTVScraperConfig::readNetworks() {
-  cJsonDocumentFromFile j_networks(cToSvConcat(cPlugin::ResourceDirectory(PLUGIN_NAME_I18N), "/networks.json"));
+  cToSvConcat fname_networks(cPlugin::ResourceDirectory(PLUGIN_NAME_I18N), "/networks.json");
+  struct stat buffer;
+  if (stat (fname_networks.c_str(), &buffer) != 0) {
+    esyslog("tvscraper: ERROR file %s not found (continue without networks)", fname_networks.c_str());
+    return;
+  }
+  cJsonDocumentFromFile j_networks(fname_networks);
+  if (!j_networks.IsArray() ) {
+    esyslog("tvscraper: ERROR file %s is not a json array (continue without networks)", fname_networks.c_str());
+    return;
+  }
+
   for (auto &j_network: j_networks.GetArray()) {
     int TheTVDB_company_ID = getValueInt(j_network, "TheTVDB company ID");
     const char *TheTVDB_company_name = getValueCharS(j_network, "TheTVDB company name");

@@ -96,42 +96,57 @@ void cTVScraperDB::AddColumnIfNotExists(const char *table, const char *column, c
 }
 
 bool cTVScraperDB::Connect(void) {
-    if (inMem) {
+  if (inMem) {
 /*
-        time_t timeMem = LastModifiedTime(dbPathMem.c_str() );
-        time_t timePhys = LastModifiedTime(dbPathPhys.c_str() );
-        bool readFromPhys = timePhys > timeMem;  // use Mem if exists. Note: Phys might have been modified from outside
+    time_t timeMem = LastModifiedTime(dbPathMem.c_str() );
+    time_t timePhys = LastModifiedTime(dbPathPhys.c_str() );
+    bool readFromPhys = timePhys > timeMem;  // use Mem if exists. Note: Phys might have been modified from outside
 */
-        struct stat buffer;
-        bool readFromPhys = stat (dbPathMem.c_str(), &buffer) != 0; // readFromPhys if dbPathMem does not exist
-        int rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
-        if (rc != SQLITE_OK) {
-            esyslog("tvscraper: failed to open or create %s", dbPathMem.c_str());
-            return false;
-        }
-        esyslog("tvscraper: connecting to db %s", dbPathMem.c_str());
-        if (readFromPhys) {
-          esyslog("tvscraper: update data from %s", dbPathPhys.c_str());
-          int rc = LoadOrSaveDb(db, dbPathPhys.c_str(), false);
-          if (rc != SQLITE_OK) {
-              esyslog("tvscraper: error while loading data from %s, errorcode %d", dbPathPhys.c_str(), rc);
-              return false;
-          }
-        }
-    } else {
-        int rc;
-        if (config.GetReadOnlyClient() )
-          rc = sqlite3_open_v2(dbPathPhys.c_str(), &db, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_FULLMUTEX, nullptr);
-        else
-          rc = sqlite3_open_v2(dbPathPhys.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
-        if (rc != SQLITE_OK) {
-            esyslog("tvscraper: failed to open or create %s", dbPathPhys.c_str());
-            return false;
-        }
-        esyslog("tvscraper: connecting to db %s", dbPathPhys.c_str());
+    struct stat buffer;
+    bool dbPathMem_exists  = stat(dbPathMem.c_str(),  &buffer) == 0;
+    bool dbPathPhys_exists = stat(dbPathPhys.c_str(), &buffer) == 0;
+    if (dbPathMem_exists && !dbPathPhys_exists) {
+      esyslog("tvscraper: ERROR %s exists, but %s does not exist. To avoid data inconsistencies, please delete %s or provide %s", dbPathMem.c_str(), dbPathPhys.c_str(), dbPathMem.c_str(), dbPathPhys.c_str());
+      return false;
     }
-    if (config.GetReadOnlyClient() ) return true;
-    return CreateTables();
+    bool readFromPhys = !dbPathMem_exists; // readFromPhys if dbPathMem does not exist
+    int rc = sqlite3_open_v2(dbPathMem.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
+    if (rc != SQLITE_OK) {
+      esyslog("tvscraper: failed to open or create %s", dbPathMem.c_str());
+      return false;
+    }
+    esyslog("tvscraper: connecting to db %s", dbPathMem.c_str());
+    if (readFromPhys) {
+      if (!dbPathPhys_exists) {
+        esyslog("tvscraper: %s does not exist, create new database", dbPathPhys.c_str());
+        int rc = LoadOrSaveDb(db, dbPathPhys.c_str(), true);
+        if (rc != SQLITE_OK) {
+          esyslog("tvscraper: error while saving data to %s, errorcode %d", dbPathPhys.c_str(), rc);
+          return false;
+        }
+      } else {
+        esyslog("tvscraper: update data from %s", dbPathPhys.c_str());
+        int rc = LoadOrSaveDb(db, dbPathPhys.c_str(), false);
+        if (rc != SQLITE_OK) {
+          esyslog("tvscraper: error while loading data from %s, errorcode %d", dbPathPhys.c_str(), rc);
+          return false;
+        }
+      }
+    }
+  } else {
+    int rc;
+    if (config.GetReadOnlyClient() )
+      rc = sqlite3_open_v2(dbPathPhys.c_str(), &db, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_FULLMUTEX, nullptr);
+    else
+      rc = sqlite3_open_v2(dbPathPhys.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
+    if (rc != SQLITE_OK) {
+        esyslog("tvscraper: failed to open or create %s", dbPathPhys.c_str());
+        return false;
+    }
+    esyslog("tvscraper: connecting to db %s", dbPathPhys.c_str());
+  }
+  if (config.GetReadOnlyClient() ) return true;
+  return CreateTables();
 }
 
 int cTVScraperDB::BackupToDisc(void) {

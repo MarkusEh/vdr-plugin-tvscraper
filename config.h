@@ -165,7 +165,12 @@ class cTVScraperConfig {
 {38, "swa", "sw-SW", "Kiswahili"},  // Swahili
 {39, "vie", "vi-VN", "Tiếng Việt"},  // Vietnamese
 {40, "tha", "th-TH", "ภาษาไทย"},  //  	Thai
-// {41, "", "", ""},  //
+{41, "eus", "eu-ES", "euskera"},  //  	Basque
+{42, "yue", "zh-HK", "粤语"},  //  	branch of the Sinitic languages primarily spoken in Southern China
+{43, "rus", "ru-RU", "Pусский"},  //  	Russian
+{44, "heb", "he-IL", "עִבְרִית"},  //  	Hebrew
+{45, "zul", "zu-ZA", "isiZulu"},  //  	Zulu
+// {46, "", "", ""},  //
 };
         cTVScraperDB *m_db = nullptr;
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};

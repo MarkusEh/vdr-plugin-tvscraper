@@ -32,10 +32,18 @@ void cTvspEpgOneDay::initJson(cSv extChannelId, time_t startTime) {
     time = localtime_r(&startTime, &tm_r);
   }
   cToSvConcat url("http://live.tvspielfilm.de/static/broadcast/list/",
+                  extChannelId, '/');
+              url.appendInt<4>(time->tm_year + 1900).concat('-').
+                  appendInt<2>(time->tm_mon + 1).concat('-').
+                  appendInt<2>(time->tm_mday);
+
+/*
+  cToSvConcat url("http://live.tvspielfilm.de/static/broadcast/list/",
                   extChannelId, '/',
-                  cToSvInt(time->tm_year + 1900, 4), '-',
-                  cToSvInt(time->tm_mon + 1, 2), '-',
-                  cToSvInt(time->tm_mday, 2));
+                  cToSvInt<4>(time->tm_year + 1900), '-',
+                  cToSvInt<2>(time->tm_mon + 1), '-',
+                  cToSvInt<2>(time->tm_mday));
+*/
 // if (extChannelId[0] == 'A') esyslog("tvscraper epg about to download %s", url.c_str() );
 // calculate m_start: today 5 am
   time->tm_sec = 0;

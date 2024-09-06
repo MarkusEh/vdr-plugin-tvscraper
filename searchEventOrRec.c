@@ -103,22 +103,7 @@ void cSearchEventOrRec::initSearchString3dots(std::string &searchString) {
   searchString.erase(len - 3);
   searchString.append(" ");
   if (pos_e == std::string::npos) searchString.append(shortText);
-  else searchString.append(shortText, pos_e);
-/*
-  const char *shortText = m_sEventOrRecording->ShortText();
-  if (!shortText || ! *shortText) shortText = m_sEventOrRecording->Description();
-  if (!shortText || ! *shortText) return; // no short text, no description -> cannot continue ...
-  for (int i = 0; i < 3 ; i++) if (shortText[i] != '.') return;
-  shortText += 3;
-// pattern match found. Now check how much of the short text we add
-  const char *end = strpbrk (shortText, ".,;!?:(");
-  size_t num_added = 0;
-  if (end) num_added = end - shortText;
-  else num_added = strlen(shortText);
-  searchString.erase(len - 3);
-  searchString.append(" ");
-  searchString.append(shortText, num_added);
-*/
+  else searchString.append(shortText, 0, pos_e);
 }
 
 void cSearchEventOrRec::initBaseNameOrTitle(void) {
