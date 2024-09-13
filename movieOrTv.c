@@ -208,6 +208,11 @@ bool cTv::IsUsed() {
   {
     if (m_db->CheckMovieOutdatedEvents(id, m_seasonNumber, m_episodeNumber) ) return true;
     if (m_db->CheckMovieOutdatedRecordings(id, m_seasonNumber, m_episodeNumber)) return true;
+    int otherId = id > 0?m_db->get_theTVDB_id(id):m_db->get_TMDb_id(id);
+    if (otherId) {
+      if (m_db->CheckMovieOutdatedEvents(otherId, m_seasonNumber, m_episodeNumber) ) return true;
+      if (m_db->CheckMovieOutdatedRecordings(otherId, m_seasonNumber, m_episodeNumber)) return true;
+    }
   }
   return config.TV_ShowSelected(dbID());
 }

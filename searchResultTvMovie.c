@@ -140,7 +140,7 @@ float searchResultTvMovie::getMatch() const {
 
 float searchResultTvMovie::normMatch(float x) {
 // input:  number between 0 and infinity
-// output: number between 0 and 1
+// output: number between 0 and 1. normMatch(a) > normMatch(b) if a > b
 // normMatch(1) = 0.5
 // you can call normMatch(x/n), which will return 0.5 for x = n 
   if (x <= 0) return 0;

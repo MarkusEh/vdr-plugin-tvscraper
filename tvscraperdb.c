@@ -1311,7 +1311,7 @@ void cTVScraperDB::setSimilar(int tv_id1, int tv_id2) {
 }
 void cTVScraperDB::setEqual(int themoviedb_id, int thetvdb_id) {
 // use this method, and don't exec INSERT OR REPLACE INTO tv_equal ...
-// to make sure that it alsow will work if we add fields to tv_equal
+// to make sure that it also will work if we add fields to tv_equal
 
   if (themoviedb_id <= 0 || thetvdb_id >= 0) {
     esyslog("tvscraper: ERROR cTVScraperDB::setEqual, themoviedb_id %d, thetvdb_id %d", themoviedb_id, thetvdb_id);

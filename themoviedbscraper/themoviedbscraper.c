@@ -142,7 +142,7 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, cSv t
         dist_a = std::min(dist_a + 50, 1000);
         dist_a = compareStrings.minDistance(delim, normedName, dist_a);
       }
-      dist_a = std::min(dist_a + 50, 1000); // avoid this, prefer TVDB
+//    dist_a = std::min(dist_a + 50, 1000); // avoid this, prefer TVDB
 
       auto sResIt = find_if(resultSet.begin(), resultSet.end(), [id,delim](const searchResultTvMovie& x) { return x.id() == id && x.delim() == delim;});
       if (sResIt != resultSet.end() ) {

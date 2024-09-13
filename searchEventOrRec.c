@@ -126,9 +126,9 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
 
 // set m_baseNameOrTitle (the db search string) to the recording file name, as default
   m_baseName = recording->BaseName();
-  if ((const char *)m_baseName == NULL) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitle: baseName == NULL");
+  if ((const char *)m_baseName == NULL) { esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitle: baseName == NULL"); return; }
   size_t baseNameLen = strlen(m_baseName);
-  if (baseNameLen == 0) esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitle: baseNameLen == 0");
+  if (baseNameLen == 0) { esyslog("tvscraper: ERROR in cSearchEventOrRec::initBaseNameOrTitle: baseNameLen == 0"); return; }
   if (m_baseName[0] == '%') m_baseNameOrTitle = ( (const char *)m_baseName ) + 1;
                        else m_baseNameOrTitle = ( (const char *)m_baseName );
 // check: do we have something better? Note: for TV shows, the recording file name is often the name of the episode, and the title must be used as db search string
@@ -578,10 +578,12 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
   }
   cSv searchString2;
   if (splitString(searchString_f, ": ", 3, searchString1, searchString2) ) {
+    searchString1 = removeLastPartWithP(searchString1);
     if (searchString1.length() >= 5) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
     if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
   }
   if (splitString(searchString_f, " - ", 3, searchString1, searchString2)) {
+    searchString1 = removeLastPartWithP(searchString1);
     if (searchString1.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
     if (searchString2.length() >= 6) extMovieTvDb->addSearchResults(resultSet, searchString2, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
   }

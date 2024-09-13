@@ -34,7 +34,11 @@ template<class changeEventF>
     LOCK_SCHEDULES_WRITE;
     cSchedule *pSchedule = (cSchedule *)Schedules->GetSchedule(m_channelID);
     if (!pSchedule) return false;
+#if APIVERSNUM >= 20502
+    cEvent *event = const_cast<cEvent *>(pSchedule->GetEventById(m_eventID));
+#else
     cEvent *event = const_cast<cEvent *>(pSchedule->GetEvent(m_eventID));
+#endif
     if (!event) return false;
     changeEventFunction(event);
     return true;
@@ -62,7 +66,11 @@ private:
     cSchedules *Schedules = cSchedules::GetSchedulesWrite(SchedulesStateKey);
     cSchedule *pSchedule = (cSchedule *)Schedules->GetSchedule(m_channelID);
     if (!pSchedule) return nullptr;
+#if APIVERSNUM >= 20502
+    return const_cast<cEvent *>(pSchedule->GetEventById(m_eventID));
+#else
     return const_cast<cEvent *>(pSchedule->GetEvent(m_eventID));
+#endif
   }
 };
 

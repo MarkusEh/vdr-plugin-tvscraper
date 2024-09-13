@@ -67,8 +67,11 @@ const cEvent* getEvent(tEventID eventid, const tChannelID &channelid) {
 #endif
   schedule = Schedules->GetSchedule( channelid );
   if (!schedule) return NULL;
+#if APIVERSNUM >= 20502
+  return schedule->GetEventById(eventid);
+#else
   return schedule->GetEvent(eventid);
-// note: GetEvent is deprecated, but GetEventById not available in VDR 2.4.8. return schedule->GetEventById(eventid);
+#endif
 }
 
 bool AdjustSpawnedTimer(cTimer *ti, time_t tstart, time_t tstop) {
