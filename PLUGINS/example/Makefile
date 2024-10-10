@@ -6,13 +6,19 @@
 #
 
 TVSCRAPER_SRC ?= ../..
-include $(TVSCRAPER_SRC)/Make.config
+include $(TVSCRAPER_SRC)/Make.config-tvscraper
 
 PKG_CONFIG ?= pkg-config
 PKGCFG = $(if $(VDRDIR),$(shell $(PKG_CONFIG) --variable=$(1) $(VDRDIR)/vdr.pc),$(shell PKG_CONFIG_PATH="$$PKG_CONFIG_PATH:../../.." $(PKG_CONFIG) --variable=$(1) vdr))
 
 export CFLAGS   = $(call PKGCFG,cflags)
-export CXXFLAGS = $(call PKGCFG,cxxflags) -std=c++17
+export CXXFLAGS = $(call PKGCFG,cxxflags)
+
+CFLAGS += -std=c++17
+CFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other libcurl)
+
+INCLUDES += -I$(TVSCRAPER_SRC)
+INCLUDES += $(shell $(PKG_CONFIG) --cflags-only-I libcurl)
 
 LIBS += $(shell $(PKG_CONFIG) --libs libcurl)
 
@@ -20,8 +26,6 @@ DEFINES += -DPLGDIR='"$(PLGDEST)"'
 
 SOFILE = libtvscraper-example.so
 OBJS = example.o
-
-CFLAGS += -I$(TVSCRAPER_SRC)
 
 all: $(SOFILE)
 

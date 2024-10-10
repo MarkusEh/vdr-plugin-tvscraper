@@ -27,12 +27,16 @@ PLGCONFDIR = $(call PKGCFG,configdir)/plugins/$(PLUGIN)
 TMPDIR ?= /tmp
 PLGSRCDIR = ./PLUGINS
 
-include Make.config
+include Make.config-tvscraper
 
 ### The compiler options:
 
 export CFLAGS   = $(call PKGCFG,cflags)
-export CXXFLAGS = $(call PKGCFG,cxxflags) -std=c++17 -rdynamic
+export CXXFLAGS = $(call PKGCFG,cxxflags)
+
+CFLAGS += -std=c++17 -rdynamic
+CFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other libcurl)
+CFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other sqlite3)
 
 ### The version number of VDR's plugin API:
 
@@ -53,7 +57,8 @@ SOFILE = libvdr-$(PLUGIN).so
 
 ### Includes and Defines (add further entries here):
 
-INCLUDES +=
+INCLUDES += $(shell $(PKG_CONFIG) --cflags-only-I libcurl)
+INCLUDES += $(shell $(PKG_CONFIG) --cflags-only-I sqlite3)
 
 DEFINES += -DPLUGIN_NAME_I18N='"$(PLUGIN)"' -DPLGDIR='"$(PLGDEST)"'
 
