@@ -90,10 +90,14 @@ Version 1.1.6
 - Drop support for vdr 2.2.* or earlier
 - Backup in memory database only once a day
 Version 1.1.13
-- change of database content of tv_s_e_name. Might result in wrong identificatiens of opisodes. To avoid, you should delete this table while vdr is not running. The system will fill it again automatically. Note: This table is only used for episode names in non-default language.
+- change of database content of tv_s_e_name. Might result in wrong identification of episodes. To avoid, you should delete this table while vdr is not running. The system will fill it again automatically. Note: This table is only used for episode names in non-default language.
 
 2023-06-18: Version 1.2.0
 - Auto timers
 - Language support
 - Support plugins providing external EPG
 - And many other (smaller) improvemnts
+
+
+2023-08-23: Version 1.2.1
+- Service interface GetEnvironment is available

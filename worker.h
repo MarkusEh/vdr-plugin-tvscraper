@@ -43,6 +43,7 @@ public:
     void InitManualScan(void);
     virtual void Action(void);
     void Stop(void);
+    bool Running_() { return Running(); }
 };
 
 

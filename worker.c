@@ -604,7 +604,7 @@ void cTVScraperWorker::Action(void) {
       }
       dsyslog("tvscraper: epg scraping done");
       if (!Running() ) break;
-      if (config.getEnableAutoTimers() ) timersForEvents(*db);
+      if (config.getEnableAutoTimers() ) timersForEvents(*db, this);
       if (!Running() ) break;
     }
     if (backup_requested) {

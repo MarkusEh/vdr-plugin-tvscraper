@@ -2,7 +2,45 @@
 # Makefile for a Video Disk Recorder plugin
 #
 # $Id$
+
+# The official name of this plugin.
+# This name will be used in the '-P...' option of VDR to load the plugin.
+# By default the main source file also carries this name.
+
+PLUGIN = tvscraper
+
+### The version number of this plugin (taken from the main source file):
+
+VERSION = $(shell grep 'static const char \*VERSION *=' $(PLUGIN).c | awk '{ print $$6 }' | sed -e 's/[";]//g')
+
+### The directory environment:
+
+# Use package data if installed...otherwise assume we're under the VDR source directory:
+PKG_CONFIG ?= pkg-config
+PKGCFG = $(if $(VDRDIR),$(shell $(PKG_CONFIG) --variable=$(1) $(VDRDIR)/vdr.pc),$(shell PKG_CONFIG_PATH="$$PKG_CONFIG_PATH:../../.." $(PKG_CONFIG) --variable=$(1) vdr))
+LIBDIR = $(call PKGCFG,libdir)
+LOCDIR = $(call PKGCFG,locdir)
+PLGCFG = $(call PKGCFG,plgcfg)
+RESDIR = $(call PKGCFG,resdir)
+PLGCONFDIR = $(call PKGCFG,configdir)/plugins/$(PLUGIN)
+
+TMPDIR ?= /tmp
+PLGSRCDIR = ./PLUGINS
+
 include Make.config
+
+### The compiler options:
+
+export CFLAGS   = $(call PKGCFG,cflags)
+export CXXFLAGS = $(call PKGCFG,cxxflags) -std=c++17 -rdynamic
+
+### The version number of VDR's plugin API:
+
+APIVERSION = $(call PKGCFG,apiversion)
+
+### Allow user defined options to overwrite defaults:
+
+-include $(PLGCFG)
 
 ### The name of the distribution archive:
 
@@ -17,12 +55,11 @@ SOFILE = libvdr-$(PLUGIN).so
 
 INCLUDES +=
 
-DEFINES += -DPLUGIN_NAME_I18N='"$(PLUGIN)"'
+DEFINES += -DPLUGIN_NAME_I18N='"$(PLUGIN)"' -DPLGDIR='"$(PLGDEST)"'
 
 LIBS += -lstdc++fs
-LIBS += $(shell pkg-config --libs libcurl)
-LIBS += $(shell pkg-config --libs sqlite3)
-LIBS += $(shell pkg-config --cflags)
+LIBS += $(shell $(PKG_CONFIG) --libs libcurl)
+LIBS += $(shell $(PKG_CONFIG) --libs sqlite3)
 
 ### The object files (add further files here):
 
@@ -35,7 +72,8 @@ all: $(SOFILE) i18n
 ### Implicit rules:
 
 %.o: %.c
-	$(CXX) $(CXXFLAGS) -rdynamic -c $(DEFINES) $(INCLUDES) -o $@ $<
+	@echo CC $@
+	$(Q)$(CXX) $(CXXFLAGS) -c $(DEFINES) $(INCLUDES) -o $@ $<
 
 ### Dependencies:
 
@@ -55,13 +93,16 @@ I18Nmsgs  = $(addprefix $(DESTDIR)$(LOCDIR)/, $(addsuffix /LC_MESSAGES/vdr-$(PLU
 I18Npot   = $(PODIR)/$(PLUGIN).pot
 
 %.mo: %.po
-	msgfmt -c -o $@ $<
+	@echo MO $@
+	$(Q)msgfmt -c -o $@ $<
 
 $(I18Npot): $(wildcard *.c)
-	xgettext -C -cTRANSLATORS --no-wrap --no-location -k -ktr -ktrNOOP --package-name=vdr-$(PLUGIN) --package-version=$(VERSION) --msgid-bugs-address='<see README>' -o $@ `ls $^`
+	@echo GT $@
+	$(Q)xgettext -C -cTRANSLATORS --no-wrap --no-location -k -ktr -ktrNOOP --package-name=vdr-$(PLUGIN) --package-version=$(VERSION) --msgid-bugs-address='<see README>' -o $@ `ls $^`
 
 %.po: $(I18Npot)
-	msgmerge -U --no-wrap --no-location --backup=none -q -N $@ $<
+	@echo PO $@
+	$(Q)msgmerge -U --no-wrap --no-location --backup=none -q -N $@ $<
 	@touch $@
 
 $(I18Nmsgs): $(DESTDIR)$(LOCDIR)/%/LC_MESSAGES/vdr-$(PLUGIN).mo: $(PODIR)/%.mo
@@ -75,11 +116,18 @@ install-i18n: $(I18Nmsgs)
 ### Targets:
 
 $(SOFILE): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -rdynamic -shared $(OBJS) $(LIBS) -o $@
+	@echo LD $@
+	$(Q)$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared $(OBJS) $(LIBS) -o $@
 
 plugins:
 	@find $(PLGSRCDIR) -maxdepth 1 -type d -name "[a-z0-9]*" -exec \
       $(MAKE) \-\-no-print-directory -C {} \;
+clean-plugins:
+	@find $(PLGSRCDIR) -maxdepth 1 -type d -name "[a-z0-9]*" -exec \
+      $(MAKE) \-\-no-print-directory -C {} clean \;
+install-plugins: plugins
+	@find $(PLGSRCDIR) -maxdepth 1 -type d -name "[a-z0-9]*" -exec \
+      $(MAKE) \-\-no-print-directory -C {} install \;
 
 install-lib: $(SOFILE)
 	install -D $^ $(DESTDIR)$(LIBDIR)/$^.$(APIVERSION)
@@ -90,15 +138,6 @@ install-conf:
 	@mkdir -p $(DESTDIR)$(RESDIR)/plugins/$(PLUGIN)
 	@cp -a conf/networks.json $(DESTDIR)$(RESDIR)/plugins/$(PLUGIN)/
 	@cp -a conf/override_tvs.conf $(DESTDIR)$(RESDIR)/plugins/$(PLUGIN)/
-
-install-plugins: plugins
-	mkdir -p "$(PLGDEST)"
-	mkdir -p "$(_PLGDEST)"
-	for i in ${PLGSRCDIR}/*/Makefile; do\
-      grep -q "PLUGIN.*=" "$$i" || continue;\
-      i=`dirname $$i`;\
-      (cd "$$i" && $(MAKE) install);\
-  done;
 
 install: install-lib install-i18n install-conf
 

@@ -86,6 +86,7 @@ class cScraperRec: public cMovieOrTvAT {
     friend bool operator< (int first, const cScraperRec &sec);
 };
 
-bool timersForEvents(const cTVScraperDB &db);
+class cTVScraperWorker;
+bool timersForEvents(const cTVScraperDB &db, cTVScraperWorker *scraperWorker);
 const cEvent* getEvent(tEventID eventid, const tChannelID &channelid);
 #endif // __TVSCRAPER_AUTOTIMERS_H

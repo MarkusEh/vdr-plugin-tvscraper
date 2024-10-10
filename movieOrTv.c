@@ -573,7 +573,7 @@ bool cTvTvdb::getSingleImageAnySeason(eOrientation orientation, string *relPath,
         if (checkPath(dir_entry.path().c_str(), relPath, fullPath, width, height, 680, 1000)) return true;
       }
     }
-  } else esyslog("tvscraper:cTvTvdb::getSingleImageAnySeason ERROR dir %s does not exist", dir_path);
+  } // else esyslog("tvscraper:cTvTvdb::getSingleImageAnySeason ERROR dir %s does not exist", dir_path);
   return false;
 }
 
