@@ -31,12 +31,11 @@ include Make.config-tvscraper
 
 ### The compiler options:
 
-export CFLAGS   = $(call PKGCFG,cflags)
 export CXXFLAGS = $(call PKGCFG,cxxflags)
 
-CFLAGS += -std=c++17 -rdynamic
-CFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other libcurl)
-CFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other sqlite3)
+CXXFLAGS += -std=c++17 -rdynamic
+CXXFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other libcurl)
+CXXFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other sqlite3)
 
 ### The version number of VDR's plugin API:
 

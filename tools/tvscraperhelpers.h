@@ -588,6 +588,34 @@ inline std::string vectorToString(const std::vector<std::string> &vec) {
   return result;
 }
 
+// ================ Channels ============================================
+
+template <size_t N>
+inline cToSvConcat<N> &stringAppendChannel(cToSvConcat<N> &target, const tChannelID &channelID, char point = '.', char minus = '-') {
+  const int st_Mask = 0xFF000000;
+  const int st_Pos  = 0x0000FFFF;
+  target.concat((char) ((channelID.Source() & st_Mask) >> 24));
+  if (int16_t n = channelID.Source() & st_Pos) {
+    char ew = 'E';
+    if (n < 0) {
+      ew = 'W';
+      n = -n;
+    }
+    uint16_t q = (uint16_t)n / 10;
+    target.concat(q, point, (char)((uint16_t)n - 10*q + '0'), ew);
+  }
+  target.concat(minus, channelID.Nid(), minus, channelID.Tid(), minus, channelID.Sid());
+  if (channelID.Rid() ) target.concat(minus, channelID.Rid() );
+  return target;
+}
+template <size_t N>
+inline cToSvConcat<N>& operator<<(cToSvConcat<N>& s, const tChannelID &channelID) {
+  return stringAppendChannel(s, channelID);
+}
+inline void stringAppend(std::string &str, const tChannelID &channelID) {
+  str.append(cToSvConcat(channelID));
+}
+
 // =========================================================
 // special container:
 //   set, can contain string or integer or channel

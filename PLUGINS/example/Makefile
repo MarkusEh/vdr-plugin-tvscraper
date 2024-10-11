@@ -11,11 +11,10 @@ include $(TVSCRAPER_SRC)/Make.config-tvscraper
 PKG_CONFIG ?= pkg-config
 PKGCFG = $(if $(VDRDIR),$(shell $(PKG_CONFIG) --variable=$(1) $(VDRDIR)/vdr.pc),$(shell PKG_CONFIG_PATH="$$PKG_CONFIG_PATH:../../.." $(PKG_CONFIG) --variable=$(1) vdr))
 
-export CFLAGS   = $(call PKGCFG,cflags)
 export CXXFLAGS = $(call PKGCFG,cxxflags)
 
-CFLAGS += -std=c++17
-CFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other libcurl)
+CXXFLAGS += -std=c++17
+CXXFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other libcurl)
 
 INCLUDES += -I$(TVSCRAPER_SRC)
 INCLUDES += $(shell $(PKG_CONFIG) --cflags-only-I libcurl)
