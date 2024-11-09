@@ -76,7 +76,7 @@ bool cMovieDbTv::ReadTv(bool exits_in_db) {
 // call themoviedb api, get data
   const char *lang = config.GetDefaultLanguage()->m_themoviedb;
   cToSvConcat url(m_baseURL, "/tv/", m_tvID, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&include_image_language=en,null&append_to_response=translations,alternative_titles,credits,external_ids");
-  cJsonDocumentFromUrl tv;
+  cJsonDocumentFromUrl tv(m_movieDBScraper->m_curl);
   tv.set_enableDebug(config.enableDebug);
   if (!tv.download_and_parse(url)) return false;
   bool ret = ReadTv(tv);
@@ -169,7 +169,7 @@ bool cMovieDbTv::AddOneSeason() {
 // call api, get json
   cToSvConcat url;
   url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << config.GetDefaultLanguage()->m_themoviedb;
-  cJsonDocumentFromUrl root;
+  cJsonDocumentFromUrl root(m_movieDBScraper->m_curl);
   root.set_enableDebug(config.enableDebug);
   if (!root.download_and_parse(url)) return false;
 // posterPath
@@ -209,7 +209,7 @@ bool cMovieDbTv::AddOneSeason(const cLanguage *lang) {
 // call api, get json
   cToSvConcat url;
   url << m_baseURL << "/tv/" << m_tvID << "/season/" << m_seasonNumber << "?api_key=" << m_movieDBScraper->GetApiKey() << "&language=" << lang->m_themoviedb;
-  cJsonDocumentFromUrl root;
+  cJsonDocumentFromUrl root(m_movieDBScraper->m_curl);
   root.set_enableDebug(config.enableDebug);
   if (!root.download_and_parse(url)) return false;
 // episodes

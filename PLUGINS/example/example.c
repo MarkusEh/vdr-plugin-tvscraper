@@ -1,7 +1,6 @@
 #include "example.h"
-#include "../../tools/curlfuncs.h"
-#include "../../tools/curlfuncs.cpp"
-#include "../../tools/fuzzy.c"
+#include <tools/curlfuncs.h>
+#include <tools/fuzzy.c>
 
 // cTvspEvent ***********************************************
 
@@ -14,8 +13,8 @@ cTvspEvent::cTvspEvent(const rapidjson::Value& tvspEvent, rapidjson::SizeType li
 
 // cTvspEpgOneDay ***********************************************
 
-cTvspEpgOneDay::cTvspEpgOneDay(cSv extChannelId, time_t startTime):
-  m_document(std::make_shared<cJsonDocumentFromUrl>() ),
+cTvspEpgOneDay::cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime):
+  m_document(std::make_shared<cJsonDocumentFromUrl>(curl) ),
   m_events(std::make_shared<std::vector<cTvspEvent>>() )
   {
     initJson(extChannelId, startTime);
@@ -37,13 +36,6 @@ void cTvspEpgOneDay::initJson(cSv extChannelId, time_t startTime) {
                   appendInt<2>(time->tm_mon + 1).concat('-').
                   appendInt<2>(time->tm_mday);
 
-/*
-  cToSvConcat url("http://live.tvspielfilm.de/static/broadcast/list/",
-                  extChannelId, '/',
-                  cToSvInt<4>(time->tm_year + 1900), '-',
-                  cToSvInt<2>(time->tm_mon + 1), '-',
-                  cToSvInt<2>(time->tm_mday));
-*/
 // if (extChannelId[0] == 'A') esyslog("tvscraper epg about to download %s", url.c_str() );
 // calculate m_start: today 5 am
   time->tm_sec = 0;
@@ -54,7 +46,7 @@ void cTvspEpgOneDay::initJson(cSv extChannelId, time_t startTime) {
 
 // download json file
   m_document->set_enableDebug(true);
-  if (!m_document->download_and_parse(url.c_str()) ) return; // no data
+  if (!m_document->download_and_parse(url)) return; // no data
 //  if (!jsonCallRest(*m_document, *m_json, url.c_str(), false) ) return; // no data
   if (!m_document->IsArray() ) {
     esyslog("tvscraper: ERROR cTvspEpgOneDay::initJson, parse %s failed, document is not an array", url.c_str() );

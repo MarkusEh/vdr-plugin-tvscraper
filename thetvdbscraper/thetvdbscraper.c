@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cTVDBScraper::cTVDBScraper(cTVScraperDB *db) {
+cTVDBScraper::cTVDBScraper(cCurl *curl, cTVScraperDB *db): m_curl(curl) {
   this->db = db;
 }
 
@@ -27,10 +27,10 @@ bool cTVDBScraper::GetToken(void) {
   headers = curl_slist_append(headers, "accept: application/json");
   headers = curl_slist_append(headers, "Content-Type: application/json");
   headers = curl_slist_append(headers, "charset: utf-8");
-  bool result =  CurlPostUrl(url, "{\"apikey\": \"5476e702-85aa-45fd-a8da-e74df3840baf\"}", buffer, headers);
+  int result =  m_curl->PostUrl(url, "{\"apikey\": \"5476e702-85aa-45fd-a8da-e74df3840baf\"}", buffer, headers);
   curl_slist_free_all(headers);
-  if (!result) {
-    esyslog("tvscraper: ERROR cTVDBScraper::GetToken, calling %s", url);
+  if (result != 0) {
+    esyslog("tvscraper: ERROR code %i in cTVDBScraper::GetToken, calling %s", result, url);
     return false;
   }
 // now read the tocken
@@ -41,7 +41,7 @@ bool cTVDBScraper::GetToken(void) {
   return true;
 }
 
-bool cTVDBScraper::GetToken(std::string &jsonResponse) {
+bool cTVDBScraper::GetToken(cStr jsonResponse) {
   rapidjson::Document document;
   document.ParseInsitu(jsonResponse.data() );
   if (document.HasParseError() ) {
@@ -165,7 +165,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
 // Episode Guest stars, writer, ... NOT available in https://api4.thetvdb.com/v4/seasons/1978231/extended
 //
   CONCATENATE(url, baseURL4, "series/", seriesID, "/extended?meta=translations&short=false");
-  cJsonDocumentFromUrl document;
+  cJsonDocumentFromUrl document(m_curl);
   const rapidjson::Value *data;
   int error = CallRestJson(document, data, url);
   if (error != 0) {
@@ -225,18 +225,26 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
   cSql insertEpisode3(db, "INSERT INTO tv_s_e (tv_id, season_number, episode_number, episode_id, episode_air_date, episode_overview, episode_still_path, episode_run_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(tv_id,season_number,episode_number) DO UPDATE SET episode_air_date=excluded.episode_air_date, episode_overview=excluded.episode_overview, episode_still_path=excluded.episode_still_path,episode_run_time=excluded.episode_run_time;");
   cSql insertRuntime(db, "INSERT OR REPLACE INTO tv_episode_run_time (tv_id,episode_run_time) VALUES (?, ?)");
 
-  string urlE;
-  if (lang) urlE = concatenate(baseURL4, "series/", seriesID, "/episodes/default/", lang->m_thetvdb, "?page=0");
-  else urlE = concatenate(baseURL4, "series/", seriesID, "/episodes/default?page=0");
+  cToSvConcat urlE(baseURL4, "series/", seriesID);
+  if (lang) urlE.concat("/episodes/default/", lang->m_thetvdb, "?page=0");
+  else urlE.concat("/episodes/default?page=0");
   bool first = true;
   bool langIsDisplayLanguage = langIsIntendedDisplayLanguage;
   do {
-    cJsonDocumentFromUrl episodes;
+    cJsonDocumentFromUrl episodes(m_curl);
     const rapidjson::Value *data_episodes;
-    int error = CallRestJson(episodes, data_episodes, urlE.c_str() );
+    int error = CallRestJson(episodes, data_episodes, urlE);
     if (error != 0) {
-//    if (error == -1) { db->DeleteSeriesCache(-seriesID); return -1; } // object does not exist
-      if (error == -1) { if (displayLanguage) *displayLanguage = nullptr; return 1; } // episode names not available in this language, using the API (bug in API)
+      if (error == -1) {
+        if (displayLanguage) *displayLanguage = nullptr;
+// might also be returned if episode names not available in this language, using the API (bug in API)
+// so, before deleting the series, check esxistance with series api
+        cJsonDocumentFromUrl document_series(m_curl);
+        const rapidjson::Value *data_series;
+        error = CallRestJson(document_series, data_series, cToSvConcat(baseURL4, "series/", seriesID) );
+        if (error == -1) db->DeleteSeriesCache(-seriesID); // object does not exist (now verified with other API call)
+        return -1;
+      }
       return 5;
     }
     if (first) {
@@ -326,7 +334,8 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
 
     rapidjson::Value::ConstMemberIterator links_it = getTag(episodes, "links", "cTVDBScraper::StoreSeriesJson_lang", &episodes);
     if (links_it == episodes.MemberEnd() || !links_it->value.IsObject() ) break;
-    urlE = charPointerToString(getValueCharS(links_it->value, "next"));
+    urlE.clear();
+    urlE.concat(getValueCharS(links_it->value, "next"));
   } while (!urlE.empty() );
   time_t now = time(0);
   db->exec("UPDATE tv2 SET tv_last_updated = ? WHERE tv_id = ?", now, -seriesID);
@@ -342,7 +351,10 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
   return 0;
 }
 
-int cTVDBScraper::CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog) {
+int cTVDBScraper::CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, cStr url, bool disableLog) {
+// return 0 on success. In this case, "data" exists, and can be accessed with document["data"].
+//  1: error: In this case, an ERROR message is written in syslog
+// -1: "Not Found" (no message in syslog, just the reqested object does not exist)
   int i = 0;
   int rc;
   do {
@@ -350,14 +362,14 @@ int cTVDBScraper::CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::
     if (rc != 100) return rc;
 // rc == 100 -> Internal Server Error
     if (++i > 5) break;
-    if (config.enableDebug) esyslog("tvscraper: INFO: Internal Server Error calling \"%s\", i = %i, trying again ...", url, i);
+    if (config.enableDebug) esyslog("tvscraper: INFO: Internal Server Error calling \"%s\", i = %i, http response code %ld, trying again ...", url.c_str(), i, document.getHttpResponseCode() );
     sleep(2 + 3*i);
   } while (true);
 
-  esyslog("tvscraper: ERROR Internal Server Error calling \"%s\", i = %i, giving up", url, i);
-  return rc;
+  esyslog("tvscraper: ERROR Internal Server Error calling \"%s\", i = %i, http response code %ld, giving up", url.c_str(), i, document.getHttpResponseCode() );
+  return 1;
 }
-int cTVDBScraper::CallRestJson_int(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog) {
+int cTVDBScraper::CallRestJson_int(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, cStr url, bool disableLog) {
 // return 0 on success. In this case, "data" exists, and can be accessed with document["data"].
 //  1: error: In this case, an ERROR message is written in syslog
 // -1: "Not Found" (no message in syslog, just the reqested object does not exist)
@@ -369,17 +381,19 @@ int cTVDBScraper::CallRestJson_int(cJsonDocumentFromUrl &document, const rapidjs
   if (!success) return 1; // jsonCallRest wrote error in syslog
   const char *status;
   if (!getValue(document, "status", status) || !status) {
-    esyslog("tvscraper: cTVDBScraper::CallRestJson, url %s, doc %s, no status", url, document.context() );
+    esyslog("tvscraper: cTVDBScraper::CallRestJson, url %s, doc %s, no status", url.c_str(), document.context() );
     return 1;
   }
   if (strcmp(status, "success") != 0) {
+    long httpResponseCode = document.getHttpResponseCode();
+    if (httpResponseCode == 404) return -1;  // series not found. This is documented in https://thetvdb.github.io/v4-ap
     const char *message = getValueCharS(document, "message");
     if (strcmp(status, "failure") == 0) {
       if (message && strcmp(message, "Not Found") == 0) return -1;
       if (message && strncmp(message, "NotFoundException", 17) == 0) return -1;
       if (message && strncmp(message, "Internal Server Error", 21) == 0) return 100;
     }
-    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, status = %s, message = %s, doc %s", url, status, message?message:"no message", document.context() );
+    esyslog("tvscraper: ERROR cTVDBScraper::CallRestJson, url %s, http response code %ld, status = %s, message = %s, doc %s", url.c_str(), httpResponseCode, status, message?message:"no message", document.context() );
     return 1;
   }
   rapidjson::Value::ConstMemberIterator data_it = getTag(document, "data", "cTVDBScraper::CallRestJson", &document);
@@ -402,86 +416,83 @@ const char *cTVDBScraper::getDbUrl(const char *url) {
   return url;
 }
 
-void cTVDBScraper::download(const char *url, const char *localPath) {
+void cTVDBScraper::download(cStr url, cStr localPath) {
 // create full download url fron given url, and download to local path
-  if (!url || !*url || !localPath || !*localPath) return;
-  if (strncmp(url, cTVDBScraper::prefixImageURL2, strlen(cTVDBScraper::prefixImageURL2) ) == 0) {
-    DownloadImg(url, localPath);
+  if (strncmp(url.c_str(), cTVDBScraper::prefixImageURL2, strlen(cTVDBScraper::prefixImageURL2) ) == 0) {
+    DownloadImg(m_curl, url, localPath);
     return;
   }
-  std::string fullUrl;
-  if (url[0] == '/') fullUrl = concat(cTVDBScraper::prefixImageURL2, url);
-  else fullUrl = concat(cTVDBScraper::prefixImageURL1, url);  // for URLs returned by APIv3
-  DownloadImg(fullUrl, localPath);
+  cToSvConcat fullUrl;
+  if (url[0] == '/') fullUrl.concat(cTVDBScraper::prefixImageURL2, url);
+  else fullUrl.concat(cTVDBScraper::prefixImageURL1, url);  // for URLs returned by APIv3
+  DownloadImg(m_curl, fullUrl, localPath);
 }
 
 void cTVDBScraper::StoreActors(int seriesID) {
-  std::string destDir = concatenate(config.GetBaseDirSeries(), seriesID);
+  cToSvConcat destDir(config.GetBaseDirSeries(), seriesID);
 //  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreActors, seriesID %i destDir %s", seriesID, destDir.c_str());
   if (!CreateDirectory(destDir)) return;
-  destDir += "/actor_";
+  destDir << "/actor_";
   int destDirLen = destDir.length();
   cSql stmt0(db, "SELECT actor_id, actor_path FROM actor_download WHERE movie_id = ? AND is_movie = ?");
-  for (cSql &stmt: stmt0.resetBindStep(seriesID * -1, false)) {
+  for (cSql &stmt: stmt0.resetBindStep(-seriesID, false)) {
     const char *actor_path = stmt.getCharS(1);
     if (!actor_path || !*actor_path) continue;
     destDir.erase(destDirLen);
-    stringAppend(destDir, stmt.getInt(0), ".jpg");
-    download(actor_path, destDir.c_str() );
+    destDir << stmt.getInt(0) << ".jpg";
+    download(actor_path, destDir);
   }
   db->DeleteActorDownload (-seriesID, false);
 }
 void cTVDBScraper::StoreStill(int seriesID, int seasonNumber, int episodeNumber, const char *episodeFilename) {
     if (!episodeFilename || !*episodeFilename) return;
-    std::string destDir; destDir.reserve(200);
-    stringAppend(destDir, config.GetBaseDirSeries(), seriesID, "/");
+    cToSvConcat destDir(config.GetBaseDirSeries(), seriesID, "/");
     if (!CreateDirectory(destDir) ) return;
-    stringAppend(destDir, seasonNumber, "/");
+    destDir << seasonNumber << "/";
     if (!CreateDirectory(destDir) ) return;
-    stringAppend(destDir, "still_", episodeNumber, ".jpg");
-    download(episodeFilename, destDir.c_str() );
+    destDir << "still_" << episodeNumber << ".jpg";
+    download(episodeFilename, destDir);
 }
 void cTVDBScraper::DownloadMedia (int tvID) {
-  std::string destDir = concatenate(config.GetBaseDirSeries(), tvID, "/");
+  cToSvConcat destDir(config.GetBaseDirSeries(), tvID, "/");
   if (!CreateDirectory(destDir)) return;
 
-  DownloadMedia (tvID, mediaPoster, destDir + "poster_");
-  DownloadMedia (tvID, mediaFanart, destDir + "fanart_");
-  DownloadMedia (tvID, mediaSeason, destDir + "season_poster_");
-  DownloadMediaBanner (tvID, destDir + "banner.jpg");
+  DownloadMedia (tvID, mediaPoster, cToSvConcat(destDir, "poster_"));
+  DownloadMedia (tvID, mediaFanart, cToSvConcat(destDir, "fanart_"));
+  DownloadMedia (tvID, mediaSeason, cToSvConcat(destDir, "season_poster_"));
+  DownloadMediaBanner (tvID, cToSvConcat(destDir, "banner.jpg"));
   db->deleteTvMedia (tvID * -1, false, true);
 }
 
-void cTVDBScraper::DownloadMedia (int tvID, eMediaType mediaType, const string &destDir) {
+void cTVDBScraper::DownloadMedia (int tvID, eMediaType mediaType, cStr destDir) {
 //  if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::DownloadMedia, tvID %i mediaType %i destDir %s", tvID, mediaType, destDir.c_str());
   cSql sql(db, "select media_path, media_number from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
   for (cSql &stmt: sql.resetBindStep(tvID * -1, (int)mediaType)) {
 //    if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::DownloadMedia, media[0] %s media[1] %s", media[0].c_str(), media[1].c_str() );
     const char *media_path = stmt.getCharS(0);
     if (!media_path || !*media_path ) continue;
-    download(media_path, concatenate(destDir, stmt.getInt(1), ".jpg").c_str() );
+    download(media_path, cToSvConcat(destDir, stmt.getInt(1), ".jpg"));
   }
 }
 
-void cTVDBScraper::DownloadMediaBanner (int tvID, const string &destPath) {
+void cTVDBScraper::DownloadMediaBanner (int tvID, cStr destPath) {
   cSql sql(db,  "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
   for (cSql &stmt: sql.resetBindStep(tvID * -1, (int)mediaBanner)) {
     const char *media_path = stmt.getCharS(0);
     if (!media_path || !*media_path ) continue;
-    download(media_path, destPath.c_str() );
+    download(media_path, destPath);
     return;
   }
 }
 
 // Search series
 bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang, int network_id) {
-  std::string url; url.reserve(300);
-  url.append(baseURL4Search);
-  stringAppendCurlEscape(url, SearchString);
+  cToSvConcat url(baseURL4Search);
+  m_curl->appendCurlEscape(url, SearchString);
  
-  cJsonDocumentFromUrl root;
+  cJsonDocumentFromUrl root(m_curl);
   const rapidjson::Value *data;
-  if (CallRestJson(root, data, url.c_str() ) != 0) return false;
+  if (CallRestJson(root, data, url) != 0) return false;
   if (!data || !data->IsArray() ) {
     esyslog("tvscraper: ERROR cTVDBScraper::AddResults4, data is %s", data?"not an array":"NULL");
     return false;

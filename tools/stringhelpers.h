@@ -89,6 +89,7 @@ class cSv: public std::string_view {
 // =================================================
 // *********   utf8  *****************
 // =================================================
+  public:
     int utf8CodepointIsValid(size_t pos) const {
 // In case of invalid UTF8, return 0
 // In case of invalid input, return -1 (pos  >= sc.length())
@@ -101,9 +102,10 @@ class cSv: public std::string_view {
       int len = (((*this)[pos] & 0xC0) == 0xC0) * LEN[((*this)[pos] >> 3) & 7] + (((*this)[pos] | 0x7F) == 0x7F);
       if (len == 1) return 1;
       if (len + pos > length()) return 0;
-      for (size_t k= pos + 1; k < pos + len; k++) if (((*this)[k] & 0xC0) != 0x80) len = 0;
+      for (size_t k= pos + 1; k < pos + len; k++) if (((*this)[k] & 0xC0) != 0x80) return 0;
       return len;
     }
+  private:
     size_t utf8ParseBackwards(size_t pos) const {
 // pos <= s.length()! this is not checked
 // return position of character before pos
@@ -121,7 +123,7 @@ class cSv: public std::string_view {
     int compareLowerCase(cSv other, const std::locale &loc);
 };
 
-inline wint_t Utf8ToUtf32(const char *&p, int len);
+inline wint_t Utf8ToUtf32(const char *p, int len);
 // iterator for utf8
 class utf8_iterator {
     const cSv m_sv;
@@ -173,8 +175,7 @@ class utf8_iterator {
       if (m_pos >= m_sv.length() ) return 0;
       int l = get_len();
       if (l <= 0) return '?'; // invalid utf8
-      const char *p = m_sv.data() + m_pos;
-      return Utf8ToUtf32(p, l);
+      return Utf8ToUtf32(m_sv.data() + m_pos, l);
     }
     size_t pos() const {
 // note: if this == end(), sv[m_pos] is invalid!!!
@@ -215,7 +216,7 @@ class cStr {
     cStr(const std::string &s): m_s(s.c_str()) {}
     operator const char*() const { return m_s; }
     const char *c_str() const { return m_s; }
-    const char *data() const { return m_s; }
+    char *data() { return (char *)m_s; }
     size_t length() const { return strlen(m_s); }
     operator cSv() const { return cSv(m_s, strlen(m_s)); }
   private:
@@ -227,41 +228,6 @@ class cStr {
 // Chapter 1: UTF8 string utilities ****************
 // =========================================================
 // =========================================================
-
-inline int AppendUtfCodepoint(char *&target, wint_t codepoint) {
-  if (codepoint <= 0x7F) {
-    if (target) {
-      *(target++) = (char) (codepoint);
-      *target = 0;
-    }
-    return 1;
-  }
-  if (codepoint <= 0x07FF) {
-    if (target) {
-      *(target++) =( (char) (0xC0 | (codepoint >> 6 ) ) );
-      *(target++) =( (char) (0x80 | (codepoint & 0x3F)) );
-      *target = 0;
-    }
-    return 2;
-  }
-  if (codepoint <= 0xFFFF) {
-    if (target) {
-      *(target++) =( (char) (0xE0 | ( codepoint >> 12)) );
-      *(target++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
-      *(target++) =( (char) (0x80 | ( codepoint & 0x3F)) );
-      *target = 0;
-    }
-    return 3;
-  }
-    if (target) {
-      *(target++) =( (char) (0xF0 | ((codepoint >> 18) & 0x07)) );
-      *(target++) =( (char) (0x80 | ((codepoint >> 12) & 0x3F)) );
-      *(target++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
-      *(target++) =( (char) (0x80 | ( codepoint & 0x3F)) );
-      *target = 0;
-    }
-  return 4;
-}
 
 inline void stringAppendUtfCodepoint(std::string &target, wint_t codepoint) {
   if (codepoint <= 0x7F){
@@ -287,41 +253,35 @@ inline void stringAppendUtfCodepoint(std::string &target, wint_t codepoint) {
 }
 
 inline int utf8CodepointIsValid(const char *p) {
+// p must be zero terminated
+
 // In case of invalid UTF8, return 0
 // otherwise, return number of characters for this UTF codepoint
   static const uint8_t LEN[] = {2,2,2,2,3,3,4,0};
 
   int len = ((*p & 0xC0) == 0xC0) * LEN[(*p >> 3) & 7] + ((*p | 0x7F) == 0x7F);
-  for (int k=1; k < len; k++) if ((p[k] & 0xC0) != 0x80) len = 0;
+  for (int k=1; k < len; k++) if ((p[k] & 0xC0) != 0x80) return 0;
   return len;
 }
-inline wint_t Utf8ToUtf32(const char *&p, int len) {
+inline wint_t Utf8ToUtf32(const char *p, int len) {
 // assumes, that uft8 validity checks have already been done. len must be provided. call utf8CodepointIsValid first
-// change p to position of next codepoint (p = p + len)
   static const uint8_t FF_MSK[] = {0xFF >>0, 0xFF >>0, 0xFF >>3, 0xFF >>4, 0xFF >>5, 0xFF >>0, 0xFF >>0, 0xFF >>0};
   wint_t val = *p & FF_MSK[len];
-  const char *q = p + len;
-  for (p++; p < q; p++) val = (val << 6) | (*p & 0x3F);
+  for (int i = 1; i < len; i++) val = (val << 6) | (p[i] & 0x3F);
   return val;
 }
 
-inline wint_t getUtfCodepoint(const char *p) {
-// get next codepoint
-// 0 is returned at end of string
-  if(!p || !*p) return 0;
-  int l = utf8CodepointIsValid(p);
-  if( l == 0 ) return '?';
-  const char *s = p;
-  return Utf8ToUtf32(s, l);
-}
+inline wint_t getNextUtfCodepoint(const char *&p) {
+// p must be zero terminated
 
-inline wint_t getNextUtfCodepoint(const char *&p){
 // get next codepoint, and increment p
 // 0 is returned at end of string, and p will point to the end of the string (0)
   if(!p || !*p) return 0;
   int l = utf8CodepointIsValid(p);
   if( l == 0 ) { p++; return '?'; }
-  return Utf8ToUtf32(p, l);
+  wint_t result = Utf8ToUtf32(p, l);
+  p += l;
+  return result;
 }
 
 // =========================================================
@@ -469,7 +429,7 @@ inline cSv SecondPart(cSv str, cSv delim) {
 // =========================================================
 
 // =========================================================
-// integer and hext
+// integer and hex
 // =========================================================
 
 namespace stringhelpers_internal {
@@ -589,14 +549,17 @@ inline std::ostream& operator<<(std::ostream& os, cToSv const& sv )
 template<std::size_t N>
 class cToSvHex: public cToSv {
   public:
-template<class T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-    cToSvHex(T value) {
+template<typename T>
+    cToSvHex(const T &value) { *this << value; }
+template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+    cToSvHex &operator<<(T value) {
       stringhelpers_internal::addCharsHex(m_buffer, N, value);
+      return *this;
     }
     operator cSv() const { return cSv(m_buffer, N); }
+    char m_buffer[N];
   protected:
     cToSvHex() { }
-    char m_buffer[N];
 };
 
 // read files
@@ -735,6 +698,8 @@ class cToSvConcat: public cToSv {
       *this << n;
       return concat(std::forward<Args>(args)...);
     }
+    template<typename T>
+    cToSvConcat &operator+=(T &&n) { return *this << n; }
 // ========================
 // overloads for concat
     cToSvConcat &operator<<(char ch) {
@@ -743,6 +708,8 @@ class cToSvConcat: public cToSv {
       return *this;
     }
     cToSvConcat &operator<<(cSv sv) { return append(sv.data(), sv.length()); }
+    template<std::size_t M>
+    cToSvConcat &operator<<(const char (&s)[M]) { return append(s, M-1); }
 
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
     cToSvConcat &operator<<(T i) {
@@ -781,17 +748,40 @@ template<size_t M, typename T, std::enable_if_t<std::is_integral_v<T>, bool> = t
       return *this;
     }
 template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-    cToSvConcat &appendHex(T value, int width) {
+    cToSvConcat &appendHex(T value, int width = sizeof(T)*2) {
       if (m_pos_for_append + width > m_be_data) ensure_free(width);
       stringhelpers_internal::addCharsHex(m_pos_for_append, width, value);
       m_pos_for_append += width;
+      return *this;
+    }
+template<typename T, std::enable_if_t<sizeof(T) == 16, bool> = true>
+    cToSvConcat &appendHex(T value) {
+      *this << value;
       return *this;
     }
 // =======================
 // append_utf8 append utf8 codepoint
     cToSvConcat &append_utf8(wint_t codepoint) {
       if (m_pos_for_append + 4 > m_be_data) ensure_free(4);
-      AppendUtfCodepoint(m_pos_for_append, codepoint);
+      if (codepoint <= 0x7F) {
+        *(m_pos_for_append++) = (char) (codepoint);
+        return *this;
+      }
+      if (codepoint <= 0x07FF) {
+        *(m_pos_for_append++) =( (char) (0xC0 | (codepoint >> 6 ) ) );
+        *(m_pos_for_append++) =( (char) (0x80 | (codepoint & 0x3F)) );
+        return *this;
+      }
+      if (codepoint <= 0xFFFF) {
+          *(m_pos_for_append++) =( (char) (0xE0 | ( codepoint >> 12)) );
+          *(m_pos_for_append++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+          *(m_pos_for_append++) =( (char) (0x80 | ( codepoint & 0x3F)) );
+        return *this;
+      }
+      *(m_pos_for_append++) =( (char) (0xF0 | ((codepoint >> 18) & 0x07)) );
+      *(m_pos_for_append++) =( (char) (0x80 | ((codepoint >> 12) & 0x3F)) );
+      *(m_pos_for_append++) =( (char) (0x80 | ((codepoint >>  6) & 0x3F)) );
+      *(m_pos_for_append++) =( (char) (0x80 | ( codepoint & 0x3F)) );
       return *this;
     }
 // =======================
@@ -802,6 +792,38 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
       }
       return *this;
     }
+// apend text. Before appending, replace all occurances of substring with replacement
+    cToSvConcat &appendReplace(cSv text, cSv substring, cSv replacement) {
+      size_t pos = 0, found;
+      while ( (found = text.find(substring, pos)) != std::string_view::npos) {
+        append(text.data()+pos, found-pos);
+        append(replacement);
+        pos = found + substring.length();
+      }
+      append(text.data()+pos, text.length()-pos);
+      return *this;
+    }
+// Replaces the characters in the range [begin() + pos, begin() + std::min(pos + count, size())) with sv
+    cToSvConcat &replace(size_t pos, size_t count, cSv sv) {
+      if (pos >= length() ) return append(sv);
+      if (pos + count >= length() ) { m_pos_for_append = m_buffer + pos; return append(sv); }
+      if (sv.length() != count) {
+        if (sv.length() > count) ensure_free(sv.length() - count);
+        memmove(m_buffer+pos+sv.length(), m_buffer+pos+count, length() - (pos+count));
+        m_pos_for_append += sv.length() - count;
+      }
+      memcpy(m_buffer+pos, sv.data(), sv.length() );
+      return *this;
+    }
+// Replaces all occurances of substring after pos with replacement
+    cToSvConcat &replaceAll(cSv substring, cSv replacement, size_t pos = 0) {
+      while ( (pos = cSv(*this).find(substring, pos)) != std::string_view::npos) {
+        replace(pos, substring.length(), replacement);
+        pos += replacement.length();
+      }
+      return *this;
+    }
+
 // =======================
 // appendFormated append formatted
 // __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with GCC 13.1
@@ -826,27 +848,52 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
     }
 // =======================
 // appendDateTime: append date/time formatted with strftime
-    cToSvConcat &appendDateTime(const char *fmt, const std::tm *tp) {
-      size_t needed = std::strftime(m_pos_for_append, m_be_data - m_pos_for_append, fmt, tp);
+    cToSvConcat &appendDateTime(cStr fmt, const std::tm *tp) {
+      size_t needed = std::strftime(m_pos_for_append, m_be_data - m_pos_for_append, fmt.c_str(), tp);
       if (needed == 0) {
         ensure_free(1024);
-        needed = std::strftime(m_pos_for_append, m_be_data - m_pos_for_append, fmt, tp);
+        needed = std::strftime(m_pos_for_append, m_be_data - m_pos_for_append, fmt.c_str(), tp);
         if (needed == 0) {
-          esyslog("live: ERROR, cToScConcat::appendDateTime needed = 0, fmt = %s", fmt);
+          esyslog("live: ERROR, cToScConcat::appendDateTime needed = 0, fmt = %s", fmt.c_str());
           return *this; // we did not expect to need more than 1024 chars for the formatted time ...
         }
       }
       m_pos_for_append += needed;
       return *this;
     }
-    cToSvConcat &appendDateTime(const char *fmt, time_t time) {
+    cToSvConcat &appendDateTime(cStr fmt, time_t time) {
       if (!time) return *this;
       struct std::tm tm_r;
       if (localtime_r( &time, &tm_r ) == 0 ) {
-        esyslog("live: ERROR, cToScConcat::appendDateTime localtime_r = 0, fmt = %s, time = %lld", fmt, (long long)time);
+        esyslog("live: ERROR, cToScConcat::appendDateTime localtime_r = 0, fmt = %s, time = %lld", fmt.c_str(), (long long)time);
         return *this;
         }
       return appendDateTime(fmt, &tm_r);
+    }
+// =======================
+// appendUrlEscaped
+    cToSvConcat &appendUrlEscaped(cSv sv) {
+      const char* reserved = " !#$&'()*+,/:;=?@[]\"<>\n\r\t\\%";
+// in addition to the reserved URI charaters as defined here https://en.wikipedia.org/wiki/Percent-encoding
+// also escape html characters \"<>\n\r so no additional html-escaping is required
+// \ is escaped for easy use in strings where \ has a special meaning
+      for (size_t pos = 0; pos < sv.length(); ++pos) {
+        char c = sv[pos];
+        if (strchr(reserved, c)) {
+          concat('%');
+          appendHex((unsigned char)c, 2);
+        } else if ((unsigned char)c < ' ' || c == 127) {
+          concat('?');  // replace control characters with ?
+        } else {
+          int l = sv.utf8CodepointIsValid(pos);
+          if (l == 0) concat('?'); // invalid utf
+          else {
+            append(sv.data() + pos, l);
+            pos += l-1;
+          }
+        }
+      }
+      return *this;
     }
 // ========================
 // get data
@@ -864,6 +911,17 @@ template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
     void clear() { m_pos_for_append = m_buffer; }
     cToSvConcat &erase(size_t index = 0) {
       m_pos_for_append = std::min(m_pos_for_append, m_buffer + index);
+      return *this;
+    }
+    cToSvConcat &erase(size_t index, size_t count) {
+      size_t l_length = length();
+      if ((index >= l_length) | (count == 0) ) return *this;
+      if (index + count >= l_length) {
+        m_pos_for_append = m_buffer + index;
+      } else {
+        memmove(m_buffer+index, m_buffer+index + count, l_length - index - count);
+        m_pos_for_append -= count;
+      }
       return *this;
     }
     void reserve(size_t r) const { m_reserve = r; }
@@ -908,12 +966,6 @@ template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
     cToSvInt(T i) {
       this->m_pos_for_append = stringhelpers_internal::itoa_min_width<N>(this->m_pos_for_append, i);
     }
-/*
-template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
-    cToSvInt (T i, size_t desired_width, char fill_char = '0') {
-      this->appendInt(i, desired_width, fill_char);
-    }
-*/
 };
 template<std::size_t N = 255> 
 class cToSvToLower: public cToSvConcat<N> {
@@ -934,8 +986,23 @@ class cToSvFormated: public cToSvConcat<N> {
 };
 class cToSvDateTime: public cToSvConcat<255> {
   public:
-    cToSvDateTime(const char *fmt, time_t time) {
+    cToSvDateTime(cStr fmt, time_t time) {
       this->appendDateTime(fmt, time);
+    }
+};
+template<std::size_t N = 255>
+class cToSvUrlEscaped: public cToSvConcat<N> {
+  public:
+    cToSvUrlEscaped(cSv sv) {
+      this->appendUrlEscaped(sv);
+    }
+};
+
+template<std::size_t N = 255>
+class cToSvReplace: public cToSvConcat<N> {
+  public:
+    cToSvReplace(cSv text, cSv substring, cSv replacement) {
+      this->appendReplace(text, substring, replacement);
     }
 };
 
@@ -953,34 +1020,6 @@ inline void stringAppend(std::string &str, T i) {
 template<std::size_t N, typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
 inline void stringAppend(cToSvConcat<N> &s, T i) {
   s.concat(i);
-}
-
-template<std::size_t N, typename... Args>
-inline void stringAppendFormated(cToSvConcat<N> &s, const char *fmt, Args&&... args) {
-  s.appendFormated(fmt, std::forward<Args>(args)...);
-}
-
-// __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with GCC 13.1
-template<typename... Args>
-void stringAppendFormated(std::string &str, const char *fmt, Args&&... args) {
-  size_t size = 1024;
-  char buf[size];
-  int needed = snprintf (buf, size, fmt, std::forward<Args>(args)...);
-  if (needed < 0) {
-    esyslog("live: ERROR, stringAppendFormated, needed = %d", needed);
-    return; // error in snprintf
-  }
-  if ((size_t)needed < size) {
-    str.append(buf);
-  } else {
-    char buf2[needed + 1];
-    needed = sprintf (buf2, fmt, args...);
-    if (needed < 0) {
-      esyslog("live: ERROR, stringAppendFormated, needed (2) = %d", needed);
-      return; // error in snprintf
-    }
-    str.append(buf2);
-  }
 }
 
 // =========================================================
@@ -1039,19 +1078,6 @@ inline void stringAppendRemoveControlCharactersKeepNl(std::string &target, const
 }
 
 // =========================================================
-// =========== concatenate =================================
-// =========================================================
-// deprecated. Use cToSvConcat
-
-template<typename... Args>
-inline std::string concatenate(Args&&... args) {
-  std::string result;
-  result.reserve(200);
-  stringAppend(result, std::forward<Args>(args)...);
-  return result;
-}
-
-// =========================================================
 // =========== concat      =================================
 // =========================================================
 
@@ -1086,26 +1112,74 @@ inline std::string concat(Args&&... args) {
 // parse string_view for XML
 // =========================================================
 
-template<std::size_t N> cSv partInXmlTag(cSv sv, const char (&tag)[N], bool *exists = nullptr) {
+class cSubstring{
+  public:
+    cSubstring(size_t pos_start, size_t len):
+      m_pos_start(pos_start), m_len(len) {};
+    cSubstring():
+      m_pos_start(std::string::npos), m_len(0) {};
+    bool found() { return m_pos_start != std::string::npos; }
+    cSv substr(cSv sv) { return found()?sv.substr(m_pos_start, m_len):cSv(); }
+template<std::size_t N> cSubstring substringInXmlTag(cSv sv, const char (&tag)[N]);
+template <size_t N>
+    cToSvConcat<N> &erase(cToSvConcat<N> &target, size_t tag_len) {
+      if (found() ) target.erase(m_pos_start-tag_len-2, m_len+2*tag_len+5);
+      return target;
+    }
+    std::string &erase(std::string &target, size_t tag_len) {
+      if (found() ) target.erase(m_pos_start-tag_len-2, m_len+2*tag_len+5);
+      return target;
+    }
+template <size_t N>
+    cToSvConcat<N> &replace(cToSvConcat<N> &target, cSv sv) {
+      if (found() ) target.replace(m_pos_start, m_len, sv);
+      return target;
+    }
+    std::string &replace(std::string &target, cSv sv) {
+      if (found() ) target.replace(m_pos_start, m_len, sv);
+      return target;
+    }
+  private:
+    size_t m_pos_start;
+    size_t m_len;
+};
+template<std::size_t N> inline
+cSubstring substringInXmlTag(cSv sv, const char (&tag)[N]) {
 // very simple XML parser
 // if sv contains <tag>...</tag>, ... is returned (part between the outermost XML tags is returned).
-// otherwise, cSv() is returned. This is also returned if the tags are there, but there is nothing between the tags ...
 // there is no error checking, like <tag> is more often in sv than </tag>, ...
-  if (exists) *exists = false;
+
 // N == strlen(tag) + 1. It includes the 0 terminator ...
 // strlen(startTag) = N+1; strlen(endTag) = N+2. Sums to 2N+3
-  if (N < 1 || sv.length() < 2*N+3) return cSv();
+  if (N < 1 || sv.length() < 2*N+3) return cSubstring();
 // create <tag>
   cToSvConcat<N+2> tagD("<<", tag, ">");
   size_t pos_start = sv.find(cSv(tagD).substr(1));
-  if (pos_start == std::string_view::npos) return cSv();
+  if (pos_start == std::string_view::npos) return cSubstring();
 // start tag found at pos_start. Now search the end tag
   pos_start += N + 1; // start of ... between tags
   *(tagD.data() + 1) = '/';
   size_t len = sv.substr(pos_start).rfind(tagD);
-  if (len == std::string_view::npos) return cSv();
-  if (exists) *exists = true;
-  return sv.substr(pos_start, len);
+  if (len == std::string_view::npos) return cSubstring();
+  return cSubstring(pos_start, len);
+}
+template<std::size_t N> inline
+cSv partInXmlTag(cSv sv, const char (&tag)[N]) {
+  return substringInXmlTag(sv, tag).substr(sv);
+}
+template<std::size_t N, std::size_t M> inline
+cToSvConcat<N> &eraseXmlTag(cToSvConcat<N> &target, const char (&tag)[M]) {
+  return substringInXmlTag(target, tag).erase(target, M-1);
+}
+template<std::size_t M> inline
+std::string &eraseXmlTag(std::string &target, const char (&tag)[M]) {
+  return substringInXmlTag(target, tag).erase(target, M-1);
+}
+template<std::size_t N> inline
+cSubstring cSubstring::substringInXmlTag(cSv sv, const char (&tag)[N]) {
+  cSubstring res = ::substringInXmlTag(substr(sv), tag);
+  if (res.found() ) res.m_pos_start += m_pos_start;
+  return res;
 }
 
 // =========================================================

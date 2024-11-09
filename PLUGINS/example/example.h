@@ -19,7 +19,7 @@ bool operator<(const cTvspEvent &e1, const cTvspEvent &e2) { return e1.m_startTi
 class cTvspEpgOneDay
 {
   public:
-    cTvspEpgOneDay(cSv extChannelId, time_t startTime);
+    cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime);
     bool enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages); // return true if the event is in "my" time frame (one day )
   private:
     void initJson(cSv extChannelId, time_t startTime);
@@ -43,7 +43,7 @@ class cTvspEpg: public iExtEpgForChannel
       if (event->StartTime() > time(0) + 7*24*60*60) return; // only one week supported
       if (event->StartTime() < time(0) - 60*60) return; // no events in the past
       for (auto &tvspEpgOneDay: m_tvspEpgOneDayS) if (tvspEpgOneDay.enhanceEvent(event, extEpgImages)) return;
-      cTvspEpgOneDay tvspEpgOneDay(m_extChannelId, event->StartTime());
+      cTvspEpgOneDay tvspEpgOneDay(&m_curl, m_extChannelId, event->StartTime());
       tvspEpgOneDay.enhanceEvent(event, extEpgImages);
       m_tvspEpgOneDayS.push_back(tvspEpgOneDay);
     }
@@ -51,6 +51,7 @@ class cTvspEpg: public iExtEpgForChannel
     cSv m_extChannelId;
     std::vector<cTvspEpgOneDay> m_tvspEpgOneDayS;
     bool m_debug;
+    cCurl m_curl;
 };
 
 class cExtEpgTvsp: public iExtEpg

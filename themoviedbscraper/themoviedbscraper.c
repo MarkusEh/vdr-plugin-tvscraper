@@ -4,7 +4,8 @@
 #include <map>
 #include "themoviedbscraper.h"
 
-cMovieDBScraper::cMovieDBScraper(cTVScraperDB *db, cOverRides *overrides) {
+cMovieDBScraper::cMovieDBScraper(cCurl *curl, cTVScraperDB *db, cOverRides *overrides) {
+  m_curl = curl;
   this->db = db;
   this->overrides = overrides;
 }
@@ -20,7 +21,7 @@ void cMovieDBScraper::StoreMovie(int movieID, bool forceUpdate) {
   movie.ReadAndStore(movieID);
 }
 bool cMovieDBScraper::Connect(void) {
-  cJsonDocumentFromUrl document;
+  cJsonDocumentFromUrl document(m_curl);
   document.set_enableDebug(config.enableDebug);
   if (!document.download_and_parse(cToSvConcat(baseURL, "/configuration?api_key=", apiKey).c_str())) return false;
   return parseJSON(document);
@@ -45,7 +46,7 @@ void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
     if (!actor_path || !*actor_path) continue;
     CONCATENATE(actorsFullUrl, m_actorsBaseUrl, actor_path);
     CONCATENATE(downloadFullPath, config.GetBaseDirMovieActors(), "actor_", stmt.getInt(0), ".jpg");
-    DownloadImg(actorsFullUrl, downloadFullPath);
+    DownloadImg(m_curl, actorsFullUrl, downloadFullPath);
   }
   db->DeleteActorDownload (tvID, movie);
 }
@@ -87,19 +88,17 @@ bool cMovieDBScraper::DownloadFile(cSv urlBase, cSv urlFileName, cSv destDir, in
   cToSvConcat destFullPath (destDir, destID);
   if (!movie) CreateDirectory(destFullPath.c_str() );
   destFullPath.append(destFileName);
-  return DownloadImg(cToSvConcat(urlBase, urlFileName), destFullPath);
+  return DownloadImg(m_curl, cToSvConcat(urlBase, urlFileName), destFullPath);
 }
 
 void cMovieDBScraper::StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode) {
   if (!stillPathTvEpisode || !*stillPathTvEpisode) return;
-  std::string pathStill;
-  pathStill.reserve(200);
-  stringAppend(pathStill, config.GetBaseDirMovieTv(), tvID);
+  cToSvConcat pathStill(config.GetBaseDirMovieTv(), tvID);
   CreateDirectory(pathStill);
-  stringAppend(pathStill, "/", seasonNumber);
+  pathStill << "/" << seasonNumber;
   CreateDirectory(pathStill);
-  stringAppend(pathStill, "/still_", episodeNumber, ".jpg");
-  DownloadImg(concatenate(m_stillBaseUrl, stillPathTvEpisode), pathStill);
+  pathStill << "/still_" << episodeNumber << ".jpg";
+  DownloadImg(m_curl, cToSvConcat(m_stillBaseUrl, stillPathTvEpisode), pathStill);
 }
 
 bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
@@ -109,17 +108,16 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, cSv t
     return false;
   }
 // concatenate URL
-  std::string url; url.reserve(300);
-  stringAppend(url, baseURL, "/search/tv?api_key=", apiKey);
-  if (lang) stringAppend(url, "&language=", lang->m_themoviedb);
-  stringAppend(url, "&query=");
-  stringAppendCurlEscape(url, tvSearchString);
+  cToSvConcat url(baseURL, "/search/tv?api_key=", apiKey);
+  if (lang) url.concat("&language=", lang->m_themoviedb);
+  url << "&query=";
+  m_curl->appendCurlEscape(url, tvSearchString);
 
-  cJsonDocumentFromUrl root;
+  cJsonDocumentFromUrl root(m_curl);
 // call api, get json
   apiCalls.start();
   root.set_enableDebug(config.enableDebug);
-  bool success = root.download_and_parse(url.c_str());
+  bool success = root.download_and_parse(url);
   apiCalls.stop();
   if (!success) return false;
   if (getValueInt(root, "status_code", -1) == 50) {
@@ -168,11 +166,11 @@ void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, cS
     esyslog("tvscraper: ERROR cMovieDbMovie::AddMovieResults, SearchString == empty");
     return;
   }
-  std::string url = concatenate(baseURL, "/search/movie?api_key=", GetApiKey());
-  if (lang) stringAppend(url, "&language=", lang->m_themoviedb);
+  cToSvConcat url(baseURL, "/search/movie?api_key=", GetApiKey());
+  if (lang) url << "&language=" << lang->m_themoviedb;
 
-  stringAppend(url, config.GetThemoviedbSearchOption(), "&query=");
-  stringAppendCurlEscape(url, SearchString);
+  url << config.GetThemoviedbSearchOption() << "&query=";
+  m_curl->appendCurlEscape(url, SearchString);
   size_t lenUrl0 = url.length();
 
   int num_pages = AddMovieResultsForUrl(url.c_str(), resultSet, compareStrings, shortText, description, setMinTextMatch, lang);
@@ -181,7 +179,7 @@ void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, cS
 // several pages, restrict with years
     for (int year: years) {
       url.erase(lenUrl0);
-      stringAppend(url, "&year=", (unsigned int)year);
+      url << "&year=" << (unsigned int)year;
       if (AddMovieResultsForUrl(url.c_str(), resultSet, compareStrings, shortText, description, setMinTextMatch, lang) > 0) found = true;
     }
   }
@@ -190,7 +188,7 @@ void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, cS
     if (num_pages > 10) num_pages = 10;
     for (int page = 2; page <= num_pages; page ++) {
       url.erase(lenUrl0);
-      stringAppend(url, "&page=", (unsigned int)page);
+      url << "&page=" << (unsigned int)page;
       AddMovieResultsForUrl(url.c_str(), resultSet, compareStrings, shortText, description, setMinTextMatch, lang);
     }
   }
@@ -199,7 +197,7 @@ void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, cS
 int cMovieDBScraper::AddMovieResultsForUrl(const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, cSv description, bool setMinTextMatch, const cLanguage *lang) {
 // return 0 if no results where found (calling the URL shows no results). Otherwise number of pages
 // add search results from URL to resultSet
-  cJsonDocumentFromUrl root;
+  cJsonDocumentFromUrl root(m_curl);
   root.set_enableDebug(config.enableDebug);
   apiCalls.start();
   bool success = root.download_and_parse(url);

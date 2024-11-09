@@ -4,7 +4,6 @@
 #include "../extMovieTvDb.h"
 using namespace std;
 
-std::string displayLanguageTvdb(cSv translations, const char *originalLanguage);
 // --- cTVDBScraper -------------------------------------------------------------
 
 class cTVDBScraper {
@@ -16,9 +15,10 @@ class cTVDBScraper {
     std::string tokenHeader;
     time_t tokenHeaderCreated = 0;
     cTVScraperDB *db;
-    int CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog = false);
-    int CallRestJson_int(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, const char *url, bool disableLog);
-    bool GetToken(std::string &jsonResponse);
+    cCurl *m_curl;
+    int CallRestJson(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, cStr url, bool disableLog = false);
+    int CallRestJson_int(cJsonDocumentFromUrl &document, const rapidjson::Value *&data, cStr url, bool disableLog);
+    bool GetToken(cStr jsonResponse);
     bool AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang, int network_id);
     void ParseJson_searchSeries(const rapidjson::Value &data, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const cLanguage *lang, int network_id);
     int StoreSeriesJson(int seriesID, bool forceUpdate);
@@ -26,15 +26,15 @@ class cTVDBScraper {
     void StoreStill(int seriesID, int seasonNumber, int episodeNumber, const char *episodeFilename);
     void StoreActors(int seriesID);
     void DownloadMedia (int tvID);
-    void DownloadMedia (int tvID, eMediaType mediaType, const string &destDir);
-    void DownloadMediaBanner (int tvID, const string &destPath);
+    void DownloadMedia (int tvID, eMediaType mediaType, cStr destDir);
+    void DownloadMediaBanner (int tvID, cStr destPath);
     static const char *getDbUrl(const char *url);
-    void download(const char *url, const char *localPath);
+    void download(cStr url, cStr localPath);
 
     static const char *prefixImageURL1;
     static const char *prefixImageURL2;
   public:
-    cTVDBScraper(cTVScraperDB *db);
+    cTVDBScraper(cCurl *curl, cTVScraperDB *db);
     virtual ~cTVDBScraper(void);
     bool Connect(void);
     bool GetToken();

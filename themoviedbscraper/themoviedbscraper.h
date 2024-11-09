@@ -9,7 +9,9 @@ struct searchResultTvMovie;
 
 class cMovieDBScraper {
   friend class cMovieDbMovieScraper;
+  friend class cMovieDbMovie;
   friend class cMovieDbTvScraper;
+  friend class cMovieDbTv;
   private:
     const char *apiKey = "abb01b5a277b9c2c60ec0302d83c5ee9";
     const char *baseURL = "api.themoviedb.org/3";
@@ -22,6 +24,7 @@ class cMovieDBScraper {
     std::string m_stillBaseUrl;
     std::string m_actorsBaseUrl;
     cTVScraperDB *db;
+    cCurl *m_curl;
     cOverRides *overrides;
     bool parseJSON(const rapidjson::Value &root);
     bool AddTvResults(vector<searchResultTvMovie> &resultSet, cSv tvSearchString, const cCompareStrings &compareStrings, const cLanguage *lang);
@@ -36,7 +39,7 @@ class cMovieDBScraper {
     void DownloadActors(int tvID, bool movie);
     void StoreStill(int tvID, int seasonNumber, int episodeNumber, const char *stillPathTvEpisode);
 public:
-    cMovieDBScraper(cTVScraperDB *db, cOverRides *overrides);
+    cMovieDBScraper(cCurl *curl, cTVScraperDB *db, cOverRides *overrides);
     virtual ~cMovieDBScraper(void);
     bool Connect(void);
     const char* GetApiKey(void) { return apiKey; }

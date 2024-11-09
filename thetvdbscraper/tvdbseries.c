@@ -365,16 +365,16 @@ bool cTVDBSeries::ParseJson_Character(const rapidjson::Value &jCharacter) {
     if (getGuestStars.readRow(guestStars) && guestStars && *guestStars) {
       if (!name || !*name) {
         if (strstr(guestStars, personName) ) return false; // already in db
-        m_db->exec(sqlu, concatenate(guestStars, personName, "|"), episodeId);
+        m_db->exec(sqlu, cToSvConcat(guestStars, personName, "|"), episodeId);
       } else {
-        std::string entry = concatenate(personName, ": ", name);
+        cToSvConcat entry(personName, ": ", name);
         if (strstr(guestStars, entry.c_str() ) ) return false; // already in db
-        m_db->exec(sqlu, concatenate(guestStars, entry, "|"), episodeId);
+        m_db->exec(sqlu, cToSvConcat(guestStars, entry, "|"), episodeId);
       }
     } else {
 // currently, no entry in db
-      if (!name || !*name) m_db->exec(sqlu, concatenate("|", personName, "|"), episodeId);
-      else m_db->exec(sqlu, concatenate("|", personName, ": ", name, "|"), episodeId);
+      if (!name || !*name) m_db->exec(sqlu, cToSvConcat("|", personName, "|"), episodeId);
+      else m_db->exec(sqlu, cToSvConcat("|", personName, ": ", name, "|"), episodeId);
     }
     return true;
   }

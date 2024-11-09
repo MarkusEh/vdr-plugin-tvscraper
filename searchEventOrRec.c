@@ -562,8 +562,12 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
 // modify searchString so that the external db will find something
 // call the external db with the modified string
 // note: compareStrings will be used on the found results, to figure out how good they match
-  CONVERT(SearchString_rom, searchString, removeRomanNumC);
-  cSv searchString_f = strlen(SearchString_rom) > 6?SearchString_rom:searchString;
+  cToSvConcat SearchString_rom;
+  appendRemoveRomanNumC(SearchString_rom, searchString);
+//  if (searchString != SearchString_rom)
+//    dsyslog("tvscraprer, appendRemoveRomanNumC, orig string: %.*s, new string: %s", (int)searchString.length(), searchString.data(), SearchString_rom.c_str() );
+  cSv searchString_f = SearchString_rom.length() > 6?cSv(SearchString_rom):searchString;
+
   cSv searchString1 = SecondPart(searchString_f, "'s ", 6);
   size_t size0 = resultSet.size();
   if (!searchString1.empty()) {

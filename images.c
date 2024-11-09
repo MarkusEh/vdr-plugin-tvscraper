@@ -124,10 +124,10 @@ std::string getRecordingImagePath(const cRecording *recording) {
   if (!recording || !recording->Info()) return "";
   const cEvent *event = recording->Info()->GetEvent();
   if (!event) return "";
-  return concatenate(config.GetBaseDirRecordings(), event->StartTime(), "_", recording->Info()->ChannelID(), "_", event->EventID(), ".jpg");
+  return std::string(cToSvConcat(config.GetBaseDirRecordings(), event->StartTime(), "_", recording->Info()->ChannelID(), "_", event->EventID(), ".jpg"));
 }
 inline std::string getExistingEpgImagePath(tEventID eventID, time_t eventStartTime, const tChannelID &channelID) {
-  return concatenate(config.GetBaseDirEpg(), eventStartTime, "/", channelID, "/", eventID, ".jpg");
+  return std::string(cToSvConcat(config.GetBaseDirEpg(), eventStartTime, "/", channelID, "/", eventID, ".jpg"));
 }
 
 template<class T>

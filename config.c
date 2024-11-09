@@ -90,7 +90,7 @@ bool cTVScraperConfig::loadPlugins()
    {
       if (strncmp(dp->d_name, "libtvscraper-", 13) == 0 && strstr(dp->d_name, ".so"))
       {
-         std::string path = concatenate(PLGDIR, "/", dp->d_name);
+         cToSvConcat path(PLGDIR, "/", dp->d_name);
          void *handle = dlopen(path.c_str(), RTLD_NOW || RTLD_GLOBAL);
          const char* error = dlerror();
 
@@ -238,7 +238,7 @@ int cTVScraperConfig::GetLanguage_n(const tChannelID &channelID) const {
 }
 
 std::string cLanguage::getNames() const {
-  return concatenate(m_thetvdb, " ", m_themoviedb, " ", m_name);
+  return std::string(cToSvConcat(m_thetvdb, " ", m_themoviedb, " ", m_name));
 }
 void cLanguage::log() const {
   esyslog("tvscraper: language: m_id %i, m_thetvdb %s, m_themoviedb %s, m_name %s", m_id, m_thetvdb?m_thetvdb:"null", m_themoviedb?m_themoviedb:"null", m_name?m_name:"null");

@@ -58,7 +58,7 @@ int romToArab(const char *&s, const char *se) {
 //     increase s to the last char after the roman number
 // else: return 0, don't change s
   const char *sc = s; // sc points to current char
-  int ret = 0, cur_val, next_val, prev_val = 1000;
+  int ret = 0, cur_val, next_val, prev_val = 10000;
   for (cur_val = rom_char_val(*sc); sc < se - 1 && cur_val; sc++, cur_val = next_val) {
     next_val = rom_char_val(sc[1]);
     if(cur_val < next_val) {
@@ -69,66 +69,65 @@ int romToArab(const char *&s, const char *se) {
     if (prev_val < cur_val) return 0;
     prev_val = cur_val;
     ret += cur_val;
-  } 
+  }
   if (cur_val) {
     if (prev_val < cur_val) return 0;
     ret += cur_val;
     sc++;
   }
-  if (sc != se && std::iswalnum(getUtfCodepoint(sc)) ) return 0;
+//  if (sc != se && std::iswalnum(getUtfCodepoint(sc)) ) return 0;
+  if (sc != se && std::iswalnum(cSv(sc, se-sc).utf8_begin().codepoint()) ) return 0;
   s = sc;
   return ret;
 }
 
-void removeTeil(char *s, cSv teil) {
+template <size_t N>
+inline cToSvConcat<N> &removeTeil(cToSvConcat<N> &target, cSv teil) {
 // check if "teil" is in the string, and remove if reasonable
-  cSv sv(s);
+  cSv sv(target);
   size_t found = sv.rfind(teil);
-  if (found == std::string_view::npos) return; // not found
-  if (found < 5) return; // we need some minimum entropy for search
-  if (sv[found-1] != ' ') return;     // begin word
+  if (found == std::string_view::npos) return target; // not found
+  if (found < 5) return target; // we need some minimum entropy for search
+  if (sv[found-1] != ' ') return target;     // begin word
   size_t p = found + teil.length();
-  if (p < sv.length() && s[p] != ' ') return;  // end word
-  for (int na = 0; p < sv.length(); ++p) if (isalpha(s[p])) {
-    if (++na > 1) return;  // more than 1 alphabetic character after teil
+  if (p < sv.length() && sv[p] != ' ') return target;  // end word
+  for (int na = 0; p < sv.length(); ++p) if (isalpha(sv[p])) {
+    if (++na > 1) return target;  // more than 1 alphabetic character after teil
   }
 // remove teil
-  s[found-1] = 0;
+  target.erase(found-1);
+  return target;
 }
 
-int removeRomanNumC(char *to, cSv from) {
+template <size_t N>
+inline cToSvConcat<N> &appendRemoveRomanNumC(cToSvConcat<N> &target, cSv from) {
 // intended to be called before passing "from" to the external search API, to find more results
 
-// replace invalid UTF8 characters with ' '
+// replace invalid UTF8 characters with '?'
 // replace roman numbers I - IX with ' '
-// return number of characters written to to  (don't count 0 terminator)
-// if to==NULL: don't write anything, just return the (maximum) number
-// otherwise, also remove "teil" / "part" from the end of the string
+// also remove "teil" / "part" from the end of the string
 
-  char *to_0 = to;
-  int numChars = 0;
-  const char *s  = from.data();
-  const char *se = s + from.length(); // se points to char after last char (*se == 0 for c strings)
+  const char *se = from.data() + from.length(); // se points to char after last char (*se == 0 for c strings)
   bool wordStart = true;
-  while (s < se) {
+  size_t l;
+  for (size_t pos = 0; pos < from.length(); pos+=l) {
+    l = from.utf8CodepointIsValid(pos);
+    if (l == 0) { wordStart = false; target << '?'; l = 1; continue; } // incalid utf
+    if (l > 1)  { wordStart = false; target.append(from.substr(pos, l)); continue; }
     if (wordStart) {
 // Beginning of a word
+      const char *s = from.data() + pos;
       int i = romToArab(s, se); // this also increases s, if a roman number was found.
-      if ( i > 0) continue;
+      if (i > 0 && (s == se || *s == ' ') ) {
+        l = s - (from.data() + pos);
+        continue;
+      }
     }
-    int l = utf8CodepointIsValid(s);
-    wint_t cChar;
-    if (l == 0) { cChar = '?'; s++; }  // invalid utf
-    else cChar = Utf8ToUtf32(s, l); // this also increases s
-    numChars += AppendUtfCodepoint(to, towlower(cChar) ); // also increases to
-    wordStart = cChar == ' ';
+    target << from[pos];
+    wordStart = from[pos] == ' ';
   }
-  if (to) {
-    *to = 0;
-    removeTeil(to_0, "teil");
-    removeTeil(to_0, "part");
-  }
-  return numChars;
+  removeTeil(target, "teil");
+  return removeTeil(target, "part");
 }
 
 // find longest common substring
@@ -217,8 +216,8 @@ template<std::size_t N>
       m_normedString.reserve(str.length() );
       m_wordList.clear();
 // 1st step: sanitize UTF8, to_lower, replace non-alphanumeric with " "
-      for (const char *s = str.data(); s < str.data() + str.length(); ) {
-        wint_t cChar = getNextUtfCodepoint(s);  // this also increases s
+      for (utf8_iterator str_i = str.utf8_begin(); str_i != str.utf8_end(); ++str_i) {
+        wint_t cChar = str_i.codepoint();
         if (std::iswalnum(cChar) ) stringAppendUtfCodepoint(m_normedString, towlower(cChar));
         else switch (cChar) {
           case '&':
@@ -250,10 +249,7 @@ template<std::size_t N>
             int i = romToArab(s, s + lWord.length() ); // this also increases s, if a roman number was found.
             if ( i > 0 && s == lWord.data() + lWord.length() ) {
               m_normedString.erase(currentWordStart, lWord.length() );
-              char buf[21]; // unsigned int 64: max. 20. (18446744073709551615) signed int64: max. 19 (+ sign)
-              char *bufferEnd = buf+20;
-              for (*bufferEnd = 0; i; i /= 10) *(--bufferEnd) = '0' + (i%10);
-              m_normedString.insert(currentWordStart, bufferEnd);
+              m_normedString.insert(currentWordStart, cSv(cToSvInt(i)) );
               changed = true;
             }
           }

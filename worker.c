@@ -70,7 +70,7 @@ void cTVScraperWorker::SetDirectories(void) {
 
 bool cTVScraperWorker::ConnectScrapers(void) {
   if (!moviedbScraper) {
-    moviedbScraper = new cMovieDBScraper(db, overrides);
+    moviedbScraper = new cMovieDBScraper(&m_curl, db, overrides);
     if (!moviedbScraper->Connect()) {
       esyslog("tvscraper: ERROR, connection to TheMovieDB failed");
       delete moviedbScraper;
@@ -79,7 +79,7 @@ bool cTVScraperWorker::ConnectScrapers(void) {
     }
   }
   if (!tvdbScraper) {
-    tvdbScraper = new cTVDBScraper(db);
+    tvdbScraper = new cTVDBScraper(&m_curl, db);
     if (!tvdbScraper->Connect()) {
       esyslog("tvscraper: ERROR, connection to TheTVDB failed");
       delete tvdbScraper;
@@ -269,7 +269,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
         waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
         auto begin = std::chrono::high_resolution_clock::now();
         if (!extEpgImages.empty() ) {
-          DownloadImg(extEpgImages[0].path, extEpgImage);
+          DownloadImg(&m_curl, extEpgImages[0].path, extEpgImage);
         }
         timeNeededDl += std::chrono::high_resolution_clock::now() - begin;
         if (movieOrTv) {

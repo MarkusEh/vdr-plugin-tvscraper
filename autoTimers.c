@@ -600,7 +600,7 @@ bool AdjustSpawnedTimer(cTimer *ti)
 
 bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
   bool TimersModified = false;
-  cTimer *ti_del = NULL;
+  cTimer *ti_del = nullptr;
 #if VDRVERSNUM >= 20301
   LOCK_TIMERS_WRITE;
   for (cTimer *ti = Timers->First(); ti; ti = Timers->Next(ti)) if (ti->Local())
@@ -611,19 +611,17 @@ bool AdjustSpawnedScraperTimers(const cTVScraperDB &db) {
     if (ti_del) {
       if (canTimerBeDeleted(ti_del, "AdjustSpawnedScraperTimers") )
         Timers->Del(ti_del);
-      ti_del = NULL;
+      ti_del = nullptr;
     }
-    bool exists = false;
-    cSv xmlAux;
-    if (ti->Aux()) xmlAux = partInXmlTag(ti->Aux(), "tvscraper", &exists);
-    if (exists) {
+    cSubstring aux_tvscraper = substringInXmlTag(ti->Aux(), "tvscraper");
+    if (aux_tvscraper.found() ) {
 // this is "our" timer
       if (!ti->Event() || !ti->Event()->Schedule() ) {
 // Timer has no event, or event is not in schedule any more. Delete this timer
         ti_del = ti;
       } else {
 // Timer has event, and event is in schedule. Adjust times to event, if required (not for VPS timers)
-        if (parse_unsigned<unsigned>(partInXmlTag(xmlAux, "numEvents")) == 2) {
+        if (parse_unsigned<unsigned>(aux_tvscraper.substringInXmlTag(ti->Aux(), "numEvents").substr(ti->Aux())) == 2) {
           const cEvent *event1;
           const cEvent *event2;
           if (!timerGetEvents(event1, event2, ti)) ti_del = ti;

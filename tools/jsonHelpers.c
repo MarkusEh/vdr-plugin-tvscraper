@@ -270,16 +270,16 @@ inline std::string zeroToPercent(cSv sv) {
 
 class cJsonDocumentFromUrl: public cJsonDocument {
   public:
-    cJsonDocumentFromUrl() { }
+    cJsonDocumentFromUrl(cCurl *curl): m_httpResponseCode(0), m_curl(curl) { SetObject(); }
 template<typename... Args>
-    cJsonDocumentFromUrl(cStr url, Args... args) {
+    cJsonDocumentFromUrl(cCurl *curl, cStr url, Args... args): m_httpResponseCode(0), m_curl(curl) {
       download_and_parse(url, std::forward<Args>(args)...);
     }
 template<typename... Args>
     bool download_and_parse(cStr url, Args... args) {
-      struct curl_slist *headers = NULL;
+      struct curl_slist *headers = nullptr;
       headers = curl_slistAppend(headers, std::forward<Args>(args)...);
-      bool result = download_and_parse_int(url.c_str(), headers);
+      bool result = download_and_parse_int(url, headers);
       if (headers) curl_slist_free_all(headers);
       return result;
     }
@@ -287,10 +287,11 @@ template<typename... Args>
       if (m_enableDebug) esyslog("tvscraper: calling %s", url.c_str() );
       SetObject();  // clear
       headers = curl_slistAppend(headers, "Accept: application/json");
-      if (!CurlGetUrl(url.c_str(), m_data, headers)) {
+      if (!m_curl->GetUrl(url, m_data, headers)) {
 // CurlGetUrl already writes the syslog entry. We create an empty (valid) document
         return false;
       }
+      m_httpResponseCode = m_curl->getLastHttpResponseCode();
       ParseInsitu(m_data.data() );
       if (HasParseError() ) {
         esyslog("tvscraper: ERROR cJsonDocumentFromUrl, url %s parse error %s, doc %s", url.c_str() , rapidjson::GetParseError_En(GetParseError()), zeroToPercent(cSv(m_data).substr(0, 100)).c_str() );
@@ -299,11 +300,14 @@ template<typename... Args>
       }
       return true;
     }
+    long getHttpResponseCode() const { return m_httpResponseCode; } // in case of empty document return 0
     virtual const char* context() const {
       return zeroToPercent(cSv(m_data).substr(100)).c_str();
     }
   private:
+    long m_httpResponseCode;
     std::string m_data;
+    cCurl *m_curl;
 };
 class cJsonDocumentFromFile: public cJsonDocument {
 // if file does not exist: an empty (valid!) document

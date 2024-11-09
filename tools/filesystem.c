@@ -86,24 +86,22 @@ bool CheckDownloadAccessDenied(cSv df) {
   if (df_Code != "AccessDenied") return false;
   return true;
 }
-bool DownloadImg(cStr url, cStr localPath) {
+bool DownloadImg(cCurl *curl, cStr url, cStr localPath) {
   if (FileExistsImg(localPath)) return true;
   std::string error;
   int err_code;
   for(int i=0; i < 11; i++) {
     if (i !=  0) sleep(i);
     if (i == 10) sleep(i); // extra long sleep before last try
-    if (CurlGetUrlFile2(url, localPath, err_code, error) ) {
+    err_code = curl->GetUrlFile(url, localPath, &error);
+    if (err_code == 0) {
       if (FileExistsImg(localPath) ) {
         if (config.enableDebug) esyslog("tvscraper: successfully downloaded file, url: \"%s\" local path: \"%s\"", url.c_str(), localPath.c_str() );
         return true;
       }
       cToSvFile df(localPath);
       if (CheckDownloadAccessDenied(df)) {
-        if (config.enableDebug) {
-          esyslog("tvscraper: INFO download file failed, url: \"%s\" local path: \"%s\", AccessDenied, content \"%.*s\"", url.c_str(), localPath.c_str() , std::min(50, (int)cSv(df).length()), df.data() );
-        } else
-          esyslog("tvscraper: Download file failed, url: \"%s\" local path: \"%s\", AccessDenied", url.c_str(), localPath.c_str() );
+        esyslog("tvscraper: download file failed, url: \"%s\" local path: \"%s\", AccessDenied, content \"%.*s\"", url.c_str(), localPath.c_str() , std::min(50, (int)cSv(df).length()), df.data() );
         remove(localPath);
         return false;
       }
@@ -111,7 +109,7 @@ bool DownloadImg(cStr url, cStr localPath) {
   }
   if (err_code == 0) {
     cToSvFileN<50> df(localPath);  // read max 50 bytes
-    esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url.c_str(), localPath.c_str() , df.c_str() ); // df.c_str() is zero terminated
+    esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url.c_str(), localPath.c_str() , df.c_str() );
   } else esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url.c_str(), localPath.c_str() , error.c_str(), err_code );
   remove(localPath);
   return false;

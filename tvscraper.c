@@ -74,7 +74,7 @@ cTVScraperConfig config;
 #include "eventOrRec.h"
 #include "tvscraperdb.h"
 #include "autoTimers.h"
-#include "tools/curlfuncs.cpp"
+#include "tools/curlfuncs.h"
 #include "tools/filesystem.c"
 #include "tools/jsonHelpers.c"
 #include "config.c"
@@ -232,11 +232,15 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
 }
 
 bool cPluginTvscraper::Initialize(void) {
-    if (!cacheDirSet) {
-        config.SetBaseDir(cPlugin::CacheDirectory(PLUGIN_NAME_I18N));
-        cacheDirSet = true;
-    }
-    return true;
+  if (!cacheDirSet) {
+    config.SetBaseDir(cPlugin::CacheDirectory(PLUGIN_NAME_I18N));
+    cacheDirSet = true;
+  }
+  if (curl_global_init(CURL_GLOBAL_ALL) != 0) {
+    esyslog("tvscraper: ERROR calling curl_global_init");
+    return false;
+  }
+  return true;
 }
 
 bool cPluginTvscraper::Start(void) {
@@ -257,13 +261,14 @@ bool cPluginTvscraper::Start(void) {
 }
 
 void cPluginTvscraper::Stop(void) {
-    while (workerThread->Active()) {
-        workerThread->Stop();
-        sleep(1);
-    }
-    delete workerThread;
-    delete db;
-    delete overrides;
+  while (workerThread->Active()) {
+    workerThread->Stop();
+    sleep(1);
+  }
+  delete workerThread;
+  delete db;
+  delete overrides;
+  curl_global_cleanup();
 }
 
 void cPluginTvscraper::Housekeeping(void) {
@@ -565,7 +570,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
           }
         }
         if (collectionName.empty() ) collectionName = tr("(name not available)");
-        stringAppendFormated(call->reason, tr("Complement collection %.*s, caused by recording"), (int)collectionName.length(), collectionName.data() );
+        call->reason = cToSvFormated(tr("Complement collection %.*s, caused by recording"), (int)collectionName.length(), collectionName.data() );
       } else if (xml_reason == "TV show, missing episode") {
         cSv seriesName = partInXmlTag(xml_tvscraper, "seriesName");
         cSql stmt(db, "select tv_name from tv2 where tv_id = ?"); // define this here so returned cSv is still valid when we append to call->reason
@@ -579,7 +584,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
           }
         }
         if (seriesName.empty() ) seriesName = tr("(name not available)");
-        stringAppendFormated(call->reason, tr("Episode of series %.*s, caused by recording"), (int)seriesName.length(), seriesName.data() );
+        call->reason = cToSvFormated(tr("Episode of series %.*s, caused by recording"), (int)seriesName.length(), seriesName.data() );
       } else {
         call->reason.append(tr("Improve recording"));
       }

@@ -27,6 +27,7 @@ private:
     cStateKey schedulesStateKey;
 #endif
     map<tChannelID, set<tEventID>*> lastEvents;
+    cCurl m_curl;
 
     bool ConnectScrapers(void);
     void DisconnectScrapers(void);
