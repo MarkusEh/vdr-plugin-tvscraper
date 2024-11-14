@@ -345,11 +345,11 @@ int csRecording::durationDeviationNoVps() {
   } else
     return std::max(0, m_recording->Info()->GetEvent()->Duration() + (::Setup.MarginStart + ::Setup.MarginStop) * 60 - m_recording->LengthInSeconds());
 }
-int csRecording::durationDeviationVps(int s_runtime) {
+int csRecording::durationDeviationVps(int s_runtime, bool markadMissingTimes) {
 // VPS was used, but we don't have the VPS start / end mark
   int deviation = m_recording->Info()->GetEvent()->Duration() - m_recording->LengthInSeconds();
   if (deviation <= 0) return 0; // recording is longer than event duration -> no error
-  if (deviation <= 6*60) return 0; // we assume VPS was used, und report only huge deviations > 6min
+  if (!markadMissingTimes && deviation <= 6*60) return 0; // we assume VPS was used, und report only huge deviations > 6min. Except if markad found VPS, but has no VPS times. This indicates that the VPS start event was detected too late
   if (s_runtime <= 0) return deviation;
   return std::min(deviation, std::abs(s_runtime*60 - m_recording->LengthInSeconds()));
 }
@@ -367,7 +367,7 @@ int csRecording::durationDeviation(int s_runtime) {
   int vps_used_markad = getVpsLength();
   if (vps_used_markad == -2) return durationDeviationNoVps();
   if (vps_used_markad >=  0) return std::abs(vps_used_markad + m_vps_start - m_recording->LengthInSeconds() );
-  if (vps_used_markad == -1) return durationDeviationVps(s_runtime);
+  if (vps_used_markad == -1) return durationDeviationVps(s_runtime, true);
 // still unclear whether VPS was used
   bool vps;
   int lengthInSeconds;

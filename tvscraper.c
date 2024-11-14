@@ -96,7 +96,7 @@ cTVScraperConfig config;
 #include "autoTimers.c"
 #include "services.c"
 
-static const char *VERSION        = "1.2.10";
+static const char *VERSION        = "1.2.11";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 
 //***************************************************************************

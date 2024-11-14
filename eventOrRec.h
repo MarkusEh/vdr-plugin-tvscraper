@@ -71,7 +71,7 @@ private:
   bool getTvscraperTimerInfo(bool &vps, int &lengthInSeconds);
   bool getEpgsearchTimerInfo(bool &vps, int &lengthInSeconds);
   int durationDeviationNoVps();
-  int durationDeviationVps(int s_runtime);
+  int durationDeviationVps(int s_runtime, bool markadMissingTimes = false);
 // member vars
   const cRecording *m_recording;
   int m_durationInSecMarks = 0; // 0: Not initialized; -1: checked, no data

@@ -86,7 +86,7 @@ bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries, const cLangu
   if (!name || !*name) {
     name = originalName; // translation in desired language is not available, use name in original language
 // we already checked that the name translation is available, seems to be an error
-    esyslog("tvscraper, ERROR cTVDBSeries::ParseJson_Series, m_language %s, name %s, seriesID %i", m_language.c_str(), name, m_seriesID);
+    if (config.enableDebug) esyslog("tvscraper, ERROR cTVDBSeries::ParseJson_Series, m_language %s, name %s, seriesID %i", m_language.c_str(), name, m_seriesID);
   }
   return true;
 }

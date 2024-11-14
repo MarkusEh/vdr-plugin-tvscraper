@@ -69,6 +69,17 @@ bool cTVDBScraper::GetToken(cStr jsonResponse) {
   return true;
 }
 
+const cLanguage *languageMatchesTvdb(int l, cSplit &transSplit) {
+// check if language number (ID) l matches any language in transSplit
+//   if yes, return this language
+//   if no , return nullptr
+  auto f = config.m_languages.find(l);
+  if (f == config.m_languages.end() ) return nullptr;   // ? should not happen
+  if (!f->m_thetvdb || !*f->m_thetvdb) return nullptr;  // ? should not happen
+  if (transSplit.find(f->m_thetvdb) != transSplit.end()) return &(*f);
+  return nullptr;
+}
+
 const cLanguage *displayLanguageTvdb(cSv translations) {
 // input: translations: List of translations
 // output: displayLanguage: Language used to display the data.
@@ -79,13 +90,11 @@ const cLanguage *displayLanguageTvdb(cSv translations) {
 // translation in configured default language is not available
 // check: translation in an additional language available?
   for (int l: config.GetAdditionalLanguages() ) {
-    auto f = config.m_languages.find(l);
-    if (f == config.m_languages.end() ) continue;   // ? should not happen
-    if (!f->m_thetvdb || !*f->m_thetvdb) continue;  // ? should not happen
-    if (config.isDefaultLanguage(&(*f)) ) continue;   // ignore default language, as this was already checked
-    if (transSplit.find(f->m_thetvdb) != transSplit.end()) return &(*f);
+    const cLanguage *res = languageMatchesTvdb(l, transSplit);
+    if (res) return res;
   }
-  return nullptr;
+// try english
+  return languageMatchesTvdb(6, transSplit);
 }
 
 const cLanguage *languageTvdb(cSv tvdbLang, const char *context = nullptr) {
@@ -145,16 +154,18 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
   }
   const cLanguage *newDisplayLanguage = 0;
   int rde = downloadEpisodes(seriesID, forceUpdate, displayLanguage, true, &newDisplayLanguage);
+  if (rde == -1) return -1; // object does not exist
+  if (rde != 0 && rde != 1) return 0; // other error
   if (rde == 1) {
+// episodes not available in displayLanguage
     if (config.enableDebug) esyslog("tvscraper: cTVDBScraper::StoreSeriesJson displayLanguage %s not available, seriesID %i",  displayLanguage->getNames().c_str(), seriesID);
-    displayLanguage = newDisplayLanguage;
-    rde = downloadEpisodes(seriesID, forceUpdate, displayLanguage, true, &newDisplayLanguage);
-    if (rde == 1) {
-      esyslog("tvscraper: ERROR cTVDBScraper::StoreSeriesJson newDisplayLanguage %s not available, seriesID %i", displayLanguage?displayLanguage->getNames().c_str():"no displayLanguage", seriesID);
-      return 0;
+    if (newDisplayLanguage) {
+      displayLanguage = newDisplayLanguage;
+      rde = downloadEpisodes(seriesID, forceUpdate, displayLanguage, true);
+      if (rde == 1) {
+        esyslog("tvscraper: ERROR cTVDBScraper::StoreSeriesJson newDisplayLanguage %s not available, seriesID %i", displayLanguage?displayLanguage->getNames().c_str():"no displayLanguage", seriesID);
+      }
     }
-    if (!displayLanguage) displayLanguage = newDisplayLanguage;
-    if (!displayLanguage) return 0;
   }
   if (!forceUpdate && stmtNameLang.readRow() && !stmtNameLang.getStringView(0).empty() ) return seriesID; // already in db
 
@@ -164,10 +175,9 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
 // Episode Guest stars, writer, ... NOT included any more
 // Episode Guest stars, writer, ... NOT available in https://api4.thetvdb.com/v4/seasons/1978231/extended
 //
-  CONCATENATE(url, baseURL4, "series/", seriesID, "/extended?meta=translations&short=false");
   cJsonDocumentFromUrl document(m_curl);
   const rapidjson::Value *data;
-  int error = CallRestJson(document, data, url);
+  int error = CallRestJson(document, data, cToSvConcat(baseURL4, "series/", seriesID, "/extended?meta=translations&short=false") );
   if (error != 0) {
     if (error == -1) { db->DeleteSeriesCache(-seriesID); return -1; } // object does not exist
     return 0;

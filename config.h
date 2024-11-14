@@ -170,7 +170,12 @@ class cTVScraperConfig {
 {43, "rus", "ru-RU", "Pусский"},  //  	Russian
 {44, "heb", "he-IL", "עִבְרִית"},  //  	Hebrew
 {45, "zul", "zu-ZA", "isiZulu"},  //  	Zulu
-// {46, "", "", ""},  //
+{46, "ben", "bn-BD", "বাংলা"},    //  	Bengali
+{47, "srp", "sr-RS", "Srpski"},    //  	Serbian
+{48, "mal", "ml-IN", "മലയാളം"},    //  	Malayalam
+{49, "kat", "ka-GE", "ქართული"},   //  	Georgian
+{50, "lav", "lv-LV", "Latviešu"},  //  	Latvian
+// {51, "", "", ""},  //
 };
         cTVScraperDB *m_db = nullptr;
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
