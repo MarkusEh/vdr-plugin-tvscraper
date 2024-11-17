@@ -112,8 +112,15 @@ class cSql {
     }
 //  class iterator: public std::iterator<std::forward_iterator_tag, cSql, int, cSql*, cSql &>
     class iterator {
+      protected:
         cSql *m_sql = nullptr;
       public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = cSql &;
+        using difference_type = int;
+        using pointer = const cSql *;
+        using reference = const cSql &;
+
         explicit iterator(cSql *sql = nullptr): m_sql(sql) {}
         iterator& operator++() {
           if (!m_sql) return *this;
@@ -125,26 +132,19 @@ class cSql {
         bool operator!=(iterator other) const { return m_sql != other.m_sql; }
         cSql &operator*() const { return *m_sql; }
       };
-//  class int_iterator: public std::iterator<std::forward_iterator_tag, int, int, int*, int>
-    class int_iterator {
-        cSql::iterator m_sql_iterator;
-        std::vector<int>::const_iterator m_ints;
-        bool m_sql;
+
+template<class T>
+    class value_iterator: public iterator {
       public:
-        explicit int_iterator(cSql::iterator sql_iterator): m_sql_iterator(sql_iterator), m_sql(true) { }
-        explicit int_iterator(std::vector<int>::const_iterator ints): m_ints(ints), m_sql(false) { }
-        int_iterator& operator++() {
-          if (m_sql) ++m_sql_iterator;
-          else ++m_ints;
-          return *this;
-        }
-        bool operator!=(int_iterator other) const {
-          if (m_sql) return m_sql_iterator != other.m_sql_iterator;
-          else return m_ints != other.m_ints;
-        }
-        int operator*() const {
-          if (m_sql) return (*m_sql_iterator).getInt(0);
-          else return *m_ints;
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = T;
+        using difference_type = int;
+        using pointer = const T*;
+        using reference = const T&;
+
+        explicit value_iterator(iterator sql_iterator): iterator(sql_iterator) { }
+        T operator*() const {
+          return m_sql->get<T>(0);
         }
       };
     iterator begin() {
@@ -299,21 +299,14 @@ class cSql {
 //       - return true if a row was found in last step
 //       - return false, otherwise
 //       - if called with parameters, and a row was found in last step:
-//           one parameter for each col must be provided
+//           one parameter for each col must be provided (you can omit parameters at the end)
 //           the parameters are filled with the content of the row
 // =======================================================================
 
     template<typename... Args>
     bool readRow(Args&&... args) {
       if (m_last_step_result == SQLITE_ROW) {
-        if (sizeof...(Args) == 0) return true;
-/*
-        if (m_num_cols != sizeof...(Args)) {
-          const char *query = sqlite3_sql(m_statement);
-          esyslog("tvscraper: ERROR in cSql::readRow, wrong number of values requested, requested %d available %d query %s",
-                   (int)sizeof...(Args), m_num_cols, query?query:"NULL");
-        }
-*/
+//      if (sizeof...(Args) == 0) return true;
         readRow_int0(0, std::forward<Args>(args)...);
         return true;
       }
@@ -329,6 +322,7 @@ class cSql {
       readRow_int(col, std::forward<T>(arg1));
       readRow_int0(++col, std::forward<Args>(args)...);
     }
+// readRow_int:
     void readRow_int(int col, std::string* const&str) {
       if (str) *str = charPointerToString(sqlite3_column_text(m_statement, col));
     }
@@ -382,10 +376,20 @@ class cSql {
     }
     sqlite3_int64 getInt64(int col, int row_not_found = 0, int col_empty = 0) {
 // return value provided in row_not_found if the row was not found in db (m_last_step_result != SQLITE_ROW)
-// return value provided in col_empty if col is empty (there was never wirtten a value, or nullptr was written
+// return value provided in col_empty if col is empty (there was never wirtten a value, or nullptr was written)
       if (!preCheckRead(col) ) return row_not_found;
       if (col_empty != 0 && sqlite3_column_type(m_statement, col) == SQLITE_NULL) return col_empty;
-      return preCheckRead(col)?sqlite3_column_int64(m_statement, col):0;
+      return sqlite3_column_int64(m_statement, col);
+    }
+template<class T>
+    T get(int col, T row_not_found = T(), T col_empty = T() ) {
+// return value provided in row_not_found if the row was not found in db (m_last_step_result != SQLITE_ROW)
+// return value provided in col_empty if col is empty (there was never wirtten a value, or nullptr was written)
+      if (!preCheckRead(col) ) return row_not_found;
+      if (sqlite3_column_type(m_statement, col) == SQLITE_NULL) return col_empty;
+      T result;
+      readRow_int(col, result);
+      return result;
     }
     ~cSql() { finalize(); }
 
@@ -396,6 +400,7 @@ class cSql {
       return false;
     }
     bool preCheckRead(int col) {
+// true if this column exists and data are available in this column
       if (m_last_step_result == SQLITE_ROW && col < m_num_cols) return true;
       if (!assertStatement("preCheckRead")) return false;
       const char *query = sqlite3_sql(m_statement);
@@ -438,29 +443,31 @@ class cSql {
     bool m_rval = false;
     bool m_lval = false;
 };
-class cSqlInt {
-// only an integer is requested. Simplify loops
+
+template<class T>
+class cSqlValue: public cSql {
+// only a single value is requested. Simplify loops
   public:
+    using iterator = typename cSql::value_iterator<T>;
     template<typename... Args>
-    cSqlInt(const cTVScraperDB *db, cStringRef query, Args&&... args):
-      m_sql(db, query, std::forward<Args>(args)...) { }
-    cSql::int_iterator begin() { return cSql::int_iterator(m_sql.begin() ); }
-    const cSql::int_iterator end() { return cSql::int_iterator(m_sql.end() ); }
-  private:
-    cSql m_sql;
+    cSqlValue(Args&&... args): cSql(std::forward<Args>(args)...) { }
+    template<typename... Args>
+    cSqlValue<T> & resetBindStep(Args&&... args) { cSql::resetBindStep(std::forward<Args>(args)...); return *this; }
+    iterator begin() { return iterator(cSql::begin() ); }
+    const iterator end() { return iterator(cSql::end() ); }
 };
 
 class cSqlGetSimilarTvShows {
 // iterator over all similar tv shows
+  using U = cUnion<int, cSqlValue<int>, std::vector<int>>;
   public:
     cSqlGetSimilarTvShows(const cTVScraperDB *db, int tv_id);
-    cSql::int_iterator begin() {
-      return m_ints.empty()?cSql::int_iterator(m_sql.begin() ):cSql::int_iterator(m_ints.begin()); }
-    const cSql::int_iterator end() {
-      return m_ints.empty()?cSql::int_iterator(m_sql.end() ):cSql::int_iterator(m_ints.end()); }
+    U::iterator begin() { return m_union.begin(); }
+    const U::iterator end() { return m_union.end(); }
   private:
-    cSql m_sql;
+    cSqlValue<int> m_sql;
     std::vector<int> m_ints;
+    U m_union;
 };
 
 using namespace std; 

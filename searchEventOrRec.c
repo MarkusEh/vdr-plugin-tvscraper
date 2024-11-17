@@ -511,11 +511,9 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
 
 int cSearchEventOrRec::GetTvDurationDistance(int tvID) {
   int finalDurationDistance = -1; // default, no data available
-  cSql stmt(m_db, "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?", tvID);
-  if (!stmt.readRow() ) return finalDurationDistance;
+  cSqlValue<int> stmt(m_db, "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?", tvID);
 // Done / checked: also write episode runtimes to episode_run_time, for each episode
-  for (cSql &stm: stmt) {
-    int rt = stm.getInt(0);
+  for (int rt: stmt) {
     if (rt < 1) continue; // ignore 0 and -1: -1-> no value in ext. db. 0-> value 0 in ext. db
     int durationDistance = m_sEventOrRecording->DurationDistance(rt);
     if (durationDistance < 0) continue; // no data
@@ -874,9 +872,8 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
 // actors
     actors.finalizePrepareBindStep("SELECT actor_name, actor_role FROM actors, actor_movie WHERE actor_movie.actor_id = actors.actor_id AND actor_movie.movie_id = ?", sR.id());
 // alternative titles
-    for (cSql &sql_title: cSql(searchEventOrRec.m_db, "SELECT alternative_title FROM alternative_titles WHERE external_database = 1 AND id = ?",  sR.id()) ) {
-      sR.updateMatchText(normedMovieSearchString.sentence_distance(sql_title.getStringView(0) ));
-    }
+    for (cSv alt_title: cSqlValue<cSv>(searchEventOrRec.m_db, "SELECT alternative_title FROM alternative_titles WHERE external_database = 1 AND id = ?",  sR.id()) )
+      sR.updateMatchText(normedMovieSearchString.sentence_distance(alt_title));
   } else {
 // tv show
     if (debug) esyslog("tvscraper: enhance1 (1)" );
@@ -907,9 +904,8 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
       }
       cNormedString normedSearchString(searchEventOrRec.m_TVshowSearchString);
 // alternative titles
-      for (cSql &sql_title: cSql(searchEventOrRec.m_db, "SELECT alternative_title FROM alternative_titles WHERE external_database = 2 AND id = ?",  sR.id()) ) {
-        sR.updateMatchText(normedSearchString.sentence_distance(sql_title.getStringView(0) ));
-      }
+      for (cSv alt_title: cSqlValue<cSv>(searchEventOrRec.m_db, "SELECT alternative_title FROM alternative_titles WHERE external_database = 2 AND id = ?",  sR.id()) )
+        sR.updateMatchText(normedSearchString.sentence_distance(alt_title));
       actors.finalizePrepareBindStep("SELECT actor_name, actor_role FROM actors, actor_tv WHERE actor_tv.actor_id = actors.actor_id AND actor_tv.tv_id = ?", sR.id());
     }
   }

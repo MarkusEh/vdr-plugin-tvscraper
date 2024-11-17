@@ -102,7 +102,7 @@ class cTVScraperConfig {
         std::map<tChannelID,int> m_HD_Channels;  // int = 0->SD, 1->HD, 2->UHD
         std::set<std::string> m_excludedRecordingFolders;
         std::set<int> m_TV_Shows;  // TV_Shows where missing episodes will be recorded
-        std::set<int> m_AdditionalLanguages;
+        std::vector<int> m_AdditionalLanguages;
         int m_enableAutoTimers;
         std::map<tChannelID, int> m_channel_language; // if a channel is not in this map, it has the default language
 // End of list of data that can be changed in the setup menu
@@ -229,7 +229,7 @@ class cTVScraperConfig {
 // languages
         map<tChannelID, int> GetChannelLanguages() const { cTVScraperConfigLock l; auto r = m_channel_language;  return r; }
         int numAdditionalLanguages() const { cTVScraperConfigLock l; int r = m_AdditionalLanguages.size(); return r; }
-        set<int> GetAdditionalLanguages() const { cTVScraperConfigLock l; auto r = m_AdditionalLanguages; return r; }
+        vector<int> GetAdditionalLanguages() const { cTVScraperConfigLock l; auto r = m_AdditionalLanguages; return r; }
         const cLanguage *GetDefaultLanguage() const { return m_defaultLanguage; } // this will ALLWAYS return a valid pointer to cLanguage
         const cLanguage *GetLanguage(const tChannelID &channelID) const;  // this will ALLWAYS return a valid pointer to cLanguage
         bool isDefaultLanguage(const cLanguage *l) const { if (!l) return false; return l->m_id == m_defaultLanguage->m_id; }

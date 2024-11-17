@@ -284,7 +284,7 @@ template<typename... Args>
       return result;
     }
     bool download_and_parse_int(cStr url, struct curl_slist *headers) {
-      if (m_enableDebug) esyslog("tvscraper: calling %s", url.c_str() );
+      if (m_enableDebug) isyslog("tvscraper: calling %s", url.c_str() );
       SetObject();  // clear
       headers = curl_slistAppend(headers, "Accept: application/json");
       if (!m_curl->GetUrl(url, m_data, headers)) {

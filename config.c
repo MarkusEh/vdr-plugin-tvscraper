@@ -215,7 +215,7 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
         m_defaultLanguage = GetLanguage(atoi(Value));
         return true;
     } else if (strcmp(Name, "additionalLanguages") == 0) {
-        m_AdditionalLanguages = getSetFromString<int>(Value);
+        m_AdditionalLanguages = getSetFromString<int, std::vector<int> >(Value);
         return true;
     } else if (strncmp(Name, "additionalLanguage", 18) == 0) {
         int num_lang = atoi(Name + 18);

@@ -622,8 +622,9 @@ inline std::string objToString(const int &i) { return std::string(cToSvInt(i)); 
 inline std::string objToString(const std::string &i) { return i; }
 inline std::string objToString(const tChannelID &i) { return std::string(cToSvConcat(i)); }
 
-template<class T, class C=std::set<T>>
+template<class C>
 std::string getStringFromSet(const C &in, char delim = ';') {
+  using T = typename std::iterator_traits<typename C::iterator>::value_type;
   if (in.size() == 0) return std::string();
   std::string result;
   for (const T &i: in) {

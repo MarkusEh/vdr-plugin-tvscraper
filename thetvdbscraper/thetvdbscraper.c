@@ -89,12 +89,13 @@ const cLanguage *displayLanguageTvdb(cSv translations) {
   if (transSplit.find(config.GetDefaultLanguage()->m_thetvdb) != transSplit.end()) return config.GetDefaultLanguage();
 // translation in configured default language is not available
 // check: translation in an additional language available?
-  for (int l: config.GetAdditionalLanguages() ) {
+  std::vector<int> al = config.GetAdditionalLanguages();
+  std::array lang_eng_arr{6};
+  for (int l: cUnion(al, lang_eng_arr) ) { // add. languages, English
     const cLanguage *res = languageMatchesTvdb(l, transSplit);
     if (res) return res;
   }
-// try english
-  return languageMatchesTvdb(6, transSplit);
+  return nullptr;
 }
 
 const cLanguage *languageTvdb(cSv tvdbLang, const char *context = nullptr) {
@@ -486,9 +487,8 @@ void cTVDBScraper::DownloadMedia (int tvID, eMediaType mediaType, cStr destDir) 
 }
 
 void cTVDBScraper::DownloadMediaBanner (int tvID, cStr destPath) {
-  cSql sql(db,  "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
-  for (cSql &stmt: sql.resetBindStep(tvID * -1, (int)mediaBanner)) {
-    const char *media_path = stmt.getCharS(0);
+  cSqlValue<const char*> sql(db,  "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
+  for (const char *media_path: sql.resetBindStep(tvID * -1, (int)mediaBanner)) {
     if (!media_path || !*media_path ) continue;
     download(media_path, destPath);
     return;

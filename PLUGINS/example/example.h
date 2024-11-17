@@ -19,7 +19,7 @@ bool operator<(const cTvspEvent &e1, const cTvspEvent &e2) { return e1.m_startTi
 class cTvspEpgOneDay
 {
   public:
-    cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime);
+    cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime, bool debug);
     bool enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages); // return true if the event is in "my" time frame (one day )
   private:
     void initJson(cSv extChannelId, time_t startTime);
@@ -32,18 +32,20 @@ class cTvspEpgOneDay
     std::shared_ptr<std::vector<cTvspEvent>> m_events;
     const int c_always_accepted_deviation = 60;  // seconds
     const int c_never_accepted_deviation = 60 * 30;  // seconds
+    bool m_debug;
 };
 class cTvspEpg: public iExtEpgForChannel
 {
   public:
-    cTvspEpg(cSv extChannelId):
+    cTvspEpg(cSv extChannelId, bool debug):
       iExtEpgForChannel(),
-      m_extChannelId(extChannelId) {};
+      m_extChannelId(extChannelId),
+      m_debug(debug) {};
     virtual void enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages) {
       if (event->StartTime() > time(0) + 7*24*60*60) return; // only one week supported
       if (event->StartTime() < time(0) - 60*60) return; // no events in the past
       for (auto &tvspEpgOneDay: m_tvspEpgOneDayS) if (tvspEpgOneDay.enhanceEvent(event, extEpgImages)) return;
-      cTvspEpgOneDay tvspEpgOneDay(&m_curl, m_extChannelId, event->StartTime());
+      cTvspEpgOneDay tvspEpgOneDay(&m_curl, m_extChannelId, event->StartTime(), m_debug);
       tvspEpgOneDay.enhanceEvent(event, extEpgImages);
       m_tvspEpgOneDayS.push_back(tvspEpgOneDay);
     }
@@ -57,7 +59,7 @@ class cTvspEpg: public iExtEpgForChannel
 class cExtEpgTvsp: public iExtEpg
 {
   public:
-    cExtEpgTvsp() {}
+    cExtEpgTvsp(bool debug): m_debug(debug) {}
     virtual const char *getSource() { return "tvsp"; }
     virtual bool myDescription(const char *description) {
 // return true if this description was created by us
@@ -66,6 +68,8 @@ class cExtEpgTvsp: public iExtEpg
       return strstr(description, "tvsp") != NULL;
     }
     virtual std::shared_ptr<iExtEpgForChannel> getHandlerForChannel(const std::string &extChannelId) {
-      return std::make_shared<cTvspEpg>(extChannelId);
+      return std::make_shared<cTvspEpg>(extChannelId, m_debug);
     }
+  private:
+     bool m_debug;
 };

@@ -75,14 +75,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
       bool update_required = config.isUpdateFromExternalDbRequired(stmt.getInt64(1));
       if (!update_required && config.isUpdateFromExternalDbRequiredMR(stmt.getInt64(1) )){
 // check: do we have a runtime?
-        bool found = false;
-        for (cSql &sql_rt: cSql(m_TVDBScraper->db, "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?", searchResultTvMovie.id() )) {
-          if (sql_rt.getInt(0) > 0) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) update_required = true; // no runtime found
+        if (!m_TVDBScraper->db->TvRuntimeAvailable(searchResultTvMovie.id() )) update_required = true; // no runtime found
       }
 
       if (!update_required) return;

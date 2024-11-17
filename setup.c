@@ -27,8 +27,8 @@ std::set<int> cTVScraperSetup::getAllTV_Shows() {
 // add all TV Shows from recordings & from config, where we create recordings for missing episodes.
 // don't add TV Shows from tv2 / EPG events, as these are too many
 // add all TV Shows from recordings
-  cSql sql(&m_db, "select DISTINCT movie_tv_id from recordings2 where season_number != -100");
-  for (cSql &statement: sql) result.insert(statement.getInt(0) );
+  cSqlValue<int> sql(&m_db, "select DISTINCT movie_tv_id from recordings2 where season_number != -100");
+  for (int movie_tv_id: sql) result.insert(movie_tv_id);
 // add all TV Shows from config, where we create recordings for missing episodes
   cTVScraperConfigLock l;
   for (const int &id: config.m_TV_Shows ) result.insert(id);
@@ -279,7 +279,7 @@ void cTVScraperSetup::Store(void) {
 //    config.m_defaultLanguage = langDefault.getLanguage(0); it is not possible to change defaultLanguage in setup
     config.m_AdditionalLanguages.clear();
     for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
-      config.m_AdditionalLanguages.insert(langAdditional.getLanguage(i));
+      config.m_AdditionalLanguages.push_back(langAdditional.getLanguage(i));
     config.m_channel_language = std::move(channel_language);
     config.m_excludedRecordingFolders = menuSelectionsToSet<string>(m_allRecordingFolders, m_selectedRecordingFolders, true);
     config.m_TV_Shows = menuSelectionsToSet<int>(m_allTV_Shows, m_selectedTV_Shows, false);
@@ -288,19 +288,19 @@ void cTVScraperSetup::Store(void) {
 
   cTVScraperConfigLock lr;
 // getStringFromSet<> sets no Locks
-  SetupStore("ScrapChannels", getStringFromSet<tChannelID>(config.m_channels).c_str());
+  SetupStore("ScrapChannels", getStringFromSet(config.m_channels).c_str());
   if (channelsHD_Change) {
     SetupStore("HDChannels", getStringFromMap(config.m_HD_Channels, 1).c_str());
     SetupStore("UHDChannels", getStringFromMap(config.m_HD_Channels, 2).c_str());
   }
-  SetupStore("ExcludedRecordingFolders", getStringFromSet<string>(config.m_excludedRecordingFolders, '/').c_str());
-  SetupStore("TV_Shows", getStringFromSet<int>(config.m_TV_Shows).c_str());
+  SetupStore("ExcludedRecordingFolders", getStringFromSet(config.m_excludedRecordingFolders, '/').c_str());
+  SetupStore("TV_Shows", getStringFromSet(config.m_TV_Shows).c_str());
   SetupStore("enableDebug", config.enableDebug);
   SetupStore("enableAutoTimers", config.m_enableAutoTimers);
   SetupStore("defaultLanguage", config.m_defaultLanguage->m_id);
-  SetupStore("additionalLanguages", getStringFromSet<int>(config.m_AdditionalLanguages).c_str() );
+  SetupStore("additionalLanguages", getStringFromSet(config.m_AdditionalLanguages).c_str() );
   for (const int &lang: config.m_AdditionalLanguages)
-    SetupStore(("additionalLanguage"s + std::to_string(lang)).c_str(), getStringFromMap(config.m_channel_language, lang).c_str() );
+    SetupStore((cToSvConcat("additionalLanguage", lang)).c_str(), getStringFromMap(config.m_channel_language, lang).c_str() );
 }
 
 /* cTVScraperChannelSetup */

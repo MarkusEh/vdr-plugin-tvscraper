@@ -700,7 +700,7 @@ void cMovieOrTv::CleanupTv_media(const cTVScraperDB *db) {
   const char *sql = "delete from tv_media where media_type != ?";
   db->exec(sql, mediaSeason);
   std::set<int> tv_ids;
-  for (cSql &statement: cSql(db, "select tv_id from tv_media") ) tv_ids.insert(statement.getInt(0) );
+  for (int tv_id: cSqlValue<int>(db, "select tv_id from tv_media") ) tv_ids.insert(tv_id);
   for (const int &tv_id2: tv_ids) {
     if (db->CheckMovieOutdatedEvents(tv_id2, 0, 0)) continue;
     if (db->CheckMovieOutdatedRecordings(tv_id2, 0, 0)) continue;
@@ -750,16 +750,15 @@ void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check all movies in db
   CleanupTv_media(db);
   db->exec("DELETE FROM actor_download");
-  for (cSql &stmt: cSql(db, "select movie_id from movies3;") ) {
-    cMovieMoviedb movieMoviedb(db, stmt.getInt(0) );
+  for (int movie_id: cSqlValue<int>(db, "select movie_id from movies3;") ) {
+    cMovieMoviedb movieMoviedb(db, movie_id);
     movieMoviedb.DeleteIfUnused();
   }
 
 // check all tv shows in db
-  for (cSql &stmt: cSql(db, "select tv_id from tv2;")) {
-    int tvID = stmt.getInt(0);
+  for (int tvID: cSqlValue<int>(db, "select tv_id from tv2;")) {
     if (tvID > 0) { cTvMoviedb tvMoviedb(db, tvID); tvMoviedb.DeleteIfUnused(); }
-       else        { cTvTvdb tvTvdb(db, tvID * -1); tvTvdb.DeleteIfUnused(); }
+    else          { cTvTvdb tvTvdb(db, tvID * -1); tvTvdb.DeleteIfUnused(); }
   }
 
   DeleteAllIfUnused(config.GetBaseDirMovieTv(), ecMovieOrTvType::theMoviedbSeries, db);

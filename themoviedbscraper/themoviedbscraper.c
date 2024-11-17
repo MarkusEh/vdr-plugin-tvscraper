@@ -60,10 +60,10 @@ void cMovieDBScraper::DownloadMediaTv(int tvID) {
     DownloadFile(m_posterBaseUrl, statement.getStringView(0), baseDirDownload, statement.getInt(1), "/poster.jpg", false);
     break;
   }
-  cSql sql2(db, "select media_path from tv_media where tv_id = ? and media_type = ? and media_number >= 0");
+  cSqlValue<cSv> sql2(db, "SELECT media_path FROM tv_media WHERE tv_id = ? AND media_type = ? AND media_number >= 0");
   for (int type = 1; type <= 2; type++) {
-    for (cSql &statement: sql2.resetBindStep(tvID, type)) {
-      DownloadFile(m_posterBaseUrl, statement.getStringView(0), config.GetBaseDirMovieTv(), tvID, type==1?"/poster.jpg":"/backdrop.jpg", false);
+    for (cSv media_path: sql2.resetBindStep(tvID, type)) {
+      DownloadFile(m_posterBaseUrl, media_path, config.GetBaseDirMovieTv(), tvID, type==1?"/poster.jpg":"/backdrop.jpg", false);
       break;
     }
   }

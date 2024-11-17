@@ -168,10 +168,10 @@ int cTVScraperDB::LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int is
     sqlite3 *pFrom;           /* Database to copy from (pFile or pInMemory) */
 
     if (isSave) {
-      esyslog("tvscraper: access %s for write", zFilename);
+      isyslog("tvscraper: access %s for write", zFilename);
       rc = sqlite3_open_v2(zFilename, &pFile, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
     } else {
-      esyslog("tvscraper: access %s for read", zFilename);
+      isyslog("tvscraper: access %s for read", zFilename);
       rc = sqlite3_open_v2(zFilename, &pFile, SQLITE_OPEN_READONLY                       | SQLITE_OPEN_FULLMUTEX, nullptr);
     }
     if( rc==SQLITE_OK ){
@@ -192,7 +192,7 @@ int cTVScraperDB::LoadOrSaveDb(sqlite3 *pInMemory, const char *zFilename, int is
     }
     int rc_c = sqlite3_close(pFile);
     if (rc_c != SQLITE_OK) write_backup_error("closing database", zFilename, rc_c, pFile);
-    esyslog("tvscraper: access to %s finished, rc = %d", zFilename, rc);
+    isyslog("tvscraper: access to %s finished, rc = %d", zFilename, rc);
     return rc;
 }
 
@@ -578,7 +578,7 @@ void cTVScraperDB::ClearOutdated() const {
 // and delete all invalid events pointing to series
   exec("DELETE FROM event WHERE valid_till < ?", time(0) - 5 * 60*60);  // keep events for 5 hours
   DeleteOutdatedCache();
-  esyslog("tvscraper: Cleanup Done");
+  isyslog("tvscraper: Cleanup Done");
 }
 
 int cTVScraperDB::DeleteMovie(int movieID) const {
@@ -704,8 +704,8 @@ void cTVScraperDB::InsertTvEpisodeRunTimes(int tvID, const set<int> &EpisodeRunT
     stmt.resetBindStep(tvID, episodeRunTime);
 }
 bool cTVScraperDB::TvRuntimeAvailable(int tvID) {
-  for (cSql &stmt: cSql(this, "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?", tvID)) {
-    if (stmt.getInt(0) > 0) return true;
+  for (int runtime: cSqlValue<int>(this, "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?", tvID)) {
+    if (runtime > 0) return true;
   }
   return false;
 }
@@ -845,34 +845,33 @@ int cTVScraperDB::GetRuntime(csEventOrRecording *sEventOrRecording, int movie_tv
     int rt = GetMovieRuntime(movie_tv_id);
     return rt >0?rt:-2;
   }
-  int runtime = queryInt("select episode_run_time from tv_s_e where tv_id = ? and season_number = ? and episode_number = ?", movie_tv_id, season_number, episode_number);
-  if (runtime > 0) return runtime;
+  int rt = queryInt("SELECT episode_run_time FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?", movie_tv_id, season_number, episode_number);
+  if (rt > 0) return rt;
 // runtime for this episode is not available. Check which runtime (in list of runtimes) fits best
   int durationInMinLow;
   int durationInMinHigh;
   int best_runtime = -2;
-  const char *sql = "select episode_run_time from tv_episode_run_time where tv_id = ?";
+  const char *sql = "SELECT episode_run_time FROM tv_episode_run_time WHERE tv_id = ?";
   int durationRange = sEventOrRecording->DurationRange(durationInMinLow, durationInMinHigh);
   if (durationRange < 0) {
 // no information allowing us to check best fit is available
     int n_rtimes = 0;
-    for (int runtime2: cSqlInt(this, cStringRef(sql), movie_tv_id)) {
+    for (int runtime2: cSqlValue<int>(this, cStringRef(sql), movie_tv_id)) {
       if (runtime2 > 0) { n_rtimes++; best_runtime = runtime2; }
     }
     if (n_rtimes == 1) return best_runtime;  // there is exactly one meaningfull runtime
-    return durationRange; // no data. Better admit this fact than returning an arbitrarily choosen runtime
+    return -1; // no data. Better admit this fact than returning an arbitrarily choosen runtime
   }
 // tv show, more than one runtime is available. Select the best fitting one
   int runtime_distance = 20000;
-  for (cSql &statement: cSql(this, cStringRef(sql), movie_tv_id)) {
-    runtime = statement.getInt(0);
-    if (runtime <= 0) continue;
+  for (int runtime2: cSqlValue<int>(this, cStringRef(sql), movie_tv_id)) {
+    if (runtime2 <= 0) continue;
     int dist = 0;
-    if (runtime > durationInMinHigh) dist = runtime - durationInMinHigh;
-    if (runtime < durationInMinLow)  dist = durationInMinLow - runtime;
+    if (runtime2 > durationInMinHigh) dist = runtime2 - durationInMinHigh;
+    if (runtime2 < durationInMinLow)  dist = durationInMinLow - runtime2;
 
     if (dist < runtime_distance) {
-      best_runtime = runtime;
+      best_runtime = runtime2;
       runtime_distance = dist;
     }
   }
@@ -1285,18 +1284,23 @@ void cTVScraperDB::DeleteActorDownload (int tvID, bool movie) const {
 }
 
 cSqlGetSimilarTvShows::cSqlGetSimilarTvShows(const cTVScraperDB *db, int tv_id):
-    m_sql(db, "SELECT tv_id FROM tv_similar WHERE equal_id = ?") {
+    m_sql(db, "SELECT tv_id FROM tv_similar WHERE equal_id = ?"),
+    m_union(m_sql, m_ints) {
   cSql sql(db, "SELECT equal_id FROM tv_similar WHERE tv_id = ?", tv_id);
   if (sql.readRow() ) m_sql.resetBindStep(sql.getInt(0));
-  else m_ints.push_back(tv_id);
+  else {
+    m_sql.resetBindStep(0); // select nothing, equal_id always > 0
+    m_ints.push_back(tv_id);
+  }
 }
+
 void cTVScraperDB::setSimilar(int tv_id1, int tv_id2) {
-  const char *sqlInList = "select equal_id from tv_similar where tv_id = ?";
+  const char *sqlInList = "SELECT equal_id FROM tv_similar WHERE tv_id = ?";
   int equalId1 = queryInt(sqlInList, tv_id1);
   int equalId2 = queryInt(sqlInList, tv_id2);
-  const char *sqlInsert = "insert INTO tv_similar (tv_id, equal_id) VALUES (?, ?);";
+  const char *sqlInsert = "INSERT INTO tv_similar (tv_id, equal_id) VALUES (?, ?);";
   if (equalId1 == 0 && equalId2 == 0) {
-    int equalId = queryInt("select max(equal_id) from tv_similar;");
+    int equalId = queryInt("SELECT max(equal_id) FROM tv_similar;");
     if (equalId <= 0) equalId = 1;
     else equalId++;
     exec(sqlInsert, tv_id1, equalId);

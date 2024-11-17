@@ -696,8 +696,8 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
     movieOrTvAT.m_season_number = -100;
     movieOrTvAT.m_episode_number = 0;
     movieOrTvAT.m_language = 0;
-    for (cSql &statement: cSql(&db, "SELECT movie_id FROM movies3 WHERE movie_collection_id = ?", collection_id)) {
-      movieOrTvAT.m_movie_tv_id = statement.getInt(0);
+    for (int movie_id: cSqlValue<int>(&db, "SELECT movie_id FROM movies3 WHERE movie_collection_id = ?", collection_id)) {
+      movieOrTvAT.m_movie_tv_id = movie_id;
       auto found = recordings.lower_bound(movieOrTvAT);
       if (found != recordings.end() && equalWoLanguageMovieOrTvAT(&(*found), &movieOrTvAT) ) {
         if (checkTimer(scraperEvent, myTimers)) createTimer(db, scraperEvent, "collection", &(*found));

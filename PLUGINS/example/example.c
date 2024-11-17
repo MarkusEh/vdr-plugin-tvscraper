@@ -13,9 +13,10 @@ cTvspEvent::cTvspEvent(const rapidjson::Value& tvspEvent, rapidjson::SizeType li
 
 // cTvspEpgOneDay ***********************************************
 
-cTvspEpgOneDay::cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime):
+cTvspEpgOneDay::cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime, bool debug):
   m_document(std::make_shared<cJsonDocumentFromUrl>(curl) ),
-  m_events(std::make_shared<std::vector<cTvspEvent>>() )
+  m_events(std::make_shared<std::vector<cTvspEvent>>() ),
+  m_debug(debug)
   {
     initJson(extChannelId, startTime);
   }
@@ -45,9 +46,8 @@ void cTvspEpgOneDay::initJson(cSv extChannelId, time_t startTime) {
   m_end = m_start + 24*60*60;
 
 // download json file
-  m_document->set_enableDebug(true);
+  m_document->set_enableDebug(m_debug);
   if (!m_document->download_and_parse(url)) return; // no data
-//  if (!jsonCallRest(*m_document, *m_json, url.c_str(), false) ) return; // no data
   if (!m_document->IsArray() ) {
     esyslog("tvscraper: ERROR cTvspEpgOneDay::initJson, parse %s failed, document is not an array", url.c_str() );
     return; // no data
@@ -223,7 +223,6 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
 //***************************************************************************
 
 extern "C" iExtEpg* extEpgPluginCreator(bool debug) {
-// debug is currently not used
 // debug indicates to write more messages to syslog
-  return new cExtEpgTvsp();
+  return new cExtEpgTvsp(debug);
 }
