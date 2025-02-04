@@ -58,14 +58,14 @@ class cTVScraperSetup: public cMenuSetupPage {
         std::vector<const char*> m_channelNames;
         int m_maxChannelNameLength;
         int m_recordings_width;
-        std::set<std::string> m_allRecordingFolders;
-        set<int> m_allTV_Shows;
+        cSortedVector<std::string> m_allRecordingFolders;
+        cSortedVector<int> m_allTV_Shows;
         void Setup(void);
         std::string StoreExcludedRecordingFolders();
         std::string StoreTV_Shows();
-        std::set<int> getAllTV_Shows();
-        std::set<std::string> getAllRecordingFolders(int &max_width);
-        std::set<tChannelID> GetChannelsFromSetup(const vector<int> &channels);
+        cSortedVector<int> getAllTV_Shows();
+        cSortedVector<std::string> getAllRecordingFolders(int &max_width);
+        cSortedVector<tChannelID> GetChannelsFromSetup(const vector<int> &channels);
         std::map<tChannelID, int> GetChannelsMapFromSetup(const vector<int> &channels);
         std::map<tChannelID, int> GetChannelsMapFromSetup(const vector<int> &channels, const mapIntBi *langIds);
         bool ChannelsFromSetupChanged(std::map<tChannelID, int> oldChannels, const vector<int> &channels);
@@ -90,7 +90,7 @@ class cTVScraperChannelSetup : public cOsdMenu {
 
 class cTVScraperListSetup: public cOsdMenu {
   public:
-    cTVScraperListSetup(vector<int> &listSelections, const std::set<string> &listEntries, const char *headline, int width);
+    cTVScraperListSetup(vector<int> &listSelections, const cSortedVector<std::string> &listEntries, const char *headline, int width);
     virtual ~cTVScraperListSetup();
   protected:
     virtual eOSState ProcessKey(eKeys Key);
@@ -98,7 +98,7 @@ class cTVScraperListSetup: public cOsdMenu {
 
 class cTVScraperTV_ShowsSetup: public cOsdMenu {
   public:
-    cTVScraperTV_ShowsSetup(vector<int> &listSelections, const std::set<int> &TV_Shows, const cTVScraperDB &db);
+    cTVScraperTV_ShowsSetup(vector<int> &listSelections, const cSortedVector<int> &TV_Shows, const cTVScraperDB &db);
     virtual ~cTVScraperTV_ShowsSetup();
   protected:
     virtual eOSState ProcessKey(eKeys Key);

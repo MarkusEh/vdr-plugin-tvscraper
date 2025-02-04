@@ -96,7 +96,7 @@ cTVScraperConfig config;
 #include "autoTimers.c"
 #include "services.c"
 
-static const char *VERSION        = "1.2.11";
+static const char *VERSION        = "1.2.12";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 
 //***************************************************************************
@@ -538,6 +538,9 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     }
 
     if (strcmp(Id, "GetAutoTimerReason") == 0) {
+// note: if call->timer is used, caller must LOCK_TIMERS_READ before the call
+// note: if any cRecording (call->recording_in or call->recording) is used,
+//       caller must LOCK_RECORDINGS_READ before the call
       if (Data == NULL) return true;
       cGetAutoTimerReason* call = (cGetAutoTimerReason*) Data;
       call->createdByTvscraper = false;
@@ -579,7 +582,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
           cMovieOrTv *movieOrTv = cMovieOrTv::getMovieOrTv(db, nullptr, call->recording_in);
           if (movieOrTv) {
             stmt.resetBindStep(movieOrTv->dbID() );
-            if (stmt.readRow() ) seriesName = stmt.getStringView(0);
+            if (stmt.readRow() ) seriesName = stmt.get<cSv>(0);
             delete movieOrTv;
           }
         }
@@ -588,8 +591,10 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
       } else {
         call->reason.append(tr("Improve recording"));
       }
-      if (call->requestRecording) call->recording = recordingFromAux(aux);
-      else {
+      if (call->requestRecording) {
+        LOCK_RECORDINGS_READ;
+        call->recording = recordingFromAux(aux, Recordings);
+      } else {
         call->recording = nullptr;
         call->reason.append(" ");
         call->reason.append(xml_causedBy);

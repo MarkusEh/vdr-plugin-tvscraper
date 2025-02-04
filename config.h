@@ -7,6 +7,7 @@
 #include <map>
 #include <sqlite3.h>
 #include <vdr/thread.h>
+#include "tools/tvscraperhelpers.h"
 
 using namespace std;
 class iExtEpg;
@@ -46,24 +47,12 @@ struct sChannelMapEpg {
       std::shared_ptr<iExtEpg> extEpg;
 };
 
-inline bool operator< (const tChannelID &c1, const tChannelID &c2) {
-  if (c1.Source() != c2.Source() ) return c1.Source() < c2.Source();
-  if (c1.Nid() != c2.Nid() ) return c1.Nid() < c2.Nid();
-  if (c1.Tid() != c2.Tid() ) return c1.Tid() < c2.Tid();
-  if (c1.Sid() != c2.Sid() ) return c1.Sid() < c2.Sid();
-  return c1.Rid() < c2.Rid();
-}
 bool operator< (const sChannelMapEpg &cm1, const sChannelMapEpg &cm2) { return cm1.channelID < cm2.channelID; }
 bool operator< (const sChannelMapEpg &cm1, const tChannelID &c2) { return cm1.channelID < c2; }
-bool operator< (const cLanguage &l1, const cLanguage &l2) {
-  return l1.m_id < l2.m_id;
-}
-bool operator< (int l1, const cLanguage &l2) {
-  return l1 < l2.m_id;
-}
-bool operator< (const cLanguage &l1, int l2) {
-  return l1.m_id < l2;
-}
+bool operator< (const cLanguage &l1, const cLanguage &l2) { return l1.m_id < l2.m_id; }
+bool operator< (int l1, const cLanguage &l2) { return l1 < l2.m_id; }
+bool operator< (const cLanguage &l1, int l2) { return l1.m_id < l2; }
+bool operator== (const cLanguage &l1, const cLanguage &l2) { return l1.m_id == l2.m_id; }
 
 class cTVScraperConfigLock {
   private:
@@ -98,10 +87,10 @@ class cTVScraperConfig {
 // list of data that can be changed in the setup menu
 // we make these private, as access from several threads is possible. The methods to access the lists provide proper protection
 // our friend cTVScraperSetup can still access the private members, and needs to take care of proper locking
-        std::set<tChannelID> m_channels;  // channels to be scraped
+        cSortedVector<tChannelID> m_channels;  // channels to be scraped
         std::map<tChannelID,int> m_HD_Channels;  // int = 0->SD, 1->HD, 2->UHD
-        std::set<std::string> m_excludedRecordingFolders;
-        std::set<int> m_TV_Shows;  // TV_Shows where missing episodes will be recorded
+        cSortedVector<std::string> m_excludedRecordingFolders;
+        cSortedVector<int> m_TV_Shows;  // TV_Shows where missing episodes will be recorded
         std::vector<int> m_AdditionalLanguages;
         int m_enableAutoTimers;
         std::map<tChannelID, int> m_channel_language; // if a channel is not in this map, it has the default language
@@ -123,7 +112,7 @@ class cTVScraperConfig {
 
 // static constant
         const std::string m_description_delimiter;
-        const std::set<cLanguage, std::less<>> m_languages =
+        const cSortedVector<cLanguage, std::less<>> m_languages =
 {
 { 1, "dan", "da-DK", "dansk"},
 { 2, "deu", "de-AT", "deutsch, Österreich"},
@@ -219,7 +208,7 @@ class cTVScraperConfig {
         bool isUpdateFromExternalDbRequiredMR(time_t lastUpdate) { return difftime(time(0), lastUpdate) >= 60*60*24*4; }
 // Methods to access parameters (lists) that can be changed in setup menu
 // These methods are thread save
-        set<tChannelID> GetScrapeAndEpgChannels() const;
+        cSortedVector<tChannelID> GetScrapeAndEpgChannels() const;
         bool ChannelActive(const tChannelID &channelID) const { cTVScraperConfigLock l; return m_channels.find(channelID) != m_channels.end(); }   // do we have to scrape this channel?
         int ChannelHD(const tChannelID &channelID) const { cTVScraperConfigLock l; auto f = m_HD_Channels.find(channelID); if (f != m_HD_Channels.end()) return f->second; return 0; }
         map<tChannelID, int> GetChannelHD() const { map<tChannelID, int> r; cTVScraperConfigLock l; if (m_HD_ChannelsModified) r = m_HD_Channels; return r; }

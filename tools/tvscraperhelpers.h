@@ -113,54 +113,53 @@ namespace stringhelpers_internal {
   inline int numChars(const std::string &s) { return s.length(); }
   inline int numChars(const char *s) { return s?strlen(s):0; }
 
-// numCharsM: pre-requisite, not checked:
-//         i has between N and M digits (10^(N-1) <= i < 10^M)
-//         for N == 1: 0 <= i < 10^M
+static const int guess[] = {
+    0, 0, 0, 0, 1, 1, 1, 2, 2, 2,
+    3, 3, 3, 3, 4, 4, 4, 5, 5, 5,
+    6, 6, 6, 6, 7, 7, 7, 8, 8, 8,
+    9, 9, 9,
+    9, 10, 10, 10, 11, 11, 11,
+    12, 12, 12, 12, 13, 13, 13,
+    14, 14, 14, 15, 15, 15, 15,
+    16, 16, 16, 17, 17, 17,
+    18, 18, 18, 18, 19
+};
 
-//         1 <= N <= M <= 20
-template<uint8_t N, uint8_t M, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N == M, int>::type numCharsM(T i) {
-  return N;
+// i > 0 !!! not cheked here !!!!!
+inline int usedBinDigits(unsigned char i) {
+  return 8*sizeof(unsigned int)-__builtin_clz((unsigned int)i);
 }
-template<uint8_t N, uint8_t M, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<M >= N+1, int>::type numCharsM(T i) {
-  return numCharsM<N, M-1>(i) + (i>=powN<M-1>());
+inline int usedBinDigits(unsigned short int i) {
+  return 8*sizeof(unsigned int)-__builtin_clz((unsigned int)i);
+}
+inline int usedBinDigits(unsigned int i) {
+//  return 4*sizeof(unsigned long long int)-__builtin_clzll(0x80000000 | ((unsigned long long int)i << 32));
+  return 8*sizeof(unsigned int)-__builtin_clz(i);
+}
+inline int usedBinDigits(unsigned long int i) {
+  return 8*sizeof(unsigned long int)-__builtin_clzl(i);
+}
+inline int usedBinDigits(unsigned long long int i) {
+  return 8*sizeof(unsigned long long int)-__builtin_clzll(i);
 }
 
-template<typename T, std::enable_if_t<sizeof(T) == 1, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-  inline int numChars(T i) {
-    return numCharsM<1, 3>(i);
+template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+  inline int numChars_bi(T i) {
+// i > 0 !!! not cheked here !!!!!
+    int digits = guess[usedBinDigits(i)];
+    return digits + (i > to_chars10_internal::max_int[digits]);
   }
-// max uint16_t 65535
-template<typename T, std::enable_if_t<sizeof(T) == 2, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
   inline int numChars(T i) {
-    return numCharsM<1, 5>(i);
-  }
-// max uint32_t 4294967295
-template<typename T, std::enable_if_t<sizeof(T) >= 3, bool> = true, std::enable_if_t<sizeof(T) <= 4, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-  inline int numChars(T i) {
-    if (i >= 100000u) { return numCharsM<6, 10>(i); }
-    return numCharsM<1, 5>(i);
-  }
-// max uint64_t 18446744073709551615
-template<typename T, std::enable_if_t<sizeof(T) >= 5, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-  inline int numChars(T i) {
-    if (i < 10000u) return numCharsM<1, 4>(i);
-    if (i < 1000000000000u) { return numCharsM<5, 12>(i); }
-    return numCharsM<13, 20>(i);
-  }
+  return i?numChars_bi(i):1;
+}
 template<typename T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
   inline int numChars(T i) {
     typedef std::make_unsigned_t<T> TU;
-    if (i >= 0) return numChars((TU)i);
-    return numChars(~(static_cast<TU>(i)) + static_cast<TU>(1)) + 1;
+    if (i > 0) return numChars_bi(static_cast<TU>(i));
+    if (i < 0) return numChars_bi(~(static_cast<TU>(i)) + static_cast<TU>(1)) + 1;
+    return 1;
   }
-template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
-  inline void addChars(char *b, int l, T i) { to_chars10_internal::itoa(b, i); }
-  inline void addChars(char *b, int l, const std::string_view &s) { memcpy(b, s.data(), l); }
-  inline void addChars(char *b, int l, const std::string &s) { memcpy(b, s.data(), l); }
-  inline void addChars(char *b, int l, const char *s) { if(s) memcpy(b, s, l); }
-}
 
 typedef char* (*itoaNT64)(char *b, uint64_t i);
 static itoaNT64 fa[21] = {
@@ -186,26 +185,23 @@ static itoaNT64 fa[21] = {
    &stringhelpers_internal::itoaN<19, uint64_t>,
    &stringhelpers_internal::itoaN<20, uint64_t>
 };
-// max uint32_t 4294967295  (10 digits)
-template<typename T, std::enable_if_t<sizeof(T) <= 4, bool> = true, std::enable_if_t<sizeof(T) >= 3, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline char *itoa_fd(char *b, T i) {
-  if (i < 100) return to_chars10_internal::itoa1_2(b, i);
-  if (i < 10000) return to_chars10_internal::itoa3_4(b, i);
-  return fa[stringhelpers_internal::numCharsM<5, 10>(i)](b, i);
-}
-template<typename T, std::enable_if_t<sizeof(T) <= 8, bool> = true, std::enable_if_t<sizeof(T) >= 5, bool> = true, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline char *itoa_fd(char *b, T i) {
-  if (i < 100) return to_chars10_internal::itoa1_2(b, i);
-  if (i < 10000) return to_chars10_internal::itoa3_4(b, i);
-  if (i < 1000000000000u) { return fa[stringhelpers_internal::numCharsM<5, 12>(i)](b, i); }
-  return fa[stringhelpers_internal::numCharsM<13, 20>(i)](b, i);
-/*
-  if (i < 100) return to_chars10_internal::itoa1_2(b, i);
-  if (i < 10000) return to_chars10_internal::itoa3_4(b, i);
-  if (i < 100000000) return to_chars10_internal::itoa5_8(b, i);
-  if (i < 1000000000000000) return fa64[stringhelpers_internal::numCharsM<9, 15>(i)](b, i);
-  return fa64[stringhelpers_internal::numCharsM<16, 20>(i)](b, i);
-*/
+template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+  inline void addChars(char *b, int l, T i) {
+    stringhelpers_internal::fa[l](b, i);
+  }
+template<typename T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
+  inline void addChars(char *b, int l, T i) {
+    if (i < 0) {
+      *(b++) = '-';
+      typedef std::make_unsigned_t<T> TU;
+      stringhelpers_internal::fa[l-1](b, ~(TU(i)) + (TU)1);
+    } else
+      stringhelpers_internal::fa[l](b, i);
+  }
+
+  inline void addChars(char *b, int l, const std::string_view &s) { memcpy(b, s.data(), l); }
+  inline void addChars(char *b, int l, const std::string &s) { memcpy(b, s.data(), l); }
+  inline void addChars(char *b, int l, const char *s) { if(s) memcpy(b, s, l); }
 }
 
 inline cSv textAttributeValue(cSv text, const char *attributeName) {
@@ -548,43 +544,16 @@ inline size_t strstr_word (cSv haystack, cSv needle) {
   }
   return std::string::npos;
 }
-// =========================================================
-// special container:
-//   delimiter is '|'
-//   if delimiter is missing at start of string: take complete string
-// =========================================================
-
-template<class T>
-void push_back_new(std::vector<T> &vec, cSv str) {
-// add str to vec, but only if str is not yet in vec and if str is not empty
-  if (str.empty() ) return;
-  if (find (vec.begin(), vec.end(), str) != vec.end() ) return;
-  vec.emplace_back(str);
-}
-
-template<class T>
-void stringToVector(std::vector<T> &vec, const char *str) {
-// delimiter is '|', and must be available at start of str.
-// if str does not start with '|', don't split, just add str to vec
-// otherwise, split str at '|', and add each part to vec
-  if (!str || !*str) return;
-  if (str[0] != '|') { vec.push_back(str); return; }
-  const char *lDelimPos = str;
-  for (const char *rDelimPos = strchr(lDelimPos + 1, '|'); rDelimPos != NULL; rDelimPos = strchr(lDelimPos + 1, '|') ) {
-    push_back_new<T>(vec, cSv(lDelimPos + 1, rDelimPos - lDelimPos - 1));
-    lDelimPos = rDelimPos;
-  }
-}
-
-inline std::string vectorToString(const std::vector<std::string> &vec) {
-  if (vec.size() == 0) return std::string();
-  if (vec.size() == 1) return vec[0];
-  std::string result("|");
-  for (const std::string &str: vec) { result.append(str); result.append("|"); }
-  return result;
-}
 
 // ================ Channels ============================================
+
+inline bool operator< (const tChannelID &c1, const tChannelID &c2) {
+  if (c1.Source() != c2.Source() ) return c1.Source() < c2.Source();
+  if (c1.Nid() != c2.Nid() ) return c1.Nid() < c2.Nid();
+  if (c1.Tid() != c2.Tid() ) return c1.Tid() < c2.Tid();
+  if (c1.Sid() != c2.Sid() ) return c1.Sid() < c2.Sid();
+  return c1.Rid() < c2.Rid();
+}
 
 template <size_t N>
 inline cToSvConcat<N> &stringAppendChannel(cToSvConcat<N> &target, const tChannelID &channelID, char point = '.', char minus = '-') {
@@ -611,6 +580,31 @@ inline cToSvConcat<N>& operator<<(cToSvConcat<N>& s, const tChannelID &channelID
 inline void stringAppend(std::string &str, const tChannelID &channelID) {
   str.append(cToSvConcat(channelID));
 }
+inline std::ostream& operator<<(std::ostream& os, tChannelID const& id) {
+  return os << cToSvConcat(id);
+}
+// https://stackoverflow.com/questions/26994485/can-conversion-functions-be-non-member-functions
+// inline operator tChannelID(cSv sv) { return stringToObj<tChannelID>(sv); }
+// tChannelID
+template<class T, std::enable_if_t<std::is_same_v<T, tChannelID>, bool> = true>
+inline T lexical_cast(cSv sv, T returnOnError = T(), const char *context = nullptr) {
+  char buf[sv.length()+1];
+  buf[sv.length()] = 0;
+  memcpy(buf, sv.data(), sv.length());
+  tChannelID ret = tChannelID::FromString(buf);
+  if (context && !ret.Valid() )
+    isyslog(PLUGIN_NAME_I18N ": WARNING, converted \"%.*s\" to invalid tChannelID, context %s", (int)sv.length(), sv.data(), context);
+  return ret;
+}
+/*
+class ctChannelID_iterator: public cSplit::iterator {
+  public:
+    ctChannelID_iterator(const cSplit::iterator &si): cSplit::iterator(si) {}
+    tChannelID operator*() const {
+      return lexical_cast<tChannelID>(cSplit::iterator::operator *() );
+    }
+};
+*/
 
 // =========================================================
 // special container:
@@ -618,68 +612,48 @@ inline void stringAppend(std::string &str, const tChannelID &channelID) {
 //        or any other object wher methods to convert from/to string are available
 // =========================================================
 
-inline std::string objToString(const int &i) { return std::string(cToSvInt(i)); }
-inline std::string objToString(const std::string &i) { return i; }
-inline std::string objToString(const tChannelID &i) { return std::string(cToSvConcat(i)); }
-
+// delimiter at end of string, but not at beginning of string
+// used to save data in setup.conf
 template<class C>
 std::string getStringFromSet(const C &in, char delim = ';') {
   using T = typename std::iterator_traits<typename C::iterator>::value_type;
-  if (in.size() == 0) return std::string();
-  std::string result;
+  cToSvConcat result;
   for (const T &i: in) {
-    result.append(objToString(i));
-    result.append(1, delim);
+    result << i << delim;
   }
-  return result;
+  return std::string(result);
 }
 
-template<class T> T stringToObj(const char *s, size_t len) {
-  esyslog("tvscraper: ERROR: template<class T> T stringToObj called");
-  return 5; }
-template<> inline int stringToObj<int>(const char *s, size_t len) { return parse_int<int>(cSv(s, len)); }
-template<> inline std::string stringToObj<std::string>(const char *s, size_t len) { return std::string(s, len); }
-template<> inline cSv stringToObj<cSv>(const char *s, size_t len) { return cSv(s, len); }
-template<> tChannelID stringToObj<tChannelID>(const char *s, size_t len) {
-  char buf[len+1];
-  buf[len] = 0;
-  memcpy(buf, s, len);
-  return tChannelID::FromString(buf);
-}
 
 template<class T> void insertObject(std::vector<T> &cont, const T &obj) { cont.push_back(obj); }
-template<class T> void insertObject(std::set<T> &cont, const T &obj) { cont.insert(obj); }
+template<class T> void insertObject(cSortedVector<T> &cont, const T &obj) { cont.insert(obj); }
 
-template<class T, class C=std::set<T>>
-C getSetFromString(const char *str, char delim = ';') {
+template<class T, class C=cSortedVector<T>>
+C getSetFromString(cSv sv, char delim = ';') {
 // split str at delim, and add each part to result
   C result;
-  if (!str || !*str) return result;
-  const char *lStartPos = str;
-  if (delim == '|' && lStartPos[0] == delim) lStartPos++;
-  for (const char *rDelimPos = strchr(lStartPos, delim); rDelimPos != NULL; rDelimPos = strchr(lStartPos, delim) ) {
-    insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
-    lStartPos = rDelimPos + 1;
-  }
-  const char *rDelimPos = strchr(lStartPos, 0);
-  if (rDelimPos != lStartPos) insertObject<T>(result, stringToObj<T>(lStartPos, rDelimPos - lStartPos));
+  cSplit split(sv, delim, eSplitDelimBeginEnd::optional);
+  result.reserve(split.size());
+  for (cSv part: split)
+    insertObject<T>(result, lexical_cast<T>(part) );
   return result;
 }
 
-class cConcatenate
-// deprecated. Use function concatenate or stringAppend
-{
-  public:
-    cConcatenate(size_t buf_size = 0) { m_data.reserve(buf_size>0?buf_size:200); }
-    cConcatenate(const cConcatenate&) = delete;
-    cConcatenate &operator= (const cConcatenate &) = delete;
-  template<typename T>
-    cConcatenate & operator<<(const T &i) { stringAppend(m_data, i); return *this; }
-    std::string moveStr() { return std::move(m_data); }
-    operator cSv() const { return cSv(m_data.data(), m_data.length()); }
-    const char *getCharS() { return m_data.c_str(); }
-  private:
-    std::string m_data;
-};
+// =========================================================
+// stringToVector:
+//   delimiter is '|'. Add only unique, non-empty values
+// =========================================================
+
+template<class T>
+void stringToVector(std::vector<T> &vec, const char *str) {
+// delimiter is '|'. split with eSplitDelimBeginEnd::optional.
+  cSplit split(str, '|', eSplitDelimBeginEnd::optional);
+  vec.reserve(vec.size() + split.size());
+  for (cSv part: split) {
+    if (part.empty() ) continue;
+    if (find (vec.begin(), vec.end(), part) != vec.end() ) continue;
+    vec.emplace_back(part);
+  }
+}
 
 #endif // __TVSCRAPERHELPERS_H

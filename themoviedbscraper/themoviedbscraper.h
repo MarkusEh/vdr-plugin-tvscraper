@@ -59,9 +59,9 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
     virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
       cSql sql_data_available(m_movieDBScraper->db, "SELECT movie_last_update, movie_data_available, movie_runtime FROM movie_runtime2 WHERE movie_id = ?", searchResultTvMovie.id() );
       if (!sql_data_available.readRow() || sql_data_available.valueInitial(0) ||
-          sql_data_available.getInt(1) < 4 || config.isUpdateFromExternalDbRequired(sql_data_available.getInt64(0) ))
+          sql_data_available.getInt(1) < 4 || config.isUpdateFromExternalDbRequired(sql_data_available.get<time_t>(0) ))
         m_movieDBScraper->StoreMovie(searchResultTvMovie.id(), true);
-      else if (config.isUpdateFromExternalDbRequiredMR(sql_data_available.getInt64(0) ) &&
+      else if (config.isUpdateFromExternalDbRequiredMR(sql_data_available.get<time_t>(0) ) &&
                sql_data_available.getInt(2) <= 0) m_movieDBScraper->StoreMovie(searchResultTvMovie.id(), true);
     }
 
@@ -103,9 +103,9 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
       tv.downloadEpisodes(false, lang);
       cSql sql_data_available(m_movieDBScraper->db, "SELECT tv_actors_last_update, tv_data_available FROM tv_score WHERE tv_id = ?", searchResultTvMovie.id() );
       if (!sql_data_available.readRow() || sql_data_available.valueInitial(0) ||
-          sql_data_available.getInt(1) < 5 || config.isUpdateFromExternalDbRequired(sql_data_available.getInt64(0) ))
+          sql_data_available.getInt(1) < 5 || config.isUpdateFromExternalDbRequired(sql_data_available.get<time_t>(0) ))
         tv.UpdateDb(true);
-      else if (config.isUpdateFromExternalDbRequiredMR(sql_data_available.getInt64(0) ) &&
+      else if (config.isUpdateFromExternalDbRequiredMR(sql_data_available.get<time_t>(0) ) &&
               !m_movieDBScraper->db->TvRuntimeAvailable(searchResultTvMovie.id()) ) {
         tv.UpdateDb(true);
       }

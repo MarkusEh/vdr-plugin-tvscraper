@@ -184,6 +184,10 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
   if (!first) descr += "\n";
   if (getValue(tvspEvent_j, "director", s) ) stringAppend(descr, "\nRegisseur: ", s, "\n");
   descr += "\nQuelle: tvsp";
+  if (!event->ShortText() || !*event->ShortText() &&
+       event->Description() && strlen(event->Description()) > 3 && cSv(event->Description()).substr(0, 3) == "..." ) {
+      event->SetShortText(event->Description() );
+  }
   event->SetDescription(descr.c_str());
   if (!event->ShortText() || !*event->ShortText() ) {
 // add a short text only if no short text is available from EIT (the TV station)

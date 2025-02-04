@@ -43,8 +43,10 @@ class cSql {
 // you can read the values with the same stmt.readRow() call,
 // or later on with methods returning the values of given columns
 // (starting with 0):
-//     int getInt(int column), sqlite3_int64 getInt64(int column),
-//     const char *getCharS(int column), cSv getStringView(int column)
+//     T get<T>(int col, T row_not_found = T(), T col_empty = T() ) {
+// return value provided in row_not_found if the row was not found in db (m_last_step_result != SQLITE_ROW)
+// return value provided in col_empty if col is empty (there was never wirtten a value, or nullptr was written)
+
 //  use valueInitial(int column) to find out whether a value was written to this cell
 //   example 1
 // cSql stmt(db, "select movie_name from movies where movie_id = ?", movieId);
@@ -136,16 +138,12 @@ class cSql {
 template<class T>
     class value_iterator: public iterator {
       public:
-        using iterator_category = std::forward_iterator_tag;
         using value_type = T;
-        using difference_type = int;
         using pointer = const T*;
         using reference = const T&;
 
         explicit value_iterator(iterator sql_iterator): iterator(sql_iterator) { }
-        T operator*() const {
-          return m_sql->get<T>(0);
-        }
+        T operator*() const { return iterator::operator*().get<T>(0); }
       };
     iterator begin() {
       if (m_cur_row > 0 && !resetStep() ) return end();
@@ -323,37 +321,40 @@ template<class T>
       readRow_int0(++col, std::forward<Args>(args)...);
     }
 // readRow_int:
-    void readRow_int(int col, std::string* const&str) {
-      if (str) *str = charPointerToString(sqlite3_column_text(m_statement, col));
-    }
+    void readRow_int(int col, std::string* const&str) { if (str) readRow_int(col, *str); }
     void readRow_int(int col, std::string &str) {
-      str = charPointerToString(sqlite3_column_text(m_statement, col));
+      str = std::string(reinterpret_cast<const char*>(sqlite3_column_text(m_statement, col)), sqlite3_column_bytes(m_statement, col));
+    }
+// cStr, cSv and const char* returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
+    void readRow_int(int col, const char* &s) {
+      s = reinterpret_cast<const char*>(sqlite3_column_text(m_statement, col));
+    }
+    void readRow_int(int col, cStr &str) {
+      str = cStr(sqlite3_column_text(m_statement, col));
     }
     void readRow_int(int col, cSv &str) {
       str = cSv(reinterpret_cast<const char*>(sqlite3_column_text(m_statement, col)), sqlite3_column_bytes(m_statement, col));
     }
-// The pointers returned are valid until sqlite3_step() or sqlite3_reset() or sqlite3_finalize() is called.
-    void readRow_int(int col, const char* &s) {
-      s = reinterpret_cast<const char*>(sqlite3_column_text(m_statement, col));
+// note: for  cToSvConcat, we append!!!
+template<size_t N>
+    void readRow_int(int col, cToSvConcat<N> &toSvConcat) {
+      if (sqlite3_column_type(m_statement, col) == SQLITE_INTEGER)
+        toSvConcat.concat(sqlite3_column_int64(m_statement, col));
+      else
+        toSvConcat.append(reinterpret_cast<const char*>(sqlite3_column_text(m_statement, col)), sqlite3_column_bytes(m_statement, col));
     }
-    void readRow_int(int col, int *i) {
-      if (i) *i = static_cast<int>(sqlite3_column_int64(m_statement, col));
-    }
+    void readRow_int(int col, int *i) { if (i) readRow_int(col, *i); }
     void readRow_int(int col, int &i) { i = static_cast<int>(sqlite3_column_int64(m_statement, col));}
     void readRow_int(int col, long int &i) { i = static_cast<long int>(sqlite3_column_int64(m_statement, col));}
     void readRow_int(int col, long long int &i) { i = static_cast<long long int>(sqlite3_column_int64(m_statement, col));}
     void readRow_int(int col, unsigned int &i) { i = static_cast<unsigned int>(sqlite3_column_int64(m_statement, col));}
     void readRow_int(int col, unsigned long int &i) { i = static_cast<unsigned long int>(sqlite3_column_int64(m_statement, col));}
     void readRow_int(int col, unsigned long long int &i) { i = static_cast<unsigned long long int>(sqlite3_column_int64(m_statement, col));}
-    void readRow_int(int col, bool *b) {
-      if (b) *b = sqlite3_column_int(m_statement, col);
-    }
+    void readRow_int(int col, bool *b) { if (b) readRow_int(col, *b); }
     void readRow_int(int col, bool &b) { b = sqlite3_column_int(m_statement, col);}
-    void readRow_int(int col, float *f) {
-      if (f) *f = static_cast<float>(sqlite3_column_double(m_statement, col));
-    }
-    void readRow_int(int col, float &f) { f = static_cast<float>(sqlite3_column_double(m_statement, col));}
-    void readRow_int(int col, double &f) { f = sqlite3_column_double(m_statement, col);}
+    void readRow_int(int col, float *f) { if (f) readRow_int(col, *f); }
+    void readRow_int(int col, float &f) { f = static_cast<float>(sqlite3_column_double(m_statement, col)); }
+    void readRow_int(int col, double &f) { f = sqlite3_column_double(m_statement, col); }
 // explicitly read column col
   public:
     bool valueInitial(int col) {
@@ -372,17 +373,10 @@ template<class T>
       ///< s (char *) results will be valit until finalizePrepareBindStep or reset is called on this cSql,
       ///<            or this cSql is destroyed
     int getInt(int col, int row_not_found = 0, int col_empty = 0) {
-      return static_cast<int>(getInt64(col, row_not_found, col_empty) );
-    }
-    sqlite3_int64 getInt64(int col, int row_not_found = 0, int col_empty = 0) {
-// return value provided in row_not_found if the row was not found in db (m_last_step_result != SQLITE_ROW)
-// return value provided in col_empty if col is empty (there was never wirtten a value, or nullptr was written)
-      if (!preCheckRead(col) ) return row_not_found;
-      if (col_empty != 0 && sqlite3_column_type(m_statement, col) == SQLITE_NULL) return col_empty;
-      return sqlite3_column_int64(m_statement, col);
+      return get<int>(col, row_not_found, col_empty);
     }
 template<class T>
-    T get(int col, T row_not_found = T(), T col_empty = T() ) {
+    T get(int col=0, T row_not_found = T(), T col_empty = T() ) {
 // return value provided in row_not_found if the row was not found in db (m_last_step_result != SQLITE_ROW)
 // return value provided in col_empty if col is empty (there was never wirtten a value, or nullptr was written)
       if (!preCheckRead(col) ) return row_not_found;
@@ -434,7 +428,7 @@ template<class T>
 //    cSql(cSql &&) = default; // needs secial implementation
 //    cSql &operator= (cSql &&) = default; // needs secial implementation
     const cTVScraperDB *m_db;  // will be provided in constructor (mandatory, no constructur without DB)
-    sqlite3_stmt *m_statement = NULL;
+    sqlite3_stmt *m_statement = nullptr;
     cSv m_query;
     int m_last_step_result = -10;
     int m_cur_row = -1; // +1 each time step is called
@@ -459,14 +453,15 @@ class cSqlValue: public cSql {
 
 class cSqlGetSimilarTvShows {
 // iterator over all similar tv shows
-  using U = cUnion<int, cSqlValue<int>, std::vector<int>>;
+  using U = cUnion<int, cSqlValue<int>, cRange<std::array<int, 1>::iterator>>;
   public:
     cSqlGetSimilarTvShows(const cTVScraperDB *db, int tv_id);
     U::iterator begin() { return m_union.begin(); }
     const U::iterator end() { return m_union.end(); }
   private:
     cSqlValue<int> m_sql;
-    std::vector<int> m_ints;
+    std::array<int, 1> m_ints;
+    cRange<std::array<int, 1>::iterator> m_range;
     U m_union;
 };
 
@@ -527,26 +522,16 @@ public:
 // just execute the sql statement, with the given parameters
       cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
     }
+// Use:   T get(int col, T row_not_found = T(), T col_empty = T() ) {
+    template<class T, typename... Args>
+    T query(const char *query, Args&&... args) const {
+      return cSql(this, cStringRef(query), std::forward<Args>(args)...).get<T>(0);
+    }
     template<typename... Args>
     int queryInt(const char *query, Args&&... args) const {
 // return 0 if the requested entry does not exist in database
 // if the requested entry exists in database, but no value was written to the cell: return -1
-      cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
-      if (!sql.readRow() ) return 0;
-      if ( sql.valueInitial(0) ) return -1;
-      return sql.getInt(0);
-    }
-    template<typename... Args>
-    sqlite3_int64 queryInt64(const char *query, Args&&... args) const {
-// return 0 if the requested entry does not exist in database or no value was written to the cell
-      cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
-      return sql.readRow()?sql.getInt64(0):0;
-    }
-    template<typename... Args>
-    std::string queryString(const char *query, Args&&... args) const {
-// return "" if the requested entry does not exist in database
-      cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
-      return sql.readRow()?std::string(sql.getStringView(0)):std::string();
+      return cSql(this, cStringRef(query), std::forward<Args>(args)...).get<int>(0, 0, -1);
     }
 // methods to make specific db changes
     void ClearOutdated() const;

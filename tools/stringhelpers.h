@@ -1,5 +1,5 @@
 /*
- * version 0.9.4
+ * version 0.9.5
  * general string-helper functions
  * Note: currently, most up to date Version is in live!
  *
@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <string.h>
+#include <regex>
 #include <vector>
 #include <set>
 #include <array>
@@ -61,11 +62,17 @@ inline std::string charPointerToString(const unsigned char *s) {
 // 2nd advantage of cSv: substr(pos) if pos > length: no dump, just an empty cSv as result
 
 class utf8_iterator;
+class cSv;
+template<class T> inline T parse_int(cSv sv);
+template<class T> inline T parse_unsigned(cSv sv);
+
 class cSv: public std::string_view {
   friend class utf8_iterator;
   public:
+    typedef typename std::string_view::size_type size_type;
+    static const size_type npos = std::string_view::npos;
     cSv(): std::string_view() {}
-    template<std::size_t N> cSv(const char (&s)[N]): std::string_view(s, N-1) {
+    template<size_type N> cSv(const char (&s)[N]): std::string_view(s, N-1) {
 //      std::cout << "cSv const char (&s)[N] " << s << "\n";
     }
     template<typename T, std::enable_if_t<std::is_same_v<T, const char*>, bool> = true>
@@ -77,12 +84,16 @@ class cSv: public std::string_view {
 //      std::cout << "cSv       char *s " << (s?s:"nullptr") << "\n";
     }
     cSv(const unsigned char *s): std::string_view(charPointerToStringView(reinterpret_cast<const char *>(s))) {}
-    cSv(const char *s, size_t l): std::string_view(s, l) {}
-    cSv(const unsigned char *s, size_t l): std::string_view(reinterpret_cast<const char *>(s), l) {}
+    cSv(const char *s, size_type l): std::string_view(s, l) {}
+    cSv(const unsigned char *s, size_type l): std::string_view(reinterpret_cast<const char *>(s), l) {}
     cSv(std::string_view sv): std::string_view(sv) {}
     cSv(const std::string &s): std::string_view(s) {}
-    cSv substr(size_t pos) const { return (length() > pos)?cSv(data() + pos, length() - pos):cSv(); }
-    cSv substr(size_t pos, size_t count) const { return (length() > pos)?cSv(data() + pos, std::min(length() - pos, count) ):cSv(); }
+    cSv substr(size_type pos) const { return (length() > pos)?cSv(data() + pos, length() - pos):cSv(); }
+    cSv substr(size_type pos, size_type count) const { return (length() > pos)?cSv(data() + pos, std::min(length() - pos, count) ):cSv(); }
+    size_type find2(char ch, size_type pos = 0) const { // as find, but return length() if ch is not found
+      for (; pos < length() && (*this)[pos] != ch; ++pos);
+      return pos;
+    }
   private:
     static std::string_view charPointerToStringView(const char *s) {
       return s?std::string_view(s, strlen(s)):std::string_view();
@@ -91,7 +102,7 @@ class cSv: public std::string_view {
 // *********   utf8  *****************
 // =================================================
   public:
-    int utf8CodepointIsValid(size_t pos) const {
+    int utf8CodepointIsValid(size_type pos) const {
 // In case of invalid UTF8, return 0
 // In case of invalid input, return -1 (pos  >= sc.length())
 // otherwise, return number of characters for this UTF codepoint
@@ -103,15 +114,15 @@ class cSv: public std::string_view {
       int len = (((*this)[pos] & 0xC0) == 0xC0) * LEN[((*this)[pos] >> 3) & 7] + (((*this)[pos] | 0x7F) == 0x7F);
       if (len == 1) return 1;
       if (len + pos > length()) return 0;
-      for (size_t k= pos + 1; k < pos + len; k++) if (((*this)[k] & 0xC0) != 0x80) return 0;
+      for (size_type k= pos + 1; k < pos + len; k++) if (((*this)[k] & 0xC0) != 0x80) return 0;
       return len;
     }
   private:
-    size_t utf8ParseBackwards(size_t pos) const {
+    size_type utf8ParseBackwards(size_type pos) const {
 // pos <= s.length()! this is not checked
 // return position of character before pos
 // see also https://stackoverflow.com/questions/22257486/iterate-backwards-through-a-utf8-multibyte-string
-      for (size_t i = pos; i > 0; ) {
+      for (size_type i = pos; i > 0; ) {
         --i;
         if (((*this)[i] & 0xC0) != 0x80) return i;
 // (s[i] & 0xC0) == 0x80 is true if bit 6 is clear and bit 7 is set
@@ -128,7 +139,7 @@ inline wint_t Utf8ToUtf32(const char *p, int len);
 // iterator for utf8
 class utf8_iterator {
     const cSv m_sv;
-    size_t m_pos;
+    cSv::size_type m_pos;
     mutable int m_len = -2;
     int get_len() const {
       if (m_len == -2) m_len = m_sv.utf8CodepointIsValid(m_pos);
@@ -207,6 +218,8 @@ inline int cSv::compareLowerCase(cSv other, const std::locale &loc) {
 
 // =========================================================
 // cStr: similar to cSv, but support c_str()
+// never returns null pointer!
+// always return pointer to zero terminated char array
 // =========================================================
 
 class cStr {
@@ -303,7 +316,7 @@ inline bool my_isspace(char c) {
 inline cSv remove_trailing_whitespace(cSv sv) {
 // return a string_view with trailing whitespace from sv removed
 // for performance: see remove_leading_whitespace
-  for (size_t i = sv.length(); i > 0; ) {
+  for (std::string_view::size_type i = sv.length(); i > 0; ) {
     i = sv.find_last_not_of(' ', i-1);
     if (i == std::string_view::npos) return cSv(); // only ' '
     if (sv[i] > 0x0d || sv[i] < 0x09) return sv.substr(0, i+1);  // non whitespace found at i -> length i+1 !!!
@@ -331,11 +344,58 @@ inline cSv remove_leading_whitespace(cSv sv) {
 // parse string_view for int
 // =========================================================
 
-template<class T> inline T parse_unsigned_internal(cSv sv) {
-  T val = 0;
-  for (size_t start = 0; start < sv.length() && std::isdigit(sv[start]); ++start) val = val*10 + (sv[start]-'0');
+template<class T> inline T parse_int_check_error(cSv sv, cSv::size_type start, cSv::size_type end, T val, T returnOnError, const char *context) {
+// check for severe error (no digit available)
+  if (start == end) {
+// severe error, no data (no digit)
+    if (context)
+      esyslog(PLUGIN_NAME_I18N ": ERROR, cannot convert \"%.*s\" to int/bool, context %s", (int)sv.length(), sv.data(), context);
+    return returnOnError;
+  }
+  if (context) {
+// check for other errors -> any non-whitespace after number?
+    if (remove_trailing_whitespace(sv).length() != end)
+      isyslog(PLUGIN_NAME_I18N ": WARNING, trailing characters after convertion from \"%.*s\" to int/bool, context %s", (int)sv.length(), sv.data(), context);
+  }
   return val;
 }
+template<class T> inline T parse_int_overflow(cSv sv, T returnOnError, const char *context) {
+  if (context)
+    esyslog(PLUGIN_NAME_I18N ": ERROR, integer overflow converting \"%.*s\" to int/bool, context %s", (int)sv.length(), sv.data(), context);
+  return returnOnError;
+}
+
+template<class T> inline T parse_unsigned_internal(cSv sv, T returnOnError = T(), const char *context = nullptr) {
+// T can also be a signed data type
+// But: result will always be >=0, except in case of error and returnOnError < 0
+  static const T limit_10 = std::numeric_limits<T>::max() / 10;
+  T val = 0;
+  cSv::size_type start = 0;
+  for (; start < sv.length() && std::isdigit(sv[start]); ++start) {
+    if (val > limit_10) return parse_int_overflow<T>(sv, returnOnError, context);
+    val *= 10;
+    T addval = sv[start]-'0';
+    if (val > std::numeric_limits<T>::max() - addval) return parse_int_overflow<T>(sv, returnOnError, context);
+    val += addval;
+  }
+  return parse_int_check_error<T>(sv, 0, start, val, returnOnError, context);
+}
+template<class T> inline T parse_neg_internal(cSv sv, T returnOnError = T(), const char *context = nullptr) {
+// sv[0] == '-' must be correct, this is not checked!!
+// T must be signed, a negative value will be returned
+  static const T limit_10 = std::numeric_limits<T>::min() / 10;
+  T val = 0;
+  cSv::size_type start = 1;
+  for (; start < sv.length() && std::isdigit(sv[start]); ++start) {
+    if (val < limit_10) return parse_int_overflow<T>(sv, returnOnError, context);
+    val *= 10;
+    T addval = sv[start]-'0';
+    if (val < std::numeric_limits<T>::min() + addval) return parse_int_overflow<T>(sv, returnOnError, context);
+    val -= addval;
+  }
+  return parse_int_check_error<T>(sv, 1, start, val, returnOnError, context);
+}
+
 template<class T> inline T parse_int(cSv sv) {
   if (sv.empty() ) return 0;
   if (!std::isdigit(sv[0]) && sv[0] != '-') {
@@ -438,79 +498,82 @@ namespace stringhelpers_internal {
 //  ==== itoaN ===================================================================
 // itoaN: Template for fixed number of characters, left fill with 0
 // note: i must fit in N digits, this is not checked!
-template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N == 0, char*>::type itoaN(char *b, T i) {
-  return b;
-}
-template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N == 1, char*>::type itoaN(char *b, T i) {
-  b[0] = i + '0';
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T> && N == 0, bool> = true>
+inline char* itoaN(char *b, T i) { return b; }
+
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T> && N == 1, bool> = true>
+inline char* itoaN(char *b, T i) {
+  *b = i + '0';
   return b+N;
 }
-template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N == 2, char*>::type itoaN(char *b, T i) {
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T> && N == 2, bool> = true>
+inline char* itoaN(char *b, T i) {
   memcpy(b, to_chars10_internal::digits_100 + (i << 1), 2);
   return b+N;
 }
 // max uint16_t 65535
-template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N == 3 || N == 4, char*>::type itoaN(char *b, T i) {
-  uint16_t q = ((uint32_t)i * 5243U) >> 19; // q = i/100; i < 43699
-  memcpy(b+N-2, to_chars10_internal::digits_100 + (((uint16_t)i - q*100) << 1), 2);
-  itoaN<N-2>(b, q);
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T> && (N == 3 || N == 4), bool> = true>
+inline char* itoaN(char *b, T i) {
+  uint16_t q = (static_cast<uint32_t>(i) * 5243U) >> 19; // q = i/100; i < 43699
+  b = itoaN<N-2>(b, q);
+  memcpy(b, to_chars10_internal::digits_100 + ((static_cast<uint16_t>(i) - q*100) << 1), 2);
+  return b+2;
+}
+// max uint32_t 4294967295, sizeof(uint32_t) == 4
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T> && N >= 5 && (N <= 9 || sizeof(T) <= 4), bool> = true>
+inline char* itoaN(char *b, T i) {
+  for (int j = N-2; j > 0; j-=2) {
+    uint32_t q = static_cast<uint32_t>(i)/100;
+    memcpy(b+j, to_chars10_internal::digits_100 + ((static_cast<uint32_t>(i) - q*100) << 1), 2);
+    i = q;
+  }
+  itoaN<2-N%2>(b, i);
   return b+N;
 }
-// max uint32_t 4294967295
-template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N >= 5 && N <= 9, char*>::type itoaN(char *b, T i) {
-  uint32_t q = (uint32_t)i/100;
-  memcpy(b+N-2, to_chars10_internal::digits_100 + (((uint32_t)i - q*100) << 1), 2);
-  itoaN<N-2>(b, q);
-  return b+N;
-}
-template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N >= 10 && N != 18, char*>::type itoaN(char *b, T i) {
+// for uint64_t, sizeof(uint64_t) == 8
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T> && N >= 10 && N != 18 && sizeof(T) >= 5, bool> = true>
+inline char* itoaN(char *b, T i) {
   T q = i/100000000;
   b = itoaN<N-8>(b, q);
-  return itoaN<8>(b, i - q*100000000);
+  return itoaN<8>(b, static_cast<uint32_t>(i - q*100000000));
 }
-template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N == 18, char*>::type itoaN(char *b, T i) {
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T> && N == 18 && sizeof(T) >= 5, bool> = true>
+inline char* itoaN(char *b, T i) {
   T q = i/1000000000;
-  b = itoaN<N-9>(b, q);
-  return itoaN<9>(b, i - q*1000000000);
+  b = itoaN<N-9>(b, static_cast<uint32_t>(q));
+  return itoaN<9>(b, static_cast<uint32_t>(i - q*1000000000));
 }
 //  ==== powN ===============================
 template<uint8_t N>
-inline typename std::enable_if<N == 0, uint64_t>::type powN() { return 1; }
+inline typename std::enable_if_t<N == 0, uint64_t> powN() { return 1; }
 template<uint8_t N>
-inline typename std::enable_if<N <= 19 && N >= 1, uint64_t>::type powN() {
+inline typename std::enable_if_t<N <= 19 && N >= 1, uint64_t> powN() {
 // return 10^N
   return powN<N-1>() * 10;
 }
 
 //  ==== itoa_min_width =====================
-template<size_t N, typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
-inline typename std::enable_if<N == 0, char*>::type itoa_min_width(char *b, T i) {
+template<size_t N, typename T, std::enable_if_t<std::is_integral_v<T> && N == 0, bool> = true>
+inline char* itoa_min_width(char *b, T i) {
   return to_chars10_internal::itoa(b, i);
 }
-template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N >= 1 && N <= 19, char*>::type itoa_min_width(char *b, T i) {
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T> && N >= 1 && N <= 19, bool> = true>
+inline char* itoa_min_width(char *b, T i) {
   if (i < powN<N>() ) return itoaN<N, T>(b, i);
   T q = i/powN<N>();
   b = to_chars10_internal::itoa(b, q);
   return itoaN<N, T>(b, i - q*powN<N>() );
 }
 
-template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-inline typename std::enable_if<N >= 20, char*>::type itoa_min_width(char *b, T i) {
+template<size_t N, typename T, std::enable_if_t<std::is_unsigned_v<T> && N >= 20, bool> = true>
+inline char* itoa_min_width(char *b, T i) {
 // i < 10^20 is always true
   memset(b, '0', N-20);
   b += N-20;
   return itoaN<20, T>(b, i);
 }
-template<size_t N, typename T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
-inline typename std::enable_if<N >= 1, char*>::type itoa_min_width(char *b, T i) {
+template<size_t N, typename T, std::enable_if_t<std::is_signed_v<T> && N >= 1, bool> = true>
+inline char* itoa_min_width(char *b, T i) {
   typedef std::make_unsigned_t<T> TU;
   if (i >= 0) return itoa_min_width<N, TU>(b, (TU)i);
   *b = '-';
@@ -519,15 +582,14 @@ inline typename std::enable_if<N >= 1, char*>::type itoa_min_width(char *b, T i)
 
 //  ==== addCharsHex ========================
 template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-  inline T addCharsHex(char *buffer, size_t num_chars, T value) {
+inline T addCharsHex(char *buffer, size_t num_chars, T value) {
 // sizeof(buffer) must be >= num_chars. This is not checked !!!
-// value must be >= 0. This is not checked !!!
 // value is written with num_chars chars
 //   if value is too small -> left values filled with 0
 //   if value is too high  -> the highest numbers are not written. This is not checked!
 //           but, you can check: if the returned value is != 0, some chars are not written
-    const char *hex_chars = "0123456789ABCDEF";
-    for (char *be = buffer + num_chars -1; be >= buffer; --be, value /= 16) *be = hex_chars[value%16];
+  const char *hex_chars = "0123456789ABCDEF";
+  for (char *be = buffer + num_chars -1; be >= buffer; --be, value /= 16) *be = hex_chars[value%16];
   return value;
   }
 }
@@ -544,12 +606,12 @@ class cToSv {
 //  a = a.substr(0,3);
 // and similar to work. Which is possible, implementing lost's of different cases.
 // it's just not worth the offert. For normal =, users can write
-//  a = b.erase(0).append(...)
+//  a = a.erase(0).append(...)
 
     virtual ~cToSv() {}
     virtual operator cSv() const = 0;
 };
-inline std::ostream& operator<<(std::ostream& os, cToSv const& sv )
+inline std::ostream& operator<<(std::ostream& os, cToSv const& sv)
 {
   return os << cSv(sv);
 }
@@ -592,7 +654,7 @@ class cOpen {
     void checkError(const char *pathname, int errno_l) {
       if (m_fd == -1) {
 // no message for errno == ENOENT, the file just does not exist
-        if (errno_l != ENOENT) esyslog("cOpen::checkError, ERROR: open fails, errno %d, filename %s\n", errno_l, pathname);
+        if (errno_l != ENOENT) esyslog(PLUGIN_NAME_I18N "cOpen::checkError, ERROR: open fails, errno %d, filename %s\n", errno_l, pathname);
       }
     }
     int m_fd = -1;
@@ -615,7 +677,7 @@ class cToSvFile: public cToSv {
         m_s = nullptr;
         if (n_err < 3) sleep(1);
       }
-      esyslog("cToSvFile::load, ERROR: give up after 3 tries, filename %s", filename);
+      esyslog(PLUGIN_NAME_I18N "cToSvFile::load, ERROR: give up after 3 tries, filename %s", filename);
     }
     bool load_int(const char *filename, size_t max_length) {
 // return false if an error occurred, and we should try again
@@ -623,8 +685,8 @@ class cToSvFile: public cToSv {
       if (!fd.exists()) return true;
       struct stat buffer;
       if (fstat(fd, &buffer) != 0) {
-        if (errno == ENOENT) return false;
-        esyslog("cToSvFile::load, ERROR: in fstat, errno %d, filename %s\n", errno, filename);
+        if (errno == ENOENT) return false;  // somehow strange, cOpen found the file, and fstat says it does not exist ... we try again
+        esyslog(PLUGIN_NAME_I18N "cToSvFile::load, ERROR: in fstat, errno %d, filename %s\n", errno, filename);
         return true;
       }
 // file exists, length buffer.st_size
@@ -634,7 +696,7 @@ class cToSvFile: public cToSv {
       if (max_length != 0 && length > max_length) length = max_length;
       m_s = (char *) malloc((length + 1) * sizeof(char));  // add one. So we can add the 0 string terminator
       if (!m_s) {
-        esyslog("cToSvFile::load, ERROR out of memory, filename = %s, requested size = %zu\n", filename, length + 1);
+        esyslog(PLUGIN_NAME_I18N "cToSvFile::load, ERROR out of memory, filename = %s, requested size = %zu\n", filename, length + 1);
         return true;
       }
       size_t num_read = 0;
@@ -644,7 +706,7 @@ class cToSvFile: public cToSv {
         if (num_read1 == 0) ++num_errors; // should not happen, because fstat reported file size >= length
         if (num_read1 == -1) {
           if (errno == ENOENT) return false;
-          esyslog("cToSvFile::load, ERROR: read failed, errno %d, filename %s, file size = %zu, num_read = %zu\n", errno, filename, (size_t)buffer.st_size, num_read);
+          esyslog(PLUGIN_NAME_I18N "cToSvFile::load, ERROR: read failed, errno %d, filename %s, file size = %zu, num_read = %zu\n", errno, filename, (size_t)buffer.st_size, num_read);
           ++num_errors;
           num_read1 = 0;
           if (num_errors < 3) sleep(1);
@@ -653,7 +715,7 @@ class cToSvFile: public cToSv {
       m_result = cSv(m_s, num_read);
       m_s[num_read] = 0;  // so data() returns a 0 terminated string
       if (num_read != length) {
-        esyslog("cToSvFile::load, ERROR: num_read = %zu, length = %zu, filename %s\n", num_read, length, filename);
+        esyslog(PLUGIN_NAME_I18N "cToSvFile::load, ERROR: num_read = %zu, length = %zu, filename %s\n", num_read, length, filename);
       }
       return true;
     }
@@ -678,7 +740,7 @@ template<std::size_t N> class cToSvFileN: public cToSv {
       m_exists = true;
       ssize_t num_read = read(fd, m_s, N);
       if (num_read == -1) {
-        esyslog("cToSvFile::load, ERROR: read fails, errno %d, filename %s\n", errno, filename);
+        esyslog(PLUGIN_NAME_I18N "cToSvFile::load, ERROR: read fails, errno %d, filename %s\n", errno, filename);
         num_read = 0;
       }
       m_result = cSv(m_s, num_read);
@@ -710,16 +772,28 @@ class cToSvConcat: public cToSv {
     cToSvConcat &operator+=(T &&n) { return *this << n; }
 // ========================
 // overloads for concat
+// char
     cToSvConcat &operator<<(char ch) {
       if (m_pos_for_append == m_be_data) ensure_free(1);
-      *(m_pos_for_append++) = ch;
+      *m_pos_for_append = ch;
+      ++m_pos_for_append;
       return *this;
     }
-    cToSvConcat &operator<<(cSv sv) { return append(sv.data(), sv.length()); }
-    template<std::size_t M>
-    cToSvConcat &operator<<(const char (&s)[M]) { return append(s, M-1); }
-
-template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+// cSv, string, char * ...
+    cToSvConcat &operator<<(cSv sv) { return append(sv); }
+    template<size_t M>
+// "awrhjo!"
+    cToSvConcat &operator<<(const char (&s)[M]) {
+      if (m_pos_for_append + M-1 > m_be_data) ensure_free(M-1);
+      memcpy(m_pos_for_append, s, M-1);
+      m_pos_for_append += M-1;
+      return *this;
+    }
+// bool
+    template<typename T, std::enable_if_t<std::is_same_v<T, bool>, bool> = true>
+    cToSvConcat &operator<<(T b) { return *this << (char)('0'+b); }
+// int
+    template<typename T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>, bool> = true>
     cToSvConcat &operator<<(T i) {
       if (!to_chars10_internal::to_chars10_range_check(m_pos_for_append, m_be_data, i)) ensure_free(20);
       m_pos_for_append = to_chars10_internal::itoa(m_pos_for_append, i);
@@ -729,8 +803,15 @@ template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
 // ========================
 // overloads for append. Should be compatible to std::string.append(...)
 // ========================
-    cToSvConcat &append(cSv sv) { return append(sv.data(), sv.length()); }
+    cToSvConcat &append(cSv sv) {
+      if (sv.empty() ) return *this; // this check is required: documentation of std::memcpy: If either dest or src is an invalid or null pointer, the behavior is undefined, even if count is zero.
+      if (m_pos_for_append + sv.length() > m_be_data) ensure_free(sv.length() );
+      memcpy(m_pos_for_append, sv.data(), sv.length());
+      m_pos_for_append += sv.length();
+      return *this;
+    }
     cToSvConcat &append(const char *s, size_t len) {
+      if (!s) return *this;
       if (m_pos_for_append + len > m_be_data) ensure_free(len);
       memcpy(m_pos_for_append, s, len);
       m_pos_for_append += len;
@@ -748,9 +829,10 @@ template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
 // =======================
 
 // =======================
-// appendInt   append integer (with some format options)
+// appendInt:   append integer (with some format options)
 template<size_t M, typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
     cToSvConcat &appendInt(T i) {
+// append integer with min widh M. Left fill with 0, if required.
       if (m_pos_for_append + std::max(M, (size_t)20) > m_be_data) ensure_free(std::max(M, (size_t)20));
       m_pos_for_append = stringhelpers_internal::itoa_min_width<M, T>(m_pos_for_append, i);
       return *this;
@@ -768,7 +850,7 @@ template<typename T, std::enable_if_t<sizeof(T) == 16, bool> = true>
       return *this;
     }
 // =======================
-// append_utf8 append utf8 codepoint
+// append_utf8:     append utf8 codepoint
     cToSvConcat &append_utf8(wint_t codepoint) {
       if (m_pos_for_append + 4 > m_be_data) ensure_free(4);
       if (codepoint <= 0x7F) {
@@ -800,7 +882,7 @@ template<typename T, std::enable_if_t<sizeof(T) == 16, bool> = true>
       }
       return *this;
     }
-// apend text. Before appending, replace all occurances of substring with replacement
+// apend text. Before appending, replace all occurrences of substring with replacement
     cToSvConcat &appendReplace(cSv text, cSv substring, cSv replacement) {
       size_t pos = 0, found;
       while ( (found = text.find(substring, pos)) != std::string_view::npos) {
@@ -823,7 +905,7 @@ template<typename T, std::enable_if_t<sizeof(T) == 16, bool> = true>
       memcpy(m_buffer+pos, sv.data(), sv.length() );
       return *this;
     }
-// Replaces all occurances of substring after pos with replacement
+// Replaces all occurrences of substring after pos with replacement
     cToSvConcat &replaceAll(cSv substring, cSv replacement, size_t pos = 0) {
       while ( (pos = cSv(*this).find(substring, pos)) != std::string_view::npos) {
         replace(pos, substring.length(), replacement);
@@ -838,7 +920,7 @@ template<typename T, std::enable_if_t<sizeof(T) == 16, bool> = true>
     template<typename... Args> cToSvConcat &appendFormated(const char *fmt, Args&&... args) {
       int needed = snprintf(m_pos_for_append, m_be_data - m_pos_for_append, fmt, std::forward<Args>(args)...);
       if (needed < 0) {
-        esyslog("live: ERROR, cToScConcat::appendFormated needed = %d, fmt = %s", needed, fmt);
+        esyslog(PLUGIN_NAME_I18N ": ERROR, cToScConcat::appendFormated needed = %d, fmt = %s", needed, fmt);
         return *this; // error in snprintf
       }
       if (needed < m_be_data - m_pos_for_append) {
@@ -848,7 +930,7 @@ template<typename T, std::enable_if_t<sizeof(T) == 16, bool> = true>
       ensure_free(needed + 1);
       needed = sprintf(m_pos_for_append, fmt, std::forward<Args>(args)...);
       if (needed < 0) {
-        esyslog("live: ERROR, cToScConcat::appendFormated needed (2) = %d, fmt = %s", needed, fmt);
+        esyslog(PLUGIN_NAME_I18N ": ERROR, cToScConcat::appendFormated needed (2) = %d, fmt = %s", needed, fmt);
         return *this; // error in sprintf
       }
       m_pos_for_append += needed;
@@ -862,7 +944,7 @@ template<typename T, std::enable_if_t<sizeof(T) == 16, bool> = true>
         ensure_free(1024);
         needed = std::strftime(m_pos_for_append, m_be_data - m_pos_for_append, fmt.c_str(), tp);
         if (needed == 0) {
-          esyslog("live: ERROR, cToScConcat::appendDateTime needed = 0, fmt = %s", fmt.c_str());
+          esyslog(PLUGIN_NAME_I18N ": ERROR, cToSvConcat::appendDateTime needed = 0, fmt = %s", fmt.c_str());
           return *this; // we did not expect to need more than 1024 chars for the formatted time ...
         }
       }
@@ -873,7 +955,7 @@ template<typename T, std::enable_if_t<sizeof(T) == 16, bool> = true>
       if (!time) return *this;
       struct std::tm tm_r;
       if (localtime_r( &time, &tm_r ) == 0 ) {
-        esyslog("live: ERROR, cToScConcat::appendDateTime localtime_r = 0, fmt = %s, time = %lld", fmt.c_str(), (long long)time);
+        esyslog(PLUGIN_NAME_I18N ": ERROR, cToSvConcat::appendDateTime localtime_r = 0, fmt = %s, time = %lld", fmt.c_str(), (long long)time);
         return *this;
         }
       return appendDateTime(fmt, &tm_r);
@@ -933,7 +1015,7 @@ template<typename T, std::enable_if_t<sizeof(T) == 16, bool> = true>
       return *this;
     }
     void reserve(size_t r) const { m_reserve = r; }
-    ~cToSvConcat() {
+    virtual ~cToSvConcat() {
       if (m_buffer_allocated) free (m_buffer_allocated);
     }
   private:
@@ -1046,6 +1128,56 @@ void stringAppend(std::string &str, const T &n, const U &u, Args&&... args) {
 }
 
 // =========================================================
+// =========== lexical_cast:
+// =========== convert strings (cSv) to other data types
+// =========================================================
+
+/*
+// 1: Make the best guess what the converted target might have to look like, based on sv
+// 2: If this is not possible:
+//      return returnOnError. If context is provided, write esyslog ERROR message
+// 3: Otherwise:
+//      in case of unexpected values in sv, if context is provided, write isyslog WARNING message
+//      note: any non-whitespace after the data is considered as unexpected values
+//      return the best gues (see 1).
+*/
+
+// trivial (to cSv, std::string, ...)
+template<class T, std::enable_if_t<std::is_same_v<T, cSv>, bool> = true>
+inline T lexical_cast(cSv sv, T returnOnError = T(), const char *context = nullptr) { return sv; }
+template<class T, std::enable_if_t<std::is_same_v<T, std::string>, bool> = true>
+inline T lexical_cast(cSv sv, T returnOnError = T(), const char *context = nullptr) { return static_cast<T>(sv); }
+
+// unsigned integer
+template<class T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true, std::enable_if_t<!std::is_same_v<T, bool>, bool> = true>
+inline T lexical_cast(cSv sv, T returnOnError = T(), const char *context = nullptr) {
+  cSv no_ws = remove_leading_whitespace(sv);
+  return parse_unsigned_internal<T>(no_ws, returnOnError, context);
+}
+
+// signed integer
+template<class T, std::enable_if_t<std::is_signed_v<T>, bool> = true, std::enable_if_t<!std::is_same_v<T, bool>, bool> = true>
+inline T lexical_cast(cSv sv, T returnOnError = T(), const char *context = nullptr) {
+  cSv no_ws = remove_leading_whitespace(sv);
+  if (!no_ws.empty() && no_ws[0] == '-')
+    return parse_neg_internal<T>(no_ws, returnOnError, context);
+  else
+    return parse_unsigned_internal<T>(no_ws, returnOnError, context);
+}
+
+// bool
+template<class T, std::enable_if_t<std::is_same_v<T, bool>, bool> = true>
+inline T lexical_cast(cSv sv, T returnOnError = T(), const char *context = nullptr) {
+  long long int i = lexical_cast<long long int>(sv, std::numeric_limits<long long int>::max(), context);
+  if (i == std::numeric_limits<long long int>::max()) {
+    i = lexical_cast<long long int>(sv, -1, context);
+    if (i == -1) return returnOnError; // esyslog already written by lexical_cast<long long int>
+  }
+  if (context && (i > 1 || i < 0))
+    isyslog(PLUGIN_NAME_I18N ": WARNING, converted \"%.*s\" to bool, but had to guess, context %s", (int)sv.length(), sv.data(), context);
+  return i;
+}
+// =========================================================
 // =========================================================
 // Chapter 5: change string: mainly: append to string
 // =========================================================
@@ -1126,8 +1258,8 @@ class cSubstring{
       m_pos_start(pos_start), m_len(len) {};
     cSubstring():
       m_pos_start(std::string::npos), m_len(0) {};
-    bool found() { return m_pos_start != std::string::npos; }
-    cSv substr(cSv sv) { return found()?sv.substr(m_pos_start, m_len):cSv(); }
+    bool found() const { return m_pos_start != std::string::npos; }
+    cSv substr(cSv sv) const { return found()?sv.substr(m_pos_start, m_len):cSv(); }
 template<std::size_t N> cSubstring substringInXmlTag(cSv sv, const char (&tag)[N]);
 template <size_t N>
     cToSvConcat<N> &erase(cToSvConcat<N> &target, size_t tag_len) {
@@ -1199,60 +1331,181 @@ cSubstring cSubstring::substringInXmlTag(cSv sv, const char (&tag)[N]) {
 
 /*
  * class cSplit: iterate over parts of a string
+   standard constructor:
+     delimiter is ONLY between parts, and not at beginning or end of string
+     a string with n delimiters splits into n+1 parts. Always. Parts can be empty
+     consequence:
+       an empty string (0 delimiters) results in a list with one (empty) entry
+       a delimiter at the beginning of the string results in a first (empty) part
+   constructor with additional parameter of type eSplitDelimBeginEnd:
+     eSplitDelimBeginEnd::optional:
+       an empty string results in an empty list
+       a string with length 1 containing only the delimiter results in an empty list
+       a string with length 2 containing only delimiters results in a list with one (empty) entry
+       otherwise, if there is a delimiter at beginning and/or end of string, delete these delimiters.
+       after that, continue with standard constructor.
+     eSplitDelimBeginEnd::required:
+       empty string (length == 0):
+         -> empty list (this is not possible with optional!)
+       string with length == 1:
+         must contain the delimiter (otherwise, error message in syslog)
+         -> empty list (this is not possible with optional!)
+       string with length > 1:
+         must contain the delimiter at beginning and end of string (otherwise, error message in syslog)
+         -> a string with n delimiters will split into n-1 parts
+
+  note: for strings created with cContainer use eSplitDelimBeginEnd::required
+
 */
+enum class eSplitDelimBeginEnd { none, optional, required };
+inline cSv trim_delim(cSv sv, char delim, eSplitDelimBeginEnd splitDelimBeginEnd) {
+// if trunc remove delim from start and end of sv
+  switch (splitDelimBeginEnd) {
+    case eSplitDelimBeginEnd::none    : return sv;
+    case eSplitDelimBeginEnd::optional:
+      if (sv.empty() ) return sv;
+      if (sv[sv.length()-1] == delim) {
+// delim at end
+        if (sv.length() == 1) return cSv(); // remove delim
+        if (sv[0] == delim) return sv.substr(1, sv.length() - 2);  // remove delim at begin and end
+        return sv.substr(0, sv.length() - 1);  // remove delim at end
+      }
+// no delim at end
+      if (sv[0] == delim) return sv.substr(1); // remove delim at begin
+      return sv;
+    case eSplitDelimBeginEnd::required:
+      if (sv.empty() ) return sv;
+      if ((sv[0] != delim) | (sv[sv.length()-1] != delim)) {
+        esyslog(PLUGIN_NAME_I18N ": ERROR trim_delim, delim missing, sv: \"%.*s\", delim: \"%c\"", (int)sv.length(), sv.data(), delim);
+        return sv;
+      }
+      if (sv.length() == 1) return cSv();
+      return sv.substr(1, sv.length() - 2);
+  }
+  return sv;
+}
+template<class TV=cSv>  // TV is the value type returned by the const_iterator
 class cSplit {
   public:
-    cSplit(cSv sv, char delim): m_sv(sv), m_delim(delim), m_end(cSv(), m_delim) {}
-// sv can start with delim (optional), and it will just be ignored
+    cSplit(cSv sv, char delim, const char *context = nullptr):
+      m_sv(sv), m_delim(delim), m_end(sv, delim, context), m_empty(false), m_context(context) { }
+    cSplit(cSv sv, char delim, eSplitDelimBeginEnd splitDelimBeginEnd, const char *context = nullptr):
+      m_sv(trim_delim(sv, delim, splitDelimBeginEnd)),
+      m_delim(delim),
+      m_end(m_sv, delim, context),
+      m_empty((sv.length() < 2) & (
+              (splitDelimBeginEnd == eSplitDelimBeginEnd::required) |
+              (m_sv.empty() & (splitDelimBeginEnd == eSplitDelimBeginEnd::optional))  ) ),
+      m_context(context)
+    { }
     cSplit(const cSplit&) = delete;
     cSplit &operator= (const cSplit &) = delete;
-    class iterator {
-        cSv m_remainingParts;
-        char m_delim;
-        size_t m_next_delim;
+    class const_iterator {
+        const cSv m_sv;
+        const char m_delim;
+        const char *m_context;
+        cSv::size_type m_start;
+        cSv::size_type m_end;
       public:
         using iterator_category = std::forward_iterator_tag;
-        using value_type = cSv;
+        using value_type = TV;
         using difference_type = int;
-        using pointer = const cSv*;
-        using reference = cSv&;
+        using pointer = const TV*;
+        using reference = const TV&;
 
-        explicit iterator(cSv r, char delim): m_delim(delim) {
-          if (!r.empty() && r[0] == delim) m_remainingParts = r.substr(1);
-          else m_remainingParts = r;
-          m_next_delim = m_remainingParts.find(m_delim);
-        }
-        iterator& operator++() {
-          if (m_next_delim == std::string_view::npos) {
-            m_remainingParts = cSv();
+        explicit const_iterator(cSv sv = cSv(), char delim = ':', const char *context = nullptr, bool begin = false):
+          m_sv(sv), m_delim(delim), m_context(context) {
+          if (begin) {
+            m_start = 0;
+            m_end = m_sv.find2(m_delim);
           } else {
-            m_remainingParts = m_remainingParts.substr(m_next_delim + 1);
-            m_next_delim = m_remainingParts.find(m_delim);
+            m_start = sv.length() + 1;
+            m_end = cSv::npos;
+          }
+        }
+        const_iterator& operator++() {
+          m_start = m_end+1;
+          if (m_end == m_sv.length() )
+            m_end = cSv::npos;
+          else
+            m_end = m_sv.find2(m_delim, m_start);
+          return *this;
+        }
+        const_iterator& operator--() {
+          m_end = m_start-1;
+          for (m_start = m_end; m_start > 0;) {
+            --m_start;
+            if (m_sv[m_start] == m_delim) {
+              ++m_start;
+              return *this;
+            }
           }
           return *this;
         }
-        bool operator!=(iterator other) const { return m_remainingParts != other.m_remainingParts; }
-        bool operator==(iterator other) const { return m_remainingParts == other.m_remainingParts; }
-        cSv operator*() const {
-          if (m_next_delim == std::string_view::npos) return m_remainingParts;
-          else return m_remainingParts.substr(0, m_next_delim);
+        bool operator!=(const_iterator other) const { return m_end != other.m_end; }
+        bool operator==(const_iterator other) const { return m_end == other.m_end; }
+        cSv value() const {
+          return m_sv.substr(m_start, m_end-m_start);
         }
-      };
-      iterator begin() { return iterator(m_sv, m_delim); }
-      const iterator &end() { return m_end; }
-      iterator find(cSv sv) {
-        if (m_sv.find(sv) == std::string_view::npos) return m_end;
-        return std::find(begin(), end(), sv);
+        TV operator*() const { return lexical_cast<TV>(value()); }
+      void getValues() {};
+      template<typename T, typename... Args>
+      void getValues(T &n, Args&&... args) {
+        if (m_end == cSv::npos) {
+          n = T();
+        } else {
+          n = lexical_cast<T>(value(), T(), m_context);
+          (*this).operator++();
+        }
+        return getValues(std::forward<Args>(args)...);
       }
-    private:
-      const cSv m_sv;
-      const char m_delim;
-      const iterator m_end;
+    };
+    typedef typename cSplit<TV>::const_iterator iterator;
+    template<typename... Args> size_t getValues(Args&&... args) {
+      begin().getValues(std::forward<Args>(args)...);
+      return size();
+    }
+    const_iterator begin() const { return m_empty?m_end:const_iterator(m_sv, m_delim, m_context, true); }
+//    const const_iterator &end() const { return m_end; }
+    const_iterator end() const { return m_end; }
+    static const_iterator s_end() { return const_iterator(); }
+    const_iterator find(cSv sv) {
+      if (m_sv.find(sv) == std::string_view::npos) return m_end;
+      return std::find(begin(), end(), sv);
+    }
+    bool empty() const { return m_empty; }
+    size_t size() const {
+      if (m_empty) return 0;
+      return std::count(m_sv.begin(), m_sv.end(), m_delim)+1;
+    }
+  private:
+    const cSv m_sv;
+    const char m_delim;
+    const const_iterator m_end;
+    const bool m_empty;
+    const char *m_context;
 };
 
 /*
- * class cUnion: iterate over serveal containers, as if it was one.
- *   value_type of first container will be used.
+ * class cRange: create a "range" class from begin & end iterator
+*/
+template<class I> class cRange {
+  public:
+    cRange(I begin, I end): m_begin(begin), m_end(end) {}
+    void set_begin(I begin) { m_begin = begin; }
+    void set_end(I end) { m_end = end; }
+    using const_iterator = I;
+    using iterator = I;
+    I begin() { return m_begin; }
+    I end()   { return m_end; }
+  private:
+    I m_begin;
+    I m_end;
+};
+
+/*
+ * class cUnion: iterate over serveral containers, as if it was one.
+ * value_type of first container will be used.
 */
 template<class T_V, class...U> class cUnion {};
 template<class T_V> class cUnion<T_V> {
@@ -1298,7 +1551,7 @@ class cUnion<T_V, T, U...> {
     T& m_sf1;
     cUnion<T_V, U...> m_sf2;
 };
-template<class V1, class ...V> cUnion(V1& c1, V&...c) -> cUnion<typename std::iterator_traits<typename V1::iterator>::value_type, V1, V...>;
+template<class V1, class ...V> cUnion(V1& c1, V&...c) -> cUnion<typename std::iterator_traits<typename V1::const_iterator>::value_type, V1, V...>;
 
 /*
  * class cContainer: combine strings in one string
@@ -1335,6 +1588,96 @@ class cContainer {
     char m_delim;
     std::string m_buffer;
 };
+/*
+ * class cSortedVector:
+ *   - unique elements only
+ *   - inser with O(N)
+ *   - search with O(log(N))
+ * see https://lafstern.org/matt/col1.pdf
+*/
+template <class T, class Compare = std::less<T> >
+class cSortedVector {
+  public:
+    typedef typename std::vector<T>::iterator iterator;
+    typedef typename std::vector<T>::const_iterator const_iterator;
+    typedef typename std::vector<T>::reverse_iterator reverse_iterator;
+    typedef typename std::vector<T>::const_reverse_iterator const_reverse_iterator;
+    typedef typename std::vector<T>::size_type size_type;
+
+    cSortedVector(const Compare& c = Compare()): m_v(), m_cmp(c) {}
+    template <class InputIterator>
+    cSortedVector(InputIterator first, InputIterator last, const Compare& c = Compare()):
+      m_v(first, last), m_cmp(c) {
+        std::sort(begin(), end(), m_cmp);
+        m_v.erase(std::unique( m_v.begin(), m_v.end() ), m_v.end() );
+// for std::unique: The removing operation is stable: the relative order of the elements not to be removed stays the same.
+      }
+    cSortedVector(std::initializer_list<T> init, const Compare& c = Compare()):
+      m_v(init), m_cmp(c) {
+        std::sort(begin(), end(), m_cmp);
+        m_v.erase(std::unique( m_v.begin(), m_v.end() ), m_v.end() );
+    }
+
+    iterator begin() { return m_v.begin(); }
+    iterator end() { return m_v.end(); }
+    const_iterator begin() const { return m_v.cbegin(); }
+    const_iterator end() const { return m_v.cend(); }
+    const_iterator cbegin() const { return m_v.cbegin(); }
+    const_iterator cend() const { return m_v.cend(); }
+    reverse_iterator rbegin() { return m_v.rbegin(); }
+    reverse_iterator rend() { return m_v.rend(); }
+    const_reverse_iterator rbegin() const { return m_v.crbegin(); }
+    const_reverse_iterator rend() const { return m_v.crend(); }
+    const_reverse_iterator crbegin() const { return m_v.crbegin(); }
+    const_reverse_iterator crend() const { return m_v.crend(); }
+
+    bool empty() const { return m_v.empty(); }
+    size_type size() const { return m_v.size(); }
+    void clear() { m_v.clear(); }
+    void reserve(size_type new_cap) { m_v.reserve(new_cap); }
+
+    iterator insert(const T& t) {
+      iterator i = std::lower_bound(begin(), end(), t, m_cmp);
+      if (i == end() || m_cmp(t, *i)) m_v.insert(i, t);
+      return i;
+    }
+    template<class K> iterator find(const K& x) {
+      iterator i = std::lower_bound(begin(), end(), x, m_cmp);
+      return i == end() || m_cmp(x, *i) ? end() : i;
+    }
+    template<class K> const_iterator find(const K& x) const {
+      const_iterator i = std::lower_bound(begin(), end(), x, m_cmp);
+      return i == end() || m_cmp(x, *i) ? end() : i;
+    }
+  private:
+    std::vector<T> m_v;
+    Compare m_cmp;
+};
+
+/*
+   ================ regex ==============================================
+   flags:
+  ECMAScript Use the Modified ECMAScript regular expression grammar.
+  icase      Character matching should be performed without regard to case.
+  nosubs     When performing matches, all marked sub-expressions (expr) are treated as non-marking sub-expressions (?:expr). No matches are stored in the supplied std::regex_match structure and mark_count() is zero.
+  optimize 	 Instructs the regular expression engine to make matching faster, with the potential cost of making construction slower. For example, this might mean converting a non-deterministic FSA to a deterministic FSA.
+  collate 	 Character ranges of the form "[a-b]" will be locale sensitive.
+  multiline (C++17) Specifies that ^ shall match the beginning of a line and $ shall match the end of a line, if the ECMAScript engine is selected.
+
+
+*/
+inline std::regex getRegex(cSv sv, const std::locale &locale, std::regex::flag_type flags = std::regex_constants::icase | std::regex_constants::collate | std::regex_constants::multiline) {
+  try {
+    std::regex result;
+    result.imbue(locale);
+    result.assign(sv.data(), sv.length(), flags);
+    return result;
+  } catch (const std::regex_error& e)
+  {
+    esyslog(PLUGIN_NAME_I18N "%s", cToSvConcat(": ERROR ", e.what(), " in regex ", sv).c_str() );
+    return std::regex();
+  }
+}
 
 // =========================================================
 // Utility to measure times (performance) ****************

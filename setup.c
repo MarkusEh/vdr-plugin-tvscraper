@@ -1,17 +1,14 @@
 #include "setup.h"
+#include <iomanip>
 
 using namespace std;
 
-std::set<std::string> cTVScraperSetup::getAllRecordingFolders(int &max_width) {
-  std::set<std::string> result;
+cSortedVector<std::string> cTVScraperSetup::getAllRecordingFolders(int &max_width) {
+  cSortedVector<std::string> result;
   m_recChannels.clear();
   max_width = 0;
-#if APIVERSNUM < 20301
-  for (cRecording *rec = Recordings.First(); rec; rec = Recordings.Next(rec))
-#else
   LOCK_RECORDINGS_READ;
   for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec))
-#endif
   {
     if (rec->Info() ) m_recChannels.insert({rec->Info()->ChannelID(), rec->Info()->ChannelName()});
     const char *pos_delim = strrchr(rec->Name(), '~');
@@ -22,8 +19,8 @@ std::set<std::string> cTVScraperSetup::getAllRecordingFolders(int &max_width) {
   }
   return result;
 }
-std::set<int> cTVScraperSetup::getAllTV_Shows() {
-  std::set<int> result;
+cSortedVector<int> cTVScraperSetup::getAllTV_Shows() {
+  cSortedVector<int> result;
 // add all TV Shows from recordings & from config, where we create recordings for missing episodes.
 // don't add TV Shows from tv2 / EPG events, as these are too many
 // add all TV Shows from recordings
@@ -102,12 +99,8 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
   m_channelNames.clear();
   m_maxChannelNameLength = 0;
   {
-#if APIVERSNUM < 20301
-    for (cChannel *channel = Channels.First(); channel; channel = Channels.Next(channel))
-#else
     LOCK_CHANNELS_READ;
     for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel))
-#endif
     if (!channel->GroupSep()) {
       tChannelID channelID = channel->GetChannelID();
       m_allChannels.insert({channelID, (int)m_channelNames.size()});
@@ -150,7 +143,8 @@ void cTVScraperSetup::Setup(void) {
     int currentItem = Current();
     Clear();
     Add(new cOsdItem(tr("Configure channels to be scraped")));
-    Add(new cMenuEditStraItem(tr("System language"), &langDefault.m_selectedLanguage[0], langDefault.m_numLang, langDefault.m_osdTexts));
+    Add(new cOsdItem(cToSvConcat(tr("System language"), ":\t", langDefault.m_osdTexts[langDefault.m_selectedLanguage[0]]).c_str(), osUnknown, false));
+//    Add(new cMenuEditStraItem(tr("System language"), &langDefault.m_selectedLanguage[0], langDefault.m_numLang, langDefault.m_osdTexts));
     Add(new cMenuEditIntItem(tr("Number of additional languages"), &m_NumberOfAdditionalLanguages));
     for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
       Add(new cMenuEditStraItem((string(tr("Additional language")) + " " + to_string(i+1)).c_str(), &langAdditional.m_selectedLanguage[i], langAdditional.m_numLang, langAdditional.m_osdTexts));
@@ -200,8 +194,8 @@ eOSState cTVScraperSetup::ProcessKey(eKeys Key) {
     return state;
 }
 
-std::set<tChannelID> cTVScraperSetup::GetChannelsFromSetup(const vector<int> &channels) {
-  std::set<tChannelID> result;
+cSortedVector<tChannelID> cTVScraperSetup::GetChannelsFromSetup(const vector<int> &channels) {
+  cSortedVector<tChannelID> result;
   int size = channels.size();
   for (const auto &cha : m_allChannels) if (cha.second < size && channels[cha.second] > 0)
     result.insert(cha.first);
@@ -236,17 +230,16 @@ bool cTVScraperSetup::ChannelsFromSetupChanged(std::map<tChannelID, int> oldChan
 }
 
 std::string getStringFromMap(const map<tChannelID, int> &in, int lang) {
-  std::string result;
-  for (const auto &i: in) if (i.second == lang){
-    result.append(objToString(i.first));
-    result.append(";");
+  cToSvConcat result;
+  for (const auto &i: in) if (i.second == lang) {
+    result << i.first << ';';
   }
-  return result;
+  return std::string(result);
 }
 
 template<class T>
-std::set<T> menuSelectionsToSet(const std::set<T> &allItems, const std::vector<int> &selectedItems, bool reverse) {
-  std::set<T> result;
+cSortedVector<T> menuSelectionsToSet(const cSortedVector<T> &allItems, const std::vector<int> &selectedItems, bool reverse) {
+  cSortedVector<T> result;
   int i = 0;
   for (const T &item: allItems) {
     if ( reverse && selectedItems[i] == 0) result.insert(item);
@@ -263,7 +256,7 @@ void cTVScraperSetup::Store(void) {
     channelsHD_Change = ChannelsFromSetupChanged(config.m_HD_Channels, m_channelsHD);
   }
   {
-    set<tChannelID> channels = GetChannelsFromSetup(channelsScrap);
+    cSortedVector<tChannelID> channels = GetChannelsFromSetup(channelsScrap);
     map<tChannelID, int> hd_channels;
     if (channelsHD_Change) hd_channels = GetChannelsMapFromSetup(m_channelsHD);
     map<tChannelID, int> channel_language = GetChannelsMapFromSetup(langChannels.m_selectedLanguage, &langChannels.m_osdMap);
@@ -356,7 +349,7 @@ eOSState cTVScraperChannelSetup ::ProcessKey(eKeys Key) {
 }
 
 /* cTVScraperListSetup */
-cTVScraperListSetup::cTVScraperListSetup(vector<int> &listSelections, const std::set<string> &listEntries, const char *headline, int width): cOsdMenu(headline, width + 2, 5) {
+cTVScraperListSetup::cTVScraperListSetup(vector<int> &listSelections, const cSortedVector<string> &listEntries, const char *headline, int width): cOsdMenu(headline, width + 2, 5) {
   SetMenuCategory(mcSetupPlugins);
   int currentItem = Current();
   Clear();
@@ -375,7 +368,7 @@ eOSState cTVScraperListSetup::ProcessKey(eKeys Key) {
 }
 
 /* cTVScraperTV_ShowsSetup */
-cTVScraperTV_ShowsSetup::cTVScraperTV_ShowsSetup(vector<int> &listSelections, const std::set<int> &TV_Shows, const cTVScraperDB &db): cOsdMenu(tr("Create timers for missing episodes of this TV show?"), 40, 5) {
+cTVScraperTV_ShowsSetup::cTVScraperTV_ShowsSetup(vector<int> &listSelections, const cSortedVector<int> &TV_Shows, const cTVScraperDB &db): cOsdMenu(tr("Create timers for missing episodes of this TV show?"), 40, 5) {
   SetMenuCategory(mcSetupPlugins);
   int currentItem = Current();
   Clear();

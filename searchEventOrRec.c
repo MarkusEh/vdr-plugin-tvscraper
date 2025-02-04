@@ -314,12 +314,14 @@ bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv) {
         m_matchPurpose = matchPurpose;
         m_season = season;
         m_episode = episode;
+/*
         if (config.enableDebug) {
           cSv st = m_sEventOrRecording->ShortText();
           if (st.empty() ) st = m_sEventOrRecording->Description();
           if (st.empty() ) st = "ERROR: no short text / description";
           esyslog("tvscraper: overrides: title \"%s\", short text \"%.*s\", season %i, episode %i", m_sEventOrRecording->Title(), (int)st.length(), st.data(), season, episode);
         }
+*/
         return false;  // we still need to search for the series ID
 // TODO case eMatchPurpose::regexTitleChannel_idEpisodeAbsolutNumber
       default:
@@ -529,30 +531,36 @@ void cSearchEventOrRec::SearchNew(vector<searchResultTvMovie> &resultSet) {
   if (!m_originalTitle.empty() ) {
     cCompareStrings compareStrings(m_originalTitle);
     if (type_override != scrapSeries) addSearchResults(m_movieDbMovieScraper, resultSet, m_originalTitle, compareStrings, nullptr);
-    if (m_originalTitle == m_movieSearchString && m_matchPurpose != eMatchPurpose::regexTitleShortTextChannel_seasonNumberEpisodeNumber) {
-      cSv foundName, episodeSearchString;
-      if (splitNameEpisodeName(':', foundName, episodeSearchString) ) compareStrings.add2(foundName, ':');
-      if (splitNameEpisodeName('-', foundName, episodeSearchString) ) compareStrings.add2(foundName, '-');
+    if (type_override != scrapMovie) {
+// add result for series/TV shows
+      if (m_originalTitle == m_movieSearchString && m_matchPurpose != eMatchPurpose::regexTitleShortTextChannel_seasonNumberEpisodeNumber) {
+        cSv foundName, episodeSearchString;
+        if (splitNameEpisodeName(':', foundName, episodeSearchString) ) compareStrings.add2(foundName, ':');
+        if (splitNameEpisodeName('-', foundName, episodeSearchString) ) compareStrings.add2(foundName, '-');
+      }
+      addSearchResults(m_tvDbTvScraper, resultSet, m_originalTitle, compareStrings, nullptr);
+      addSearchResults(m_movieDbTvScraper, resultSet, m_originalTitle, compareStrings, nullptr);
     }
-    if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_originalTitle, compareStrings, nullptr);
-    if (type_override != scrapMovie) addSearchResults(m_movieDbTvScraper, resultSet, m_originalTitle, compareStrings, nullptr);
   }
   const cLanguage *lang = m_sEventOrRecording->GetLanguage();
-  if (m_TVshowSearchString != m_movieSearchString && m_TVshowSearchString != m_originalTitle) {
+  if (m_TVshowSearchString != m_movieSearchString && m_TVshowSearchString != m_originalTitle && type_override != scrapMovie) {
     cCompareStrings compareStrings(m_TVshowSearchString);
-    if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_TVshowSearchString, compareStrings, lang);
-    if (type_override != scrapMovie) addSearchResults(m_movieDbTvScraper, resultSet, m_TVshowSearchString, compareStrings, lang);
+    addSearchResults(m_tvDbTvScraper, resultSet, m_TVshowSearchString, compareStrings, lang);
+    addSearchResults(m_movieDbTvScraper, resultSet, m_TVshowSearchString, compareStrings, lang);
   }
   if (m_movieSearchString != m_originalTitle) {
     cCompareStrings compareStrings(m_movieSearchString, m_sEventOrRecording->ShortText() );
     if (type_override != scrapSeries) addSearchResults(m_movieDbMovieScraper, resultSet, m_movieSearchString, compareStrings, lang);
-    if (m_matchPurpose != eMatchPurpose::regexTitleShortTextChannel_seasonNumberEpisodeNumber) {
-      cSv foundName, episodeSearchString;
-      if (splitNameEpisodeName(':', foundName, episodeSearchString) ) compareStrings.add2(foundName, ':');
-      if (splitNameEpisodeName('-', foundName, episodeSearchString) ) compareStrings.add2(foundName, '-');
+    if (type_override != scrapMovie) {
+// add result for series/TV shows
+      if (m_matchPurpose != eMatchPurpose::regexTitleShortTextChannel_seasonNumberEpisodeNumber) {
+        cSv foundName, episodeSearchString;
+        if (splitNameEpisodeName(':', foundName, episodeSearchString) ) compareStrings.add2(foundName, ':');
+        if (splitNameEpisodeName('-', foundName, episodeSearchString) ) compareStrings.add2(foundName, '-');
+      }
+      addSearchResults(m_tvDbTvScraper, resultSet, m_movieSearchString, compareStrings, lang);
+      addSearchResults(m_movieDbTvScraper, resultSet, m_movieSearchString, compareStrings, lang);
     }
-    if (type_override != scrapMovie) addSearchResults(m_tvDbTvScraper, resultSet, m_movieSearchString, compareStrings, lang);
-    if (type_override != scrapMovie) addSearchResults(m_movieDbTvScraper, resultSet, m_movieSearchString, compareStrings, lang);
   }
 }
 bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<searchResultTvMovie> &resultSet, cSv searchString, const cCompareStrings &compareStrings, const cLanguage *lang) {
@@ -570,10 +578,10 @@ bool cSearchEventOrRec::addSearchResults(iExtMovieTvDb *extMovieTvDb, vector<sea
   size_t size0 = resultSet.size();
   if (!searchString1.empty()) {
     extMovieTvDb->addSearchResults(resultSet, searchString1, false, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
-    if (resultSet.size() > size0) return true;
   }
   extMovieTvDb->addSearchResults(resultSet, searchString_f, true, compareStrings, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description(), m_years, lang, m_network_id);
   if (resultSet.size() > size0) {
+    if (!searchString1.empty() ) return true;
     cNormedString normedSearchString(searchString);
     for (size_t i = size0; i < resultSet.size(); i++)
       if (normedSearchString.sentence_distance(resultSet[i].m_normedName) < 600) return true;
@@ -754,10 +762,10 @@ void cSearchEventOrRec::getDirectorWriterMatches(searchResultTvMovie &sR, const 
   int numMatchesAll = 0;
   int numMatchesSure = 0;
   cContainer alreadyFound;
-  for(cSv directorWriter: cSplit(directors, '|')) {
+  for(cSv directorWriter: cSplit(directors, '|', eSplitDelimBeginEnd::required)) {
     getDirectorWriterMatches(directorWriter, numMatchesAll, numMatchesSure, alreadyFound);
   }
-  for(cSv directorWriter: cSplit(writers, '|')) {
+  for(cSv directorWriter: cSplit(writers, '|', eSplitDelimBeginEnd::required)) {
     getDirectorWriterMatches(directorWriter, numMatchesAll, numMatchesSure, alreadyFound);
   }
   sR.setDirectorWriter(numMatchesSure + 2*numMatchesAll);
@@ -889,7 +897,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
 // tv show from TheTVDB
       if (stmtScore.readRow() ) {
         sR.setScore(stmtScore.getInt(0) );
-        cSplit transSplit(stmtScore.getCharS(1), '|');
+        cSplit transSplit(stmtScore.getCharS(1), '|', eSplitDelimBeginEnd::required);
         if (transSplit.find(searchEventOrRec.m_sEventOrRecording->GetLanguage()->m_thetvdb) == transSplit.end() ) sR.setTranslationAvailable(false);
         else sR.setTranslationAvailable(true);
       }

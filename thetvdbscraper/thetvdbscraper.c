@@ -69,7 +69,7 @@ bool cTVDBScraper::GetToken(cStr jsonResponse) {
   return true;
 }
 
-const cLanguage *languageMatchesTvdb(int l, cSplit &transSplit) {
+const cLanguage *languageMatchesTvdb(int l, cSplit<cSv> &transSplit) {
 // check if language number (ID) l matches any language in transSplit
 //   if yes, return this language
 //   if no , return nullptr
@@ -84,7 +84,7 @@ const cLanguage *displayLanguageTvdb(cSv translations) {
 // input: translations: List of translations
 // output: displayLanguage: Language used to display the data.
 //                          or nullptr if not found
-  cSplit transSplit(translations, '|');
+  cSplit transSplit(translations, '|', eSplitDelimBeginEnd::required);
 // check: translation in configured default language available?
   if (transSplit.find(config.GetDefaultLanguage()->m_thetvdb) != transSplit.end()) return config.GetDefaultLanguage();
 // translation in configured default language is not available
@@ -143,7 +143,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
   if (stmtNameLang.readRow() && stmtNameLang.getInt(1) > 0) displayLanguage = config.GetLanguage(stmtNameLang.getInt(1) );
   else {
     cSql stmtLanguages(db, "SELECT tv_languages, tv_languages_last_update FROM tv_score WHERE tv_id = ?", -seriesID);
-    if (stmtLanguages.readRow() && !config.isUpdateFromExternalDbRequired(stmtLanguages.getInt64(1) )) {
+    if (stmtLanguages.readRow() && !config.isUpdateFromExternalDbRequired(stmtLanguages.get<time_t>(1) )) {
       const cLanguage *lang = displayLanguageTvdb(stmtLanguages.getStringView(0));
       if (lang) displayLanguage = lang;
     }
@@ -216,8 +216,8 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
     if (!forceUpdate && !db->episodeNameUpdateRequired(-seriesID, langTvdbId)) return 0;
 // check cached information: episodes available in lang?
     cSql stmtScore(db, "SELECT tv_languages, tv_languages_last_update FROM tv_score WHERE tv_id = ?", -seriesID);
-    if (stmtScore.readRow() && !config.isUpdateFromExternalDbRequired(stmtScore.getInt64(1) )) {
-      cSplit transSplit(stmtScore.getCharS(0), '|');
+    if (stmtScore.readRow() && !config.isUpdateFromExternalDbRequired(stmtScore.get<time_t>(1) )) {
+      cSplit transSplit(stmtScore.getCharS(0), '|', eSplitDelimBeginEnd::required);
       if (transSplit.find(lang->m_thetvdb) == transSplit.end() ) {
 // this language is not available
         if (!displayLanguage) return 1; // translation in needed language not available, available language not requested
@@ -288,7 +288,7 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
         -seriesID, getValueCharS(*data_series, "name"), getValueCharS(*data_series, "firstAired"), popularity, getValueCharS2(*data_series, "status", "name") );
 
 // check: translations in lang available?
-      cSplit transSplit(translations, '|');
+      cSplit transSplit(translations, '|', eSplitDelimBeginEnd::required);
       bool translationAvailable = transSplit.find(lang->m_thetvdb) != transSplit.end();
       if (translations.empty() ) {
         const char *ol = getValueCharS(*data_series, "originalLanguage");
@@ -351,7 +351,7 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
   time_t now = time(0);
   db->exec("UPDATE tv2 SET tv_last_updated = ? WHERE tv_id = ?", now, -seriesID);
   if (config.enableDebug) {
-    long long te = db->queryInt64("SELECT tv_last_updated FROM tv2 WHERE tv_id = ?", -seriesID);
+    long long te = cSql(db, "SELECT tv_last_updated FROM tv2 WHERE tv_id = ?", -seriesID).get<long long>();
     if (te != (long long)now || te == 0) esyslog("tvscraper: ERROR cTVDBScraper::downloadEpisodes te %lli != now %lli", te, (long long)now);
   }
   if (cSql(db, "SELECT COUNT(episode_id) FROM tv_s_e WHERE tv_id = ?;", -seriesID).getInt(0) > numEpisodes)

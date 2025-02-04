@@ -43,14 +43,16 @@ class cScraperVideoImp: public cScraperVideo {
     virtual bool getEpisode(std::string *name, std::string *overview, int *absoluteNumber, std::string *firstAired, int *runtime, float *voteAverage, int *voteCount, std::string *imdbId);
     virtual ~cScraperVideoImp();
   private:
-    const cEvent *m_event = NULL;
-    const cRecording *m_recording = NULL;
+    cTvMedia getEpgImage(bool fullPath);
+    tChannelID m_channelID;
+    tEventID m_eventID = 0;
+    int m_recordingID = -1;
     cTVScraperDB *m_db;
     int m_runtime_guess = 0; // runtime of thetvdb, which does best match to runtime of recording. Ignore if <=0
     int m_duration_deviation = -4; // -4: not checked
     int m_runtime = -2;  // runtime of episode / movie. Most reliable. -2: not checked. -1, 0: checked, but not available
     int m_collectionId = -2; // collection ID. -2: not checked
-    cMovieOrTv *m_movieOrTv = NULL;
+    cMovieOrTv *m_movieOrTv = nullptr;
     bool isEpisodeIdentified();
 };
 
@@ -59,13 +61,39 @@ cScraperVideoImp::cScraperVideoImp(const cEvent *event, const cRecording *record
     esyslog("tvscraper: ERROR calling vdr service interface, call->event && call->recording are provided. Please set one of these parameters to NULL");
     return;
   }
-  m_event = event;
-  m_recording = recording;
   m_db = db;
   m_movieOrTv = cMovieOrTv::getMovieOrTv(db, event, recording, &m_runtime_guess, &m_duration_deviation);
+  if (event) {
+    m_channelID = event->ChannelID();
+    m_eventID = event->EventID();
+  }
+  else if (recording) {
+    m_recordingID = recording->Id();
+    if (recording->Info() ) m_channelID = recording->Info()->ChannelID();
+  }
+
 }
 cScraperVideoImp::~cScraperVideoImp() {
   if (m_movieOrTv) delete m_movieOrTv;
+}
+
+cTvMedia cScraperVideoImp::getEpgImage(bool fullPath) {
+  if (m_recordingID >= 0) {
+    LOCK_RECORDINGS_READ;
+    return ::getEpgImage(nullptr, Recordings->GetById(m_recordingID), fullPath);
+  }
+  if (m_eventID != 0 & m_channelID.Valid() ) {
+    LOCK_SCHEDULES_READ;
+    const cSchedule *schedule = Schedules->GetSchedule(m_channelID);
+    if (schedule) {
+#if APIVERSNUM >= 20502
+      return ::getEpgImage(schedule->GetEventById(m_eventID), nullptr, fullPath);
+#else
+      return ::getEpgImage(schedule->GetEvent    (m_eventID), nullptr, fullPath);
+#endif
+    }
+  }
+  return cTvMedia();
 }
 
 tvType cScraperVideoImp::getVideoType() {
@@ -85,23 +113,24 @@ bool cScraperVideoImp::getOverview(std::string *title, std::string *episodeName,
   if (m_movieOrTv) scraperDataAvaiable = m_movieOrTv->getOverview(title, episodeName, releaseDate, &m_runtime, imdbId, &m_collectionId, collectionName);
   if (collectionId) *collectionId = m_collectionId;
   if (runtime) *runtime = m_runtime > 0?m_runtime:m_runtime_guess;
-  if (!scraperDataAvaiable) return false;
-  return true;
+  return scraperDataAvaiable;
 }
 
 int cScraperVideoImp::getDurationDeviation() {
   if (m_duration_deviation >= 0) return m_duration_deviation;
-  if (!m_recording) return 0;
+  if (m_recordingID < 0) return 0;
   if (m_runtime == -2 && m_movieOrTv) {
     m_runtime = 0;
     m_collectionId = 0;
     m_movieOrTv->getOverview(NULL, NULL, NULL, &m_runtime, NULL, &m_collectionId);
   }
-  csRecording sRecording(m_recording);
+  LOCK_RECORDINGS_READ;
+  const cRecording* recording = Recordings->GetById(m_recordingID);
+  csRecording sRecording(recording);
 
 // note: m_runtime <=0 is considered as no runtime information by sRecording->durationDeviation(m_runtime)
   m_duration_deviation = sRecording.durationDeviation(m_runtime > 0?m_runtime:m_runtime_guess);
-  if (m_duration_deviation >= 0) m_db->SetDurationDeviation(m_recording, m_duration_deviation);
+  if (m_duration_deviation >= 0) m_db->SetDurationDeviation(recording, m_duration_deviation);
   else m_duration_deviation = 0;
 
   return m_duration_deviation;
@@ -116,18 +145,13 @@ bool orientationsIncludesLandscape(cOrientationsInt imageOrientations) {
 cTvMedia cScraperVideoImp::getImage(cImageLevels imageLevels, cOrientations imageOrientations, bool fullPath)
 {
   cTvMedia image;
-  if (!m_movieOrTv) return orientationsIncludesLandscape(imageOrientations)?getEpgImage(m_event, m_recording, fullPath):image;
+  if (!m_movieOrTv) return orientationsIncludesLandscape(imageOrientations)?getEpgImage(fullPath):image;
 
-  if (m_collectionId == -2 && m_movieOrTv->getType() == tMovie) {
-    m_runtime = 0;
-    m_collectionId = 0;
-    m_movieOrTv->getOverview(NULL, NULL, NULL, &m_runtime, NULL, &m_collectionId);
-  }
   if (fullPath)
     m_movieOrTv->getSingleImageBestLO(imageLevels, imageOrientations, NULL, &image.path, &image.width, &image.height);
   else
     m_movieOrTv->getSingleImageBestLO(imageLevels, imageOrientations, &image.path, NULL, &image.width, &image.height);
-  if (image.path.empty() && orientationsIncludesLandscape(imageOrientations)) return getEpgImage(m_event, m_recording, fullPath);
+  if (image.path.empty() && orientationsIncludesLandscape(imageOrientations)) return getEpgImage(fullPath);
   return image;
 }
 
@@ -138,13 +162,11 @@ std::vector<cTvMedia> cScraperVideoImp::getImages(eOrientation orientation, int 
 }
 
 int cScraperVideoImp::getHD() {
-  if (m_event) return config.ChannelHD(m_event->ChannelID() );
-  if (m_recording && m_recording->Info()) return config.ChannelHD(m_recording->Info()->ChannelID() );
+  if (m_channelID.Valid()) return config.ChannelHD(m_channelID);
   return -1;
 }
 int cScraperVideoImp::getLanguage() {
-  if (m_event) return config.GetLanguage_n(m_event->ChannelID() );
-  if (m_recording && m_recording->Info()) return config.GetLanguage_n(m_recording->Info()->ChannelID() );
+  if (m_channelID.Valid()) return config.GetLanguage_n(m_channelID);
   return -1;
 }
 
@@ -168,9 +190,9 @@ std::vector<std::unique_ptr<cCharacter>> cScraperVideoImp::getCharacters(bool fu
   const char *director_ = NULL;
   const char *writer_ = NULL;
   if (!stmt.readRow(director_, writer_)) return result;
-  for (const auto director: cSplit(director_, '|'))
+  for (const auto director: cSplit(director_, '|', eSplitDelimBeginEnd::required))
     result.push_back(std::make_unique<cCharacterImp>(eCharacterType::director, std::string(director)));
-  for (const auto &writer: cSplit(writer_, '|'))
+  for (const auto &writer: cSplit(writer_, '|', eSplitDelimBeginEnd::required))
     result.push_back(std::make_unique<cCharacterImp>(eCharacterType::writer, std::string(writer)));
   return result;
 }

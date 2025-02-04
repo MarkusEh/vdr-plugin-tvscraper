@@ -95,13 +95,8 @@ bool cTVScraperWorker::ConnectScrapers(void) {
 
 bool GetChannelName(std::string &channelName, const tChannelID &channelid, int &msg_cnt) {
 // return false if channel does not exist in Channels
-// Get Channel Name
-#if APIVERSNUM < 20301
-  const cChannel *channel = Channels.GetByChannelID(channelid);
-#else
   LOCK_CHANNELS_READ;
   const cChannel *channel = Channels->GetByChannelID(channelid);
-#endif
   if (!channel) {
     msg_cnt++;
     if (msg_cnt < 5) dsyslog("tvscraper: Channel %s is not availible, skipping. Most likely this channel does not exist. To get rid of this message, goto tvscraper settings and edit the channel list.", (const char *)channelid.ToString());
@@ -116,12 +111,7 @@ vector<tEventID> GetEventIDs(const tChannelID &channelid, const std::string &cha
 vector<tEventID> eventIDs;
   time_t now = time(0);
 // get and lock the schedule
-#if APIVERSNUM < 20301
-  cSchedulesLock schedulesLock;
-  const cSchedules *Schedules = cSchedules::Schedules(schedulesLock);
-#else
   LOCK_SCHEDULES_READ;
-#endif
   const cSchedule *Schedule = Schedules->GetSchedule(channelid);
   if (Schedule) {
     for (const cEvent *event = Schedule->Events()->First(); event; event = Schedule->Events()->Next(event))
@@ -216,9 +206,14 @@ bool cTVScraperWorker::ScrapEPG(void) {
         cMovieOrTv *movieOrTv = NULL;
         int statistics;
         std::chrono::duration<double> timeNeeded;
-        const cEvent *event = getEvent(eventID, channelID);
-        if (!event || !event->StartTime() || !event->EventID() ) continue;
-        cStaticEvent sEvent(event); // event will be valid for 5 seconds. We might need longer, so we copy relevant event information to sEvent (where we control the lifetime, and no VDR locks are required
+        cStaticEvent sEvent;
+        {
+//        event will be valid for 5 seconds. We might need longer, so we copy relevant event information to sEvent (where we control the lifetime, and no VDR locks are required
+          LOCK_SCHEDULES_READ;
+          const cEvent *event = getEvent(eventID, channelID, Schedules);
+          if (!event || !event->StartTime() || !event->EventID() ) continue;
+          sEvent.set_from_event(event);
+        }
         timeNeededOthers += std::chrono::high_resolution_clock::now() - begin;
         if (extEpg) {
           auto begin = std::chrono::high_resolution_clock::now();
@@ -349,13 +344,13 @@ void cTVScraperWorker::ScrapRecordings(void) {
   }
 
   cMovieOrTv *movieOrTv = NULL;
-  vector<string> recordingFileNames;
+  std::vector<std::string> recordingFileNames;
   if (m_recording.empty() ) {
     {
       LOCK_RECORDINGS_READ;
       for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
-        if (overrides->IgnorePath(rec->FileName())) continue;
-        if (rec->FileName()) recordingFileNames.push_back(rec->FileName());
+        if (!rec->FileName() || overrides->IgnorePath(rec->FileName())) continue;
+        recordingFileNames.push_back(rec->FileName());
       }
     }
   }
@@ -398,12 +393,8 @@ bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
 // return true is a timer is running, or a timer will start within the next nextMinutes minutes
 // otherwise false
   if (config.GetReadOnlyClient() ) return true;
-#if APIVERSNUM < 20301
-  for (cTimer *timer = Timers.First(); timer; timer = Timers.Next(timer)) {
-#else
   LOCK_TIMERS_READ;
   for (const cTimer *timer = Timers->First(); timer; timer = Timers->Next(timer)) if (timer->Local() ) {
-#endif
     if (timer->Recording()) return true;
     if (timer->HasFlags(tfActive) && (difftime(timer->StartTime(), time(0) )*60 < nextMinutes)) return true;
   }
@@ -449,12 +440,8 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
   std::vector<std::string> recordingFileNames; // filenames of recordings with running timers
 //  struct stat buffer;
   { // in this block, we lock the timers
-#if APIVERSNUM < 20301
-    for (cTimer *timer = Timers.First(); timer; timer = Timers.Next(timer))
-#else
     LOCK_TIMERS_READ;
     for (const cTimer *timer = Timers->First(); timer; timer = Timers->Next(timer)) if (timer->Local() )
-#endif
     if (timer->Recording()) {
 // figure out recording
       cRecordControl *rc = cRecordControls::GetRecordControl(timer);
@@ -462,9 +449,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
         continue;
       }
-//      if (stat(cToSvConcat(rc->FileName(), "/tvscraper.json").c_str(), &buffer) != 0) {
       recordingFileNames.push_back(rc->FileName() );
-//      }
       writeTimerInfo(timer, rc->FileName() );
     }
   } // timer lock is released
@@ -474,12 +459,8 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
     std::string epgImagePath;
     std::string recordingImagePath;
     { // in this block we have recording locks
-#if APIVERSNUM < 20301
-      const cRecording *recording = Recordings.GetByName(filename.c_str() );
-#else
       LOCK_RECORDINGS_READ;
       const cRecording *recording = Recordings->GetByName(filename.c_str() );
-#endif
       if (!recording) {
         esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: no recording for file \"%s\"", filename.c_str() );
         continue;
@@ -492,7 +473,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
       cUseStmt_m_select_recordings2_rt pre_stmt_rt(db, sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
       if (!(pre_stmt_rt.stmt()->readRow() ))  {
 // no movie/tv assigned to this recording. Do this now
-        const cEvent *event = recording->Info()->GetEvent();
+        const cEvent *event = recording->Info()->GetEvent();  // this event is locked with the recording
         epgImagePath = event?getExistingEpgImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID()):"";
         recordingImagePath = getRecordingImagePath(recording);
 

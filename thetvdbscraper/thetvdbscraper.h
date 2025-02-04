@@ -72,8 +72,8 @@ class cTvDbTvScraper: public iExtMovieTvDb {
         m_TVDBScraper->StoreSeriesJson(-searchResultTvMovie.id(), true);
         return;
       }
-      bool update_required = config.isUpdateFromExternalDbRequired(stmt.getInt64(1));
-      if (!update_required && config.isUpdateFromExternalDbRequiredMR(stmt.getInt64(1) )){
+      bool update_required = config.isUpdateFromExternalDbRequired(stmt.get<time_t>(1));
+      if (!update_required && config.isUpdateFromExternalDbRequiredMR(stmt.get<time_t>(1) )){
 // check: do we have a runtime?
         if (!m_TVDBScraper->db->TvRuntimeAvailable(searchResultTvMovie.id() )) update_required = true; // no runtime found
       }

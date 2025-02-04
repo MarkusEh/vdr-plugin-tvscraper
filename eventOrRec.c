@@ -58,12 +58,8 @@ std::string csEventOrRecording::ChannelName() const {
    return m_unknownChannel;
  }
 
-#if APIVERSNUM < 20301
-  const cChannel *channel = Channels.GetByChannelID(channelID);
-#else
   LOCK_CHANNELS_READ;
   const cChannel *channel = Channels->GetByChannelID(channelID);
-#endif
   if (!channel) {
     esyslog("tvscraper, csEventOrRecording::ChannelName, no channel for channel ID %s, title %s", ChannelIDs().c_str(), Title() );
     return m_unknownChannel;

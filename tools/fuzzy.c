@@ -266,9 +266,9 @@ template<std::size_t N>
 // any change to m_normedString can result in changed buffer location, invaldating the string_view word list
       if (m_wordList.size() > 0) return;
       m_wordList.reserve(20);
-      for (cSv lWord: cSplit(m_normedString, ' ')) {
+      for (cSv lWord: cSplit(m_normedString, ' ', eSplitDelimBeginEnd::optional)) {
 // we have to include very short words (1 char) here, to take digits like in part 1 / part 2 into account
-        if (const_ignoreWords.find(lWord) == const_ignoreWords.end() ) m_wordList.push_back(lWord);
+        if (!lWord.empty() && const_ignoreWords.find(lWord) == const_ignoreWords.end() ) m_wordList.push_back(lWord);
       }
 //      std::cout << "words m_normedString: " << getWords() << "\n";
     }

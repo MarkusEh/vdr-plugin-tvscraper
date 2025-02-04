@@ -137,7 +137,7 @@ void cMovieMoviedb::DeleteMediaAndDb() {
 
 std::string cMovieMoviedb::getCollectionName() {
   const char *sql = "select movie_collection_name from movies3 where movie_id = ?";
-  return m_db->queryString(sql, dbID() );
+  return cSql(m_db, cStringRef(sql), dbID() ).get<std::string>();
 }
 
 bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
@@ -379,15 +379,15 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
     if (collectionName) *collectionName = "";
     return true;
   }
-  if (title) *title = stmt_s_o.stmt()->getStringView(0);
+  if (title) *title = stmt_s_o.stmt()->get<cSv>(0);
   if (episodeDataAvailable) {
 // dont't overide data available from episode
-    if (releaseDate && releaseDate->empty() ) *releaseDate = stmt_s_o.stmt()->getStringView(1);
-    if (imdbId && imdbId->empty() ) *imdbId = stmt_s_o.stmt()->getStringView(2);
+    if (releaseDate && releaseDate->empty() ) *releaseDate = stmt_s_o.stmt()->get<cSv>(1);
+    if (imdbId && imdbId->empty() ) *imdbId = stmt_s_o.stmt()->get<cSv>(2);
   } else {
 // no episode data. Read as much as possible not episode related, and set the others to 0/""
-    if (releaseDate) *releaseDate = stmt_s_o.stmt()->getStringView(1);
-    if (imdbId) *imdbId = stmt_s_o.stmt()->getStringView(2);
+    if (releaseDate) *releaseDate = stmt_s_o.stmt()->get<cSv>(1);
+    if (imdbId) *imdbId = stmt_s_o.stmt()->get<cSv>(2);
     if (episodeName) *episodeName = "";
     if (runtime) *runtime = 0;
   }
@@ -697,37 +697,43 @@ int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iEx
 
 // delete unused *****
 void cMovieOrTv::CleanupTv_media(const cTVScraperDB *db) {
-  const char *sql = "delete from tv_media where media_type != ?";
-  db->exec(sql, mediaSeason);
-  std::set<int> tv_ids;
-  for (int tv_id: cSqlValue<int>(db, "select tv_id from tv_media") ) tv_ids.insert(tv_id);
-  for (const int &tv_id2: tv_ids) {
-    if (db->CheckMovieOutdatedEvents(tv_id2, 0, 0)) continue;
-    if (db->CheckMovieOutdatedRecordings(tv_id2, 0, 0)) continue;
-    db->deleteTvMedia (tv_id2, false, false);
+  db->exec("DELETE FROM tv_media WHERE media_type != ?", mediaSeason);
+  for (int tv_id: cSqlValue<int>(db, "SELECT DISTINCT tv_id FROM tv_media") ) {
+    if (db->CheckMovieOutdatedEvents(tv_id, 0, 0)) continue;
+    if (db->CheckMovieOutdatedRecordings(tv_id, 0, 0)) continue;
+    db->deleteTvMedia(tv_id, false, false);
   }
 }
 
 void deleteOutdatedRecordingImages(const cTVScraperDB *db) {
 // check recording. Delete if this does not exist
-if (!DirExists(config.GetBaseDirRecordings().c_str() )) return;
+if (!DirExists(config.GetBaseDirRecordings() )) return;
 std::error_code ec;
 for (const std::filesystem::directory_entry& dir_entry:
         std::filesystem::directory_iterator(config.GetBaseDirRecordings(), ec)) 
   {
-    std::vector<std::string> parts = getSetFromString<std::string,std::vector<std::string>>(dir_entry.path().filename().string().c_str(), '_');
+    std::string path = dir_entry.path().filename().string(); // this is required, as the returned string is volatile
+    cSplit parts(path, '_');
+//    std::vector<std::string> parts = getSetFromString<std::string,std::vector<std::string>>(dir_entry.path().filename().string(), '_');
     if (parts.size() != 3) {
-      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts.size: %zu, filename: %s", parts.size(), dir_entry.path().filename().string().c_str());
+//    esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts.size: %zu, filename: %s", parts.size(), dir_entry.path().filename().string().c_str());
+      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts.size: %zu, filename: %s", parts.size(), path.c_str());
       continue;
     }
-    time_t eventStartTime = parse_unsigned<time_t>(parts[0]);
-    tEventID eventID = parse_unsigned<tEventID>(parts[2]);
+    auto parts_iter = parts.begin();
+//    time_t eventStartTime = parse_unsigned<time_t>(parts[0]);
+    time_t eventStartTime = parse_unsigned<time_t>(*parts_iter);
+    cSv channel_id = *(++parts_iter);
+//    tEventID eventID = parse_unsigned<tEventID>(parts[2]);
+    tEventID eventID = parse_unsigned<tEventID>(*(++parts_iter));
     if (eventStartTime == 0 || eventID == 0) {
-      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts[2]: %.*s, filename: %s", static_cast<int>(parts[2].length()), parts[2].data(), dir_entry.path().filename().string().c_str());
+//      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts[2]: %.*s, filename: %s", static_cast<int>(parts[2].length()), parts[2].data(), dir_entry.path().filename().string().c_str());
+      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts[2]: %.*s, filename: %s", static_cast<int>((*parts_iter).length()), (*parts_iter).data(), path.c_str());
       continue;
     }
     const char *sql = "SELECT count(event_id) FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ?";
-    bool found = db->queryInt(sql, eventID, eventStartTime, parts[1]) > 0;
+//    bool found = db->queryInt(sql, eventID, eventStartTime, parts[1]) > 0;
+    bool found = db->queryInt(sql, eventID, eventStartTime, channel_id) > 0;
 //    esyslog("tvscraper, DEBUG, recording eventID %i eventStartTime %lld channel_id %.*s %s", (int)eventID, (long long)eventStartTime, static_cast<int>(parts[1].length()), parts[1].data(), found?"found":"not found");
     if (!found) DeleteFile(config.GetBaseDirRecordings() + dir_entry.path().filename().string());
   }

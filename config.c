@@ -7,16 +7,10 @@ using namespace std;
 // getDefaultHD_Channels  ********************************
 std::map<tChannelID, int> getDefaultHD_Channels() {
   std::map<tChannelID, int> channelsHD;
-#if VDRVERSNUM >= 20301
   LOCK_CHANNELS_READ;
-  for ( cChannel *listChannel = (cChannel *)Channels->First(); listChannel; listChannel = (cChannel *)Channels->Next( listChannel ) )
-#else
-  ReadLock channelsLock( Channels );
-  if ( !channelsLock ) return channelsHD;
-  for ( cChannel *listChannel = Channels.First(); listChannel; listChannel = Channels.Next( listChannel ) )
-#endif
+  for (const cChannel *listChannel = Channels->First(); listChannel; listChannel = Channels->Next(listChannel) )
   {
-    if ( listChannel->GroupSep() || listChannel->Name() == NULL ) continue;
+    if (listChannel->GroupSep() || listChannel->Name() == NULL ) continue;
     int len = strlen(listChannel->Name());
     if (len < 2) continue;
     if (strcmp (listChannel->Name() + (len - 2), "HD") != 0) continue;
@@ -26,19 +20,13 @@ std::map<tChannelID, int> getDefaultHD_Channels() {
 }
 
 // getDefaultChannels  ********************************
-std::set<tChannelID> getDefaultChannels() {
-  std::set<tChannelID> channels;
+cSortedVector<tChannelID> getDefaultChannels() {
+  cSortedVector<tChannelID> channels;
   int i = 0;
-#if VDRVERSNUM >= 20301
   LOCK_CHANNELS_READ;
-  for ( cChannel *listChannel = (cChannel *)Channels->First(); listChannel; listChannel = (cChannel *)Channels->Next( listChannel ) )
-#else
-  ReadLock channelsLock( Channels );
-  if ( !channelsLock ) return channelsHD;
-  for ( cChannel *listChannel = Channels.First(); listChannel; listChannel = Channels.Next( listChannel ) )
-#endif
+  for (const cChannel *listChannel = Channels->First(); listChannel; listChannel = Channels->Next(listChannel) )
   {
-    if ( listChannel->GroupSep() || listChannel->Name() == NULL ) continue;
+    if (listChannel->GroupSep() || listChannel->Name() == NULL ) continue;
     if (strlen(listChannel->Name())  < 2) continue;
     channels.insert(listChannel->GetChannelID());
     if (i++ > 30) break;
@@ -192,11 +180,11 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
         return true;
     } else if (strcmp(Name, "HDChannels") == 0) {
         config.m_HD_ChannelsModified = true;
-        for (const tChannelID &c: getSetFromString<tChannelID>(Value)) m_HD_Channels.insert({c, 1});
+        for (cSv c: cSplit(Value, ';', eSplitDelimBeginEnd::optional)) m_HD_Channels.insert({lexical_cast<tChannelID>(c), 1});
         return true;
     } else if (strcmp(Name, "UHDChannels") == 0) {
         config.m_HD_ChannelsModified = true;
-        for (const tChannelID &c: getSetFromString<tChannelID>(Value)) m_HD_Channels.insert({c, 2});
+        for (cSv c: cSplit(Value, ';', eSplitDelimBeginEnd::optional)) m_HD_Channels.insert({lexical_cast<tChannelID>(c), 2});
         return true;
     } else if (strcmp(Name, "ExcludedRecordingFolders") == 0) {
         m_excludedRecordingFolders = getSetFromString<std::string>(Value, '/');
@@ -220,7 +208,7 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
     } else if (strncmp(Name, "additionalLanguage", 18) == 0) {
         int num_lang = atoi(Name + 18);
         if (num_lang <= 0) return false;
-        for (const tChannelID &c: getSetFromString<tChannelID>(Value)) m_channel_language.insert({c, num_lang});
+        for (cSv c: cSplit(Value, ';', eSplitDelimBeginEnd::optional)) m_channel_language.insert({lexical_cast<tChannelID>(c), num_lang});
         return true;
     }
     return false;
@@ -319,8 +307,8 @@ std::shared_ptr<iExtEpgForChannel> cTVScraperConfig::GetExtEpgIf(const tChannelI
   return extEpg;
 }
 
-set<tChannelID> cTVScraperConfig::GetScrapeAndEpgChannels() const {
-  set<tChannelID> result;
+cSortedVector<tChannelID> cTVScraperConfig::GetScrapeAndEpgChannels() const {
+  cSortedVector<tChannelID> result;
   {
     cTVScraperConfigLock l;
     result = m_channels;

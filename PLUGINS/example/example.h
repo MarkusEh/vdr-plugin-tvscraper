@@ -1,3 +1,4 @@
+#define PLUGIN_NAME_I18N "tvscraper-plugin-example"
 #include <memory>
 #include "../../extEpgPlugin.h"
 #include "../../rapidjson/document.h"
@@ -5,6 +6,7 @@
 #include "../../tools/jsonHelpers.c"
 #include "../../config.h"
 #include "../../sEvent.h"
+
 
 class cTvspEvent
 {

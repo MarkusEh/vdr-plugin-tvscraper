@@ -6,17 +6,17 @@
 class cStaticEvent {
 
 public:
-  cStaticEvent(const cEvent *event):
-    m_eventID(event->EventID()),
-    m_startTime(event->StartTime()),
-    m_endTime(event->EndTime()),
-    m_vps(event->Vps()),
-    m_duration(event->Duration()),
-    m_channelID(event->ChannelID()),
-    m_title(cSv(event->Title())),
-    m_shortText(cSv(event->ShortText())),
-    m_description(cSv(event->Description()))
-   {}
+  void set_from_event(const cEvent *event) {
+    m_eventID = event->EventID();
+    m_startTime = event->StartTime();
+    m_endTime = event->EndTime();
+    m_vps = event->Vps();
+    m_duration = event->Duration();
+    m_channelID = event->ChannelID();
+    m_title = cSv(event->Title());
+    m_shortText = cSv(event->ShortText());
+    m_description = cSv(event->Description());
+  }
 
   tEventID EventID() const { return m_eventID; }
   time_t StartTime() const { return m_startTime; }
@@ -32,7 +32,7 @@ template<class changeEventF>
 // return false if no event was found
 // return true if event was found and changeEventFunction was called
     LOCK_SCHEDULES_WRITE;
-    cSchedule *pSchedule = (cSchedule *)Schedules->GetSchedule(m_channelID);
+    cSchedule *pSchedule = const_cast<cSchedule *>(Schedules->GetSchedule(m_channelID));
     if (!pSchedule) return false;
 #if APIVERSNUM >= 20502
     cEvent *event = const_cast<cEvent *>(pSchedule->GetEventById(m_eventID));
@@ -62,16 +62,6 @@ private:
   std::string m_title;
   std::string m_shortText;
   std::string m_description;
-  cEvent *getEvent(cStateKey &SchedulesStateKey) {
-    cSchedules *Schedules = cSchedules::GetSchedulesWrite(SchedulesStateKey);
-    cSchedule *pSchedule = (cSchedule *)Schedules->GetSchedule(m_channelID);
-    if (!pSchedule) return nullptr;
-#if APIVERSNUM >= 20502
-    return const_cast<cEvent *>(pSchedule->GetEventById(m_eventID));
-#else
-    return const_cast<cEvent *>(pSchedule->GetEvent(m_eventID));
-#endif
-  }
 };
 
 #endif //__TVSCRAPER_SEVENT_H

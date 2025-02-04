@@ -66,25 +66,25 @@ public:
 // Data structure for service "GetEventType"
 class ScraperGetEventType {
 public:
-	ScraperGetEventType(void) {
-		event = NULL;
-		recording = NULL;
-		type = tNone;
-		movieId = 0;
-		seriesId = 0;
-		episodeId = 0;
-	};
+  ScraperGetEventType(void) {
+    event = NULL;
+    recording = NULL;
+    type = tNone;
+    movieId = 0;
+    seriesId = 0;
+    episodeId = 0;
+  };
 // in
     const cEvent *event;             // check type for this event 
     const cRecording *recording;     // or for this recording
 //out
-    tvType type;                	 //tSeries or tMovie or tNone
+    tvType type;                     //tSeries or tMovie or tNone
     int movieId;
     int seriesId;
     int episodeId;
 };
 
-// Data structure for enviromment ("GetEnvironment" call)
+// Data structure for environment ("GetEnvironment" call)
 
 class cEnvironment
 {
@@ -215,10 +215,13 @@ public:
 
 // Data structure for service "GetAutoTimerReason"
 class cGetAutoTimerReason {
+// note: if call->timer is used, caller must LOCK_TIMERS_READ before the call
+// note: if any cRecording (call->recording_in or call->recording) is used,
+//       caller must LOCK_RECORDINGS_READ before the call
 public:
 //in:
   const cTimer *timer = nullptr;            // only timer OR recording must be provided
-  const cRecording *recording_in = nullptr; // information about the timer creating this recoring is provided
+  const cRecording *recording_in = nullptr; // information about the timer creating this recording is provided
   bool requestRecording = false;  // set this to true if you need the cRecording object
 //out
   bool createdByTvscraper;    // if this is false, please ignore all other return values
@@ -353,7 +356,7 @@ class cScraperVideo
     virtual int getLanguage() = 0;  // return -1 in case of errors
 
 // the other attributes of a movie or TV show:
-// note: runtime will be provided here only for movies. For tv shows, the runtime is provided with getEpisode
+// note: runtime will be provided here only for movies. For TV shows, the runtime is provided with getEpisode
     virtual bool getMovieOrTv(std::string *title, std::string *originalTitle, std::string *tagline, std::string *overview, std::vector<std::string> *genres, std::string *homepage, std::string *releaseDate, bool *adult, int *runtime, float *popularity, float *voteAverage, int *voteCount, std::vector<std::string> *productionCountries, std::string *imdbId, int *budget, int *revenue, int *collectionId, std::string *collectionName, std::string *status, std::vector<std::string> *networks, int *lastSeason) = 0;
 
 // episode attributes. return true if getVideoType() == tSeries && episode is identified
