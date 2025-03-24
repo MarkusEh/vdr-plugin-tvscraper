@@ -1,5 +1,6 @@
 #include "eventOrRec.h"
 #include <dirent.h>
+#define TIMERRECFILE      "/.timer"
 
 csEventOrRecording::csEventOrRecording(const cEvent *event):
   m_event(event),
@@ -89,10 +90,13 @@ csRecording::csRecording(const cRecording *recording):
 }
 
 bool csRecording::recordingLengthIsChanging() {
-  int recordingUsage = m_recording->IsInUse();
-//   if ((recordingUsage | ruReplay) == ruReplay) return false;
-  if ((recordingUsage & (ruTimer | ruDst)) != 0) return true;
-  return false;
+  int use = m_recording->IsInUse();
+  if (((use & ruDst     ) == ruDst)      |
+      ((use & ruPending ) == ruPending)  |
+      ((use & ruCanceled) == ruCanceled) ) return true;
+
+  struct stat buffer;
+  return stat(cToSvConcat(m_recording->FileName(), TIMERRECFILE).c_str(), &buffer) == 0;
 }
 
 int csRecording::DurationRange(int &durationInMinLow, int &durationInMinHigh) {

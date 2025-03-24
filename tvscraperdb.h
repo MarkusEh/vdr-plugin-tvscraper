@@ -61,7 +61,7 @@ class cSql {
 //   invalidated by the next call to finalizePrepareBindStep, resetBindStep,resetBindStep,  resetStep, or destruction of the cSql instance
 
 //  execute sql statement, and read several rows ==================================
-// cSql has a forward iterator, and can be used in for loops
+// cSql has an input const_iterator, and can be used in for loops
 //   example
 // for (cSql &stmt: cSql(db, "select movie_name from movies where movie_id = ?", movieId) {
 //   cout << "movie name: " << stmt.getCharS(0) << "\n";
@@ -112,45 +112,45 @@ class cSql {
         esyslog("tvscraper: ERROR in cSql::cSql, m_db %s, query %.*s", m_db?"Available":"Null", static_cast<int>(m_query.length()), m_query.data() );
       else prepareBindStep(std::forward<Args>(args)...);
     }
-//  class iterator: public std::iterator<std::forward_iterator_tag, cSql, int, cSql*, cSql &>
-    class iterator {
+    class const_iterator {
       protected:
         cSql *m_sql = nullptr;
       public:
-        using iterator_category = std::forward_iterator_tag;
+        using iterator_category = std::input_iterator_tag;
         using value_type = cSql &;
         using difference_type = int;
         using pointer = const cSql *;
         using reference = const cSql &;
 
-        explicit iterator(cSql *sql = nullptr): m_sql(sql) {}
-        iterator& operator++() {
+        explicit const_iterator(cSql *sql = nullptr): m_sql(sql) {}
+        const_iterator& operator++() {
           if (!m_sql) return *this;
           m_sql->assertRvalLval(); // this needs to be checked in case of second call to stepInt()
           m_sql->stepInt();
           if (!m_sql->readRow() ) m_sql = nullptr;
           return *this;
         }
-        bool operator!=(iterator other) const { return m_sql != other.m_sql; }
+        bool operator!=(const_iterator other) const { return m_sql != other.m_sql; }
         cSql &operator*() const { return *m_sql; }
       };
 
 template<class T>
-    class value_iterator: public iterator {
+    class const_value_iterator: public const_iterator {
       public:
+        using iterator_category = std::input_iterator_tag;
         using value_type = T;
         using pointer = const T*;
         using reference = const T&;
 
-        explicit value_iterator(iterator sql_iterator): iterator(sql_iterator) { }
-        T operator*() const { return iterator::operator*().get<T>(0); }
+        explicit const_value_iterator(const_iterator sql_iterator): const_iterator(sql_iterator) { }
+        T operator*() const { return const_iterator::operator*().get<T>(0); }
       };
-    iterator begin() {
+    const_iterator begin() {
       if (m_cur_row > 0 && !resetStep() ) return end();
-      if (readRow() ) return iterator(this);
+      if (readRow() ) return const_iterator(this);
       return end();
     }
-    iterator end() { return iterator(); }
+    const_iterator end() { return const_iterator(); }
 
 // =======================================================================
 //   resetBindStep:
@@ -266,9 +266,13 @@ template<class T>
     void bind(int col, const cStringRef &sref) { sqlite3_bind_text(m_statement, col, sref.m_sv.data(), sref.m_sv.length(), SQLITE_STATIC); }
     void bind(int col, const cSv &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const std::string &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
+template<size_t N>
+    void bind(int col, const cToSvConcat<N> &str) { m_lval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const char* const&&s) { m_rval = true; if(s) sqlite3_bind_text(m_statement, col, s, -1, SQLITE_STATIC); else sqlite3_bind_null(m_statement, col); }
     void bind(int col, const cSv &&str) { m_rval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void bind(int col, const std::string &&str) { m_rval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
+template<size_t N>
+    void bind(int col, const cToSvConcat<N> &&str) { m_rval = true; sqlite3_bind_text(m_statement, col, str.data(), str.length(), SQLITE_STATIC); }
     void assertRvalLval();
   public:
 
@@ -442,26 +446,26 @@ template<class T>
 class cSqlValue: public cSql {
 // only a single value is requested. Simplify loops
   public:
-    using iterator = typename cSql::value_iterator<T>;
+    using const_iterator = typename cSql::const_value_iterator<T>;
     template<typename... Args>
     cSqlValue(Args&&... args): cSql(std::forward<Args>(args)...) { }
     template<typename... Args>
     cSqlValue<T> & resetBindStep(Args&&... args) { cSql::resetBindStep(std::forward<Args>(args)...); return *this; }
-    iterator begin() { return iterator(cSql::begin() ); }
-    const iterator end() { return iterator(cSql::end() ); }
+    const_iterator begin() { return const_iterator(cSql::begin() ); }
+    const const_iterator end() { return const_iterator(cSql::end() ); }
 };
 
 class cSqlGetSimilarTvShows {
-// iterator over all similar tv shows
-  using U = cUnion<int, cSqlValue<int>, cRange<std::array<int, 1>::iterator>>;
+// const_iterator over all similar tv shows
+  using U = c_const_union<int, cSqlValue<int>, cRange<std::array<int, 1>::const_iterator>>;
   public:
     cSqlGetSimilarTvShows(const cTVScraperDB *db, int tv_id);
-    U::iterator begin() { return m_union.begin(); }
-    const U::iterator end() { return m_union.end(); }
+    U::const_iterator begin() { return m_union.cbegin(); }
+    const U::const_iterator end() { return m_union.cend(); }
   private:
     cSqlValue<int> m_sql;
     std::array<int, 1> m_ints;
-    cRange<std::array<int, 1>::iterator> m_range;
+    cRange<std::array<int, 1>::const_iterator> m_range;
     U m_union;
 };
 
@@ -492,7 +496,6 @@ private:
     mutable cSql m_select_movies3_overview;
     mutable cSql m_select_event;
     mutable cSql m_select_recordings2_rt;
-    mutable cSql m_select_recordings2;
 // low level methods for sql
     int printSqlite3Errmsg(cSv query) const;
 // manipulate tables
@@ -560,6 +563,7 @@ public:
     bool GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr) const;
     bool GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr, int *duration_deviation = nullptr) const;
     bool SetDurationDeviation(const cRecording *recording, int duration_deviation) const;
+    bool ClearRuntimeDurationDeviation(const cRecording *recording) const;
     int GetMovieCollectionID(int movieID) const;
     std::string GetEpisodeName(int tvID, int seasonNumber, int episodeNumber) const;
     string GetDescriptionTv(int tvID);

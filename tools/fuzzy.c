@@ -75,8 +75,8 @@ int romToArab(const char *&s, const char *se) {
     ret += cur_val;
     sc++;
   }
-//  if (sc != se && std::iswalnum(getUtfCodepoint(sc)) ) return 0;
-  if (sc != se && std::iswalnum(cSv(sc, se-sc).utf8_begin().codepoint()) ) return 0;
+//  if (sc != se && iswalnum(*const_simple_utf8_iterator(cSv(sc, se-sc)) )) return 0;
+  if (sc != se && iswalnum(*const_simple_utf8_iterator(sc, se) )) return 0;
   s = sc;
   return ret;
 }
@@ -111,7 +111,7 @@ inline cToSvConcat<N> &appendRemoveRomanNumC(cToSvConcat<N> &target, cSv from) {
   bool wordStart = true;
   size_t l;
   for (size_t pos = 0; pos < from.length(); pos+=l) {
-    l = from.utf8CodepointIsValid(pos);
+    l = utf8CodepointIsValid(from, pos);
     if (l == 0) { wordStart = false; target << '?'; l = 1; continue; } // incalid utf
     if (l > 1)  { wordStart = false; target.append(from.substr(pos, l)); continue; }
     if (wordStart) {
@@ -216,8 +216,7 @@ template<std::size_t N>
       m_normedString.reserve(str.length() );
       m_wordList.clear();
 // 1st step: sanitize UTF8, to_lower, replace non-alphanumeric with " "
-      for (utf8_iterator str_i = str.utf8_begin(); str_i != str.utf8_end(); ++str_i) {
-        wint_t cChar = str_i.codepoint();
+      for (wint_t cChar: const_simple_utf8_iterator(str) ) {
         if (std::iswalnum(cChar) ) stringAppendUtfCodepoint(m_normedString, towlower(cChar));
         else switch (cChar) {
           case '&':

@@ -24,7 +24,7 @@ cSortedVector<int> cTVScraperSetup::getAllTV_Shows() {
 // add all TV Shows from recordings & from config, where we create recordings for missing episodes.
 // don't add TV Shows from tv2 / EPG events, as these are too many
 // add all TV Shows from recordings
-  cSqlValue<int> sql(&m_db, "select DISTINCT movie_tv_id from recordings2 where season_number != -100");
+  cSqlValue<int> sql(&m_db, "SELECT DISTINCT movie_tv_id FROM recordings2 WHERE season_number != -100 AND season_number != -101");
   for (int movie_tv_id: sql) result.insert(movie_tv_id);
 // add all TV Shows from config, where we create recordings for missing episodes
   cTVScraperConfigLock l;

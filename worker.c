@@ -252,7 +252,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
         }
         if (movieOrTv && movieOrTv->getType() == tSeries && movieOrTv->getEpisode() != 0) {
           std::string title, episodeName;
-          if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr, nullptr)) {
+          if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr)) {
             cToSvConcat description(sEoR.Description() );
             description.concat("\n", config.m_description_delimiter, " ", title);
             description.concat("\n", tr("Episode Name:"), " ", episodeName);
@@ -327,7 +327,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
 void cTVScraperWorker::ScrapRecordings(void) {
   if (config.GetReadOnlyClient() ) return;
   if (m_recording.empty() ) db->ClearRecordings2();
-  else  {
+  else {
     LOCK_RECORDINGS_READ;
     const cRecording *rec = Recordings->GetByName(m_recording.c_str() );
     if (!rec) {
@@ -343,7 +343,6 @@ void cTVScraperWorker::ScrapRecordings(void) {
     db->DeleteEventOrRec(&sRecording);
   }
 
-  cMovieOrTv *movieOrTv = NULL;
   std::vector<std::string> recordingFileNames;
   if (m_recording.empty() ) {
     {
@@ -356,6 +355,7 @@ void cTVScraperWorker::ScrapRecordings(void) {
   }
   else recordingFileNames.push_back(m_recording);
   for (const string &filename: recordingFileNames) {
+    cMovieOrTv *movieOrTv = nullptr;
     {
       LOCK_RECORDINGS_READ;
       const cRecording *rec = Recordings->GetByName(filename.c_str() );
@@ -370,14 +370,14 @@ void cTVScraperWorker::ScrapRecordings(void) {
         movieOrTv = SearchEventOrRec.Scrape(statistics);
       }
     }
-// here, the read lock is released, so wait a short time, in case someone needs a write lock
-    waitCondition.TimedWait(mutex, 100);
     if (movieOrTv) {
       movieOrTv->DownloadImages(m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, filename);
       delete movieOrTv;
-      movieOrTv = NULL;
+      movieOrTv = nullptr;
     }
     if (!Running() ) break;
+// here, the read lock is released, so wait a short time, in case someone needs a write lock
+    waitCondition.TimedWait(mutex, 100);
     bool newRec = CheckRunningTimers();
     if (newRec) backup_requested = true;
     if (backup_requested) {
@@ -455,7 +455,7 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
   } // timer lock is released
   for (const string &filename: recordingFileNames) {
 // loop over all recordings with running timers
-    cMovieOrTv *movieOrTv = NULL;
+    cMovieOrTv *movieOrTv = nullptr;
     std::string epgImagePath;
     std::string recordingImagePath;
     { // in this block we have recording locks
@@ -479,15 +479,17 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
 
         int r = db->SetRecording(&sRecording);
         if (r == 2) {
+// return 2 if the movieTv assigned to the event was not yet assigned to the recording, but it is done now
           newRecData = true;
           movieOrTv = cMovieOrTv::getMovieOrTv(db, recording);
           if (movieOrTv) {
             movieOrTv->copyImagesToRecordingFolder(recording->FileName() );
             delete movieOrTv;
-            movieOrTv = NULL;
+            movieOrTv = nullptr;
           }
         }
         if (r == 0) {
+// return 0 if no movieTv is assigned to the event
           tEventID eventID = sRecording.EventID();
           std::string channelIDs = sRecording.ChannelIDs();
           esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
@@ -496,20 +498,19 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
             int statistics;
             movieOrTv = SearchEventOrRec.Scrape(statistics);
             if (movieOrTv) newRecData = true;
-            else
-              db->exec("INSERT or REPLACE INTO recordings2 (event_id, event_start_time, recording_start_time, channel_id, movie_tv_id, season_number) VALUES (?, ?, ?, ?, 0, -101)", sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
+            else db->ClearRuntimeDurationDeviation(recording);
           }
         }
       } else {
 // entry in recordings2 does exist. Delete any cached runtime/duration deviation (still recording -> still changing runtime)
-        db->exec("UPDATE recordings2 SET runtime = -1, duration_deviation = -1 WHERE event_id = ? and event_start_time = ? AND (recording_start_time is NULL OR recording_start_time = ?) and channel_id = ?", sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
+        db->ClearRuntimeDurationDeviation(recording);
       }
     } // the locks are released
     waitCondition.TimedWait(mutex, 1);  // allow others to get the locks
     if (movieOrTv) {
       movieOrTv->DownloadImages(m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, filename);
       delete movieOrTv;
-      movieOrTv = NULL;
+      movieOrTv = nullptr;
     }
     cToSvConcat fanartImg(filename, "/fanart.jpg");
     if (!FileExistsImg(fanartImg) && !epgImagePath.empty() ) {
@@ -517,10 +518,11 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
       CopyFileImg(epgImagePath, fanartImg);
 //    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), recordingImagePath.c_str() );
       CopyFileImg(epgImagePath, recordingImagePath);
-      if (!newRecData) TouchFile(config.GetRecordingsUpdateFileName().c_str());
+      if (!newRecData) {
+        TouchFile(config.GetRecordingsUpdateFileName().c_str());
+      }
     }
   }
-  if (newRecData && !recordingFileNames.empty() ) TouchFile(config.GetRecordingsUpdateFileName().c_str());
   return newRecData;
 }
 
@@ -565,8 +567,6 @@ void cTVScraperWorker::Action(void) {
         ScrapRecordings();
         scanVideoDir = false;
         m_recording.clear();
-        dsyslog("tvscraper: touch \"%s\"", config.GetRecordingsUpdateFileName().c_str());
-        TouchFile(config.GetRecordingsUpdateFileName().c_str());
       }
       dsyslog("tvscraper: scanning video dir done");
       continue;

@@ -95,6 +95,7 @@ cTVScraperConfig config;
 #include "images.c"
 #include "autoTimers.c"
 #include "services.c"
+#include "vdr/status.h"
 
 static const char *VERSION        = "1.2.12";
 static const char *DESCRIPTION    = "Scraping movie and series info";
@@ -130,6 +131,28 @@ class cExtEpgHandler : public cEpgHandler
       return false;
     }
 };
+class cStatusMonitor: public cStatus {
+  public:
+    cStatusMonitor(cTVScraperDB *db): m_db(db) {}
+    virtual void Recording(const cDevice *Device, const char *Name, const char *FileName, bool On) {
+               // The given DVB device has started (On = true) or stopped (On = false) recording Name.
+               // Name is the name of the recording, without any directory path. The full file name
+               // of the recording is given in FileName, which may be NULL in case there is no
+               // actual file involved. If On is false, Name may be NULL.
+      if (On || !FileName) return;
+
+      LOCK_RECORDINGS_READ;
+      const cRecording *rec = Recordings->GetByName(FileName);
+      if (!rec) {
+        esyslog("ERROR, tvscraper, couldn't get recording with FileName %s", FileName);
+        return;
+      }
+      m_db->ClearRuntimeDurationDeviation(rec);
+      isyslog("tvscraper, recording %s stopped", FileName);
+    }
+  private:
+    cTVScraperDB *m_db;
+};
 
 class cTVScraperLastMovieLock {
   private:
@@ -149,14 +172,14 @@ class cPluginTvscraper : public cPlugin {
 private:
     bool cacheDirSet;
     cTVScraperDB *db;
+    cStatusMonitor *m_statusMonitor = nullptr;
     cTVScraperWorker *workerThread;
     cOverRides *overrides;
     int m_movie_tv_id = 0;
     int m_season_number = 0;
     int m_episode_number = 0;
-    cExtEpgHandler *extEpgHandler = NULL;
 public:
-    cPluginTvscraper(void);
+    cPluginTvscraper() {}
     virtual ~cPluginTvscraper();
     virtual const char *Version(void) { return VERSION; }
     virtual const char *Description(void) { return DESCRIPTION; }
@@ -166,7 +189,6 @@ public:
     virtual bool Start(void);
     virtual void Stop(void);
     virtual void Housekeeping(void);
-    virtual void MainThreadHook(void);
     virtual cString Active(void);
     virtual time_t WakeupTime(void);
     virtual const char *MainMenuEntry(void) { return NULL; }
@@ -179,12 +201,9 @@ public:
     virtual cString SVDRPCommand(const char *Command, const char *Option, int &ReplyCode);
 };
 
-cPluginTvscraper::cPluginTvscraper(void) {
-// create, but never delete (because VDR deletes this during shutdown)
-  extEpgHandler = new cExtEpgHandler();
-}
-
 cPluginTvscraper::~cPluginTvscraper() {
+  if (m_statusMonitor) delete m_statusMonitor;
+  m_statusMonitor = nullptr;
 }
 
 const char *cPluginTvscraper::CommandLineHelp(void) {
@@ -232,6 +251,9 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
 }
 
 bool cPluginTvscraper::Initialize(void) {
+// create, but never delete (because VDR deletes this during shutdown)
+// see also https://www.vdr-portal.de/forum/thread/136712-gel%C3%B6st-segmentation-fault-bei-aufruf-von-vdr-help-mit-installierten-plugin-tvscr/?postID=1379206#post1379206
+
   if (!cacheDirSet) {
     config.SetBaseDir(cPlugin::CacheDirectory(PLUGIN_NAME_I18N));
     cacheDirSet = true;
@@ -240,24 +262,30 @@ bool cPluginTvscraper::Initialize(void) {
     esyslog("tvscraper: ERROR calling curl_global_init");
     return false;
   }
+// connect to sqlite databease
+  db = new cTVScraperDB();
+  if (!db->Connect()) {
+    esyslog("tvscraper: could not connect to Database. Aborting!");
+    return false;
+  };
+  config.m_db = db;
+// start status monitor
+  m_statusMonitor = new cStatusMonitor(db);
+// start epg handlaer
+  new cExtEpgHandler();
+
   return true;
 }
 
 bool cPluginTvscraper::Start(void) {
-    config.Initialize();
-    db = new cTVScraperDB();
-    if (!db->Connect()) {
-        esyslog("tvscraper: could not connect to Database. Aborting!");
-        return false;
-    };
-    config.m_db = db;
-    overrides = new cOverRides();
-    overrides->ReadConfig(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N), "override.conf");
-    overrides->ReadConfig(cPlugin::ResourceDirectory(PLUGIN_NAME_I18N), "override_tvs.conf");
-    workerThread = new cTVScraperWorker(db, overrides);
-    workerThread->SetDirectories();
-    workerThread->Start();
-    return true;
+  config.Initialize();
+  overrides = new cOverRides();
+  overrides->ReadConfig(cPlugin::ConfigDirectory(PLUGIN_NAME_I18N), "override.conf");
+  overrides->ReadConfig(cPlugin::ResourceDirectory(PLUGIN_NAME_I18N), "override_tvs.conf");
+  workerThread = new cTVScraperWorker(db, overrides);
+  workerThread->SetDirectories();
+  workerThread->Start();
+  return true;
 }
 
 void cPluginTvscraper::Stop(void) {
@@ -272,9 +300,6 @@ void cPluginTvscraper::Stop(void) {
 }
 
 void cPluginTvscraper::Housekeeping(void) {
-}
-
-void cPluginTvscraper::MainThreadHook(void) {
 }
 
 cString cPluginTvscraper::Active(void) {
@@ -308,6 +333,12 @@ cMovieOrTv *cPluginTvscraper::GetMovieOrTv(const cEvent *event, const cRecording
 }
 
 bool cPluginTvscraper::Service(const char *Id, void *Data) {
+    if (strcmp(Id, "GetScraperVideo_v01") == 0) {
+        if (Data == nullptr) return true;
+        cGetScraperVideo_v01* call = (cGetScraperVideo_v01*) Data;
+        call->m_scraperVideo = std::make_unique<cScraperVideoImp>(call->m_event, call->m_recording, db);
+        return true;
+    }
     if (strcmp(Id, "GetScraperVideo") == 0) {
         if (Data == NULL) return true;
         cGetScraperVideo* call = (cGetScraperVideo*) Data;
@@ -611,12 +642,12 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
     }
 
     if (strcmp(Id, "GetEnvironment") == 0) {
-        if (Data == NULL) return true;
-        cEnvironment* call = (cEnvironment*) Data;
-        call->basePath = config.GetBaseDir();
-        call->seriesPath = config.GetBaseDirSeries();
-        call->moviesPath = config.GetBaseDirMovies();
-        return true;
+      if (Data == NULL) return true;
+      cEnvironment* call = (cEnvironment*) Data;
+      call->basePath = config.GetBaseDir();
+      call->seriesPath = config.GetBaseDirSeries();
+      call->moviesPath = config.GetBaseDirMovies();
+      return true;
     }
 
   return false;
@@ -636,7 +667,10 @@ const char **cPluginTvscraper::SVDRPHelpPages(void) {
     "    Scrap EPG.\n"
     "    Before that, delete all existing scrap results for EPG.\n"
     "    Note: Cache is not deleted, and will be used.\n"
-    "    Alternate command: ScrapEPG",
+    "    Alternate command: ScrapEPG.\n"
+    "CRDD <recording>\n"
+    "    Clear cached runtime and duration deviation for this recording.\n"
+    "    Use full path name to the recording directory, including the video directory and the actual '*.rec'.",
     NULL
     };
   return HelpPages;
@@ -648,11 +682,23 @@ cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, 
       LOCK_RECORDINGS_READ;
       const cRecording *rec = Recordings->GetByName(Option);
       if (!rec) return cString::sprintf("Recording %s not found, use full path name to the recording directory, including the video directory and the actual '*.rec'", Option);
+      if (!db->ClearRuntimeDurationDeviation(rec)) return cString::sprintf(
+        "Error deleting cached runtime and duration deviation of %s, read only client?", Option);
     }
 
     workerThread->InitVideoDirScan(Option);
     if (Option && *Option) return cString::sprintf("Scraping %s started", Option);
     else return cString("Scraping Video Directory started");
+  }
+  if ((strcasecmp(Command, "CRDD") == 0) || (strcasecmp(Command, "ClearRuntimeAndDurationDeviation") == 0)) {
+    if (!Option || !*Option) return cString::sprintf("Usage: DRDD <recording>, the <recording> is mandatory");
+    LOCK_RECORDINGS_READ;
+    const cRecording *rec = Recordings->GetByName(Option);
+    if (!rec) return cString::sprintf(
+      "Recording %s not found, use full path name to the recording directory, including the video directory and the actual '*.rec'", Option);
+    if (!db->ClearRuntimeDurationDeviation(rec)) return cString::sprintf(
+      "Error deleting cached runtime and duration deviation of %s, read only client?", Option);
+    return cString::sprintf("Cached runtime and duration deviation of %s deleted", Option);
   }
   if ((strcasecmp(Command, "SCEP") == 0) || (strcasecmp(Command, "ScrapEPG") == 0)) {
     workerThread->InitManualScan();

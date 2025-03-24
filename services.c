@@ -19,9 +19,10 @@ class cCharacterImp: public cCharacter {
     const cTvMedia m_image;
 };
 
-class cScraperVideoImp: public cScraperVideo {
+class cScraperVideoImp: public cScraperVideo_v01 {
   public:
     cScraperVideoImp(const cEvent *event, const cRecording *recording, cTVScraperDB *db);
+    virtual ~cScraperVideoImp();
 
 // with the following methods you can request the "IDs of the identified object"
     virtual tvType getVideoType(); // if this is tNone, nothing was identified by scraper. Still, some information (image, duration deviation ...) might be available
@@ -41,28 +42,30 @@ class cScraperVideoImp: public cScraperVideo {
 
 // episode specific ======================================
     virtual bool getEpisode(std::string *name, std::string *overview, int *absoluteNumber, std::string *firstAired, int *runtime, float *voteAverage, int *voteCount, std::string *imdbId);
-    virtual ~cScraperVideoImp();
+// new methods in cScraperVideo_v01:
+    bool has_changed(const cRecording *recording, int &runtime);
   private:
     cTvMedia getEpgImage(bool fullPath);
     tChannelID m_channelID;
     tEventID m_eventID = 0;
     int m_recordingID = -1;
     cTVScraperDB *m_db;
-    int m_runtime_guess = 0; // runtime of thetvdb, which does best match to runtime of recording. Ignore if <=0
     int m_duration_deviation = -4; // -4: not checked
     int m_runtime = -2;  // runtime of episode / movie. Most reliable. -2: not checked. -1, 0: checked, but not available
-    int m_collectionId = -2; // collection ID. -2: not checked
     cMovieOrTv *m_movieOrTv = nullptr;
     bool isEpisodeIdentified();
 };
 
-cScraperVideoImp::cScraperVideoImp(const cEvent *event, const cRecording *recording, cTVScraperDB *db):cScraperVideo() {
+cScraperVideoImp::cScraperVideoImp(const cEvent *event, const cRecording *recording, cTVScraperDB *db) {
   if (event && recording) {
     esyslog("tvscraper: ERROR calling vdr service interface, call->event && call->recording are provided. Please set one of these parameters to NULL");
     return;
   }
   m_db = db;
-  m_movieOrTv = cMovieOrTv::getMovieOrTv(db, event, recording, &m_runtime_guess, &m_duration_deviation);
+  m_movieOrTv = cMovieOrTv::getMovieOrTv(db, event, recording, &m_runtime, &m_duration_deviation);
+  if (m_duration_deviation == -2) m_duration_deviation = 0;
+// for duration_deviation:
+// -2 : no data available -> in this case, we just return 0
   if (event) {
     m_channelID = event->ChannelID();
     m_eventID = event->EventID();
@@ -107,29 +110,25 @@ int cScraperVideoImp::getDbId() {
 }
 
 bool cScraperVideoImp::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
-  m_runtime = 0;
-  m_collectionId = 0;
-  bool scraperDataAvaiable = false;
-  if (m_movieOrTv) scraperDataAvaiable = m_movieOrTv->getOverview(title, episodeName, releaseDate, &m_runtime, imdbId, &m_collectionId, collectionName);
-  if (collectionId) *collectionId = m_collectionId;
-  if (runtime) *runtime = m_runtime > 0?m_runtime:m_runtime_guess;
-  return scraperDataAvaiable;
+  if (runtime) *runtime = m_runtime>0?m_runtime:0;
+  if (m_movieOrTv) return m_movieOrTv->getOverview(title, episodeName, releaseDate, imdbId, collectionId, collectionName);
+  return false;
 }
 
 int cScraperVideoImp::getDurationDeviation() {
   if (m_duration_deviation >= 0) return m_duration_deviation;
-  if (m_recordingID < 0) return 0;
-  if (m_runtime == -2 && m_movieOrTv) {
-    m_runtime = 0;
-    m_collectionId = 0;
-    m_movieOrTv->getOverview(NULL, NULL, NULL, &m_runtime, NULL, &m_collectionId);
-  }
+// for duration_deviation:
+// -1 : currently no data available, but should be available later (recording length unkown as recording is ongoing or destination of cut/copy/move)
+// -2 : no data available
+// -3 : no data in recordings2 (i.e. no data in this cache)
+
   LOCK_RECORDINGS_READ;
   const cRecording* recording = Recordings->GetById(m_recordingID);
+  if (!recording) { m_duration_deviation = 0; return 0; }
   csRecording sRecording(recording);
 
 // note: m_runtime <=0 is considered as no runtime information by sRecording->durationDeviation(m_runtime)
-  m_duration_deviation = sRecording.durationDeviation(m_runtime > 0?m_runtime:m_runtime_guess);
+  m_duration_deviation = sRecording.durationDeviation(m_runtime);
   if (m_duration_deviation >= 0) m_db->SetDurationDeviation(recording, m_duration_deviation);
   else m_duration_deviation = 0;
 
@@ -199,10 +198,10 @@ std::vector<std::unique_ptr<cCharacter>> cScraperVideoImp::getCharacters(bool fu
 
 bool cScraperVideoImp::getMovieOrTv(std::string *title, std::string *originalTitle, std::string *tagline, std::string *overview, std::vector<std::string> *genres, std::string *homepage, std::string *releaseDate, bool *adult, int *runtime, float *popularity, float *voteAverage, int *voteCount, std::vector<std::string> *productionCountries, std::string *imdbId, int *budget, int *revenue, int *collectionId, std::string *collectionName, std::string *status, std::vector<std::string> *networks, int *lastSeason)
 {
-// only for tMovie: runtime, adult, collection*, tagline, budget, revenue, homepage, productionCountries
+// only for tMovie: adult, collection*, tagline, budget, revenue, homepage, productionCountries
 // only for tSeries: status, networks, lastSeason
-  m_runtime = 0;
-  m_collectionId = 0;
+// for tSeries runtime is the episode runtime, while the other data are not episode related
+  int l_collectionId = 0;
   if (!m_movieOrTv) return false;
   const char *productionCountries_ = NULL;
   const char *genres_ = NULL;
@@ -212,11 +211,11 @@ bool cScraperVideoImp::getMovieOrTv(std::string *title, std::string *originalTit
     const char *sql_m = "select movie_title, movie_original_title, movie_tagline, movie_overview, " \
       "movie_adult, movie_collection_id, movie_collection_name, " \
       "movie_budget, movie_revenue, movie_genres, movie_homepage, " \
-      "movie_release_date, movie_runtime, movie_popularity, movie_vote_average, movie_vote_count, " \
+      "movie_release_date, movie_popularity, movie_vote_average, movie_vote_count, " \
       "movie_production_countries, movie_IMDB_ID from movies3 where movie_id = ?";
     stmt.finalizePrepareBindStep(cStringRef(sql_m), m_movieOrTv->dbID());
-    if (!stmt.readRow(title, originalTitle, tagline, overview, adult, m_collectionId, collectionName, budget, revenue, genres_, homepage, releaseDate, m_runtime, popularity, voteAverage, voteCount, productionCountries_, imdbId) ) return false;
-    m_movieOrTv->m_collectionId = m_collectionId;
+    if (!stmt.readRow(title, originalTitle, tagline, overview, adult, l_collectionId, collectionName, budget, revenue, genres_, homepage, releaseDate, popularity, voteAverage, voteCount, productionCountries_, imdbId) ) return false;
+    m_movieOrTv->m_collectionId = l_collectionId;
     if (status) *status = "";
     if (lastSeason) *lastSeason = 0;
   } else {
@@ -235,8 +234,8 @@ bool cScraperVideoImp::getMovieOrTv(std::string *title, std::string *originalTit
       if (collectionName) *collectionName = "";
     } else return false;
   }
-  if (runtime) *runtime = m_runtime;
-  if (collectionId) *collectionId = m_collectionId;
+  if (runtime) *runtime = m_runtime>0?m_runtime:0;
+  if (collectionId) *collectionId = l_collectionId;
   if (genres) { genres->clear(); stringToVector(*genres, genres_); }
   if (productionCountries) { productionCountries->clear(); stringToVector(*productionCountries, productionCountries_); }
   if (networks) { networks->clear(); stringToVector(*networks, networks_); }
@@ -268,12 +267,12 @@ bool cScraperVideoImp::getEpisode(std::string *name, std::string *overview, int 
   if (langInt > 0) {
     cSql stmt_s_e(m_db,
       "SELECT episode_id, episode_absolute_number, episode_air_date, " \
-      "episode_run_time, episode_vote_average, episode_vote_count, episode_overview, " \
+      "episode_vote_average, episode_vote_count, episode_overview, " \
       "episode_IMDB_ID " \
       "FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?",
        m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode());
     int episode_id;
-    if (!stmt_s_e.readRow(episode_id, absoluteNumber, firstAired, runtime, voteAverage, voteCount, overview, imdbId) ) return false;
+    if (!stmt_s_e.readRow(episode_id, absoluteNumber, firstAired, voteAverage, voteCount, overview, imdbId) ) return false;
     cSql stmt_name(m_db, "SELECT episode_name FROM tv_s_e_name2 WHERE episode_id = ? AND language_id = ?", episode_id, langInt);
     if (!stmt_name.readRow(name) ) {
       cSql stmt_name2(m_db, "SELECT episode_name FROM tv_s_e_name2 WHERE episode_id = ?", episode_id);
@@ -282,12 +281,52 @@ bool cScraperVideoImp::getEpisode(std::string *name, std::string *overview, int 
   } else {
     cSql stmt(m_db,
       "SELECT episode_absolute_number, episode_name, episode_air_date, " \
-      "episode_run_time, episode_vote_average, episode_vote_count, episode_overview, " \
+      "episode_vote_average, episode_vote_count, episode_overview, " \
       "episode_IMDB_ID " \
       "FROM tv_s_e WHERE tv_id = ? AND season_number = ? AND episode_number = ?",
        m_movieOrTv->dbID(), m_movieOrTv->getSeason(), m_movieOrTv->getEpisode());
-    if (!stmt.readRow(absoluteNumber, name, firstAired, runtime, voteAverage, voteCount, overview, imdbId) ) return false;
+    if (!stmt.readRow(absoluteNumber, name, firstAired, voteAverage, voteCount, overview, imdbId) ) return false;
   }
-  if (runtime && *runtime <= 0) *runtime = m_runtime_guess;
+  if (runtime) *runtime = m_runtime>0?m_runtime:0;
+  return true;
+}
+bool cScraperVideoImp::has_changed(const cRecording *recording, int &runtime) {
+  if (!recording) {
+    esyslog("tvscraper: ERROR calling vdr service interface cScraperVideo_v01::has_changed, recording missing");
+    return false;
+  }
+  if (m_recordingID != recording->Id()) {
+    if (m_recordingID == -1)
+      esyslog("tvscraper: ERROR calling vdr service interface cScraperVideo_v01::has_changed, but this was not created with a recording %s", recording->Name() );
+    else
+      esyslog("tvscraper: ERROR calling vdr service interface cScraperVideo_v01::has_changed, but this was not created with a different recording %s", recording->Name() );
+    return false;
+  }
+  m_runtime = -2;
+  m_duration_deviation = -4;
+  int l_movie_tv_id, l_season_number, l_episode_number;
+  if (!m_db->GetMovieTvID(recording, l_movie_tv_id, l_season_number, l_episode_number, &m_runtime, &m_duration_deviation)) {
+    if (m_duration_deviation == -2) m_duration_deviation = 0;
+    if (!m_movieOrTv) return false;   // there is nothing assigned, and this did not change
+    delete m_movieOrTv;
+    m_movieOrTv = nullptr;
+    runtime = 0;
+    return true;
+  }
+  if (m_duration_deviation == -2) m_duration_deviation = 0;
+  runtime = m_runtime>0?m_runtime:0;
+  if (l_season_number == -100) {
+// movie
+    if (m_movieOrTv && l_movie_tv_id == m_movieOrTv->dbID()) return false; // nothing changed
+    if (m_movieOrTv) delete m_movieOrTv;
+    m_movieOrTv = new cMovieMoviedb(m_db, l_movie_tv_id);
+    return true;
+  }
+// series
+  if (m_movieOrTv && l_movie_tv_id == m_movieOrTv->dbID() &&
+      l_season_number == m_movieOrTv->getSeason() && l_episode_number == m_movieOrTv->getEpisode() ) return false; // nothing changed
+  if (m_movieOrTv) delete m_movieOrTv;
+  if (l_movie_tv_id > 0) m_movieOrTv = new cTvMoviedb(m_db, l_movie_tv_id, l_season_number, l_episode_number);
+        else             m_movieOrTv = new cTvTvdb(m_db,   -l_movie_tv_id, l_season_number, l_episode_number);
   return true;
 }

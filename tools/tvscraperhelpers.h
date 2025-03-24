@@ -226,22 +226,21 @@ class cYears {
     cYears(const cYears&) = delete;
     cYears &operator= (const cYears &) = delete;
 // note: iterate first over exact matches, then near matches
-    class iterator {
+    class const_iterator {
         const char *m_years;
       public:
-//      using iterator_category = std::forward_iterator_tag;
-        explicit iterator(const char *years): m_years(years) { }
-        iterator& operator++() {
+        explicit const_iterator(const char *years): m_years(years) { }
+        const_iterator& operator++() {
           if (*m_years) m_years++;
           return *this;
         }
-        bool operator!=(iterator other) const { return m_years != other.m_years; }
+        bool operator!=(const_iterator other) const { return m_years != other.m_years; }
         int operator*() const {
           return (*m_years) + 1900;
         }
       };
-    iterator begin() const { return iterator(m_years); }
-    const iterator end() const { return iterator(m_years + m_years_p); }
+    const_iterator begin() const { return const_iterator(m_years); }
+    const const_iterator end() const { return const_iterator(m_years + m_years_p); }
     void addYear(const char *year) { addYear(yearToInt(year)); }
     void addYear(int year) {
       if (m_explicitFound) return;
@@ -368,14 +367,15 @@ inline void StringRemoveSuffix(std::string &str, cSv suffix) {
   str.erase(str.length()-suffix.length());
 }
 
-inline utf8_iterator utf8LastLetter(cSv s) {
+inline const_utf8_iterator<typename cSv::const_iterator> utf8LastLetter(cSv s) {
 // return position directly after the last letter
-  utf8_iterator it = s.utf8_end();
-  while (it != s.utf8_begin() ) {
+  const_utf8_iterator it(s);
+  it.move_to_end();
+  while (it != iterator_begin() ) {
     --it;
-    wint_t cp = it.codepoint();
+    wint_t cp = *it;
     if (isdigit(cp)) continue;
-    if (std::iswalnum(cp)) { ++it; return it; }
+    if (iswalnum(cp)) { ++it; return it; }
   }
   return it;
 }
@@ -400,7 +400,7 @@ inline int lenWithoutLastPartWithP(cSv sv) {
 
 inline int lenWithoutPartToIgnoreInSearch(cSv sv) {
 // we keep the last letter and all digits directly following this letter
-  utf8_iterator it = utf8LastLetter(sv);
+  const_utf8_iterator<typename cSv::const_iterator> it = utf8LastLetter(sv);
   size_t found = sv.find(": ", it.pos());
   if (found != std::string_view::npos) return found;
   found = sv.find(" #", it.pos());
@@ -596,15 +596,6 @@ inline T lexical_cast(cSv sv, T returnOnError = T(), const char *context = nullp
     isyslog(PLUGIN_NAME_I18N ": WARNING, converted \"%.*s\" to invalid tChannelID, context %s", (int)sv.length(), sv.data(), context);
   return ret;
 }
-/*
-class ctChannelID_iterator: public cSplit::iterator {
-  public:
-    ctChannelID_iterator(const cSplit::iterator &si): cSplit::iterator(si) {}
-    tChannelID operator*() const {
-      return lexical_cast<tChannelID>(cSplit::iterator::operator *() );
-    }
-};
-*/
 
 // =========================================================
 // special container:
@@ -616,7 +607,7 @@ class ctChannelID_iterator: public cSplit::iterator {
 // used to save data in setup.conf
 template<class C>
 std::string getStringFromSet(const C &in, char delim = ';') {
-  using T = typename std::iterator_traits<typename C::iterator>::value_type;
+  using T = typename std::iterator_traits<typename C::const_iterator>::value_type;
   cToSvConcat result;
   for (const T &i: in) {
     result << i << delim;

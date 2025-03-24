@@ -120,15 +120,15 @@ void cTVScraperConfig::readNetworks() {
       esyslog("tvscraper: ERROR in networks.json, TheTVDB company ID %d and/or TheTVDB company name %s missing", TheTVDB_company_ID, TheTVDB_company_name?TheTVDB_company_name:"missing");
       continue;
     }
-    m_TheTVDB_company_name_networkID.insert({std::string(cToSvToLower(TheTVDB_company_name, g_locale)), TheTVDB_company_ID});
+    m_TheTVDB_company_name_networkID.insert({std::string(cToSvToLower(TheTVDB_company_name)), TheTVDB_company_ID});
     for (auto &j_channelName: cJsonArrayIterator(j_network, "TV channel names")) {
-      m_channelName_networkID.insert({std::string(cToSvToLower(j_channelName.GetString(), g_locale)), TheTVDB_company_ID});
+      m_channelName_networkID.insert({std::string(cToSvToLower(j_channelName.GetString())), TheTVDB_company_ID});
     }
   }
 }
 int cTVScraperConfig::Get_TheTVDB_company_ID_from_TheTVDB_company_name(cSv TheTVDB_company_name) {
   if (TheTVDB_company_name.empty() ) return 0;
-  auto f = m_TheTVDB_company_name_networkID.find(std::string_view(cToSvToLower(TheTVDB_company_name, g_locale)));
+  auto f = m_TheTVDB_company_name_networkID.find(std::string_view(cToSvToLower(TheTVDB_company_name)));
   if (f == m_TheTVDB_company_name_networkID.end()) return 0;
   return f->second;
 }
@@ -142,9 +142,9 @@ int cTVScraperConfig::Get_TheTVDB_company_ID_from_channel_name(cSv channel_name)
   auto f_HD = channel_name.find(" HD ");
   if (f_HD == std::string_view::npos) {
     auto f_UHD = channel_name.find(" UHD ");
-    if (f_UHD == std::string_view::npos) cn_lc.appendToLower(channel_name, g_locale);
-    else cn_lc.appendToLower(channel_name.substr(0, f_UHD), g_locale).appendToLower(channel_name.substr(f_UHD+4), g_locale);
-  } else cn_lc.appendToLower(channel_name.substr(0, f_HD), g_locale).appendToLower(channel_name.substr(f_HD+3), g_locale);
+    if (f_UHD == std::string_view::npos) cn_lc.appendToLower(channel_name);
+    else cn_lc.appendToLower(channel_name.substr(0, f_UHD)).appendToLower(channel_name.substr(f_UHD+4));
+  } else cn_lc.appendToLower(channel_name.substr(0, f_HD)).appendToLower(channel_name.substr(f_HD+3));
   auto f = m_channelName_networkID.find(std::string_view(cn_lc));
   if (f == m_channelName_networkID.end()) return 0;
   return f->second;

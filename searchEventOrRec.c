@@ -219,7 +219,7 @@ void cSearchEventOrRec::initSearchString(std::string &searchString, bool removeL
     m_overrides->RemovePrefix(searchString);
     if (removeLastPartWithP) StringRemoveLastPartWithP(searchString); // Year, number of season/episode, ... but not a part of the name
   }
-  searchString = std::string(cToSvToLower(searchString, g_locale));
+  searchString = std::string(cToSvToLower(searchString));
 }
 
 cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {

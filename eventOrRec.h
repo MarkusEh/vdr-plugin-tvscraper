@@ -16,11 +16,12 @@ public:
   virtual tEventID EventID() const { return m_event->EventID(); }
   virtual time_t StartTime() const { return m_event->StartTime(); }
   virtual time_t RecordingStartTime() const { return 0; }
+  virtual int RecordingId() const { return -1; }
   virtual time_t EndTime() const { return m_event->EndTime(); }
   virtual time_t EventVps() const { return m_event->Vps(); }
   virtual int EventDuration() const { return m_event->Duration(); } // this is always the event duration, for recordings it is m_recording->Info()->Event()->Duration()
   virtual int DurationInSec() const { return EventDuration(); }
-  virtual const cRecording *Recording() const { return NULL; }
+  virtual const cRecording *Recording() const { return nullptr; }
   virtual void AddYears(cYears &years) const;
   virtual int DurationRange(int &durationInMinLow, int &durationInMinHigh);
   int DurationDistance(int DurationInMin);
@@ -52,6 +53,7 @@ public:
   virtual const cRecording *Recording() const { return m_recording; }
   virtual time_t StartTime() const { return m_event->StartTime()?m_event->StartTime(): m_recording->Start(); } // Timervorlauf, die Aufzeichnung startet 2 min früher
   virtual time_t RecordingStartTime() const { return m_recording->Start(); }
+  virtual int RecordingId() const { return m_recording->Id() ; }
   virtual int DurationInSec() const { return m_event->Duration()?m_event->Duration():m_recording->FileName() ? m_recording->LengthInSeconds() : 0; }
   virtual int DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }

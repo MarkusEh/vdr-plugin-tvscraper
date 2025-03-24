@@ -140,12 +140,13 @@ std::string cMovieMoviedb::getCollectionName() {
   return cSql(m_db, cStringRef(sql), dbID() ).get<std::string>();
 }
 
-bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
+bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, std::string *imdbId, int *collectionId, std::string *collectionName) {
 // return false if no data are available. In this case, paramters will NOT change
   m_collectionId = 0;
   cUseStmt_select_movies3_overview stmt(m_db);
   stmt.stmt()->resetBindStep(dbID() );
-  if (!stmt.stmt()->readRow(title, m_collectionId, collectionName, releaseDate, runtime, imdbId) ) return false;
+  int l_runtime;
+  if (!stmt.stmt()->readRow(title, m_collectionId, collectionName, releaseDate, l_runtime, imdbId) ) return false;
   if (collectionId) *collectionId = m_collectionId;
   if (episodeName) *episodeName = "";
   return true;
@@ -336,9 +337,8 @@ int cTv::searchEpisode(cSv tvSearchEpisodeString_i, const cYears &years, const c
   return best_distance;
 }
 
-bool cTv::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, int *runtime, std::string *imdbId, int *collectionId, std::string *collectionName) {
+bool cTv::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, std::string *imdbId, int *collectionId, std::string *collectionName) {
 // return false if no data are available. In this case, paramters will NOT change
-// return runtime only if episode runtime is available. No guess here (from list of episode runtimes)
 // we start to collect episode information. Data available from episode will not be requested from TV show
 // never available (only for movies): collectionId, collectionName
 
@@ -348,7 +348,7 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
   cUseStmt_select_tv_s_e_name2_tv_s_e stmt_select_tv_s_e_name2_tv_s_e(m_db);
   stmt_s_o.stmt()->resetBindStep(dbID() );
   if ((m_seasonNumber != 0 || m_episodeNumber != 0) &&
-    (episodeName != NULL || imdbId != NULL || releaseDate != NULL || runtime != NULL)) {
+    (episodeName != NULL || imdbId != NULL || releaseDate != NULL)) {
     cSql *stmt;
     if (stmt_s_o.stmt()->readRow() && !stmt_s_o.stmt()->valueInitial(3) ) {
       int langInt = stmt_s_o.stmt()->getInt(3);
@@ -358,7 +358,8 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
       stmt_select_tv_s_e_overview.stmt()->resetBindStep(dbID(), m_seasonNumber, m_episodeNumber);
       stmt = stmt_select_tv_s_e_overview.stmt();
     }
-    if (stmt->readRow(episodeName, releaseDate, runtime, imdbId) ) {
+    int l_runtime;
+    if (stmt->readRow(episodeName, releaseDate, &l_runtime, imdbId) ) {
       episodeDataAvailable = true;
       episodeReleaseDateAvailable = releaseDate && !releaseDate->empty();
       episodeImdbIdAvailable = imdbId && !imdbId->empty();
@@ -389,7 +390,6 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
     if (releaseDate) *releaseDate = stmt_s_o.stmt()->get<cSv>(1);
     if (imdbId) *imdbId = stmt_s_o.stmt()->get<cSv>(2);
     if (episodeName) *episodeName = "";
-    if (runtime) *runtime = 0;
   }
   if (collectionId) *collectionId = 0;
   if (collectionName) *collectionName = "";
@@ -661,9 +661,9 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cEvent *event
 }
 
 cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *recording, int *runtime, int *duration_deviation) {
-  if (!recording) return NULL;
+  if (!recording) return nullptr;
   int movie_tv_id, season_number, episode_number;
-  if(!db->GetMovieTvID(recording, movie_tv_id, season_number, episode_number, runtime, duration_deviation)) return NULL;
+  if(!db->GetMovieTvID(recording, movie_tv_id, season_number, episode_number, runtime, duration_deviation)) return nullptr;
 
   if(season_number == -100) return new cMovieMoviedb(db, movie_tv_id);
   if ( movie_tv_id > 0) return new cTvMoviedb(db, movie_tv_id, season_number, episode_number);
@@ -714,28 +714,22 @@ for (const std::filesystem::directory_entry& dir_entry:
   {
     std::string path = dir_entry.path().filename().string(); // this is required, as the returned string is volatile
     cSplit parts(path, '_');
-//    std::vector<std::string> parts = getSetFromString<std::string,std::vector<std::string>>(dir_entry.path().filename().string(), '_');
     if (parts.size() != 3) {
-//    esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts.size: %zu, filename: %s", parts.size(), dir_entry.path().filename().string().c_str());
       esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts.size: %zu, filename: %s", parts.size(), path.c_str());
       continue;
     }
     auto parts_iter = parts.begin();
-//    time_t eventStartTime = parse_unsigned<time_t>(parts[0]);
     time_t eventStartTime = parse_unsigned<time_t>(*parts_iter);
     cSv channel_id = *(++parts_iter);
-//    tEventID eventID = parse_unsigned<tEventID>(parts[2]);
     tEventID eventID = parse_unsigned<tEventID>(*(++parts_iter));
     if (eventStartTime == 0 || eventID == 0) {
-//      esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts[2]: %.*s, filename: %s", static_cast<int>(parts[2].length()), parts[2].data(), dir_entry.path().filename().string().c_str());
       esyslog("tvscraper, ERROR, deleteOutdatedRecordingImages, parts[2]: %.*s, filename: %s", static_cast<int>((*parts_iter).length()), (*parts_iter).data(), path.c_str());
       continue;
     }
-    const char *sql = "SELECT count(event_id) FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ?";
-//    bool found = db->queryInt(sql, eventID, eventStartTime, parts[1]) > 0;
+    const char *sql = "SELECT COUNT(event_id) FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND channel_id = ?";
     bool found = db->queryInt(sql, eventID, eventStartTime, channel_id) > 0;
 //    esyslog("tvscraper, DEBUG, recording eventID %i eventStartTime %lld channel_id %.*s %s", (int)eventID, (long long)eventStartTime, static_cast<int>(parts[1].length()), parts[1].data(), found?"found":"not found");
-    if (!found) DeleteFile(config.GetBaseDirRecordings() + dir_entry.path().filename().string());
+    if (!found) DeleteFile(cToSvConcat(config.GetBaseDirRecordings(), path));
   }
 }
 
