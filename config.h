@@ -164,7 +164,9 @@ class cTVScraperConfig {
 {48, "mal", "ml-IN", "മലയാളം"},    //  	Malayalam
 {49, "kat", "ka-GE", "ქართული"},   //  	Georgian
 {50, "lav", "lv-LV", "Latviešu"},  //  	Latvian
-// {51, "", "", ""},  //
+{51, "urd", "ur-PK", "اردو"},  //  Urdu
+{52, "mlt", "mt-", "Malti"},  //  Maltese
+// {53, "", "", ""},  //
 };
         cTVScraperDB *m_db = nullptr;
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
