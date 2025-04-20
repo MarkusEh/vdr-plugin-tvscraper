@@ -52,6 +52,7 @@ class cTVScraperSetup: public cMenuSetupPage {
         std::vector<int> m_selectedRecordingFolders;
         std::vector<int> m_selectedTV_Shows;
         int m_NumberOfAdditionalLanguages;
+        int m_writeEpisodeToEpg;
 // END data changed in the menu
         map<tChannelID, int> m_allChannels;  // second is channel number - 1
         map<tChannelID, const char*> m_recChannels;  // second is the channel name

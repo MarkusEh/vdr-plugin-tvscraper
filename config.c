@@ -38,6 +38,7 @@ cTVScraperConfig::cTVScraperConfig():
   m_description_delimiter(tr("Name in external database:"))
 {
     enableDebug = 0;
+    m_writeEpisodeToEpg = 1;
     m_enableAutoTimers = 0;
 }
 
@@ -195,6 +196,9 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
         return true;
     } else if (strcmp(Name, "enableDebug") == 0) {
         enableDebug = atoi(Value);
+        return true;
+    } else if (strcmp(Name, "writeEpisodeToEpg") == 0) {
+        m_writeEpisodeToEpg = atoi(Value);
         return true;
     } else if (strcmp(Name, "enableAutoTimers") == 0) {
         m_enableAutoTimers = atoi(Value);

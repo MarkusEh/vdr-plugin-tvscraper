@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vdr-tvscrapper 0.0.1\n"
 "Report-Msgid-Bugs-To: <see README>\n"
-"POT-Creation-Date: 2024-01-10 20:49+0100\n"
+"POT-Creation-Date: 2025-04-20 19:21+0200\n"
 "PO-Revision-Date: 2013-08-20 08:27+0200\n"
 "Last-Translator: Stefan Braun <louis.braun@gmx.de>\n"
 "Language-Team:\n"
@@ -10,6 +10,9 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
+msgid "Name in external database:"
+msgstr "Name in externer Datenbank:"
 
 msgid "Configure channels to be scraped"
 msgstr "Kanäle zum scrapen festlegen"
@@ -43,6 +46,9 @@ msgstr "Scrapen des Video Verzeichnisses starten"
 
 msgid "Trigger EPG scraping"
 msgstr "EPG Scraping starten"
+
+msgid "Write episode to EPG"
+msgstr "Episode in das EPG schreiben"
 
 msgid "Enable Debug Logging"
 msgstr "Debug Logging aktivieren"
@@ -81,9 +87,6 @@ msgstr "Folge der Serie %.*s, wegen der Aufzeichnung"
 
 msgid "Improve recording"
 msgstr "Verbessern der Aufzeichnung"
-
-msgid "Name in external database:"
-msgstr "Name in externer Datenbank:"
 
 msgid "Episode Name:"
 msgstr "Name der Episode:"

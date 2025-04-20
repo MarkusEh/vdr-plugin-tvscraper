@@ -115,6 +115,7 @@ class cExtEpgHandler : public cEpgHandler
       if (!Event->Description() ) return false;
       if (config.myDescription(Event->Description() )) return true;
 
+      if (!config.m_writeEpisodeToEpg) return false;
       cSv eventDescription = Event->Description();
       size_t pos = eventDescription.find(config.m_description_delimiter);
       if (pos == std::string::npos) return false;

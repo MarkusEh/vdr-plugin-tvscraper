@@ -250,7 +250,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
             time11_max = std::max(timeNeeded, time11_max);
             break;
         }
-        if (movieOrTv && movieOrTv->getType() == tSeries && movieOrTv->getEpisode() != 0) {
+        if (movieOrTv && movieOrTv->getType() == tSeries && movieOrTv->getEpisode() != 0 && config.m_writeEpisodeToEpg) {
           std::string title, episodeName;
           if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr)) {
             cToSvConcat description(sEoR.Description() );
@@ -492,13 +492,16 @@ bool cTVScraperWorker::CheckRunningTimers(void) {
 // return 0 if no movieTv is assigned to the event
           tEventID eventID = sRecording.EventID();
           std::string channelIDs = sRecording.ChannelIDs();
-          esyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
+          dsyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
           if (ConnectScrapers() ) {
             cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, recording->Info()->ChannelName() );
             int statistics;
             movieOrTv = SearchEventOrRec.Scrape(statistics);
             if (movieOrTv) newRecData = true;
-            else db->ClearRuntimeDurationDeviation(recording);
+            else {
+              db->exec("INSERT INTO recordings2 (event_id, event_start_time, recording_start_time, channel_id, movie_tv_id, season_number) VALUES (?, ?, ?, ?, 0, -101)", sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs());
+              db->ClearRuntimeDurationDeviation(recording);
+            }
           }
         }
       } else {

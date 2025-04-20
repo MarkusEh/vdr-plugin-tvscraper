@@ -176,6 +176,7 @@ class cTVScraperConfig {
 
 // list of data that can be changed in the setup menu
         int enableDebug;
+        int m_writeEpisodeToEpg;
 // End of list of data that can be changed in the setup menu
         void Initialize(); // This is called during plugin initialize
         void readNetworks();
@@ -239,6 +240,7 @@ class cTVScraperConfig {
           if (pos == std::string::npos) return description;
           return remove_trailing_whitespace(description.substr(0, pos));
         }
+/*
         cSv splitDescription(cSv description, cSv &secondPart) {
           size_t pos = description.find(m_description_delimiter);
           if (pos == std::string::npos) {
@@ -248,6 +250,7 @@ class cTVScraperConfig {
           secondPart = description.substr(pos);
           return remove_trailing_whitespace(description.substr(0, pos));
         }
+*/
         cMeasureTime timeSelectFromRecordings;
         cMeasureTime timeDownloadMedia;
         cMeasureTime timeDownloadActorsMovie;

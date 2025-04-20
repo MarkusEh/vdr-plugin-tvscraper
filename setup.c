@@ -50,6 +50,7 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
   if (config.enableDebug) esyslog("tvscraper: Start of cTVScraperSetup::cTVScraperSetup");
 // copy data from config to local data, which will be directly changed in OSD
   m_enableDebug = config.enableDebug;
+  m_writeEpisodeToEpg = config.m_writeEpisodeToEpg;
   m_enableAutoTimers = config.m_enableAutoTimers;
 // Recording folders
   m_allRecordingFolders = getAllRecordingFolders(m_recordings_width);
@@ -157,6 +158,7 @@ void cTVScraperSetup::Setup(void) {
     }
     Add(new cOsdItem(tr("Trigger scraping Video Directory")));
     Add(new cOsdItem(tr("Trigger EPG scraping")));
+    Add(new cMenuEditBoolItem(tr("Write episode to EPG"), &m_writeEpisodeToEpg));
     Add(new cMenuEditBoolItem(tr("Enable Debug Logging"), &m_enableDebug));
     
     SetCurrent(Get(currentItem));
@@ -263,6 +265,7 @@ void cTVScraperSetup::Store(void) {
 // note: GetChannelsFromSetup will call LOCK_CHANNELS_READ; -> Locking order!!! -> we lock after these calls
     cTVScraperConfigLock lw(true);
     config.enableDebug = m_enableDebug;
+    config.m_writeEpisodeToEpg = m_writeEpisodeToEpg;
     config.m_enableAutoTimers = m_enableAutoTimers;
     config.m_channels = std::move(channels);
     if (channelsHD_Change) {
@@ -289,6 +292,7 @@ void cTVScraperSetup::Store(void) {
   SetupStore("ExcludedRecordingFolders", getStringFromSet(config.m_excludedRecordingFolders, '/').c_str());
   SetupStore("TV_Shows", getStringFromSet(config.m_TV_Shows).c_str());
   SetupStore("enableDebug", config.enableDebug);
+  SetupStore("writeEpisodeToEpg", config.m_writeEpisodeToEpg);
   SetupStore("enableAutoTimers", config.m_enableAutoTimers);
   SetupStore("defaultLanguage", config.m_defaultLanguage->m_id);
   SetupStore("additionalLanguages", getStringFromSet(config.m_AdditionalLanguages).c_str() );
