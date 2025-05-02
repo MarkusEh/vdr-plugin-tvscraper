@@ -31,7 +31,8 @@ void cTvspEpgOneDay::initJson(cSv extChannelId, time_t startTime) {
     startTime -= hourDayBegin*60*60;
     time = localtime_r(&startTime, &tm_r);
   }
-  cToSvConcat url("http://live.tvspielfilm.de/static/broadcast/list/",
+//  cToSvConcat url("http://live.tvspielfilm.de/static/broadcast/list/",
+  cToSvConcat url("http://tvs3.cellular.de/broadcast/list/",
                   extChannelId, '/');
               url.appendInt<4>(time->tm_year + 1900).concat('-').
                   appendInt<2>(time->tm_mon + 1).concat('-').
