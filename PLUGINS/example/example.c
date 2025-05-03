@@ -213,7 +213,7 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
       tvMedia.width = 952;
       tvMedia.height = 714;
       tvMedia.path = s; // note: s is the URL
-      extEpgImages.push_back(tvMedia);
+//      extEpgImages.push_back(tvMedia);
       break;
 // size1: 130x101
 // size2: 320x250
