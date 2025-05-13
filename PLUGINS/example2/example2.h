@@ -186,3 +186,39 @@ class cExtEpgTvm: public iExtEpg
   private:
      bool m_debug;
 };
+
+inline unsigned int intFromFourHex(const unsigned char *data) {
+// read 4 digits, starting from data
+// if any is non hex (0-9, A-F, a-f) -> return 0
+// otherwise, return the integer these 4 hex values represent
+  unsigned int value = 0;
+  const unsigned char *data4 = data+4;
+  for (; data < data4; ++data) {
+    signed char val = stringhelpers_internal::hex_values[*data];
+    if (val == -1) return 0;
+    value = value*16 + val;
+  }
+  return value;
+}
+
+template <size_t N>
+inline cToSvConcat<N> &replaceUtf16(cToSvConcat<N> &str) {
+// search #uxxxx pattern (xxxx: Hex number)
+// if found, replace with utf-8 sequence
+  for (const char*s = str.c_str(); *s; ) {
+    if (*s != '#') { ++s; continue; }
+    ++s;
+    if (*s != 'u') continue;
+    ++s;
+    unsigned int value = intFromFourHex(reinterpret_cast<const unsigned char *>(s));
+    if (value == 0) continue;
+    cToSvConcat<4> utf8_val;
+    utf8_val.append_utf8(value);
+    str.replaceAll(cSv(s-2, 6), utf8_val);
+    replaceUtf16(str);
+    break;
+  }
+
+  return str;
+}
+

@@ -758,8 +758,8 @@ template<class T> inline T parse_unsigned(cSv sv) {
   return parse_unsigned_internal<T>(sv);
 }
 
-template<class T> inline T parse_hex(cSv sv, size_t *num_digits = 0) {
-  static const signed char hex_values[256] = {
+namespace stringhelpers_internal {
+  inline static const signed char hex_values[256] = {
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -777,11 +777,13 @@ template<class T> inline T parse_hex(cSv sv, size_t *num_digits = 0) {
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     };
+}
+template<class T> inline T parse_hex(cSv sv, size_t *num_digits = 0) {
   T value = 0;
   const unsigned char *data = reinterpret_cast<const unsigned char *>(sv.data());
   const unsigned char *data_e = data + sv.length();
   for (; data < data_e; ++data) {
-    signed char val = hex_values[*data];
+    signed char val = stringhelpers_internal::hex_values[*data];
     if (val == -1) break;
     value = value*16 + val;
   }
@@ -1410,7 +1412,7 @@ template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
       this->m_pos_for_append = stringhelpers_internal::itoa_min_width<N>(this->m_pos_for_append, i);
     }
 };
-template<std::size_t N = 255> 
+template<std::size_t N = 255>
 class cToSvToLower: public cToSvConcat<N> {
   public:
     cToSvToLower(cSv sv) {
@@ -1419,7 +1421,7 @@ class cToSvToLower: public cToSvConcat<N> {
     }
 };
 
-template<std::size_t N = 255> 
+template<std::size_t N = 255>
 class cToSvFormated: public cToSvConcat<N> {
   public:
 // __attribute__ ((format (printf, 2, 3))) can not be used, but should work starting with GCC 13.1

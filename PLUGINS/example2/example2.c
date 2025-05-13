@@ -80,6 +80,7 @@ class Field
           }
        }
        result.replaceAll("<br>", "\n");
+       replaceUtf16(result);
        stringContent = result;
     }
 
