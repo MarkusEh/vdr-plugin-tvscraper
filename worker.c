@@ -263,8 +263,9 @@ bool cTVScraperWorker::ScrapEPG(void) {
         }
         waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
         auto begin = std::chrono::high_resolution_clock::now();
-        if (!extEpgImages.empty() ) {
-          DownloadImg(&m_curl, extEpgImages[0].path, extEpgImage);
+        if (!extEpgImages.empty() && !extEpgImages[0].path.empty() ) {
+          if (extEpgImages[0].path[0] == '/') CopyFileImg(extEpgImages[0].path, extEpgImage);
+          else DownloadImg(&m_curl, extEpgImages[0].path, extEpgImage);
         }
         timeNeededDl += std::chrono::high_resolution_clock::now() - begin;
         if (movieOrTv) {

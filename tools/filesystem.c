@@ -72,7 +72,7 @@ void DeleteAll(cStr dirname) {
   std::error_code ec;
   std::uintmax_t n = fs::remove_all(dirname.c_str(), ec);
   if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  deleted  \"%.*s\", %ju files", ec.message().c_str(), ec.value(), (int)dirname.length(), dirname.data(), n);
-  else if (config.enableDebug) esyslog("tvscraper: deleted  \"%.*s\", %ju files", (int)dirname.length(), dirname.data(), n);
+  else dsyslog("tvscraper: deleted  \"%.*s\", %ju files", (int)dirname.length(), dirname.data(), n);
 }
 
 bool CheckDownloadAccessDenied(cSv df) {
@@ -96,7 +96,7 @@ bool DownloadImg(cCurl *curl, cStr url, cStr localPath) {
     err_code = curl->GetUrlFile(url, localPath, &error);
     if (err_code == 0) {
       if (FileExistsImg(localPath) ) {
-        if (config.enableDebug) esyslog("tvscraper: successfully downloaded file, url: \"%s\" local path: \"%s\"", url.c_str(), localPath.c_str() );
+        dsyslog("tvscraper: successfully downloaded file, url: \"%s\" local path: \"%s\"", url.c_str(), localPath.c_str() );
         return true;
       }
       cToSvFile df(localPath);
