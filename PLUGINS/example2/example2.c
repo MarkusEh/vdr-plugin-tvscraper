@@ -247,8 +247,8 @@ bool cTvmEpg::findTvmEvent(std::vector<cTvmEvent>::const_iterator &event_it, con
 
 int cTvmEpg::eventMatch(std::vector<cTvmEvent>::const_iterator event_it, const cStaticEvent *event) const {
   int deviationStart = std::abs(event_it->m_startTime - event->StartTime() );
-  int deviationEnd   = std::abs(event_it->m_endTime - event->EndTime() );
-  int deviation = deviationStart + deviationEnd;
+//   int deviationEnd   = std::abs(event_it->m_endTime - event->EndTime() );  // end is not reliable on TVM data
+  int deviation = deviationStart;
   if (deviation <= c_always_accepted_deviation || deviation >= c_never_accepted_deviation) return deviation;
 // compare event->Title() with event_it title
   if (!event_it->isString(eTvmAttributes::Titel)) return deviation;
@@ -262,10 +262,10 @@ void cTvmEpg::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgIma
 
   std::vector<cTvmEvent>::const_iterator event_it;
   if (!findTvmEvent(event_it, event)) {
-//    dsyslog("tvscraper tvm: cTvmEpg::enhanceEvent, not found, event->StartTime() %lld", (long long)event->StartTime() );
+//    if (event->StartTime() < time(0) + 13*24*60*60 && m_extChannelId == "1") dsyslog("tvscraper tvm: no match found: event->StartTime() %lld event->EndTime() %lld, event->Title() \"%s\"", (long long)event->StartTime(), (long long)event->EndTime(), event->Title() );
     return;
   }
-//  if (m_extChannelId == "1") dsyslog("tvscraper tvm: match found: event->StartTime() %lld event_it->m_startTime %lld, event_it->Title \"%s\"", (long long)event->StartTime(), (long long)event_it->m_startTime, event_it->getString(eTvmAttributes::Titel).c_str() );
+//     if (m_extChannelId == "1") dsyslog("tvscraper tvm: match found: event->StartTime() %lld event_it->m_startTime %lld, event_it->Title \"%s\"", (long long)event->StartTime(), (long long)event_it->m_startTime, event_it->getString(eTvmAttributes::Titel).c_str() );
 
 // event found, set the event description
 // note: VDR will remove control charaters (always): *p == 0x86 || *p == 0x87 || *p == 0x0D
