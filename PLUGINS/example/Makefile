@@ -20,6 +20,7 @@ INCLUDES += -I$(TVSCRAPER_SRC)
 INCLUDES += $(shell $(PKG_CONFIG) --cflags-only-I libcurl)
 
 LIBS += $(shell $(PKG_CONFIG) --libs libcurl)
+LIBS += $(shell $(PKG_CONFIG) --libs gumbo)
 
 DEFINES += -DPLGDIR='"$(PLGDEST)"'
 

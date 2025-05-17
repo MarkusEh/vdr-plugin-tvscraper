@@ -1,5 +1,6 @@
 #define PLUGIN_NAME_I18N "tvscraper-plugin-example"
 #include <memory>
+#include <gumbo.h>
 #include "../../extEpgPlugin.h"
 #include "../../rapidjson/document.h"
 #include "../../tools/stringhelpers.h"
@@ -11,10 +12,11 @@
 class cTvspEvent
 {
   public:
-    cTvspEvent(const rapidjson::Value& tvspEvent, rapidjson::SizeType line);
+    cTvspEvent(cSv url, time_t startTime, cSv tvspTitle);
+    std::string m_url;
     time_t m_startTime;
     time_t m_endTime;
-    rapidjson::SizeType m_line;
+    std::string m_tvspTitle;
 };
 bool operator<(const cTvspEvent &e1, const cTvspEvent &e2) { return e1.m_startTime < e2.m_startTime; }
 
@@ -24,13 +26,15 @@ class cTvspEpgOneDay
     cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime, bool debug);
     bool enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages); // return true if the event is in "my" time frame (one day )
   private:
-    void initJson(cSv extChannelId, time_t startTime);
+    void initEvents(cSv extChannelId, time_t startTime);
+    void addEvents(GumboNode* node);
+    bool eventExists(time_t startTime);
     int eventMatch(std::vector<cTvspEvent>::const_iterator event_it, const cStaticEvent *event) const;
     bool findTvspEvent(std::vector<cTvspEvent>::const_iterator &event_it, const cStaticEvent *event) const;
 
+    cCurl *m_curl;
     time_t m_start;
     time_t m_end;
-    std::shared_ptr<cJsonDocumentFromUrl> m_document;
     std::shared_ptr<std::vector<cTvspEvent>> m_events;
     const int c_always_accepted_deviation = 60;  // seconds
     const int c_never_accepted_deviation = 60 * 30;  // seconds

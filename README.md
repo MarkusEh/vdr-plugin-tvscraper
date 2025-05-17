@@ -50,6 +50,7 @@ Requirements
 - vdr 2.4.0 or later. Recommended: vdr 2.6.0 or later
 - libsqlite3   sqlite3 3.24.0 (2018-06-04) or later
 - libcurl
+- libgumbo  (only for the example plugin). Package libgumbo-dev on debian.
 - gcc v8 or later. gcc must support -std=c++17.
 - If you use TVGuide: Version 1.3.6+ is required
 - If you use SkinNopacity: Version 1.1.15+ is required
