@@ -51,6 +51,7 @@ Requirements
 - libsqlite3   sqlite3 3.24.0 (2018-06-04) or later
 - libcurl
 - libgumbo  (only for the example plugin). Package libgumbo-dev on debian.
+- unzip (only for the example2 plugin)
 - gcc v8 or later. gcc must support -std=c++17.
 - If you use TVGuide: Version 1.3.6+ is required
 - If you use SkinNopacity: Version 1.1.15+ is required

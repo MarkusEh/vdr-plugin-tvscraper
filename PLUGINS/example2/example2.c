@@ -314,7 +314,11 @@ void cTvmEpg::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgIma
   if (!event->ShortText() || !*event->ShortText() ) {
 // add a short text only if no short text is available from EIT (the TV station)
     std::string shortText;
-    if (event_it->isStringNotEmpty(eTvmAttributes::Kurzkritik) ) {
+    if (event_it->isStringNotEmpty(eTvmAttributes::Originaltitel) ) {
+      stringAppendRemoveControlCharacters(shortText, event_it->getString(eTvmAttributes::Originaltitel).c_str() );
+      event->SetShortText(shortText.c_str() );
+    }
+    else if (event_it->isStringNotEmpty(eTvmAttributes::Kurzkritik) ) {
       stringAppendRemoveControlCharacters(shortText, event_it->getString(eTvmAttributes::Kurzkritik).c_str() );
       event->SetShortText(shortText.c_str() );
     }

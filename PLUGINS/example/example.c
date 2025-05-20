@@ -246,14 +246,17 @@ void add_infos_crew_cast(cToSvConcat<N> &description, GumboNode* node) {
 }
 
 template<size_t N>
-void add_infos_series(cToSvConcat<N> &description, GumboNode* node) {
+cSv add_infos_series(cToSvConcat<N> &description, GumboNode* node) {
   GumboNode* serial_info = getNodeWithClass(node, GUMBO_TAG_SECTION, "serial-info");
-  if (!serial_info) return;
+  if (!serial_info) return cSv();
 
   GumboNode* episode = getNodeWithClass(node, GUMBO_TAG_H2, "broadcast-info");
-  if (!episode) return;
-  description << get_text2(episode) << "\n";
+  if (!episode) return cSv();
+  cSv episode_name = get_text2(episode);
+  if (episode_name.empty()) return cSv();
+  description << "Episode: " << episode_name << "\n";
   description << get_text2(serial_info) << "\n\n";
+  return episode_name;
 }
 
 cSv get_img(GumboNode* node) {
@@ -383,7 +386,7 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
   cToSvConcat description;
 
   cSv short_text = get_shorttext(output->root);
-  add_infos_series(description, output->root);
+  cSv episode_name = add_infos_series(description, output->root);
   add_conclusion(description, output->root);
   add_rating(description, output->root);
   add_description(description, output->root);
@@ -405,7 +408,8 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
   event->SetDescription(description.c_str());
   if (!event->ShortText() || !*event->ShortText() ) {
 // add a short text only if no short text is available from EIT (the TV station)
-    event->SetShortText(cToSvConcat(short_text).c_str() );
+    if (!episode_name.empty() ) event->SetShortText(cToSvConcat(episode_name).c_str() );
+    else event->SetShortText(cToSvConcat(short_text).c_str() );
   }
 
 // image from external EPG provider
