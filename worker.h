@@ -5,7 +5,7 @@
 // --- cTVScraperWorker -------------------------------------------------------------
 
 class cTVScraperWorker : public cThread {
-private:
+  private:
     bool startLoop;
     bool scanVideoDir;
     std::string m_recording;
@@ -15,6 +15,7 @@ private:
     int initSleep;
     int loopSleep;
     time_t lastTimerRecordingCheck;
+    time_t lastScrapeRecordings = 0;
     cCondVar waitCondition;
     cMutex mutex;
     cTVScraperDB *db;
@@ -31,9 +32,12 @@ private:
 
     bool ConnectScrapers(void);
     void DisconnectScrapers(void);
-    bool CheckRunningTimers(void);
+//    bool CheckRunningTimers(void);
     bool ScrapEPG(void);
-    void ScrapRecordings(void);
+    cMovieOrTv *ScrapRecording(const cRecording *recording);
+//     void ScrapRecordings(void);
+    void ScrapChangedRecordings();
+    void ScrapRecordings(const std::vector<std::string> &recordingFileNames);
     bool StartScrapping(bool &fullScan);
     bool TimersRunningPlanned(double nextMinutes);
 public:

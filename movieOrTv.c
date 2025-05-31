@@ -630,15 +630,15 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, int id, ecMovieOrTv
 }
 
 cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const sMovieOrTv &movieOrTv) {
-  if (movieOrTv.id == 0) return NULL;
+  if (movieOrTv.id == 0) return nullptr;
   switch (movieOrTv.type) {
     case scrapMovie: return new cMovieMoviedb(db, movieOrTv.id);
     case scrapSeries:
       if (movieOrTv.id > 0) return new cTvMoviedb(db, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
             else            return new cTvTvdb(db,   -movieOrTv.id, movieOrTv.season, movieOrTv.episode);
-    case scrapNone: return NULL;
+    case scrapNone: return nullptr;
   }
-  return NULL;
+  return nullptr;
 }
 
 cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cEvent *event, const cRecording *recording, int *runtime, int *duration_deviation) {

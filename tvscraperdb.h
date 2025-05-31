@@ -562,6 +562,7 @@ public:
     bool CheckStartScrapping(int minimumDistance);
     bool GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr) const;
     bool GetMovieTvID(const cRecording *recording, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr, int *duration_deviation = nullptr) const;
+    int GetLengthInSeconds(const cRecording *recording, int &season_number);
     bool SetDurationDeviation(const cRecording *recording, int duration_deviation) const;
     bool ClearRuntimeDurationDeviation(const cRecording *recording) const;
     int GetMovieCollectionID(int movieID) const;

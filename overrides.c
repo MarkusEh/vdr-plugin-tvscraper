@@ -338,7 +338,7 @@ scrapType cOverRides::Type(cSv title) {
 bool cOverRides::IgnorePath(cSv path) {
   for (const string &pos: ignorePath) {
     if (path.find(pos) != string::npos) {
-      if (config.enableDebug) esyslog("tvscraper: ignoring path \"%.*s\" because of override.conf", (int)path.length(), path.data());
+//      if (config.enableDebug) dsyslog("tvscraper: ignoring path \"%.*s\" because of override.conf", (int)path.length(), path.data());
       return true;
     }
   }

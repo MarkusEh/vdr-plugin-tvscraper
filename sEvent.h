@@ -17,6 +17,17 @@ public:
     m_shortText = cSv(event->ShortText());
     m_description = cSv(event->Description());
   }
+  void set_from_recording(const cRecording *recording) {
+    m_eventID = recording->Info()->GetEvent()->EventID();
+    m_startTime = recording->Info()->GetEvent()->StartTime();
+    m_endTime = recording->Info()->GetEvent()->EndTime();
+    m_vps = recording->Info()->GetEvent()->Vps();
+    m_duration = recording->Info()->GetEvent()->Duration();
+    m_channelID = recording->Info()->ChannelID();
+    m_title = cSv(recording->Info()->Title());
+    m_shortText = cSv(recording->Info()->ShortText());
+    m_description = cSv(recording->Info()->Description());
+  }
 
   tEventID EventID() const { return m_eventID; }
   time_t StartTime() const { return m_startTime; }

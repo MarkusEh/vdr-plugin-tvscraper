@@ -413,6 +413,8 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
   }
 
 // image from external EPG provider
+
+/* remove this, seems to be blocked
   cSv img = get_img(output->root);
   if (!img.empty()) {
     cTvMedia tvMedia;
@@ -420,9 +422,14 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
     tvMedia.height = 438; // 360
 //  tvMedia.width = 952;
 //  tvMedia.height = 714;
-    tvMedia.path = img;
+    cSv::size_type q_pos = img.find('?');
+    if (q_pos == cSv::npos)
+      tvMedia.path = img;
+    else
+      tvMedia.path = img.substr(0, q_pos);
     extEpgImages.push_back(tvMedia);
   }
+*/
   gumbo_destroy_output(&kGumboDefaultOptions, output);
   return true;
 }

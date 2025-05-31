@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstdint>
 #include <filesystem>
+#include <time.h>
 
 namespace fs = std::filesystem;
 using namespace std;
@@ -101,7 +102,7 @@ bool DownloadImg(cCurl *curl, cStr url, cStr localPath) {
       }
       cToSvFile df(localPath);
       if (CheckDownloadAccessDenied(df)) {
-        esyslog("tvscraper: download file failed, url: \"%s\" local path: \"%s\", AccessDenied, content \"%.*s\"", url.c_str(), localPath.c_str() , std::min(50, (int)cSv(df).length()), df.data() );
+        isyslog("tvscraper: download file failed, url: \"%s\" local path: \"%s\", AccessDenied, content \"%.*s\"", url.c_str(), localPath.c_str() , std::min(50, (int)cSv(df).length()), df.data() );
         remove(localPath);
         return false;
       }
@@ -109,8 +110,8 @@ bool DownloadImg(cCurl *curl, cStr url, cStr localPath) {
   }
   if (err_code == 0) {
     cToSvFileN<50> df(localPath);  // read max 50 bytes
-    esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url.c_str(), localPath.c_str() , df.c_str() );
-  } else esyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url.c_str(), localPath.c_str() , error.c_str(), err_code );
+    isyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url.c_str(), localPath.c_str() , df.c_str() );
+  } else isyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url.c_str(), localPath.c_str() , error.c_str(), err_code );
   remove(localPath);
   return false;
 }
@@ -135,4 +136,40 @@ bool CopyFileImg(cStr from, cStr to) {
   if (!FileExistsImg(from)) return false;
   if ( FileExistsImg(to)) return true;
   return CopyFile(from, to);
+}
+
+timespec modification_time(cSv filePath) {
+// in: VDR rec. path (*.rec)
+// out: modification time of last *.ts (or 00*.vdr) file
+
+//     struct timespec {
+//         time_t     tv_sec;   /* Seconds */
+//         /* ... */  tv_nsec;  /* Nanoseconds [0, 999'999'999] */
+//     };
+  size_t folder_length = filePath.length();
+  cToSvConcat file_path(filePath, "/00001.ts");
+  struct stat buffer;
+  struct stat l_stat;
+  uint32_t num_ts_files;
+  for (num_ts_files = 1; num_ts_files < 100000u; ++num_ts_files) {
+    file_path.erase(folder_length+1);
+    file_path.appendInt<5>(num_ts_files).append(".ts");
+    if (stat(file_path.c_str(), &buffer) != 0) break;
+    l_stat = buffer;
+  }
+  if (num_ts_files == 1) {
+// no ts file found, check 00*.vdr files
+    for (num_ts_files = 1; num_ts_files < 1000u; ++num_ts_files) {
+      file_path.erase(folder_length+1);
+      file_path.appendInt<3>(num_ts_files).append(".vdr");
+      if (stat(file_path.c_str(), &buffer) != 0) break;
+      l_stat = buffer;
+    }
+  }
+  if (num_ts_files == 1) {
+// nothing found. return 0
+    l_stat.st_mtim.tv_sec = 0;
+    l_stat.st_mtim.tv_nsec = 0;
+  }
+  return l_stat.st_mtim;
 }
