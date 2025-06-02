@@ -414,7 +414,7 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
 
 // image from external EPG provider
 
-/* remove this, seems to be blocked
+// remove this, seems to be blocked
   cSv img = get_img(output->root);
   if (!img.empty()) {
     cTvMedia tvMedia;
@@ -423,13 +423,29 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
 //  tvMedia.width = 952;
 //  tvMedia.height = 714;
     cSv::size_type q_pos = img.find('?');
+    cSv before_col;
     if (q_pos == cSv::npos)
-      tvMedia.path = img;
+      before_col = img;
     else
-      tvMedia.path = img.substr(0, q_pos);
-    extEpgImages.push_back(tvMedia);
+      before_col = img.substr(0, q_pos);
+    q_pos = before_col.rfind('/');
+    if (q_pos != cSv::npos) {
+      cSv name_jpeg = img.substr(q_pos + 1);
+      q_pos = name_jpeg.find(".jpeg");
+      if (q_pos != cSv::npos) {
+        cToSvConcat path("https://a2.tvspielfilm.de/itv_sofa/");
+        struct tm tm_r;
+        struct tm *time = localtime_r(&m_start, &tm_r);
+        path.appendInt<4>(time->tm_year + 1900).concat('-').
+             appendInt<2>(time->tm_mon + 1).concat('-').
+             appendInt<2>(time->tm_mday);
+        path.concat('/', name_jpeg.substr(0, q_pos), "_780.jpg");
+        tvMedia.path = path;
+        extEpgImages.push_back(tvMedia);
+      }
+    }
   }
-*/
+
   gumbo_destroy_output(&kGumboDefaultOptions, output);
   return true;
 }

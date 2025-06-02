@@ -37,12 +37,12 @@ public:
   static constexpr const char *m_unknownChannel = "Channel name unknown";
 protected:
   virtual int DurationWithoutMarginSec(void) const { return EventDuration(); }
-  virtual int DurationLowSec() const { return EventVps()?DurationWithoutMarginSec():RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: for recording only if not cut, and no valid marks
+  virtual int DurationLowSec() const { return RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: for recording only if not cut, and no valid marks
+// note 2: we remove ads timme also for VPS events as some stations have VPS events wit ads.
   virtual int DurationHighSec() const { return EventDuration(); } // note: for recording only if not cut, and no valid marks
   const cEvent *m_event;
   const cSv m_description;
   bool m_debug = false;
-private:
   int RemoveAdvTimeSec(int durationSec) const { return durationSec - durationSec / 3 - 2*60; } // 33% adds, 2 mins extra adds
 };
 
@@ -64,9 +64,18 @@ public:
   virtual int durationDeviation(int s_runtime);
 protected:
   virtual int DurationWithoutMarginSec(void) const { return m_event->Duration()?m_event->Duration():(m_recording->LengthInSeconds() - 14*60); } // remove margin, 4 min at start, 10 min at stop
+  virtual int DurationLowSec() const {
+// note: for recordings only if not cut, and no valid marks
+    if (EventVps()) {
+      readMarkadVps();
+      if (m_markad_vps_length > 1) return m_markad_vps_length-2;
+    }
+    return RemoveAdvTimeSec(DurationWithoutMarginSec() );
+  }
   virtual int DurationHighSec(void) const { return m_event->Duration()?m_event->Duration():m_recording->LengthInSeconds(); } // note: for recording only if not cut, and no valid marks
-  int getVpsLength();
+//  int getVpsLength();
 private:
+  void readMarkadVps() const;
   bool recordingLengthIsChanging();
   int DurationInSecMarks(void) { return m_durationInSecMarks?m_durationInSecMarks:DurationInSecMarks_int(); }
   int DurationInSecMarks_int(void);
@@ -77,9 +86,12 @@ private:
 // member vars
   const cRecording *m_recording;
   int m_durationInSecMarks = 0; // 0: Not initialized; -1: checked, no data
-//   int m_vps_used = -10; // -1: no information available -2: no markad information; -3 no tvscraper inforamtion; 0: NOT used. 1: uesd
-  int m_vps_length = -4; // -4: not checked. -3: markad.vps not available. -2 No VPS used. -1: VPS used, but no time available >0: VPS length in seconds
-  int m_vps_start = 0; // only if m_vps_length > 0: timestamp of start mark. Note vdr starts recording at status 2 "starts in a few seconds", so recording length = m_vps_length + m_vps_start
+//int m_vps_used = -10; // -1: no information available -2: no markad information; -3 no tvscraper inforamtion; 0: NOT used. 1: uesd
+//int m_vps_length = -4; // -4: not checked. -3: markad.vps not available. -2 No VPS used. -1: VPS used, but no time available >0: VPS length in seconds
+  mutable int m_markad_vps_length = -4; // -4: not checked. -3: markad.vps not available. -1: no time available >0: VPS length in seconds
+  mutable int m_markad_vps_start = -4; // only if m_vps_length > 0: timestamp of start mark. Note vdr starts recording at status 2 "starts in a few seconds", so recording length = m_vps_length + m_vps_start
+  mutable int m_markad_vps_used = -4;   // -4: not checked. -3: unknown (markad.vps not available or no information in markad.vps) 1: true (vps was used). 0: false (vps was not used)
+  int m_vps_used = -4;   // -4: not checked. -3: unknown (neither markad.vps nor in tvscraper.json nor in epgsearch data) 1: true (vps was used). 0: false (vps was not used)
 };
 
 class csStaticEvent : public csEventOrRecording {

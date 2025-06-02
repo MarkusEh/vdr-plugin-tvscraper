@@ -175,7 +175,7 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
 bool cSearchEventOrRec::isVdrDate(cSv baseName) {
 // return true if string matches the 2020.01.12-02:35 pattern.
   int start;
-  for (start = 0; !isdigit(baseName[start]) && start < (int)baseName.length(); start++);
+  for (start = 0; start < (int)baseName.length() && !isdigit(baseName[start]); start++);
   if ((int)baseName.length() < 16 + start) return false;
 
   int n;
@@ -195,7 +195,7 @@ bool cSearchEventOrRec::isVdrDate(cSv baseName) {
 bool cSearchEventOrRec::isVdrDate2(cSv baseName) {
 // return true if string matches the "Mit 01.12.2009-02:35" pattern.
   int start;
-  for (start = 0; !isdigit(baseName[start]) && start < (int)baseName.length(); start++);
+  for (start = 0; start < (int)baseName.length() && !isdigit(baseName[start]); start++);
   if ((int)baseName.length() < 16 + start) return false;
 
   int n;
