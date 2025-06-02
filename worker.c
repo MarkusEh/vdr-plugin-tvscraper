@@ -16,9 +16,7 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
     m_movieDbTvScraper = NULL;
     m_tvDbTvScraper = NULL;
     initSleep = 2 * 60 * 1000;  // todo: wait for video directory scanner thread ended
-//    initSleep =     60 * 1000;
     loopSleep = 5 * 60 * 1000;
-    lastTimerRecordingCheck = 0;
 }
 
 cTVScraperWorker::~cTVScraperWorker() {
@@ -31,7 +29,7 @@ cTVScraperWorker::~cTVScraperWorker() {
 
 void cTVScraperWorker::Stop(void) {
     waitCondition.Broadcast();    // wakeup the thread
-    Cancel(210);                    // wait up to 210 seconds for thread was stopping
+    Cancel(210);                  // wait up to 210 seconds for thread was stopping
 }
 
 void cTVScraperWorker::InitVideoDirScan(const char *filename) {
@@ -51,38 +49,33 @@ void cTVScraperWorker::InitVideoDirScan(const char *filename) {
     isyslog("tvscraper: start scraping all recordings");
     db->exec("DELETE FROM recordings2");
   }
-/*
-    m_recording = cSv(recording);
-    scanVideoDir = true;
-    waitCondition.Broadcast();
-*/
 }
 
 void cTVScraperWorker::InitManualScan(void) {
-    manualScan = true;
-    waitCondition.Broadcast();
+  manualScan = true;
+  waitCondition.Broadcast();
 }
 
 void cTVScraperWorker::SetDirectories(void) {
-    if (config.GetBaseDirLen() == 0) {
-      esyslog("tvscraper: ERROR: no base dir");
-      startLoop = false;
-      return;
-    }
-    bool ok =    CreateDirectory(config.GetBaseDir() );
-    if (ok) ok = CreateDirectory(config.GetBaseDirEpg() );
-    if (ok) ok = CreateDirectory(config.GetBaseDirRecordings() );
-    if (ok) ok = CreateDirectory(config.GetBaseDirSeries() );
-    if (ok) ok = CreateDirectory(config.GetBaseDirMovies() );
-    if (ok) ok = CreateDirectory(config.GetBaseDirMovieActors() );
-    if (ok) ok = CreateDirectory(config.GetBaseDirMovieCollections() );
-    if (ok) ok = CreateDirectory(config.GetBaseDirMovieTv() );
-    if (!ok) {
-        esyslog("tvscraper: ERROR: check %s for write permissions", config.GetBaseDir().c_str());
-        startLoop = false;
-    } else {
-        dsyslog("tvscraper: using base directory %s", config.GetBaseDir().c_str());
-    }
+  if (config.GetBaseDirLen() == 0) {
+    esyslog("tvscraper: ERROR: no base dir");
+    startLoop = false;
+    return;
+  }
+  bool ok =    CreateDirectory(config.GetBaseDir() );
+  if (ok) ok = CreateDirectory(config.GetBaseDirEpg() );
+  if (ok) ok = CreateDirectory(config.GetBaseDirRecordings() );
+  if (ok) ok = CreateDirectory(config.GetBaseDirSeries() );
+  if (ok) ok = CreateDirectory(config.GetBaseDirMovies() );
+  if (ok) ok = CreateDirectory(config.GetBaseDirMovieActors() );
+  if (ok) ok = CreateDirectory(config.GetBaseDirMovieCollections() );
+  if (ok) ok = CreateDirectory(config.GetBaseDirMovieTv() );
+  if (!ok) {
+    esyslog("tvscraper: ERROR: check %s for write permissions", config.GetBaseDir().c_str());
+    startLoop = false;
+  } else {
+    dsyslog("tvscraper: using base directory %s", config.GetBaseDir().c_str());
+  }
 }
 
 bool cTVScraperWorker::ConnectScrapers(void) {
@@ -351,7 +344,6 @@ void writeTimerInfo(const cTimer *timer, const char *pathName) {
     } else {
       if (ji_stop_time->value.GetInt64() == timer->StopTime() ) return;
       ji_stop_time->value.SetInt64(timer->StopTime());
-//      if (ji_stop_time != ji_timer->value.MemberEnd() ) ji_timer->value.RemoveMember(ji_stop_time);
     }
   } else {
     rapidjson::Value timer_j;
@@ -394,44 +386,9 @@ void cTVScraperWorker::ScrapChangedRecordings() {
 //  dsyslog("tvscraper: scanning video dir done");
 }
 
-/*
-void cTVScraperWorker::ScrapRecordings(void) {
-  if (config.GetReadOnlyClient() ) return;
-  if (m_recording.empty() ) db->ClearRecordings2();
-// TODO remove m_recording; delete entiries in db if explicit scrape of recording is requested
-// TODO remove, use only ScrapChangedRecordings
-
-  else {
-    LOCK_RECORDINGS_READ;
-    const cRecording *rec = Recordings->GetByName(m_recording.c_str() );
-    if (!rec) {
-      esyslog("tvscraper: recording %s does not exist, skip scan", m_recording.c_str());
-      return;
-    }
-    const cRecordingInfo *recInfo = rec->Info();
-    if (!recInfo || !recInfo->GetEvent() ) {
-      esyslog("tvscraper: recording %s does exist, but no recInfo or no GetEvent. skip scan", m_recording.c_str());
-      return;
-    }
-    csRecording sRecording(rec);
-    db->DeleteEventOrRec(&sRecording);
-  }
-
-  std::vector<std::string> recordingFileNames;
-  if (m_recording.empty() ) {
-    {
-      LOCK_RECORDINGS_READ;
-      for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec)) {
-        if (!rec->FileName() || overrides->IgnorePath(rec->FileName())) continue;
-        recordingFileNames.push_back(rec->FileName());
-      }
-    }
-  }
-  else recordingFileNames.push_back(m_recording);
-  ScrapRecordings(recordingFileNames);
-}
-*/
 void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recordingFileNames) {
+  CheckRunningTimers();
+  if (!Running() ) return;
   bool new_assignment = false;
   for (const std::string &filename: recordingFileNames) {
     cMovieOrTv *movieOrTv = nullptr;
@@ -443,11 +400,11 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
       const cRecording *recording = Recordings->GetByName(filename.c_str() );
       if (!recording) continue;  // there was a change since we got the filename -> ignore
       csRecording sRecording(recording);
+      recordingImagePath = getRecordingImagePath(recording);
 
       if ((recording->IsInUse() & ruTimer) != 0) {
 // this recording is currently used by a timer
 // -> copy EPG information
-        recordingImagePath = getRecordingImagePath(recording);
         const cEvent *event = recording->Info()->GetEvent();  // this event is locked with the recording
         epgImagePath = getExistingEpgImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID());
 // note: getExistingEpgImagePath allways return an non-empty path
@@ -457,7 +414,6 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
           if (movieOrTv) movieOrTv_fromEpg = true;
         }
       }
-// TODO: check inUse, as destination of copy / move / cut
 
       if (!movieOrTv) movieOrTv = ScrapRecording(recording);
 
@@ -476,24 +432,28 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
       delete movieOrTv;
       movieOrTv = nullptr;
     }
+    if (!epgImagePath.empty() && !FileExistsImg(recordingImagePath) ) {
+// copy img from EPG to img for this recording
+      CopyFileImg(epgImagePath, recordingImagePath);
+      if (!new_assignment) TouchFile(config.GetRecordingsUpdateFileName().c_str());  // tvscraper will now find this image
+    }
+    cToSvConcat fanartImg(filename, "/fanart.jpg");
+    if (!FileExistsImg(fanartImg) && FileExistsImg(recordingImagePath)) {
+// for new timer (from EPG), or for cut / copy / moved recording
+// note: recordingImagePath depends only on event data (StartTime, ChannelID and EventID)
+//       so, this will not change for cut / copy or move operations
+      CopyFileImg(recordingImagePath, fanartImg);
+    }
+/* we create tvscraper.json in CheckRunningTimers
     if (!epgImagePath.empty() ) {
-// this means, there is a running timer for this ercording
+// this means, there is a running timer for this recording
       cRecordControl *recordControl = cRecordControls::GetRecordControl(filename.c_str() );
       if (recordControl) {
         const cTimer *timer = recordControl->Timer();
         if (timer) writeTimerInfo(timer, recordControl->FileName() );
       }
-      cToSvConcat fanartImg(filename, "/fanart.jpg");
-      if (!FileExistsImg(fanartImg) ) {
-  //    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), fanartImg.c_str() );
-        CopyFileImg(epgImagePath, fanartImg);
-  //    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), recordingImagePath.c_str() );
-        CopyFileImg(epgImagePath, recordingImagePath);
-        if (!new_assignment) {
-          TouchFile(config.GetRecordingsUpdateFileName().c_str());
-        }
-      }
     }
+*/
     if (!Running() ) break;
 // here, the read lock is released, so wait a short time, in case someone needs a write lock
     waitCondition.TimedWait(mutex, 100);
@@ -532,119 +492,26 @@ cMovieOrTv *cTVScraperWorker::ScrapRecording(const cRecording *recording) {
   }
 }
 
-bool cTVScraperWorker::TimersRunningPlanned(double nextMinutes) {
-// return true is a timer is running, or a timer will start within the next nextMinutes minutes
-// otherwise false
-  if (config.GetReadOnlyClient() ) return true;
+
+void cTVScraperWorker::CheckRunningTimers() {
+// we update the stop time in tvscraper.json in case of changes in the timer stop time
+  if (config.GetReadOnlyClient() ) return;
+
   LOCK_TIMERS_READ;
-  for (const cTimer *timer = Timers->First(); timer; timer = Timers->Next(timer)) if (timer->Local() ) {
-    if (timer->Recording()) return true;
-    if (timer->HasFlags(tfActive) && (difftime(timer->StartTime(), time(0) )*60 < nextMinutes)) return true;
-  }
-  return false;
-}
-
-
-/*
-bool cTVScraperWorker::CheckRunningTimers(void) {
-// assign scrape result from EPG to recording
-// return true if new data are assigned to one or more recordings
-  if (config.GetReadOnlyClient() ) return false;
-  if (lastTimerRecordingCheck + 2 * 60 > time(0) ) return false;  // no need to check more often
-  lastTimerRecordingCheck = time(0);
-  bool newRecData = false;
-  std::vector<std::string> recordingFileNames; // filenames of recordings with running timers
-//  struct stat buffer;
-  { // in this block, we lock the timers
-    LOCK_TIMERS_READ;
-    for (const cTimer *timer = Timers->First(); timer; timer = Timers->Next(timer)) if (timer->Local() )
-    if (timer->Recording()) {
+  for (const cTimer *timer = Timers->First(); timer; timer = Timers->Next(timer)) if (timer->Local() )
+  if (timer->Recording()) {
 // figure out recording
-      cRecordControl *rc = cRecordControls::GetRecordControl(timer);
-      if (!rc) {
-        esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
-        continue;
-      }
-      recordingFileNames.push_back(rc->FileName() );
-      writeTimerInfo(timer, rc->FileName() );
+    cRecordControl *rc = cRecordControls::GetRecordControl(timer);
+    if (!rc) {
+      esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: Timer is recording, but there is no cRecordControls::GetRecordControl(timer)");
+      continue;
     }
-  } // timer lock is released
-  for (const string &filename: recordingFileNames) {
-// loop over all recordings with running timers
-    cMovieOrTv *movieOrTv = nullptr;
-    std::string epgImagePath;
-    std::string recordingImagePath;
-    { // in this block we have recording locks
-      LOCK_RECORDINGS_READ;
-      const cRecording *recording = Recordings->GetByName(filename.c_str() );
-      if (!recording) {
-        esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: no recording for file \"%s\"", filename.c_str() );
-        continue;
-      }
-      if (!recording->Info() ) {
-        esyslog("tvscraper: ERROR cTVScraperWorker::CheckRunningTimers: no recording->Info for file \"%s\"", filename.c_str() );
-        continue;
-      }
-      csRecording sRecording(recording);
-      cUseStmt_m_select_recordings2_rt pre_stmt_rt(db, sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
-      if (!(pre_stmt_rt.stmt()->readRow() ))  {
-// no movie/tv assigned to this recording. Do this now
-        const cEvent *event = recording->Info()->GetEvent();  // this event is locked with the recording
-        epgImagePath = event?getExistingEpgImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID()):"";
-        recordingImagePath = getRecordingImagePath(recording);
-
-        int r = db->SetRecording(&sRecording);
-        if (r == 2) {
-// return 2 if the movieTv assigned to the event was not yet assigned to the recording, but it is done now
-          newRecData = true;
-          movieOrTv = cMovieOrTv::getMovieOrTv(db, recording);
-          if (movieOrTv) {
-            movieOrTv->copyImagesToRecordingFolder(recording->FileName() );
-            delete movieOrTv;
-            movieOrTv = nullptr;
-          }
-        }
-        if (r == 0) {
-// return 0 if no movieTv is assigned to the event
-          tEventID eventID = sRecording.EventID();
-          std::string channelIDs = sRecording.ChannelIDs();
-          dsyslog("tvscraper: cTVScraperWorker::CheckRunningTimers: no entry in table event found for eventID %i, channelIDs %s, recording for file \"%s\"", (int)eventID, channelIDs.c_str(), filename.c_str() );
-          if (ConnectScrapers() ) {
-            cSearchEventOrRec SearchEventOrRec(&sRecording, overrides, m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, db, recording->Info()->ChannelName() );
-            int statistics;
-            movieOrTv = SearchEventOrRec.Scrape(statistics);
-            if (movieOrTv) newRecData = true;
-          }
-        }
-      } else {
-// entry in recordings2 does exist. Delete any cached runtime/duration deviation (still recording -> still changing runtime)
-        db->ClearRuntimeDurationDeviation(recording);
-      }
-    } // the locks are released
-    waitCondition.TimedWait(mutex, 1);  // allow others to get the locks
-    if (movieOrTv) {
-      movieOrTv->DownloadImages(m_movieDbMovieScraper, m_movieDbTvScraper, m_tvDbTvScraper, filename);
-      delete movieOrTv;
-      movieOrTv = nullptr;
-    }
-    cToSvConcat fanartImg(filename, "/fanart.jpg");
-    if (!FileExistsImg(fanartImg) && !epgImagePath.empty() ) {
-//    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), fanartImg.c_str() );
-      CopyFileImg(epgImagePath, fanartImg);
-//    esyslog("tvscraper, CopyFile %s, %s", epgImagePath.c_str(), recordingImagePath.c_str() );
-      CopyFileImg(epgImagePath, recordingImagePath);
-      if (!newRecData) {
-        TouchFile(config.GetRecordingsUpdateFileName().c_str());
-      }
-    }
+    writeTimerInfo(timer, rc->FileName() );
   }
-  return newRecData;
 }
-*/
 
 bool cTVScraperWorker::StartScrapping(bool &fullScan) {
   fullScan = false;
-//   if (!manualScan && TimersRunningPlanned(15.) ) return false;  // we avoided scans during recordings. Seems not to be required, and such scans have advantages (create timers for collectios ..., )
   bool resetScrapeTime = false;
   if (manualScan) {
     manualScan = false;

@@ -8,13 +8,11 @@ class cTVScraperWorker : public cThread {
   private:
     bool startLoop;
     bool scanVideoDir;
-    std::string m_recording;
     bool manualScan;
     bool backup_requested = true;
     cOverRides *overrides;
     int initSleep;
     int loopSleep;
-    time_t lastTimerRecordingCheck;
     time_t lastScrapeRecordings = 0;
     cCondVar waitCondition;
     cMutex mutex;
@@ -32,14 +30,12 @@ class cTVScraperWorker : public cThread {
 
     bool ConnectScrapers(void);
     void DisconnectScrapers(void);
-//    bool CheckRunningTimers(void);
+    void CheckRunningTimers();
     bool ScrapEPG(void);
     cMovieOrTv *ScrapRecording(const cRecording *recording);
-//     void ScrapRecordings(void);
     void ScrapChangedRecordings();
     void ScrapRecordings(const std::vector<std::string> &recordingFileNames);
     bool StartScrapping(bool &fullScan);
-    bool TimersRunningPlanned(double nextMinutes);
 public:
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cTVScraperWorker(void);

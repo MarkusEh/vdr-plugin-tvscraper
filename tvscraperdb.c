@@ -1158,7 +1158,7 @@ bool cTVScraperDB::SetDurationDeviation(const cRecording *recording, int duratio
     duration_deviation, recording->LengthInSeconds(), sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs() );
 
   if (sqlite3_changes(db) == 0)
-    exec("INSERT INTO recordings2 (event_id, event_start_time, recording_start_time, channel_id, movie_tv_id, season_number, duration_deviation, length_in_seconds) VALUES (?, ?, ?, ?, 0, -102, ?)", sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs(), duration_deviation, recording->LengthInSeconds() );  // TOD add lengthInSconds, check recording_start_time is NULL
+    exec("INSERT INTO recordings2 (event_id, event_start_time, recording_start_time, channel_id, movie_tv_id, season_number, duration_deviation, length_in_seconds) VALUES (?, ?, ?, ?, 0, -102, ?, ?)", sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs(), duration_deviation, recording->LengthInSeconds() );  // TOD add lengthInSconds, check recording_start_time is NULL
   TouchFile(config.GetRecordingsUpdateFileName().c_str());
   return true;
 }

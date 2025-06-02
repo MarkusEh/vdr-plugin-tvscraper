@@ -28,7 +28,7 @@ public:
   virtual cSv EpisodeSearchString() const;
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
   virtual const std::string ChannelIDs() const { return std::string(cToSvConcat(ChannelID() )); }
-  virtual std::string ChannelName() const; // Warning: This locks the channels, so ensure correct lock order !!!!
+//  virtual std::string ChannelName() const; // Warning: This locks the channels, so ensure correct lock order !!!!
   virtual const char *Title() const { return m_event->Title(); }
   virtual const char *ShortText() const { return m_event->ShortText(); }
   cSv Description() const { return m_description; }
@@ -58,7 +58,7 @@ public:
   virtual int DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }
   virtual const std::string ChannelIDs() const { return (EventID()&&ChannelID().Valid())?std::string(cToSvConcat(ChannelID() )):m_recording->Name(); } // if there is no eventID or no ChannelID(), use Name instead
-  virtual std::string ChannelName() const { const char *cn = m_recording->Info()->ChannelName(); return (cn&&*cn)?cn:m_unknownChannel; }
+//  virtual std::string ChannelName() const { const char *cn = m_recording->Info()->ChannelName(); return (cn&&*cn)?cn:m_unknownChannel; }
   virtual const char *Title() const { return m_recording->Info()->Title(); }
   virtual const char *ShortText() const { return m_recording->Info()->ShortText(); }
   virtual int durationDeviation(int s_runtime);

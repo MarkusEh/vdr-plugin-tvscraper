@@ -52,6 +52,7 @@ cSv csEventOrRecording::EpisodeSearchString() const {
   return Description().substr(0, 100);
 }
  
+/*
 std::string csEventOrRecording::ChannelName() const {
  tChannelID channelID = ChannelID();
  if (!channelID.Valid() ) {
@@ -67,6 +68,7 @@ std::string csEventOrRecording::ChannelName() const {
   }
   return channel->Name();
 }
+*/
 
 // Recording
 
@@ -179,67 +181,6 @@ int csRecording::DurationInSecMarks_int(void) {
   return m_durationInSecMarks;
 }
 
-/*
-int parseMarkadVpsKeyword(std::ifstream &markad, const char *fname) {
-// return 0: EOF, or error
-// 1 start
-// 2 pause start
-// 3 pause stop
-// 4 stop
-  if (!markad) return 0;
-  std::string line;
-  markad >> line;
-  if (line.empty() ) return 0;
-  if (line.compare(0, 6,  "START:", 6) == 0) return 1;
-  if (line.compare(0, 5,  "STOP:", 5) == 0) return 4;
-  if (line.compare(0, 5,  "PAUSE"  , 5) != 0) {
-    esyslog("tvscraper: ERROR parsing markad.vps, line = %s, file = %s", line.c_str(), fname );
-    return 0;
-  }
-// check PAUSE_START: / PAUSE_STOP:
-  if (line.compare(5, 7,  "_START:") == 0) return 2;
-  if (line.compare(5, 6,  "_STOP:") == 0) return 3;
-// check PAUSE START: / PAUSE STOP:
-  line = "";
-  markad >> line;
-  if (line.empty() ) {
-    esyslog("tvscraper: ERROR parsing markad.vps, line empty after PAUSE, file = %s", fname);
-    return 0;
-  }
-  if (line.compare(0, 6,  "START:", 6) == 0) return 2;
-  if (line.compare(0, 5,  "STOP:", 5) == 0) return 3;
-  esyslog("tvscraper: ERROR parsing markad.vps, line after PAUSE = %s, file = %s", line.c_str(), fname );
-  return 0;
-}
-int parseMarkadVps(std::ifstream &markad, int &time, const char *fname) {
-// return 0: EOF, or error
-// 1 start
-// 2 pause start
-// 3 pause stop
-// 4 stop
-// time: timestamp in sec (since recording start)
-  time = -1;
-  int keyword = parseMarkadVpsKeyword(markad, fname);
-  if (keyword == 0) return 0;
-  if (!markad) {
-    esyslog("tvscraper: ERROR parsing markad.vps, EOF after keyword = %d, file = %s", keyword, fname);
-    return 0;
-  }
-  std::string line;
-  markad >> line;
-  if (line.empty() ) {
-    esyslog("tvscraper: ERROR parsing markad.vps, empty line after keyword = %d, file = %s", keyword, fname);
-    return 0;
-  }
-  if (!markad) {
-    esyslog("tvscraper: ERROR parsing markad.vps, EOF after keyword = %d and line %s, file = %s", keyword, line.c_str() , fname);
-    return 0;
-  }
-  markad >> time;
-  return keyword;
-}
-*/
-
 template<class TV=cSv, class C_IT=const char*>
 int markad_offset(const_split_iterator<TV, C_IT> &col, cStr filename, cSv line) {
   if (++col == iterator_end() ) {
@@ -247,7 +188,7 @@ int markad_offset(const_split_iterator<TV, C_IT> &col, cStr filename, cSv line) 
     return -3;
   }
   if (++col == iterator_end() ) {
-    esyslog("tvscraper: ERROR parsing %s, line \"%.*s\", offset not found", filename.c_str(), (int)line.length(), line.data());
+    esyslog("tvscraper: ERROR parsing %s, line \"%.*s\", offset not found (2)", filename.c_str(), (int)line.length(), line.data());
     return -3;
   }
   return lexical_cast<int>(*col, -3, "offset markad.vps");
@@ -307,6 +248,10 @@ void csRecording::readMarkadVps() const {
       continue;
     }
     if (*col == "STOP:") {
+      if (pause_start != -3) {
+        esyslog("tvscraper: ERROR parsing %s, line \"%.*s\", keyword STOP: after PAUSE_START", filename.c_str(), (int)line.length(), line.data());
+        return;
+      }
       int vps_stop = markad_offset(col, filename, line);
       if (vps_stop == -3) return; // error in convert already reported
       length += (vps_stop - last_start);
@@ -315,64 +260,9 @@ void csRecording::readMarkadVps() const {
     }
     esyslog("tvscraper: ERROR parsing %s, line \"%.*s\", unknown keyword", filename.c_str(), (int)line.length(), line.data());
   }
+  esyslog("tvscraper: ERROR parsing %s, EOF, keyword STOP: missing", filename.c_str());
 }
 
-/*
-int csRecording::getVpsLength() {
-// -4: not checked.  (will not be returned)
-// -3: markad.vps not available or wrong format
-// -2: VPS not used.
-// -1: VPS used, but no time available
-// >0: VPS length in seconds
-  if (m_vps_length > -4) return m_vps_length;
-  CONCATENATE(filename, m_recording->FileName(), "/markad.vps");
-  struct stat buffer;
-  if (stat (filename, &buffer) != 0) { m_vps_length = -3; return m_vps_length; }
-
-  std::ifstream markad(filename);
-  if (!markad) { m_vps_length = -3; return m_vps_length; }
-  std::string l1;
-  markad >> l1;
-  if (l1 == "VPSTIMER=NO") { m_vps_length = -2; return m_vps_length; }
-  if (l1 != "VPSTIMER=YES") {
-//    esyslog("tvscraper: ERROR: markad.vps, wrong format, first line=%s, path %s", l1.c_str(), m_recording->FileName());
-// remove this error. There are old versions of markad.vps without this line
-    m_vps_length = -3;
-    return m_vps_length;
-  }
-  m_vps_length = -1;  // VPS was used. Check the length
-  if (!markad) return m_vps_length;
-  int time_start_sequence, time_end_sequence;
-  int keyword = parseMarkadVps(markad, time_start_sequence, m_recording->FileName());
-  if (keyword == 0) return m_vps_length;
-  if (keyword != 1) {
-    esyslog("tvscraper: ERROR: markad.vps, first keyword = %d, path %s", keyword, m_recording->FileName());
-    return m_vps_length;
-  }
-  m_vps_start = time_start_sequence;
-  for (int cur_length = 0;;) {
-    keyword = parseMarkadVps(markad, time_end_sequence, m_recording->FileName());
-    if (keyword != 4 && keyword != 2) {
-      esyslog("tvscraper: ERROR: markad.vps, keyword %d after start sequence, path %s", keyword, m_recording->FileName());
-      return m_vps_length;
-    }
-    if (time_start_sequence >= time_end_sequence) {
-      esyslog("tvscraper: ERROR:time_start_sequence %d > time_end_sequence %d, keyword %d,  path %s", time_start_sequence, time_end_sequence, keyword, m_recording->FileName());
-      return m_vps_length;
-    }
-    cur_length += (time_end_sequence - time_start_sequence);
-    if (keyword == 4) {
-      m_vps_length = cur_length;
-      return m_vps_length;
-    }
-    keyword = parseMarkadVps(markad, time_start_sequence, m_recording->FileName());
-    if (keyword != 3) {
-      esyslog("tvscraper: ERROR: markad.vps, keyword %d after pause start sequence, path %s", keyword, m_recording->FileName());
-      return m_vps_length;
-    }
-  }
-}
-*/
 bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
 // return false if no info is available
   CONCATENATE(filename_old, m_recording->FileName(), "/tvscrapper.json");
