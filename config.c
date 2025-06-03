@@ -71,9 +71,10 @@ bool cTVScraperConfig::loadPlugins()
 
    if (!(dir = opendir(PLGDIR)))
    {
-      esyslog("tvscraper: cTVScraperConfig::loadPlugins cannot open plugin dir %s", PLGDIR);
+      esyslog("tvscraper: cTVScraperConfig::loadPlugins cannot open plugin dir \"%s\"", PLGDIR);
       return false;
    }
+   esyslog("tvscraper: loading plugins, plugin dir: \"%s\"", PLGDIR);
 
    while ((dp = readdir(dir)))
    {

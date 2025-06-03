@@ -675,7 +675,7 @@ int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iEx
 // return 1000 if no episode was found
 // otherwise, return distance 0-999 (smaller numbers are better matches)
   bool debug = false;
-  debug = movieOrTv.id == -294265;
+//  debug = movieOrTv.id == -294265;
   if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%.*s\"", static_cast<int>(tvSearchEpisodeString.length()), tvSearchEpisodeString.data());
   movieOrTv.season  = 0;
   movieOrTv.episode = 0;

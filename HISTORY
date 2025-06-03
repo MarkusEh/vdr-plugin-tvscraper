@@ -110,3 +110,8 @@ Version 1.1.13
 - Watch VDR recordings, regularily compare them with recordings known by tvscraper (recordings2)
 - Fix possible crash during scan of recording. Thanks to kamel5 at vdr-portal.de for reporting
 - Fix DurationLowSec for VPS events with ads. Thanks to kfb77 at vdr-portal.de for reporting
+- Reduce priority of messages form marks saniy check. Thanks to nobanzai at vdr-portal.de for reporting
+- Remove "tvscraper:DEBUG cTvMoviedb::searchEpisode search string ..." messages. Thanks to kfb77 at vdr-portal.de for reporting
+- Add message reporting the plugin directory which is searched for tvscraper plugins. Thanks to nobanzai at vdr-portal.de for reporting
+- Update README, add gumbo git (https://github.com/GerHobbelt/gumbo-parser). Thanks to nobanzai and MegaV0lt at vdr-portal.de
+

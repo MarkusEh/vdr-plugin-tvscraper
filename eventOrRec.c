@@ -158,24 +158,24 @@ int csRecording::DurationInSecMarks_int(void) {
     if (EventDuration() ) {
 // event duration is available, and should be equal to duration of cut recording
       if (abs(EventDuration() - durationInSeconds) < 4*60) m_durationInSecMarks = durationInSeconds;
-      else esyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 4 mins difference to event length. Event  length %i length of cut out of recording %i filename \"%s\"", EventDuration(), durationInSeconds, m_recording->FileName() );
+      else isyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 4 mins difference to event length. Event  length %i length of cut out of recording %i filename \"%s\"", EventDuration(), durationInSeconds, m_recording->FileName() );
     } else {
-// event duration is not available, cut recording sould be recording - timer margin at start / stop
+// event duration is not available, cut recording should be recording - timer margin at start / stop
       if (DurationWithoutMarginSec() < durationInSeconds) m_durationInSecMarks = durationInSeconds;
-    else esyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 20 mins cut. Recording length %i length of cut out of recording %i filename \"%s\"", m_recording->LengthInSeconds(), durationInSeconds, m_recording->FileName() );
+      else isyslog("tvscraper: GetDurationInSecMarks: sanity check, one sequence, more than 20 mins cut. Recording length %i length of cut out of recording %i filename \"%s\"", m_recording->LengthInSeconds(), durationInSeconds, m_recording->FileName() );
     }
-    if (m_durationInSecMarks != -1 && config.enableDebug) esyslog("tvscraper: GetDurationInSecMarks: sanity check ok, one sequence, Recording length %i length of cut out of recording %i filename \"%s\"", m_recording->LengthInSeconds(), durationInSeconds, m_recording->FileName() );
+    if (m_durationInSecMarks != -1 && config.enableDebug) isyslog("tvscraper: GetDurationInSecMarks: sanity check ok, one sequence, Recording length %i length of cut out of recording %i filename \"%s\"", m_recording->LengthInSeconds(), durationInSeconds, m_recording->FileName() );
     return m_durationInSecMarks;
   }
 
 // more than one sequence, ads found
 // guess a reasonable min length
   if (durationInSeconds < DurationLowSec() ) {
-    esyslog("tvscraper: GetDurationInSecMarks: sanity check, too much cut out of recording. Recording length %i length of cut recording %i expected min length of cut recording %i filename \"%s\"", m_recording->LengthInSeconds(), durationInSeconds, DurationLowSec(), m_recording->FileName() );
+    isyslog("tvscraper: GetDurationInSecMarks: sanity check, too much cut out of recording. Recording length %i length of cut recording %i expected min length of cut recording %i filename \"%s\"", m_recording->LengthInSeconds(), durationInSeconds, DurationLowSec(), m_recording->FileName() );
     return m_durationInSecMarks;
   }
 
-  if (config.enableDebug) esyslog("tvscraper: GetDurationInSecMarks: sanity check ok, Recording length %i length of cut out of recording %i filename \"%s\"", m_recording->LengthInSeconds(), durationInSeconds, m_recording->FileName() );
+  if (config.enableDebug) isyslog("tvscraper: GetDurationInSecMarks: sanity check ok, Recording length %i length of cut out of recording %i filename \"%s\"", m_recording->LengthInSeconds(), durationInSeconds, m_recording->FileName() );
 
   m_durationInSecMarks = durationInSeconds;
   return m_durationInSecMarks;
@@ -260,7 +260,8 @@ void csRecording::readMarkadVps() const {
     }
     esyslog("tvscraper: ERROR parsing %s, line \"%.*s\", unknown keyword", filename.c_str(), (int)line.length(), line.data());
   }
-  esyslog("tvscraper: ERROR parsing %s, EOF, keyword STOP: missing", filename.c_str());
+  if (m_markad_vps_start >= 0)
+    esyslog("tvscraper: ERROR parsing %s, EOF, keyword STOP: missing", filename.c_str());
 }
 
 bool csRecording::getTvscraperTimerInfo(bool &vps, int &lengthInSeconds) {
@@ -303,7 +304,7 @@ bool csRecording::getEpgsearchTimerInfo(bool &vps, int &lengthInSeconds) {
 }
 int csRecording::durationDeviationNoVps() {
 // vps was NOT used.
-  if (m_debug) esyslog("tvscraper: csRecording::durationDeviationNoVps");
+  if (m_debug) dsyslog("tvscraper: csRecording::durationDeviationNoVps");
   bool vps;
   int lengthInSeconds;
   if (getTvscraperTimerInfo(vps, lengthInSeconds) ) {
