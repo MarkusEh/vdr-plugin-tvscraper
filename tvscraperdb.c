@@ -116,7 +116,7 @@ bool cTVScraperDB::Connect(void) {
       esyslog("tvscraper: failed to open or create %s", dbPathMem.c_str());
       return false;
     }
-    esyslog("tvscraper: connecting to db %s", dbPathMem.c_str());
+    isyslog("tvscraper: connecting to db %s", dbPathMem.c_str());
     if (readFromPhys) {
       if (!dbPathPhys_exists) {
         esyslog("tvscraper: %s does not exist, create new database", dbPathPhys.c_str());
@@ -144,7 +144,7 @@ bool cTVScraperDB::Connect(void) {
         esyslog("tvscraper: failed to open or create %s", dbPathPhys.c_str());
         return false;
     }
-    esyslog("tvscraper: connecting to db %s", dbPathPhys.c_str());
+    isyslog("tvscraper: connecting to db %s", dbPathPhys.c_str());
   }
   if (config.GetReadOnlyClient() ) return true;
   return CreateTables();
@@ -1122,7 +1122,7 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
       csRecording sRecording(recording);
       l_runtime = GetRuntime(&sRecording, movie_tv_id, season_number, episode_number);
       if (l_runtime != -1) {
-        dsyslog("tvscraper, set runtime %d for recording %s", l_runtime, recording->Name());
+//      dsyslog("tvscraper: DEBUG set runtime %d for recording %s", l_runtime, recording->Name());
         exec("UPDATE recordings2 SET runtime = ? WHERE event_id = ? AND event_start_time = ? AND (recording_start_time IS NULL OR recording_start_time = ?) AND channel_id = ?", l_runtime, sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), channelIDs);
         TouchFile(config.GetRecordingsUpdateFileName().c_str());
         if (l_runtime > 0 && l_duration_deviation >= 0) {
@@ -1133,14 +1133,18 @@ bool cTVScraperDB::GetMovieTvID(const cRecording *recording, int &movie_tv_id, i
           }
         }
       } else {
-        dsyslog("tvscraper, cannot get runtime for recording %s as this recording is still changeing", recording->Name());
+        dsyslog("tvscraper: DEBUG cannot get runtime for recording %s as this recording is still changeing", recording->Name());
       }
     }
     if (runtime) *runtime = l_runtime;
     if (duration_deviation) {
-      if (recording->IsEdited() || cSv(recording->Info()->Aux()).find("<isEdited>true</isEdited>") != std::string_view::npos)
+/*
+ This check should not be required any more, as we now also have recording->Start() to distingiush cut recording from non cut recording
+        if (recording->IsEdited() || cSv(recording->Info()->Aux()).find("<isEdited>true</isEdited>") != std::string_view::npos)
         *duration_deviation = 0;  // assume who ever cut the recording checked for completness
       else *duration_deviation = l_duration_deviation;
+*/
+      *duration_deviation = l_duration_deviation;
     }
   }
   return true;

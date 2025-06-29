@@ -104,14 +104,27 @@ void cTvspEpgOneDay::addEvents(GumboNode* node) {
   if (node->v.element.tag == GUMBO_TAG_A) {
     GumboAttribute* href  = gumbo_get_attribute(&node->v.element.attributes, "href");
     GumboAttribute* title  = gumbo_get_attribute(&node->v.element.attributes, "title");
+    cSv node_string(m_html_string.data() + node->v.element.start_pos.offset, node->v.element.end_pos.offset - node->v.element.start_pos.offset);
     GumboAttribute* data_tracking_point = gumbo_get_attribute(&node->v.element.attributes, "data-tracking-point");
     GumboNode* node_strong = getNode(node, GUMBO_TAG_STRONG);
 
     if (href && title && data_tracking_point && node_strong) {
+      cSv data_tracking_point_string;
+      size_t found_s = node_string.find("data-tracking-point='{");
+      if (found_s != cSv::npos) {
+        size_t found_e = node_string.find("}'", found_s+21);
+        if (found_e != cSv::npos) data_tracking_point_string = node_string.substr(found_s+21, found_e - found_s-20);
+      }
+// we need the manually found attribute as data_tracking_point is incomplete if there is a ' in data_tracking_point.
+// the manually determined attribute ends only at "'}", and not at "'" -> it is complete
+//      if (data_tracking_point_string != cSv(data_tracking_point->value) ) dsyslog3("data_tracking_point_string = '", data_tracking_point_string, "' data_tracking_point->value = '", data_tracking_point->value, "'");
       rapidjson::Document jd_data_tracking_point;
-      jd_data_tracking_point.Parse(data_tracking_point->value);
+      std::string data_tracking_point_string_s(data_tracking_point_string);
+      jd_data_tracking_point.ParseInsitu(data_tracking_point_string_s.data());
+//    jd_data_tracking_point.Parse(data_tracking_point->value);
       if (jd_data_tracking_point.HasParseError() ) {
-        dsyslog("tvscraper tvsp title = \"%s\", failed parsing data_tracking_point->value = \"%s\"", title->value, data_tracking_point->value);
+        dsyslog3("tvsp title = \"", title->value, "\", failed parsing data_tracking_point_string = \"", data_tracking_point_string, "\"");
+//      dsyslog3("tvsp title = \"", title->value, "\", failed parsing data_tracking_point->value = \"", data_tracking_point->value, "\"");
       } else {
         rapidjson::Value::MemberIterator res = jd_data_tracking_point.FindMember("broadcastTime");
         if (res != jd_data_tracking_point.MemberEnd() && res->value.IsString() ) {
@@ -264,7 +277,7 @@ cSv get_img(GumboNode* node) {
   if (!tv_detail) {
     GumboNode* broadcast_detail = getNodeWithClass(node, GUMBO_TAG_SECTION, "broadcast-detail__stage ");
     if (!broadcast_detail) return cSv();
-    tv_detail = getNodeWithClass(broadcast_detail, GUMBO_TAG_UNKNOWN, ""); // GUMBO_TAG_PICTURE is not known
+    tv_detail = getNode(broadcast_detail, GUMBO_TAG_UNKNOWN); // GUMBO_TAG_PICTURE is not known
     if (!tv_detail) return cSv();
   }
   GumboNode* img = getNode(tv_detail, GUMBO_TAG_IMG);
@@ -304,7 +317,6 @@ void cTvspEpgOneDay::initEvents(cSv extChannelId, time_t startTime) {
     time = localtime_r(&startTime, &tm_r);
   }
 
-  std::string html_string;
   for (int page = 1; page < 100; ++page) {
 // https://www.tvspielfilm.de/tv-programm/sendungen/?page=2&date=2025-05-17&channel=ARD
     cToSvConcat url_for_one_day("https://www.tvspielfilm.de/tv-programm/sendungen/?page=", page, "&date=");
@@ -313,14 +325,15 @@ void cTvspEpgOneDay::initEvents(cSv extChannelId, time_t startTime) {
                     appendInt<2>(time->tm_mday);
     url_for_one_day.concat("&channel=", extChannelId);
 
-    if (page != 1 && html_string.find(url_for_one_day) == std::string::npos) break;
-    html_string.clear();
-    m_curl->GetUrl(url_for_one_day, html_string);
-    GumboOutput* output = gumbo_parse(html_string.c_str());
+    if (page != 1 && m_html_string.find(url_for_one_day) == std::string::npos) break;
+    m_html_string.clear();
+    m_curl->GetUrl(url_for_one_day, m_html_string);
+    GumboOutput* output = gumbo_parse(m_html_string.c_str());
     addEvents(output->root);
 
     gumbo_destroy_output(&kGumboDefaultOptions, output);
   }
+  m_html_string.clear();
 
 // calculate m_start: today 5 am
   time->tm_sec = 0;
@@ -423,6 +436,10 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
 //  tvMedia.width = 952;
 //  tvMedia.height = 714;
     cSv::size_type q_pos = img.find('?');
+    if (q_pos == cSv::npos) tvMedia.path = img;
+    else tvMedia.path = img.substr(0, q_pos);
+    extEpgImages.push_back(tvMedia);
+/*
     cSv before_col;
     if (q_pos == cSv::npos)
       before_col = img;
@@ -444,7 +461,8 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
         extEpgImages.push_back(tvMedia);
       }
     }
-  }
+*/
+  } else dsyslog2("no EPG image found, ", event->Title(), " ST:", event->ShortText() );
 
   gumbo_destroy_output(&kGumboDefaultOptions, output);
   return true;

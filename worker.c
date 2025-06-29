@@ -4,7 +4,11 @@
 
 using namespace std;
 
-cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cThread("tvscraper", true) {
+cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides):
+  cThread("tvscraper", true),
+  m_epgImageDownloadSleep(5),  // 5 seconds
+  m_epgImageDownloadIterations(5*12),  // result in main loop sleep of 5 mins (5*12*m_epgImageDownloadSleep)
+  m_epg_images(&m_curl, m_epgImageDownloadSleep) {
     startLoop = true;
     scanVideoDir = false;
     manualScan = false;
@@ -16,7 +20,7 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides) : cT
     m_movieDbTvScraper = NULL;
     m_tvDbTvScraper = NULL;
     initSleep = 2 * 60 * 1000;  // todo: wait for video directory scanner thread ended
-    loopSleep = 5 * 60 * 1000;
+//  loopSleep = 5 * 60 * 1000;
 }
 
 cTVScraperWorker::~cTVScraperWorker() {
@@ -34,10 +38,13 @@ void cTVScraperWorker::Stop(void) {
 
 void cTVScraperWorker::InitVideoDirScan(const char *filename) {
   if (config.GetReadOnlyClient() ) return;
-  if (filename) {
+  if (filename && *filename) {
     LOCK_RECORDINGS_READ;
     const cRecording *recording = Recordings->GetByName(filename);
-    if (!recording) return;
+    if (!recording) {
+      esyslog("tvscraper: ERROR cannot start scraping \"%s\", recording not found", filename);
+      return;
+    }
     isyslog("tvscraper: start scraping \"%s\"", filename);
     const cEvent *event = recording->Info()->GetEvent();
     cToSvConcat channelIDs;
@@ -175,7 +182,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
   map<tChannelID, set<tEventID>*> currentEvents;
   set<tChannelID> channels;
   vector<cTvMedia> extEpgImages;
-  string extEpgImage;
+  cEpgImagePath extEpgImage;
   int msg_cnt = 0;
   int i_channel_num = 0;
   for (const tChannelID &channelID: config.GetScrapeAndEpgChannels() ) { // GetScrapeAndEpgChannels creates a copy, thread save
@@ -228,8 +235,13 @@ bool cTVScraperWorker::ScrapEPG(void) {
         if (extEpg) {
           auto begin = std::chrono::high_resolution_clock::now();
           extEpg->enhanceEvent(&sEvent, extEpgImages);
-          if (!extEpgImages.empty() ) extEpgImage = getEpgImagePath(&sEvent, true);
+          if (!extEpgImages.empty() ) {
+            extEpgImage.set(&sEvent, true);
+//          dsyslog3("extEpgImages[0].path = ", extEpgImages[0].path, " extEpgImage = ", extEpgImage, " .");
+            if (extEpgImages[0].path[0] != '/') m_epg_images.add(sEvent.StartTime(), extEpgImages[0].path, extEpgImage);
+          }
           timeNeededExt += std::chrono::high_resolution_clock::now() - begin;
+          m_epg_images.downloadOne();
         }
         if (!channelActive) continue;
         newEvent = true;
@@ -264,8 +276,8 @@ bool cTVScraperWorker::ScrapEPG(void) {
           std::string title, episodeName;
           if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr)) {
             cToSvConcat description(sEoR.Description() );
-            description.concat("\n", config.m_description_delimiter, " ", title);
-            description.concat("\n", tr("Episode Name:"), " ", episodeName);
+            description.concat("\n", config.m_description_delimiter, " ", remove_trailing_whitespace(title));
+            description.concat("\n", tr("Episode Name:"), " ", remove_trailing_whitespace(episodeName));
             description.concat("\n", tr("Season Number:"), " ", movieOrTv->getSeason() );
             description.concat("\n", tr("Episode Number:"), " ", movieOrTv->getEpisode() );
             sEvent.SetDescription(description.c_str() );
@@ -275,7 +287,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
         auto begin = std::chrono::high_resolution_clock::now();
         if (!extEpgImages.empty() && !extEpgImages[0].path.empty() ) {
           if (extEpgImages[0].path[0] == '/') CopyFileImg(extEpgImages[0].path, extEpgImage);
-          else DownloadImg(&m_curl, extEpgImages[0].path, extEpgImage);
+//        else DownloadImg(&m_curl, extEpgImages[0].path, extEpgImage);
         }
         timeNeededDl += std::chrono::high_resolution_clock::now() - begin;
         if (movieOrTv) {
@@ -301,6 +313,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
         }
       }
     }  // end loop over all events
+    m_epg_images.downloadOne();
   } // end loop over all channels
   currentEvents.swap(lastEvents);
   for (auto &event: currentEvents) delete event.second;
@@ -383,7 +396,6 @@ void cTVScraperWorker::ScrapChangedRecordings() {
     }
   }
   ScrapRecordings(recordingFileNames);
-//  dsyslog("tvscraper: scanning video dir done");
 }
 
 void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recordingFileNames) {
@@ -393,7 +405,7 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
   for (const std::string &filename: recordingFileNames) {
     cMovieOrTv *movieOrTv = nullptr;
     bool movieOrTv_fromEpg = false;
-    std::string epgImagePath;
+    cEpgImagePath epgImagePath;
     std::string recordingImagePath;
     {
       LOCK_RECORDINGS_READ;
@@ -406,7 +418,7 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
 // this recording is currently used by a timer
 // -> copy EPG information
         const cEvent *event = recording->Info()->GetEvent();  // this event is locked with the recording
-        epgImagePath = getExistingEpgImagePath(event->EventID(), event->StartTime(), recording->Info()->ChannelID());
+        epgImagePath.set(event->EventID(), event->StartTime(), recording->Info()->ChannelID(), false);
 // note: getExistingEpgImagePath allways return an non-empty path
         if (db->SetRecording(&sRecording)  != 0) {
 // return 2 if the movieTv assigned to the event was not yet assigned to the recording, but it is done now
@@ -546,7 +558,7 @@ void cTVScraperWorker::Action(void) {
   while (Running()) {
     if (ConnectScrapers()) ScrapChangedRecordings();
     if (!Running() ) break;
-    dsyslog("tvscraper: scanning video dir done");
+//  dsyslog("tvscraper: scanning video dir done");
 
     bool fullScan = false;
     if (StartScrapping(fullScan)) {
@@ -559,9 +571,42 @@ void cTVScraperWorker::Action(void) {
       if (!Running() ) break;
       dsyslog("tvscraper: epg scraping done");
       if (config.getEnableAutoTimers() ) timersForEvents(*db, this);
-      if (!Running() ) break;
     }
     if (!Running() ) break;
-    waitCondition.TimedWait(mutex, loopSleep);
+    for (int i = 0; i < m_epgImageDownloadIterations; ++i) {
+      m_epg_images.downloadOne();
+      if (!Running() ) break;
+      waitCondition.TimedWait(mutex, m_epgImageDownloadSleep*1000);
+    }
+  }
+}
+int cEpgImage::download(cCurl *curl) {
+  if (DownloadImg(curl, m_url, m_local_path)) return true;
+  return ++m_failed_downloads;
+}
+
+void cEpgImages::downloadOne() {
+  if (time(NULL) < m_last_download + m_epgImageDownloadSleep) return; // only download one in 15s
+
+  while (!m_epg_images.empty()) {
+    if (m_epg_images.back().m_event_start <= time(NULL) ||
+        FileExistsImg(m_epg_images.back().m_local_path) ) {
+      m_epg_images.pop_back();
+    } else {
+      int res = m_epg_images.back().download(m_curl);
+      if (m_last_report + 120 < time(NULL) ) {
+// display progress in syslog every 2 mins
+        dsyslog2("after download EPG image, res = ", res, " still planned for download: ", m_epg_images.size(), " EPG images");
+//    dsyslog2("download \"", m_epg_images.back().m_url, "\" to \"", m_epg_images.back().m_local_path, "\" res = ", res);
+          m_last_report = time(NULL);
+      }
+      if (res == 0) m_epg_images.pop_back();
+      if (res > 3) {
+        isyslog2("download of ", m_epg_images.back().m_url, " failed");
+        m_epg_images.pop_back();
+      }
+      m_last_download = time(NULL);
+      return; // download only one image
+    }
   }
 }

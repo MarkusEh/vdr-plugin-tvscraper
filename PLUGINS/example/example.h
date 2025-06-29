@@ -36,6 +36,7 @@ class cTvspEpgOneDay
     time_t m_start;
     time_t m_end;
     std::shared_ptr<std::vector<cTvspEvent>> m_events;
+    std::string m_html_string;
     const int c_always_accepted_deviation = 60;  // seconds
     const int c_never_accepted_deviation = 60 * 30;  // seconds
     bool m_debug;

@@ -126,35 +126,21 @@ std::string getRecordingImagePath(const cRecording *recording) {
   if (!event) return "";
   return std::string(cToSvConcat(config.GetBaseDirRecordings(), event->StartTime(), "_", recording->Info()->ChannelID(), "_", event->EventID(), ".jpg"));
 }
-inline std::string getExistingEpgImagePath(tEventID eventID, time_t eventStartTime, const tChannelID &channelID) {
-  return std::string(cToSvConcat(config.GetBaseDirEpg(), eventStartTime, "/", channelID, "/", eventID, ".jpg"));
-}
 
-template<class T>
-std::string getEpgImagePath(const T *event, bool createPaths) {
-  if (!event) return "";
-  if (!createPaths) return getExistingEpgImagePath(event->EventID(), event->StartTime(), event->ChannelID() );
-  std::string path;
-  path.reserve(200);
-  stringAppend(path, config.GetBaseDirEpg(), event->StartTime());
-  CreateDirectory(path);
-  stringAppend(path, "/", event->ChannelID());
-  CreateDirectory(path);
-  stringAppend(path, "/", event->EventID(), ".jpg");
-  return path;
-}
-template std::string getEpgImagePath<cEvent>(const cEvent *event, bool createPaths);
-template std::string getEpgImagePath<cStaticEvent>(const cStaticEvent *event, bool createPaths);
-
-extern "C" std::string getCreateEpgImagePath(const cEvent *event) {
-  return getEpgImagePath(event, true);
+void cEpgImagePath::set(tEventID eventID, time_t eventStartTime, const tChannelID &channelID, bool createPaths) {
+  clear();
+  concat(config.GetBaseDirEpg(), eventStartTime);
+  if (createPaths) CreateDirectory(c_str() );
+  concat("/", channelID);
+  if (createPaths) CreateDirectory(c_str() );
+  concat("/", eventID, ".jpg");
 }
 
 cTvMedia getEpgImage(const cEvent *event, const cRecording *recording, bool fullPath) {
   cTvMedia result;
   if (!event && !recording) return result;
   if (event && recording) return result;
-  result.path = event?getEpgImagePath(event, false):getRecordingImagePath(recording);
+  result.path = event?std::string(cEpgImagePath(event, false)):getRecordingImagePath(recording);
   if (FileExistsImg(result.path)) {
     if (!fullPath) result.path.erase(0, config.GetBaseDirLen());
     result.width = 952;

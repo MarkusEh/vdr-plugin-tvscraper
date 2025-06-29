@@ -32,20 +32,21 @@ bool FileExistsImg(cStr filename) {
 // test: series;  smallest picture: 2521 bytes. Wrong files: 0 bytes or 243 bytes
 // test: moviedb; smallest picture: 1103 bytes. Wrong files: 0 bytes or 150 bytes
 // note: wrong file with size 2361 found :( . Additional test ...
-  if (buffer.st_size > 2500) return true;   // error pages are smaller than 2500
+
+//   if (buffer.st_size > 2500) return true;   // error pages are smaller than 2500 unfortunately not, found an 539408 error page ...
   if (buffer.st_size <  500) return false;  // images are larger than 500
 
 // open and read file to make final decision
-  cToSvFileN<6> fileStart(filename);
+  cToSvFileN<15> fileStart(filename);
   if (!fileStart.exists() ) {
     esyslog("tvscraper, FileExistsImg, ERROR: stat OK, open fails, filename %s", filename.c_str() );
     return false;
   }
-  if (cSv(fileStart).length() != 6) {
-    esyslog("tvscraper, FileExistsImg, ERROR: num_read %i != 6, filename %s", (int)cSv(fileStart).length(), filename.c_str() );
+  if (cSv(fileStart).length() != 15) {
+    esyslog("tvscraper, FileExistsImg, ERROR: num_read %i != 15, filename %s", (int)cSv(fileStart).length(), filename.c_str() );
     return false;
   }
-  return strncmp(fileStart.c_str(), "<html>", 6) != 0;
+  return strncmp(fileStart.c_str(), "<html>", 6) != 0 && strncmp(fileStart.c_str(), "<!DOCTYPE html>", 15) != 0;
 }
 
 bool DirExists(cStr dirname) {
@@ -88,6 +89,7 @@ bool CheckDownloadAccessDenied(cSv df) {
   return true;
 }
 bool DownloadImg(cCurl *curl, cStr url, cStr localPath) {
+// return true on success (localPath exists & is an image file)
   if (FileExistsImg(localPath)) return true;
   std::string error;
   int err_code;
@@ -97,7 +99,7 @@ bool DownloadImg(cCurl *curl, cStr url, cStr localPath) {
     err_code = curl->GetUrlFile(url, localPath, &error);
     if (err_code == 0) {
       if (FileExistsImg(localPath) ) {
-        dsyslog("tvscraper: successfully downloaded file, url: \"%s\" local path: \"%s\"", url.c_str(), localPath.c_str() );
+//      dsyslog("tvscraper: DEBUG successfully downloaded file, url: \"%s\" local path: \"%s\"", url.c_str(), localPath.c_str() );
         return true;
       }
       cToSvFile df(localPath);
@@ -172,4 +174,27 @@ timespec modification_time(cSv filePath) {
     l_stat.st_mtim.tv_nsec = 0;
   }
   return l_stat.st_mtim;
+}
+#include <fcntl.h>
+statx_timestamp creation_time(cSv filePath) {
+// in: VDR rec. path (*.rec)
+// out: creation time of first *.ts (or 00*.vdr) file
+
+//     struct statx_timestamp {
+//         __s64 tv_sec;    /* Seconds since the Epoch (UNIX time) */
+//         __u32 tv_nsec;   /* Nanoseconds since tv_sec */
+//     };
+
+  struct statx l_stat;
+  if (statx(0, cToSvConcat(filePath, "/00001.ts").c_str(), 0, STATX_BTIME, &l_stat) == 0) {
+// statx: On success, zero is returned.  On error, -1 is returned, and errno is set to indicate the error.
+    return l_stat.stx_btime;
+  }
+// no ts file found, check 00*.vdr files
+  if (statx(0, cToSvConcat(filePath, "/001.vdr").c_str(), 0, STATX_BTIME, &l_stat) == 0)
+    return l_stat.stx_btime;
+// nothing found. return 0
+  l_stat.stx_btime.tv_sec = 0;
+  l_stat.stx_btime.tv_nsec = 0;
+  return l_stat.stx_btime;
 }

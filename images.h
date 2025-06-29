@@ -37,9 +37,19 @@ class cOrientationsInt:cOrientations {
 };
 
 std::string getRecordingImagePath(const cRecording *recording);
-std::string getExistingEpgImagePath(tEventID eventID, time_t eventStartTime, const tChannelID &channelID);
 template<class T>
-std::string getEpgImagePath(const T *event, bool createPaths = false);
 cTvMedia getEpgImage(const cEvent *event, const cRecording *recording, bool fullPath = false);
+
+class cEpgImagePath: public cToSvConcat<255> {
+  public:
+    cEpgImagePath() {}
+template<class T>
+    cEpgImagePath(const T *event, bool createPaths = false) { set(event, createPaths); }
+    void set(tEventID eventID, time_t eventStartTime, const tChannelID &channelID, bool createPaths = false);
+template<class T>
+    void set(const T *event, bool createPaths = false)
+      { if (event) set(event->EventID(), event->StartTime(), event->ChannelID(), createPaths); }
+};
+
 
 #endif //__TVSCRAPER_IMAGES_H

@@ -40,8 +40,9 @@ class cCurl {
       curl_easy_setopt(m_curl, CURLOPT_NOPROGRESS, 1L);     // Do not show progress
       curl_easy_setopt(m_curl, CURLOPT_TIMEOUT, 60L);       // Timeout 60 Secs. This is required. Otherwise, the thread might hang forever, if router is reset (once a day ...)
       curl_easy_setopt(m_curl, CURLOPT_FOLLOWLOCATION, 1L);
-  //  curl_easy_setopt(curlfuncs::curl, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0; Mayukh's libcurl wrapper http://www.mayukhbose.com/)");
-      curl_easy_setopt(m_curl, CURLOPT_USERAGENT, "User-Agent: 4.2 (Nexus 10; Android 6.0.1; de_DE)");
+//    curl_easy_setopt(m_curl, CURLOPT_USERAGENT, "User-Agent: 4.2 (Nexus 10; Android 6.0.1; de_DE)");
+//    curl_easy_setopt(m_curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:138.0) Gecko/20100101 Firefox/138.0");
+      curl_easy_setopt(m_curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36");
     }
     ~cCurl() {
       curl_easy_cleanup(m_curl);

@@ -50,9 +50,11 @@ Requirements
 - vdr 2.4.0 or later. Recommended: vdr 2.6.0 or later
 - libsqlite3   sqlite3 3.24.0 (2018-06-04) or later
 - libcurl
-- libgumbo  (only for the example plugin). Package libgumbo-dev on debian. Source: https://github.com/GerHobbelt/gumbo-parser should work
-- unzip (only for the example2 plugin)
 - gcc v8 or later. gcc must support -std=c++17.
+- linux 4.11, glibc 2.28 (for statx)
+
+- libgumbo  (only for the example plugin). Package libgumbo-dev on debian. Source: https://github.com/GerHobbelt/gumbo-parser should work. Compile this with make CFLAGS='-DNO_GUMBO_DEBUG'
+- unzip (only for the example2 plugin)
 - If you use TVGuide: Version 1.3.6+ is required
 - If you use SkinNopacity: Version 1.1.15+ is required
 - If you use skinFlatPlus: Version 0.6.7+ is required
@@ -133,6 +135,8 @@ A plugin is required for each external EPG provider configured in channelmap.con
 The example plugin:
 - As proof of concept, an example plugin comes with tvscraper.
 It provides external EPG information from tvsp.
+It also supports images, but only with a very slow download rate. Depending on the
+number of Events the download of all images will take VERY long.
 - Note: This example plugin is only a proof of concept and not intended for productive use.
 It uses only information which is publicly available on the internet.
 Make sure to use it only if this is allowed by the laws and

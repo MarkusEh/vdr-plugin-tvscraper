@@ -7,7 +7,7 @@ void removeChars(std::string& str, const char* ignore);
 // Load Channelmap
 //***************************************************************************
 
-int loadChannelmap(vector<sChannelMapEpg> &channelMap, const vector<std::shared_ptr<iExtEpg>> &extEpgs) {
+int loadChannelmap(std::vector<sChannelMapEpg> &channelMap, const std::vector<std::shared_ptr<iExtEpg>> &extEpgs) {
   std::ifstream cmfile;
   std::string s;
   size_t p;
@@ -110,6 +110,10 @@ int loadChannelmap(vector<sChannelMapEpg> &channelMap, const vector<std::shared_
     }
     if (!channelMapEpg.extEpg) {
       esyslog("tvscraper: ERROR parsing '%s' at line %d, no plugin for source %s found", path, line, source);
+    } else if (merge == 2) {
+      esyslog("tvscraper: ERROR parsing '%s' at line %d, merge == 2 not supported by tvscraper, this line is ignored", path, line);
+    } else if (merge != 1) {
+      isyslog("tvscraper: INFO parsing '%s' at line %d, merge == %d not supported by tvscraper, this line is ignored", path, line, merge);
     } else {
       channelMapEpg.extid = extid;   // channel ID of external EPG provider
       channelMapEpg.source = source; // id of external EPG provider
@@ -137,7 +141,31 @@ int loadChannelmap(vector<sChannelMapEpg> &channelMap, const vector<std::shared_
   cmfile.close();
 
   std::sort(channelMap.begin(), channelMap.end());
-  esyslog("tvscraper: %d channel mappings read.", count);
+
+// check duplicate channels
+  const char* cpath = path;
+  auto v_begin = channelMap.begin();
+  auto found = channelMap.begin();
+  while ((found = std::adjacent_find(v_begin, channelMap.end() )) != channelMap.end()) {
+    esyslog2("two or more entries for channel ", found->channelID, " in '", cpath, "'. All but one will be deleted. Please clean up '", cpath, "' and make sure to have only the correct entry for this channel");
+    v_begin = found;
+    ++v_begin;
+  }
+  channelMap.erase(std::unique(channelMap.begin(), channelMap.end()), channelMap.end());
+
+// check channels in VDRs channel.conf
+  for (auto &entry: channelMap) {
+    bool cfound = false;
+    {
+      LOCK_CHANNELS_READ;
+      for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel)) {
+        if (!channel->GroupSep() && channel->GetChannelID() == entry.channelID) { cfound = true; break; }
+      }
+    }
+    if (!cfound) esyslog2("Channel ", entry.channelID, " not found in VDR's channel list. Please clean up '", cpath, "'");
+  }
+
+  isyslog("tvscraper: %zu channel mappings read.", channelMap.size() );
 
   return status;
 }

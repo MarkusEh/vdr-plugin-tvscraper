@@ -48,6 +48,7 @@ struct sChannelMapEpg {
 };
 
 bool operator< (const sChannelMapEpg &cm1, const sChannelMapEpg &cm2) { return cm1.channelID < cm2.channelID; }
+bool operator==(const sChannelMapEpg &cm1, const sChannelMapEpg &cm2) { return cm1.channelID == cm2.channelID; }
 bool operator< (const sChannelMapEpg &cm1, const tChannelID &c2) { return cm1.channelID < c2; }
 bool operator< (const cLanguage &l1, const cLanguage &l2) { return l1.m_id < l2.m_id; }
 bool operator< (int l1, const cLanguage &l2) { return l1 < l2.m_id; }
@@ -166,7 +167,8 @@ class cTVScraperConfig {
 {50, "lav", "lv-LV", "Latviešu"},  //  	Latvian
 {51, "urd", "ur-PK", "اردو"},  //  Urdu
 {52, "mlt", "mt-", "Malti"},  //  Maltese
-// {53, "", "", ""},  //
+{53, "afr", "af-ZA", "Afrikaans"},  //  Afrikaans
+// {54, "", "", ""},  //
 };
         cTVScraperDB *m_db = nullptr;
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};

@@ -15,6 +15,7 @@ export CXXFLAGS = $(call PKGCFG,cxxflags)
 
 CXXFLAGS += -std=c++17
 CXXFLAGS += $(shell $(PKG_CONFIG) --cflags-only-other libcurl)
+CXXFLAGS += $(shell $(PKG_CONFIG) --cflags gumbo)
 
 INCLUDES += -I$(TVSCRAPER_SRC)
 INCLUDES += $(shell $(PKG_CONFIG) --cflags-only-I libcurl)

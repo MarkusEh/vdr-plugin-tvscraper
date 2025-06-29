@@ -105,9 +105,9 @@ result[result##concatenate_lvls] = 0; \
 SELECT( CONCATENATE_END, CV_VA_NUM_ARGS(__VA_ARGS__) )(result, __VA_ARGS__) \
 *result##concatenate_buf = 0;
 
-// methods for CONCATENATE
-// deprecated
 
+// numChars for int is really fast, and also needed for formated output
+// others are only needed for CONCATENATE and deprectaed
 namespace stringhelpers_internal {
   inline int numChars(std::string_view s) { return s.length(); }
   inline int numChars(const std::string &s) { return s.length(); }

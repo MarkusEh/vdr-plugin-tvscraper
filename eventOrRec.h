@@ -28,18 +28,16 @@ public:
   virtual cSv EpisodeSearchString() const;
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
   virtual const std::string ChannelIDs() const { return std::string(cToSvConcat(ChannelID() )); }
-//  virtual std::string ChannelName() const; // Warning: This locks the channels, so ensure correct lock order !!!!
   virtual const char *Title() const { return m_event->Title(); }
   virtual const char *ShortText() const { return m_event->ShortText(); }
   cSv Description() const { return m_description; }
   const cLanguage *GetLanguage() const { return config.GetLanguage(ChannelID()); }
-  virtual int durationDeviation(int s_runtime) { return 6000; }
+  virtual int durationDeviation(int s_runtime) const { return 6000; }
   static constexpr const char *m_unknownChannel = "Channel name unknown";
 protected:
   virtual int DurationWithoutMarginSec(void) const { return EventDuration(); }
-  virtual int DurationLowSec() const { return RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: for recording only if not cut, and no valid marks
-// note 2: we remove ads timme also for VPS events as some stations have VPS events wit ads.
-  virtual int DurationHighSec() const { return EventDuration(); } // note: for recording only if not cut, and no valid marks
+  virtual int DurationHighSec() const { return EventDuration(); }
+  virtual int DurationLowSec() const { return RemoveAdvTimeSec(DurationWithoutMarginSec() ); } // note: we remove ads time also for VPS events as some stations have VPS events wit ads.
   const cEvent *m_event;
   const cSv m_description;
   bool m_debug = false;
@@ -54,44 +52,84 @@ public:
   virtual time_t StartTime() const { return m_event->StartTime()?m_event->StartTime(): m_recording->Start(); } // Timervorlauf, die Aufzeichnung startet 2 min früher
   virtual time_t RecordingStartTime() const { return m_recording->Start(); }
   virtual int RecordingId() const { return m_recording->Id() ; }
+  bool IsEdited() const { return m_recording->IsEdited() || cSv(m_recording->Info()->Aux()).find("<isEdited>true</isEdited>") != cSv::npos; }
   virtual int DurationInSec() const { return m_event->Duration()?m_event->Duration():m_recording->FileName() ? m_recording->LengthInSeconds() : 0; }
   virtual int DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }
   virtual const std::string ChannelIDs() const { return (EventID()&&ChannelID().Valid())?std::string(cToSvConcat(ChannelID() )):m_recording->Name(); } // if there is no eventID or no ChannelID(), use Name instead
-//  virtual std::string ChannelName() const { const char *cn = m_recording->Info()->ChannelName(); return (cn&&*cn)?cn:m_unknownChannel; }
   virtual const char *Title() const { return m_recording->Info()->Title(); }
   virtual const char *ShortText() const { return m_recording->Info()->ShortText(); }
-  virtual int durationDeviation(int s_runtime);
+  virtual int durationDeviation(int s_runtime) const;
 protected:
-  virtual int DurationWithoutMarginSec(void) const { return m_event->Duration()?m_event->Duration():(m_recording->LengthInSeconds() - 14*60); } // remove margin, 4 min at start, 10 min at stop
-  virtual int DurationLowSec() const {
-// note: for recordings only if not cut, and no valid marks
-    if (EventVps()) {
-      readMarkadVps();
-      if (m_markad_vps_length > 1) return m_markad_vps_length-2;
+  virtual int DurationWithoutMarginSec(void) const { return m_recording->LengthInSeconds() - std::max(0, margin()); } // correct for validation of marks. For matches to movies: If the recording is good, also correct. Otherwise: We might not identify the correct movie, but we have another (bigger) problem: bad recording ...
+  virtual int DurationHighSec(void) const {
+// note: only if recording not cut and no valid marks
+    read_ext_data();
+    if (m_vps_used) {
+      if (m_markad_vps_length != s_int_not_available) return m_markad_vps_length+2;
+      return m_recording->LengthInSeconds();
     }
-    return RemoveAdvTimeSec(DurationWithoutMarginSec() );
+    return DurationWithoutMarginSec();
   }
-  virtual int DurationHighSec(void) const { return m_event->Duration()?m_event->Duration():m_recording->LengthInSeconds(); } // note: for recording only if not cut, and no valid marks
-//  int getVpsLength();
+  virtual int DurationLowSec() const {
+// note: only if recording not cut and no valid marks
+// also used as sanity check for marks
+    read_ext_data();
+    if (m_vps_used) {
+      if (m_markad_vps_length != s_int_not_available) return m_markad_vps_length-2;
+      return RemoveAdvTimeSec(m_recording->LengthInSeconds());  // VPS recs. might have ads, but there shouldn't be a margin
+    }
+    return RemoveAdvTimeSec(DurationWithoutMarginSec());
+  }
+
 private:
-  void readMarkadVps() const;
-  bool recordingLengthIsChanging();
+// return length of timer - length of event. Note: this can be < 0!
+// for VPS recordings and edited recordings, return 0
+  int margin() const;
+  void readTvscraper() const;   // must only be called in read_ext_data()
+  void readMarkadVps() const;   // must only be called in read_ext_data()
+  void readEpgsearch() const;   // must only be called in read_ext_data()
+  void readTsFileTimestamps() const; // must only be called in read_ext_data()
+  bool isTsTimestampReasonable(time_t tsTimestamp) const;
+  bool recordingLengthIsChanging() const;
   int DurationInSecMarks(void) { return m_durationInSecMarks?m_durationInSecMarks:DurationInSecMarks_int(); }
   int DurationInSecMarks_int(void);
-  bool getTvscraperTimerInfo(bool &vps, int &lengthInSeconds);
-  bool getEpgsearchTimerInfo(bool &vps, int &lengthInSeconds);
-  int durationDeviationNoVps();
-  int durationDeviationVps(int s_runtime, bool markadMissingTimes = false);
+  int durationDeviationVps(int s_runtime) const;
+  int durationDeviationNoVps() const;
+  int durationDeviationTimestamps(int deviation) const;
 // member vars
   const cRecording *m_recording;
-  int m_durationInSecMarks = 0; // 0: Not initialized; -1: checked, no data
-//int m_vps_used = -10; // -1: no information available -2: no markad information; -3 no tvscraper inforamtion; 0: NOT used. 1: uesd
-//int m_vps_length = -4; // -4: not checked. -3: markad.vps not available. -2 No VPS used. -1: VPS used, but no time available >0: VPS length in seconds
-  mutable int m_markad_vps_length = -4; // -4: not checked. -3: markad.vps not available. -1: no time available >0: VPS length in seconds
-  mutable int m_markad_vps_start = -4; // only if m_vps_length > 0: timestamp of start mark. Note vdr starts recording at status 2 "starts in a few seconds", so recording length = m_vps_length + m_vps_start
-  mutable int m_markad_vps_used = -4;   // -4: not checked. -3: unknown (markad.vps not available or no information in markad.vps) 1: true (vps was used). 0: false (vps was not used)
-  int m_vps_used = -4;   // -4: not checked. -3: unknown (neither markad.vps nor in tvscraper.json nor in epgsearch data) 1: true (vps was used). 0: false (vps was not used)
+
+  mutable int m_durationInSecMarks = 0; // 0: Not initialized; -1: checked, no data
+
+// ================ "external" data from tvscraper, markad, epgsearch
+  void read_ext_data() const;   // all the following member variables are filled with ext data
+  mutable bool m_ext_data_read = false;
+public:
+  static const int    s_int_not_available    = std::numeric_limits<int>::max();     // for int:    unknown, data not available
+  static const time_t s_time_t_not_available = std::numeric_limits<time_t>::max();  // for time_t: unknown, data not available
+private:
+
+  mutable int m_markad_vps_used;   // 1: true (vps was used). 0: false (vps was not used)
+  mutable int m_markad_vps_length; // VPS length in seconds. If this is available, also m_markad_vps_start is available (no length without start mark ...)
+  mutable int m_markad_vps_start;  // timestamp of start mark relative to start of recording. Note vdr starts recording at status 2 "starts in a few seconds"
+  mutable int m_markad_vps_stop;   // timestamp of stop mark relative to start of recording -> recording length = m_markad_vps_stop
+  mutable int m_tvscraper_vps_used;   // 1: true (vps was used). 0: false (vps was not used)
+  mutable time_t m_tvscraper_start;
+  mutable time_t m_tvscraper_stop;
+  mutable time_t m_epgsearch_start;
+  mutable time_t m_epgsearch_stop;
+  mutable int m_epgsearch_bstart;  //  note: m_epgsearch_bstart & m_epgsearch_bstop can be < 0!
+  mutable int m_epgsearch_bstop;
+// calculated:
+//mutable time_t m_timer_start;  // note: this is m_recording->start()
+  mutable time_t m_timer_stop;  // set from: m_tvscraper_stop, m_epgsearch_stop, m_epgsearch_bstop: in this order
+  mutable bool m_vps_used;  // always available after read_ext_data() is called, but might be guessed
+
+  mutable time_t m_creation_first_ts_file;
+  mutable time_t m_modification_last_ts_file;
+  mutable int m_gaps_between_ts_files;
+  mutable uint16_t m_number_of_ts_files;
 };
 
 class csStaticEvent : public csEventOrRecording {
