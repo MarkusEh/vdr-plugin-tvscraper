@@ -23,7 +23,7 @@ bool operator<(const cTvspEvent &e1, const cTvspEvent &e2) { return e1.m_startTi
 class cTvspEpgOneDay
 {
   public:
-    cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime, bool debug);
+    cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime, bool debug, int *error_messages_img);
     bool enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages); // return true if the event is in "my" time frame (one day )
   private:
     void initEvents(cSv extChannelId, time_t startTime);
@@ -31,6 +31,7 @@ class cTvspEpgOneDay
     bool eventExists(time_t startTime);
     int eventMatch(std::vector<cTvspEvent>::const_iterator event_it, const cStaticEvent *event) const;
     bool findTvspEvent(std::vector<cTvspEvent>::const_iterator &event_it, const cStaticEvent *event) const;
+    cSv get_img(GumboNode* node, cStaticEvent *event, cSv url) const;
 
     cCurl *m_curl;
     time_t m_start;
@@ -40,19 +41,21 @@ class cTvspEpgOneDay
     const int c_always_accepted_deviation = 60;  // seconds
     const int c_never_accepted_deviation = 60 * 30;  // seconds
     bool m_debug;
+    int *m_error_messages_img;
 };
 class cTvspEpg: public iExtEpgForChannel
 {
   public:
-    cTvspEpg(cSv extChannelId, bool debug):
+    cTvspEpg(cSv extChannelId, bool debug, int *error_messages_img):
       iExtEpgForChannel(),
       m_extChannelId(extChannelId),
-      m_debug(debug) {};
+      m_debug(debug),
+      m_error_messages_img(error_messages_img) {};
     virtual void enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &extEpgImages) {
       if (event->StartTime() > time(0) + 7*24*60*60) return; // only one week supported
       if (event->StartTime() < time(0) - 60*60) return; // no events in the past
       for (auto &tvspEpgOneDay: m_tvspEpgOneDayS) if (tvspEpgOneDay.enhanceEvent(event, extEpgImages)) return;
-      cTvspEpgOneDay tvspEpgOneDay(&m_curl, m_extChannelId, event->StartTime(), m_debug);
+      cTvspEpgOneDay tvspEpgOneDay(&m_curl, m_extChannelId, event->StartTime(), m_debug, m_error_messages_img);
       tvspEpgOneDay.enhanceEvent(event, extEpgImages);
       m_tvspEpgOneDayS.push_back(tvspEpgOneDay);
     }
@@ -60,6 +63,7 @@ class cTvspEpg: public iExtEpgForChannel
     cSv m_extChannelId;
     std::vector<cTvspEpgOneDay> m_tvspEpgOneDayS;
     bool m_debug;
+    int *m_error_messages_img;
     cCurl m_curl;
 };
 
@@ -75,8 +79,9 @@ class cExtEpgTvsp: public iExtEpg
       return strstr(description, "tvsp") != NULL;
     }
     virtual std::shared_ptr<iExtEpgForChannel> getHandlerForChannel(const std::string &extChannelId) {
-      return std::make_shared<cTvspEpg>(extChannelId, m_debug);
+      return std::make_shared<cTvspEpg>(extChannelId, m_debug, &m_error_messages_img);
     }
   private:
      bool m_debug;
+     int m_error_messages_img = 0;
 };

@@ -94,8 +94,8 @@ bool DownloadImg(cCurl *curl, cStr url, cStr localPath) {
   std::string error;
   int err_code;
   for(int i=0; i < 11; i++) {
-    if (i !=  0) sleep(i);
-    if (i == 10) sleep(i); // extra long sleep before last try
+    if (i !=  0) sleep(2*i);
+    if (i == 10) sleep(2*i); // extra long sleep before last try
     err_code = curl->GetUrlFile(url, localPath, &error);
     if (err_code == 0) {
       if (FileExistsImg(localPath) ) {
@@ -111,8 +111,10 @@ bool DownloadImg(cCurl *curl, cStr url, cStr localPath) {
     }
   }
   if (err_code == 0) {
+    struct stat buffer;
+    if (stat(localPath.c_str(), &buffer) != 0) buffer.st_size = 0;
     cToSvFileN<50> df(localPath);  // read max 50 bytes
-    isyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", content \"%s\"", url.c_str(), localPath.c_str() , df.c_str() );
+    isyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", file size: %zu, content \"%s\"", url.c_str(), localPath.c_str(), (size_t)buffer.st_size, df.c_str() );
   } else isyslog("tvscraper: ERROR download file, url: \"%s\" local path: \"%s\", error: \"%s\", err_code: %i", url.c_str(), localPath.c_str() , error.c_str(), err_code );
   remove(localPath);
   return false;

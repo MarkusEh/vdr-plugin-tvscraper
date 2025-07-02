@@ -272,18 +272,34 @@ cSv add_infos_series(cToSvConcat<N> &description, GumboNode* node) {
   return episode_name;
 }
 
-cSv get_img(GumboNode* node) {
+cSv cTvspEpgOneDay::get_img(GumboNode* node, cStaticEvent *event, cSv url) const {
   GumboNode* tv_detail = getNodeWithClass(node, GUMBO_TAG_DIV, "ratio-container  --tv-detail ");
   if (!tv_detail) {
     GumboNode* broadcast_detail = getNodeWithClass(node, GUMBO_TAG_SECTION, "broadcast-detail__stage ");
-    if (!broadcast_detail) return cSv();
+    if (!broadcast_detail) {
+      if (++(*m_error_messages_img) < 3)
+      dsyslog2("no EPG image found, neither 'ratio-container  --tv-detail ' nor 'broadcast-detail__stage ' found for event title '", event->Title(), "' short text '", event->ShortText(), "' start ", event->StartTime(), " channel ", event->ChannelID(), " url ", url);
+      return cSv();
+    }
     tv_detail = getNode(broadcast_detail, GUMBO_TAG_UNKNOWN); // GUMBO_TAG_PICTURE is not known
-    if (!tv_detail) return cSv();
+    if (!tv_detail) {
+      if (++(*m_error_messages_img) < 3)
+      dsyslog2("no EPG image found, picture tag (GUMBO_TAG_UNKNOWN) not found for event title '", event->Title(), "' short text '", event->ShortText(), "' start ", event->StartTime(), " channel ", event->ChannelID(), " url ", url );
+      return cSv();
+    }
   }
   GumboNode* img = getNode(tv_detail, GUMBO_TAG_IMG);
-  if (!img) return cSv();
+  if (!img) {
+    if (++(*m_error_messages_img) < 3)
+    dsyslog2("no EPG image found, img tag not found for event title '", event->Title(), "' short text '", event->ShortText(), "' start ", event->StartTime(), " channel ", event->ChannelID(), " url ", url );
+    return cSv();
+  }
   GumboAttribute* src = gumbo_get_attribute(&img->v.element.attributes, "src");
-  if (!src) return cSv();
+  if (!src) {
+    if (++(*m_error_messages_img) < 3)
+    dsyslog2("no EPG image found, src attribute not found for event title '", event->Title(), "' short text '", event->ShortText(), "' start ", event->StartTime(), " channel ", event->ChannelID(), " url ", url );
+    return cSv();
+  }
   return src->value;
 }
 
@@ -298,10 +314,11 @@ cTvspEvent::cTvspEvent(cSv url, time_t startTime, cSv tvspTitle):
 
 // cTvspEpgOneDay ***********************************************
 
-cTvspEpgOneDay::cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime, bool debug):
+cTvspEpgOneDay::cTvspEpgOneDay(cCurl *curl, cSv extChannelId, time_t startTime, bool debug, int *error_messages_img):
   m_curl(curl),
   m_events(std::make_shared<std::vector<cTvspEvent>>() ),
-  m_debug(debug)
+  m_debug(debug),
+  m_error_messages_img(error_messages_img)
   {
     initEvents(extChannelId, startTime);
   }
@@ -426,43 +443,16 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
   }
 
 // image from external EPG provider
-
-// remove this, seems to be blocked
-  cSv img = get_img(output->root);
+  cSv img = get_img(output->root, event, event_it->m_url);
   if (!img.empty()) {
     cTvMedia tvMedia;
     tvMedia.width = 780;  // 640
     tvMedia.height = 438; // 360
-//  tvMedia.width = 952;
-//  tvMedia.height = 714;
     cSv::size_type q_pos = img.find('?');
     if (q_pos == cSv::npos) tvMedia.path = img;
     else tvMedia.path = img.substr(0, q_pos);
     extEpgImages.push_back(tvMedia);
-/*
-    cSv before_col;
-    if (q_pos == cSv::npos)
-      before_col = img;
-    else
-      before_col = img.substr(0, q_pos);
-    q_pos = before_col.rfind('/');
-    if (q_pos != cSv::npos) {
-      cSv name_jpeg = img.substr(q_pos + 1);
-      q_pos = name_jpeg.find(".jpeg");
-      if (q_pos != cSv::npos) {
-        cToSvConcat path("https://a2.tvspielfilm.de/itv_sofa/");
-        struct tm tm_r;
-        struct tm *time = localtime_r(&m_start, &tm_r);
-        path.appendInt<4>(time->tm_year + 1900).concat('-').
-             appendInt<2>(time->tm_mon + 1).concat('-').
-             appendInt<2>(time->tm_mday);
-        path.concat('/', name_jpeg.substr(0, q_pos), "_780.jpg");
-        tvMedia.path = path;
-        extEpgImages.push_back(tvMedia);
-      }
-    }
-*/
-  } else dsyslog2("no EPG image found, ", event->Title(), " ST:", event->ShortText() );
+  }
 
   gumbo_destroy_output(&kGumboDefaultOptions, output);
   return true;

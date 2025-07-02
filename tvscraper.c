@@ -605,7 +605,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
           }
         }
         if (collectionName.empty() ) collectionName = tr("(name not available)");
-        call->reason = cToSvFormated(tr("Complement collection %.*s, caused by recording"), (int)collectionName.length(), collectionName.data() );
+        call->reason = cToSvFormatted(tr("Complement collection %.*s, caused by recording"), (int)collectionName.length(), collectionName.data() );
       } else if (xml_reason == "TV show, missing episode") {
         cSv seriesName = partInXmlTag(xml_tvscraper, "seriesName");
         cSql stmt(db, "select tv_name from tv2 where tv_id = ?"); // define this here so returned cSv is still valid when we append to call->reason
@@ -619,7 +619,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
           }
         }
         if (seriesName.empty() ) seriesName = tr("(name not available)");
-        call->reason = cToSvFormated(tr("Episode of series %.*s, caused by recording"), (int)seriesName.length(), seriesName.data() );
+        call->reason = cToSvFormatted(tr("Episode of series %.*s, caused by recording"), (int)seriesName.length(), seriesName.data() );
       } else {
         call->reason.append(tr("Improve recording"));
       }

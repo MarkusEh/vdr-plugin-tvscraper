@@ -147,7 +147,8 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
     return;
   }
 // get the short text. If not available: Use the description instead
-  cSv shortText = recording->Info()->ShortText();
+  cSv shortText = textAttributeValue(m_sEventOrRecording->Description(), "Episode: ");
+  if (shortText.empty() ) shortText = recording->Info()->ShortText();
   if (shortText.empty() ) shortText = recording->Info()->Description();
   if (shortText.empty() ) return; // no short text, no description -> go ahead with base name
   cNormedString nsBaseNameOrTitle(m_baseNameOrTitle);
