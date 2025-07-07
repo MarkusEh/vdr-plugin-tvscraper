@@ -411,7 +411,6 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
       LOCK_RECORDINGS_READ;
       const cRecording *recording = Recordings->GetByName(filename.c_str() );
       if (!recording) continue;  // there was a change since we got the filename -> ignore
-      csRecording sRecording(recording);
       recordingImagePath = getRecordingImagePath(recording);
 
       if ((recording->IsInUse() & ruTimer) != 0) {
@@ -420,7 +419,7 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
         const cEvent *event = recording->Info()->GetEvent();  // this event is locked with the recording
         epgImagePath.set(event->EventID(), event->StartTime(), recording->Info()->ChannelID(), false);
 // note: getExistingEpgImagePath allways return an non-empty path
-        if (db->SetRecording(&sRecording)  != 0) {
+        if (db->SetRecording(recording)  != 0) {
 // return 2 if the movieTv assigned to the event was not yet assigned to the recording, but it is done now
           movieOrTv = cMovieOrTv::getMovieOrTv(db, recording);
           if (movieOrTv) movieOrTv_fromEpg = true;
@@ -430,11 +429,10 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
       if (!movieOrTv) movieOrTv = ScrapRecording(recording);
 
       if (movieOrTv) {
-        db->InsertRecording2(&sRecording, movieOrTv->dbID(), movieOrTv->getSeason(), movieOrTv->getEpisode() );
+        db->InsertRecording(recording, movieOrTv->dbID(), movieOrTv->getSeason(), movieOrTv->getEpisode() );
         new_assignment = true;
       } else {
-        db->DeleteEventOrRec(&sRecording);
-        db->exec("INSERT OR REPLACE INTO recordings2 (event_id, event_start_time, recording_start_time, channel_id, movie_tv_id, season_number, length_in_seconds, runtime, duration_deviation) VALUES (?, ?, ?, ?, 0, -101, ?, -2, -3)", sRecording.EventID(), sRecording.StartTime(), sRecording.RecordingStartTime(), sRecording.ChannelIDs(), recording->LengthInSeconds());
+        db->DeleteRecording(recording);
       }
     }  // end lock on recording
     if (movieOrTv) {
@@ -456,16 +454,8 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
 //       so, this will not change for cut / copy or move operations
       CopyFileImg(recordingImagePath, fanartImg);
     }
-/* we create tvscraper.json in CheckRunningTimers
-    if (!epgImagePath.empty() ) {
-// this means, there is a running timer for this recording
-      cRecordControl *recordControl = cRecordControls::GetRecordControl(filename.c_str() );
-      if (recordControl) {
-        const cTimer *timer = recordControl->Timer();
-        if (timer) writeTimerInfo(timer, recordControl->FileName() );
-      }
-    }
-*/
+/* we create tvscraper.json in CheckRunningTimers */
+
     if (!Running() ) break;
 // here, the read lock is released, so wait a short time, in case someone needs a write lock
     waitCondition.TimedWait(mutex, 100);
@@ -562,14 +552,14 @@ void cTVScraperWorker::Action(void) {
 
     bool fullScan = false;
     if (StartScrapping(fullScan)) {
-      dsyslog("tvscraper: start scraping epg");
+//    dsyslog("tvscraper: start scraping epg");
       if (ConnectScrapers()) {
         bool newEvents = ScrapEPG();
         if (newEvents) TouchFile(config.GetEPG_UpdateFileName().c_str());
         if (newEvents && Running() ) cMovieOrTv::DeleteAllIfUnused(db);
       }
       if (!Running() ) break;
-      dsyslog("tvscraper: epg scraping done");
+//    dsyslog("tvscraper: epg scraping done");
       if (config.getEnableAutoTimers() ) timersForEvents(*db, this);
     }
     if (!Running() ) break;
@@ -594,7 +584,7 @@ void cEpgImages::downloadOne() {
       m_epg_images.pop_back();
     } else {
       int res = m_epg_images.back().download(m_curl);
-      if (m_last_report + 120 < time(NULL) ) {
+      if (m_last_report + 5*60 < time(NULL) ) {
 // display progress in syslog every 2 mins
         dsyslog2("after download EPG image, res = ", res, " still planned for download: ", m_epg_images.size(), " EPG images");
 //    dsyslog2("download \"", m_epg_images.back().m_url, "\" to \"", m_epg_images.back().m_local_path, "\" res = ", res);

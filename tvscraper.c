@@ -97,7 +97,7 @@ cTVScraperConfig config;
 #include "services.c"
 #include "vdr/status.h"
 
-static const char *VERSION        = "1.2.13";
+static const char *VERSION        = "1.2.14";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 
 //***************************************************************************

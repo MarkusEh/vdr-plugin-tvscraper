@@ -74,7 +74,7 @@ void DeleteAll(cStr dirname) {
   std::error_code ec;
   std::uintmax_t n = fs::remove_all(dirname.c_str(), ec);
   if (ec.value() != 0) esyslog("tvscraper: ERROR \"%s\", code %i  deleted  \"%.*s\", %ju files", ec.message().c_str(), ec.value(), (int)dirname.length(), dirname.data(), n);
-  else dsyslog("tvscraper: deleted  \"%.*s\", %ju files", (int)dirname.length(), dirname.data(), n);
+// else dsyslog("tvscraper: deleted  \"%.*s\", %ju files", (int)dirname.length(), dirname.data(), n);
 }
 
 bool CheckDownloadAccessDenied(cSv df) {

@@ -158,34 +158,10 @@ for time_t: s_time_t_not_available -> no data available
   readEpgsearch();
   readTsFileTimestamps();
 
-// get m_timer_stop, consistency check: tvscraper start / stop, epgsearch start / stop, m_recording->Start()
-  m_timer_stop = s_time_t_not_available;
-  if (m_tvscraper_start != s_time_t_not_available) {
-// tvscraper start / stop are available
-    if (m_tvscraper_start != m_recording->Start() && !m_vps_used)
-      isyslog("tvscraper, recording %s timer start inconsistent, m_tvscraper_start %lld, m_recording->Start() %lld", m_recording->FileName(), (long long)m_tvscraper_start, (long long)m_recording->Start());  // disable this message for VPS timers, as VDR reports event->StartTime (and not event->Vps() as start ime for VPS timers)
-    m_timer_stop = m_tvscraper_stop;
-  }
-
-  if (m_epgsearch_start != s_time_t_not_available) {
-// epgsearch start / stop are available
-    if (m_epgsearch_start != m_recording->Start() && !m_vps_used)
-      isyslog("tvscraper, recording %s timer start inconsistent, m_epgsearch_start %lld, m_recording->Start() %lld", m_recording->FileName(), (long long)m_epgsearch_start, (long long)m_recording->Start());
-    if (m_timer_stop == s_time_t_not_available) m_timer_stop = m_epgsearch_stop;
-    else if (m_timer_stop != m_epgsearch_stop)
-      dsyslog("tvscraper DEBUG, recording %s timer stop inconsistent, m_tvscraper_stop %lld, m_epgsearch_stop %lld", m_recording->FileName(), (long long)m_tvscraper_stop, (long long)m_epgsearch_stop);
-  }
-
-  if (m_epgsearch_bstart != s_int_not_available) {
-// epgsearch bstart / bstop are available
-    if (m_event->StartTime() != m_recording->Start() + m_epgsearch_bstart && !m_vps_used)
-      dsyslog("tvscraper DEBUG, recording %s start inconsistent, m_event->StartTime() %lld, m_recording->Start() %lld, m_epgsearch_bstart %d", m_recording->FileName(), (long long)m_event->StartTime(), (long long)m_recording->Start(), m_epgsearch_bstart);
-    if (m_timer_stop == s_time_t_not_available) m_timer_stop = m_event->StartTime() + m_event->Duration() + m_epgsearch_bstop;
-    else if (m_timer_stop != m_event->StartTime() + m_event->Duration() + m_epgsearch_bstop)
-      dsyslog("tvscraper DEBUG, recording %s timer stop inconsistent, m_timer_stop %lld, m_event->EndTime() %lld, m_epgsearch_bstop %d", m_recording->FileName(), (long long)m_timer_stop, (long long)(m_event->StartTime()+m_event->Duration()), m_epgsearch_bstop);
-  }
-
+// =============================================================================================================
 // vps used?, including consistency check
+// we start with this, as other checks depend on m_vps_used
+// =============================================================================================================
   int epgsearch_vps_used = s_int_not_available;
   if (m_epgsearch_start != s_time_t_not_available)
     epgsearch_vps_used = (EventVps() == m_epgsearch_start && (m_epgsearch_stop-m_epgsearch_start) == m_event->Duration())?1:0;
@@ -211,7 +187,8 @@ for time_t: s_time_t_not_available -> no data available
       m_vps_used = epgsearch_vps_used==1;
     } else {
       int deviationVps = m_event->Duration() - m_recording->LengthInSeconds();
-      m_vps_used = std::abs(deviationVps) < std::abs(durationDeviationNoVps() );
+      int deviationNoVps = (int)(m_event->StartTime() + m_event->Duration() + ::Setup.MarginStop*60 - m_recording->Start()) - m_recording->LengthInSeconds();
+      m_vps_used = std::abs(deviationVps) < std::abs(deviationNoVps);
     }
   } else {
 // !EventVps()
@@ -219,6 +196,43 @@ for time_t: s_time_t_not_available -> no data available
     if (m_tvscraper_vps_used==1 || m_markad_vps_used==1 || epgsearch_vps_used==1)
       isyslog("tvscraper, recording %s vps used inconsistent, !EventVps(), m_tvscraper_vps_used %d, m_markad_vps_used %d, epgsearch_vps_used %d", m_recording->FileName(), m_tvscraper_vps_used, m_markad_vps_used, epgsearch_vps_used);
   }
+
+// =============================================================================================================
+// get m_timer_stop, consistency check: tvscraper start / stop, epgsearch start / stop, m_recording->Start()
+// =============================================================================================================
+  m_timer_stop = s_time_t_not_available;
+  if (m_tvscraper_start != s_time_t_not_available) {
+// tvscraper start / stop are available
+    if (m_tvscraper_start != m_recording->Start() )
+      isyslog("tvscraper, recording %s timer start inconsistent, m_tvscraper_start %lld, m_recording->Start() %lld, m_tvscraper_vps_used %d", m_recording->FileName(), (long long)m_tvscraper_start, (long long)m_recording->Start(), m_tvscraper_vps_used);
+// for vps timers, VDR returns event->Start as start time. This is also used as recording->Start(), but recording->Start() rounds to minutes. So we have to round m_tvscraper_start before the comparison
+    m_timer_stop = m_tvscraper_stop;
+  }
+
+  if (m_epgsearch_start != s_time_t_not_available && !m_vps_used) {
+// epgsearch start / stop are available
+//  For VPS timers, m_epgsearch_start == EventVps() and m_epgsearch_stop = EventVps() + event->Duration()
+//  For VPS timers, m_recording->Start() == roundMinutes(event->Start()). And event->Start() and EventVps() might be identical, or not ...
+    if (m_epgsearch_start != m_recording->Start() )
+      isyslog("tvscraper, recording %s timer start inconsistent, m_epgsearch_start %lld, m_recording->Start() %lld", m_recording->FileName(), (long long)m_epgsearch_start, (long long)m_recording->Start());
+    if (m_timer_stop == s_time_t_not_available) m_timer_stop = m_epgsearch_stop;
+    else if (m_timer_stop != m_epgsearch_stop)
+      dsyslog("tvscraper DEBUG, recording %s timer stop inconsistent, m_tvscraper_stop %lld, m_epgsearch_stop %lld", m_recording->FileName(), (long long)m_tvscraper_stop, (long long)m_epgsearch_stop);
+  }
+
+  if (m_epgsearch_bstart != s_int_not_available && !m_vps_used) {
+// epgsearch bstart / bstop are available
+// for VPS timers, m_epgsearch_bstart == 0 && m_epgsearch_bstop == 0
+    if (roundMinutes(m_event->StartTime() - m_epgsearch_bstart) != m_recording->Start() )
+      dsyslog("tvscraper DEBUG, recording %s start inconsistent, m_event->StartTime() %lld, m_recording->Start() %lld, m_epgsearch_bstart %d", m_recording->FileName(), (long long)m_event->StartTime(), (long long)m_recording->Start(), m_epgsearch_bstart);
+    if (m_timer_stop == s_time_t_not_available) m_timer_stop = roundMinutes(m_event->StartTime() + m_event->Duration() + m_epgsearch_bstop);
+    else if (m_timer_stop != roundMinutes(m_event->StartTime() + m_event->Duration() + m_epgsearch_bstop))
+      dsyslog("tvscraper DEBUG, recording %s timer stop inconsistent, m_timer_stop %lld, m_event->EndTime() %lld, m_epgsearch_bstop %d", m_recording->FileName(), (long long)m_timer_stop, (long long)(m_event->StartTime()+m_event->Duration()), m_epgsearch_bstop);
+  }
+  if (m_vps_used && m_timer_stop == s_time_t_not_available) m_timer_stop = roundMinutes(m_event->StartTime() + m_event->Duration());
+
+// =============================================================================================================
+// print result, if we debug
   if (m_debug) dsyslog("tvscraper, DEBUG %s, m_vps_used %s, m_recording->Start() %lld, m_timer_stop %lld, m_event->Duration() %d, m_recording->LengthInSeconds() %d",
      m_recording->FileName(), m_vps_used?"true":"false", (long long)m_recording->Start(), (long long)m_timer_stop,
      m_event->Duration(), m_recording->LengthInSeconds() );
@@ -385,15 +399,19 @@ void csRecording::readTsFileTimestamps() const {
             break;
           }
         }
-        double time_for_this_ts_file = (double)((new_index_pos-index_pos)/8)/m_recording->FramesPerSecond();
-        int int_time_for_this_ts_file = (int)(time_for_this_ts_file + 0.5);
-        if (m_debug) dsyslog2("ts file ", ts_file_name, " length timestamps: ", l_stat.stx_mtime.tv_sec - l_stat.stx_btime.tv_sec, " s, lenght index file: ", int_time_for_this_ts_file, " s");
+        double d_time_for_this_ts_file_index = (double)((new_index_pos-index_pos)/8)/m_recording->FramesPerSecond();
+// we cut length seconds behind decimal point, to be consistent with vdr: see cRecording::LengthInSeconds()
+        int time_for_this_ts_file_index = d_time_for_this_ts_file_index;
 
         if (birthDateAvailable & tsTimestampsReasonable) {
-          if (std::abs((int)(l_stat.stx_mtime.tv_sec - l_stat.stx_btime.tv_sec) - int_time_for_this_ts_file) > 2 && l_errors < 30) {
-            isyslog2("ts file ", ts_file_name, " mismatch of timestamps and length according to index file, length timestamps: ", l_stat.stx_mtime.tv_sec - l_stat.stx_btime.tv_sec, " s, lenght index file: ", int_time_for_this_ts_file, " s, new index pos ", new_index_pos, " index.length()= ", index.length(), " recording length ", m_recording->LengthInSeconds() );
-            if (std::abs(2*(int)(l_stat.stx_mtime.tv_sec - l_stat.stx_btime.tv_sec) - int_time_for_this_ts_file) < 4)
-              isyslog2("Frames per second in the info file might be wrong, correct value seems to be ", (int)(2*m_recording->FramesPerSecond()+0.5) );
+          int time_for_this_ts_file_timestamp = l_stat.stx_mtime.tv_sec - l_stat.stx_btime.tv_sec;
+          if (l_stat.stx_btime.tv_nsec > l_stat.stx_mtime.tv_nsec) --time_for_this_ts_file_timestamp;
+          if (m_debug) dsyslog2("ts file ", ts_file_name, " length timestamps: ", time_for_this_ts_file_timestamp, " s, lenght index file: ", time_for_this_ts_file_index, " s");
+
+          if (std::abs(time_for_this_ts_file_timestamp - time_for_this_ts_file_index) > 2 && l_errors < 30) {
+            isyslog2("ts file ", ts_file_name, " mismatch of timestamps and length according to index file, length timestamps: ", time_for_this_ts_file_timestamp, " s, lenght index file: ", time_for_this_ts_file_index, " s, new index pos ", new_index_pos, " index.length()= ", index.length(), " recording length ", m_recording->LengthInSeconds() );
+            if (std::abs(2*time_for_this_ts_file_timestamp - time_for_this_ts_file_index) < 4)
+              isyslog2("Frames per second in the info file might be wrong, correct value seems to be ", 2*m_recording->FramesPerSecond() );
           }
         }
 
@@ -587,6 +605,8 @@ void csRecording::readTvscraper() const {
   if (getValue(timer_j->value, "vps", vps, filename.c_str(), &document) ) m_tvscraper_vps_used = vps?1:0;
   getValue(timer_j->value, "start_time", m_tvscraper_start, filename.c_str() ,&document);
   getValue(timer_j->value, "stop_time", m_tvscraper_stop, filename.c_str() ,&document);
+  if (m_tvscraper_start != s_time_t_not_available) m_tvscraper_start = roundMinutes(m_tvscraper_start);
+  if (m_tvscraper_stop  != s_time_t_not_available) m_tvscraper_stop  = roundMinutes(m_tvscraper_stop );
 
 // consistency with start / stop: you only need to check one of them to find out if data is availabe
   if ((m_tvscraper_stop == s_time_t_not_available && m_tvscraper_start != s_time_t_not_available) ||
@@ -615,8 +635,12 @@ void csRecording::readEpgsearch() const {
   cSv epgsearchStart = partInXmlTag(epgsearchAux, "start");
   if (!epgsearchStart.empty()) m_epgsearch_start = lexical_cast<time_t>(epgsearchStart, s_time_t_not_available, "epgsearch aux start");
 // lexical_cast(cSv sv, T returnOnError = T(), const char *context = nullptr)
+  if (m_epgsearch_start != s_time_t_not_available) m_epgsearch_start = roundMinutes(m_epgsearch_start);
+// we remove here the seconds as VDR saves only hours/mins for timers, no seconds
   cSv epgsearchStop = partInXmlTag(epgsearchAux, "stop");
   if (!epgsearchStop.empty()) m_epgsearch_stop  = lexical_cast<time_t>(epgsearchStop, s_time_t_not_available, "epgsearch aux stop");
+  if (m_epgsearch_stop != s_time_t_not_available) m_epgsearch_stop = roundMinutes(m_epgsearch_stop);
+
 // consistency with start / stop: you only need to check one of them to find out if data is availabe
   if ((m_epgsearch_stop == s_time_t_not_available && m_epgsearch_start != s_time_t_not_available) || (m_epgsearch_stop != s_time_t_not_available && m_epgsearch_start == s_time_t_not_available)) {
     esyslog("tvscraper ERROR in %s, epgsearch data inconsistent, m_epgsearch_start %lld, m_epgsearch_stop %lld", m_recording->FileName(), (long long)m_epgsearch_start, (long long)m_epgsearch_stop);
@@ -693,14 +717,16 @@ int csRecording::durationDeviation(int s_runtime) const {
       dsyslog("tvscraper DEBUG, recording %s start time inconsistent, recording->Start() %lld, creation_time %lld", m_recording->FileName(), (long long)m_recording->Start(), (long long)m_creation_first_ts_file);
   }
 
-// check: m_recording->Start() + m_recording->LengthInSeconds() == LastChangeOfLast*ts File;  -> otherwise, rec was interupted
+
   if (m_modification_last_ts_file != s_time_t_not_available) {
-    if (m_timer_stop != s_time_t_not_available) {
+// disable this check for epgsearch timers. Reason: timer stop time might have been changed by epgsearch, after start of recording.
+// even if epgsearch updated aux in timer, aux in recording is not updated by VDR
+    if (m_timer_stop != s_time_t_not_available && m_epgsearch_start == s_time_t_not_available && m_epgsearch_bstart == s_int_not_available) {
       deviation = std::max(deviation, (int)(m_timer_stop - m_modification_last_ts_file));
       if (std::abs(m_timer_stop - m_modification_last_ts_file) > 60)
         dsyslog("tvscraper DEBUG, recording %s stop time inconsistent, m_timer_stop, %lld, last change time %lld", m_recording->FileName(), (long long)m_timer_stop, (long long)m_modification_last_ts_file);
     } else {
-//  deviation = std::max(deviation, (int)(m_recording->Start() + m_recording->LengthInSeconds() - m_modification_last_ts_file));
+// check: m_recording->Start() + m_recording->LengthInSeconds() == LastChangeOfLast*ts File;  -> otherwise, rec was interrupted
       if (std::abs(m_recording->Start() + m_recording->LengthInSeconds() - m_modification_last_ts_file) > 60)
         dsyslog("tvscraper DEBUG, recording %s stop time inconsistent, recording->Start() + Length, %lld, last change time %lld", m_recording->FileName(), (long long)(m_recording->Start()+m_recording->LengthInSeconds()), (long long)m_modification_last_ts_file);
     }

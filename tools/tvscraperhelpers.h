@@ -113,53 +113,6 @@ namespace stringhelpers_internal {
   inline int numChars(const std::string &s) { return s.length(); }
   inline int numChars(const char *s) { return s?strlen(s):0; }
 
-static const int guess[] = {
-    0, 0, 0, 0, 1, 1, 1, 2, 2, 2,
-    3, 3, 3, 3, 4, 4, 4, 5, 5, 5,
-    6, 6, 6, 6, 7, 7, 7, 8, 8, 8,
-    9, 9, 9,
-    9, 10, 10, 10, 11, 11, 11,
-    12, 12, 12, 12, 13, 13, 13,
-    14, 14, 14, 15, 15, 15, 15,
-    16, 16, 16, 17, 17, 17,
-    18, 18, 18, 18, 19
-};
-
-// i > 0 !!! not cheked here !!!!!
-inline int usedBinDigits(unsigned char i) {
-  return 8*sizeof(unsigned int)-__builtin_clz((unsigned int)i);
-}
-inline int usedBinDigits(unsigned short int i) {
-  return 8*sizeof(unsigned int)-__builtin_clz((unsigned int)i);
-}
-inline int usedBinDigits(unsigned int i) {
-//  return 4*sizeof(unsigned long long int)-__builtin_clzll(0x80000000 | ((unsigned long long int)i << 32));
-  return 8*sizeof(unsigned int)-__builtin_clz(i);
-}
-inline int usedBinDigits(unsigned long int i) {
-  return 8*sizeof(unsigned long int)-__builtin_clzl(i);
-}
-inline int usedBinDigits(unsigned long long int i) {
-  return 8*sizeof(unsigned long long int)-__builtin_clzll(i);
-}
-
-template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-  inline int numChars_bi(T i) {
-// i > 0 !!! not cheked here !!!!!
-    int digits = guess[usedBinDigits(i)];
-    return digits + (i > to_chars10_internal::max_int[digits]);
-  }
-template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
-  inline int numChars(T i) {
-  return i?numChars_bi(i):1;
-}
-template<typename T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
-  inline int numChars(T i) {
-    typedef std::make_unsigned_t<T> TU;
-    if (i > 0) return numChars_bi(static_cast<TU>(i));
-    if (i < 0) return numChars_bi(~(static_cast<TU>(i)) + static_cast<TU>(1)) + 1;
-    return 1;
-  }
 
 typedef char* (*itoaNT64)(char *b, uint64_t i);
 static itoaNT64 fa[21] = {
@@ -645,6 +598,20 @@ void stringToVector(std::vector<T> &vec, const char *str) {
     if (find (vec.begin(), vec.end(), part) != vec.end() ) continue;
     vec.emplace_back(part);
   }
+}
+
+time_t roundMinutes(time_t t) {
+// a) convert t to year, month, day of the month, hours, mins, seconds
+// b) set seconds = 0
+// c) convert back to epoch
+  struct tm tm_r;
+  tm tm = *localtime_r(&t, &tm_r);
+  tm.tm_sec = 0;
+  tm.tm_isdst = -1;   // makes sure mktime() will determine the correct DST setting
+  time_t result = mktime(&tm);  // min possible value of result: t-59
+  if (result > t || result + 59 < t)
+    dsyslog3("t = ", t, " result = ", result);
+  return result;
 }
 
 #endif // __TVSCRAPERHELPERS_H

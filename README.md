@@ -53,7 +53,9 @@ Requirements
 - gcc v8 or later. gcc must support -std=c++17.
 - linux 4.11, glibc 2.28 (for statx)
 
-- libgumbo  (only for the example plugin). Package libgumbo-dev on debian. Source: https://github.com/GerHobbelt/gumbo-parser should work. Compile this with make CFLAGS='-DNO_GUMBO_DEBUG'
+- libgumbo  (only for the example plugin). Package libgumbo-dev on debian.
+  - Source: https://github.com/google/gumbo-parser/blob/master/original-README.md
+  - More up to date source: https://github.com/GerHobbelt/gumbo-parser should work. Compile this with make CFLAGS='-DNO_GUMBO_DEBUG'
 - unzip (only for the example2 plugin)
 - If you use TVGuide: Version 1.3.6+ is required
 - If you use SkinNopacity: Version 1.1.15+ is required

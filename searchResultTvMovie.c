@@ -107,7 +107,7 @@ Enterprise: 50616
 void searchResultTvMovie::setMatchYear(const cYears &years, int durationInSec) {
 // input: years: list of years in texts
   if (m_year <= 0) { m_matches[1].match = 0.; return; }
-  if (!m_movie &&  durationInSec < 80*60) m_matches[1].weight = 0.1; // for a series, this matching is more irrelevant. Except a min series with long episodes
+  if (!m_movie && durationInSec < 80*60) m_matches[1].weight = 0.1; // for a series, this matching is more irrelevant. Except a min series with long episodes
   int f = years.find2(m_year);
 //  if (m_id ==	1161242) esyslog("tvscraper: movie 1161242 Vika, find2 f %d", f);
   if (f == 2 ) { m_yearMatch =  1; m_matches[1].match = 1.; return; }

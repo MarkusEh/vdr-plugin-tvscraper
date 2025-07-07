@@ -1,6 +1,7 @@
 #ifndef __TVSCRAPER_TVSCRAPERDB_H
 #define __TVSCRAPER_TVSCRAPERDB_H
 #include <sqlite3.h>
+#include "tools/tvscraperhelpers.h"
 
 // make sure that the lifetime of any string object you use to create cStringRef is long enough!
 // for details (what is long enough), see cSql comment
@@ -525,7 +526,7 @@ public:
 // just execute the sql statement, with the given parameters
       cSql sql(this, cStringRef(query), std::forward<Args>(args)...);
     }
-// Use:   T get(int col, T row_not_found = T(), T col_empty = T() ) {
+// Use:   T get(int col, T row_not_found = T(), T col_empty = T() )
     template<class T, typename... Args>
     T query(const char *query, Args&&... args) const {
       return cSql(this, cStringRef(query), std::forward<Args>(args)...).get<T>(0);
@@ -556,8 +557,10 @@ public:
     void InsertMovie(int movieID, const char *title, const char *original_title, const char *tagline, const char *overview, bool adult, int collection_id, const char *collection_name, int budget, int revenue, const char *genres, const char *homepage, const char *release_date, int runtime, float popularity, float vote_average, int vote_count, const char *productionCountries, const char *posterUrl, const char *fanartUrl, const char *IMDB_ID, const char *languages);
     bool MovieExists(int movieID);
     bool TvExists(int tvID);
-    int InsertRecording2(csEventOrRecording *sEventOrRecording, int movie_tv_id, int season_number, int episode_number);
-    int SetRecording(csEventOrRecording *sEventOrRecording);
+    void DeleteRecordingInfo(cSv recordingFileName);
+    void DeleteRecording(const cRecording *recording);
+    int InsertRecording(const cRecording *recording, int movie_tv_id, int season_number, int episode_number);
+    int SetRecording(const cRecording *recording);
     void ClearRecordings2(void);
     bool CheckStartScrapping(int minimumDistance);
     bool GetMovieTvID(const cEvent *event, int &movie_tv_id, int &season_number, int &episode_number, int *runtime = nullptr) const;
@@ -596,6 +599,35 @@ public:
     int get_TMDb_id(int tv_id) const;
     int getNormedTvId(int tv_id) const;
 };
+
+/* the key of recordings2 is:
+  event_id, event_start_time, channel_id, recording_start_time
+  Use the following methods to get this key for a recording:
+*/
+inline tEventID EventID(const cRecording *recording) {
+  return recording->Info()->GetEvent()->EventID();
+}
+inline time_t EventStartTime(const cRecording *recording) {
+  time_t st = recording->Info()->GetEvent()->StartTime();
+  if (st) return st;
+  else return recording->Start();
+}
+class cDbChannelId: public cToSvConcat<255> {
+  public:
+    cDbChannelId(const cRecording *recording) { construct(recording); }
+    cDbChannelId(const cEvent *event) { concat(event->ChannelID()); }
+    cDbChannelId(const csEventOrRecording *sEventOrRecording) {
+      if (sEventOrRecording->Recording() ) construct(sEventOrRecording->Recording());
+      else concat(sEventOrRecording->ChannelID());
+    }
+  private:
+    void construct(const cRecording *recording) {
+      cRecordingInfo *info = recording->Info();
+      if ((info->GetEvent()->EventID() != 0) & info->ChannelID().Valid() ) concat(info->ChannelID());
+      else concat(recording->Name());
+    }
+};
+// recording_start_time = recording->Start()
 
 /*
  * class cLockDB: use the for thread-safety.

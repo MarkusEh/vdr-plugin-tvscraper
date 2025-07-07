@@ -686,21 +686,11 @@ void cSearchEventOrRec::ScrapAssign(const sMovieOrTv &movieOrTv) {
 // assign found movieOrTv to event/recording in db
   if(movieOrTv.type != scrapMovie && movieOrTv.type != scrapSeries) {
     m_db->DeleteEventOrRec(m_sEventOrRecording); // nothing was found, delete assignment
-
-    const cRecording *recording = m_sEventOrRecording->Recording();
-    if (recording) {
-// explicitly write to db that this was checked, and nothing was found
-// runtime = -2 -> no data available in external database
-// duration_deviation = -3 -> no data in recordings2 (i.e. no data in this cache)
-// season_number = -101    -> no movie/TV found, this was checked!
-      m_db->exec("INSERT OR REPLACE INTO recordings2 (event_id, event_start_time, recording_start_time, channel_id, movie_tv_id, season_number, length_in_seconds, runtime, duration_deviation) VALUES (?, ?, ?, ?, 0, -101, ?, -2, -3)", m_sEventOrRecording->EventID(), m_sEventOrRecording->StartTime(), m_sEventOrRecording->RecordingStartTime(), m_sEventOrRecording->ChannelIDs(), recording->LengthInSeconds());
-      m_db->ClearRuntimeDurationDeviation(recording);
-    }
     return;
   }
   if (!m_sEventOrRecording->Recording() )
-          m_db->InsertEvent     (m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
-     else m_db->InsertRecording2(m_sEventOrRecording, movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+          m_db->InsertEvent    (m_sEventOrRecording,              movieOrTv.id, movieOrTv.season, movieOrTv.episode);
+     else m_db->InsertRecording(m_sEventOrRecording->Recording(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
 }
 
 void cSearchEventOrRec::getActorMatches(const char* actor, int &numMatchesAll, int &numMatchesFirst, int &numMatchesSure, cContainer &alreadyFound) {

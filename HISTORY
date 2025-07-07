@@ -106,7 +106,7 @@ Version 1.1.13
 - New service interface virtual bool has_changed(const cRecording *recording, int &runtime)
 
 
-2025-03-xx: Version 1.2.14
+2025-07-05: Version 1.2.14
 - Watch VDR recordings, regularily compare them with recordings known by tvscraper (recordings2)
 - Fix possible crash during scan of recording. Thanks to kamel5 at vdr-portal.de for reporting
 - Fix DurationLowSec for VPS events with ads. Thanks to kfb77 at vdr-portal.de for reporting

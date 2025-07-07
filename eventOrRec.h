@@ -27,7 +27,6 @@ public:
   int DurationDistance(int DurationInMin);
   virtual cSv EpisodeSearchString() const;
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
-  virtual const std::string ChannelIDs() const { return std::string(cToSvConcat(ChannelID() )); }
   virtual const char *Title() const { return m_event->Title(); }
   virtual const char *ShortText() const { return m_event->ShortText(); }
   cSv Description() const { return m_description; }
@@ -56,7 +55,6 @@ public:
   virtual int DurationInSec() const { return m_event->Duration()?m_event->Duration():m_recording->FileName() ? m_recording->LengthInSeconds() : 0; }
   virtual int DurationRange(int &durationInMinLow, int &durationInMinHigh);
   virtual const tChannelID ChannelID() const { return m_recording->Info()->ChannelID(); }
-  virtual const std::string ChannelIDs() const { return (EventID()&&ChannelID().Valid())?std::string(cToSvConcat(ChannelID() )):m_recording->Name(); } // if there is no eventID or no ChannelID(), use Name instead
   virtual const char *Title() const { return m_recording->Info()->Title(); }
   virtual const char *ShortText() const { return m_recording->Info()->ShortText(); }
   virtual int durationDeviation(int s_runtime) const;
