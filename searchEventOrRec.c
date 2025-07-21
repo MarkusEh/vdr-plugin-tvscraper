@@ -24,7 +24,7 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
 // RTLup 1237
 // Super RTL 47831
 // Nitro 1238
-// SAT.1 373 
+// SAT.1 373
 // ProSieben 374
 // ProSieben Maxx 984
 // Kabel eins 963
@@ -254,7 +254,7 @@ cMovieOrTv *cSearchEventOrRec::Scrape(int &statistics) {
 bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv) {
   movieOrTv.season = 0;
   movieOrTv.year = 0;
-  
+
   cSv title = removeLastPartWithP(m_sEventOrRecording->Title() );
   int o_id = m_overrides->TheTVDB_SeriesID(title);
   if (o_id != 0) {
@@ -336,7 +336,7 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
 // 11: external db
   if (ScrapCheckOverride(movieOrTv) ) {
     if (Store(movieOrTv) != -1) return 1;
-    esyslog("tvscraper: ERROR movie/tv id %d given in override.conf does not exist", movieOrTv.id);
+    isyslog("tvscraper: ERROR movie/tv id %d given in override.conf does not exist", movieOrTv.id);
   }
   if (CheckCache(movieOrTv) ) return 1;
   if (config.enableDebug) {
@@ -630,7 +630,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
 // delete cached season / episode information: if we cannot get this information from short text -> no episode found
       movieOrTv.season = 0;
       movieOrTv.episode = 0;
-      
+
       episodeSearchString = m_baseNameEquShortText?m_episodeName:m_sEventOrRecording->EpisodeSearchString();
       int min_distance = 1000;
       sMovieOrTv movieOrTv_best;
@@ -956,7 +956,7 @@ bool cSearchEventOrRec::splitNameEpisodeName(char delim, cSv &foundName, cSv &ep
     return false;
   }
   bool ret = splitString(m_movieSearchString_with_p, delim, 4, foundName, episodeSearchString);
-  if (errorIfNotFound && !ret) 
+  if (errorIfNotFound && !ret)
     esyslog("tvscraper, ERROR splitNameEpisodeName delim %c, m_movieSearchString_with_p = %s", delim, m_movieSearchString_with_p.c_str());
   return ret;
 }

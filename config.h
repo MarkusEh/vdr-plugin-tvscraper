@@ -125,9 +125,9 @@ class cTVScraperConfig {
 { 8, "ita", "it-IT", "italiano"},
 { 9, "nld", "nl-NL", "nederlands"},
 {10, "spa", "es-ES", "español"},
-{11, "fin", "fi-FI", "suomi"},
-{12, "ita", "it-IT", "italiano"},
-{13, "nld", "nl-NL", "nederlands"},
+{11, "fin", "fi-FI", "suomi"},     // Finnish
+{12, "ita", "it-IT", "italiano"},  // DUPLICATE of 8
+{13, "nld", "nl-NL", "nederlands"}, // DUPLICATE of 9
 {14, "swe", "sv-SE", "svenska"}, // Swedish
 {15, "por", "pt-PT", "português - Portugal"},
 {16, "nor", "nb-NO", "norsk bokmål"}, // Norwegian

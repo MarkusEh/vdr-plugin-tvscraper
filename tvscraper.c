@@ -113,7 +113,18 @@ class cExtEpgHandler : public cEpgHandler
     virtual bool SetDescription(cEvent *Event, const char *Description) {
 // return true if we want to prevent a change of Event->Description()
       if (!Event->Description() ) return false;
-      if (config.myDescription(Event->Description() )) return true;
+      if (config.myDescription(Event->Description() )) {
+        cSv old_description = Event->Description();
+        cSv::size_type old_description_scrid = old_description.find("Content CRID:");
+        if (old_description_scrid != cSv::npos) return true;
+        cSv new_description = Description;
+        cSv::size_type new_description_scrid = new_description.find("Content CRID:");
+        if (new_description_scrid == cSv::npos) return true;
+
+        cToSvConcat description(remove_trailing_whitespace(Event->Description()), "\n", new_description.substr(new_description_scrid));
+        Event->SetDescription(description.c_str() );
+        return true;
+      }
 
       if (!config.m_writeEpisodeToEpg) return false;
       cSv eventDescription = Event->Description();
@@ -487,7 +498,7 @@ bool cPluginTvscraper::Service(const char *Id, void *Data) {
 
         return true;
     }
-    
+
     if (strcmp(Id, "GetPosterBanner") == 0) {
 // if banner available: for TV shows: return banner, and report as TV show (tSeries)
 // otherwise: return posterand report as movie (tMovie)

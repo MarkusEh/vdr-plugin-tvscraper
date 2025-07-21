@@ -435,6 +435,11 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
        event->Description() && strlen(event->Description()) > 3 && cSv(event->Description()).substr(0, 3) == "..." ) {
       event->SetShortText(event->Description() );
   }
+  cSv old_description = event->Description();
+  cSv::size_type old_description_scrid = old_description.find("Content CRID:");
+  if (old_description_scrid != cSv::npos) {
+    description.concat("\n", old_description.substr(old_description_scrid));
+  }
   event->SetDescription(description.c_str());
   if (!event->ShortText() || !*event->ShortText() ) {
 // add a short text only if no short text is available from EIT (the TV station)

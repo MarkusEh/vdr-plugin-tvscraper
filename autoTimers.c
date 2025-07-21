@@ -358,7 +358,7 @@ std::string getAux(const cTVScraperDB &db, const cScraperRec *recording, const c
       cSql stmt(&db, "select movie_collection_name from movies3 where movie_id = ?", recording->movieTvId() );
       if (stmt.readRow() ) {
         const char *nameCollection = stmt.getCharS(0);
-        if (nameCollection) { 
+        if (nameCollection) {
           result.append("<collectionName>");
           result.append(nameCollection );
           result.append("</collectionName>");
@@ -369,7 +369,7 @@ std::string getAux(const cTVScraperDB &db, const cScraperRec *recording, const c
       cSql stmt(&db, "select tv_name from tv2 where tv_id = ?", recording->movieTvId() );
       if (stmt.readRow() ) {
         const char *nameSeries = stmt.getCharS(0);
-        if (nameSeries) { 
+        if (nameSeries) {
           result.append("<seriesName>");
           result.append(nameSeries );
           result.append("</seriesName>");
@@ -519,7 +519,7 @@ cTimer *createTimer(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent,
 bool canTimerBeDeleted(const cTimer *ti, const char *context = nullptr) {
 // return true except timer is recording or Matches (Matches: would be recording, but cannot as other timers have higher priorities)
   time_t Now = time(NULL);
-  if (!ti || ti->Recording() || ti->Matches(Now, false, 0) || ti->InVpsMargin() || (ti->Event() && ti->Event()->StartTime() <= Now + 10*60) ) return false;
+  if (!ti || ti->Recording() || ti->Matches(Now) || ti->InVpsMargin() || (ti->Event() && ti->Event()->StartTime() <= Now + 10*60) ) return false;
   if (context && config.enableDebug) esyslog("tvscraper: %s, timer %s deleted", context, *(ti->ToDescr() ));
   return true;
 }
@@ -532,8 +532,9 @@ bool timerGetEvents(const cEvent *&event1, const cEvent *&event2, const cTimer *
   const cSchedule *Schedule = ti->Event()->Schedule();
   if (!Schedule ) return false;
 
-  // Set up the time frame within which to check events:
-  ti->Matches(0, true);
+// Set up the time frame within which to check events:
+// Directly only matters for VPS & Spawned timers, which we don't have here -> remove for compatability
+  ti->Matches();
   time_t TimeFrameBegin = ti->StartTime() - 2*60;
   time_t TimeFrameEnd   = ti->StopTime() + 2*60;
 // create a list of events, with 100% overlap to this timer

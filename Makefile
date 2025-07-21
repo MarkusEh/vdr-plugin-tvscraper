@@ -71,7 +71,7 @@ OBJS = $(PLUGIN).o
 
 ### The main target:
 
-all: $(SOFILE) i18n
+all: $(SOFILE) i18n plugins
 
 ### Implicit rules:
 
@@ -143,7 +143,7 @@ install-conf:
 	@cp -a conf/networks.json $(DESTDIR)$(RESDIR)/plugins/$(PLUGIN)/
 	@cp -a conf/override_tvs.conf $(DESTDIR)$(RESDIR)/plugins/$(PLUGIN)/
 
-install: install-lib install-i18n install-conf
+install: install-lib install-i18n install-conf install-plugins
 
 dist: $(I18Npo) clean
 	@-rm -rf $(TMPDIR)/$(ARCHIVE)
