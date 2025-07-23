@@ -10,6 +10,10 @@ include $(TVSCRAPER_SRC)/Make.config-tvscraper
 
 PKG_CONFIG ?= pkg-config
 PKGCFG = $(if $(VDRDIR),$(shell $(PKG_CONFIG) --variable=$(1) $(VDRDIR)/vdr.pc),$(shell PKG_CONFIG_PATH="$$PKG_CONFIG_PATH:../../.." $(PKG_CONFIG) --variable=$(1) vdr))
+LIBDIR = $(call PKGCFG,libdir)
+PLGCFG = $(call PKGCFG,plgcfg)
+
+-include $(PLGCFG)
 
 export CXXFLAGS = $(call PKGCFG,cxxflags)
 

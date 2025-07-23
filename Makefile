@@ -125,7 +125,7 @@ $(SOFILE): $(OBJS)
 
 plugins:
 	@find $(PLGSRCDIR) -maxdepth 1 -type d -name "[a-z0-9]*" -exec \
-      $(MAKE) \-\-no-print-directory -C {} \;
+      $(MAKE) VDRDIR="$(VDRDIR)" \-\-no-print-directory -C {} \;
 clean-plugins:
 	@find $(PLGSRCDIR) -maxdepth 1 -type d -name "[a-z0-9]*" -exec \
       $(MAKE) \-\-no-print-directory -C {} clean \;
