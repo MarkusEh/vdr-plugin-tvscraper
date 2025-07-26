@@ -35,6 +35,7 @@ using namespace std;
 class cOverRides {
   private:
     std::vector<std::string> ignores;
+    std::vector<std::regex> regexIgnores;
     std::map<std::string,scrapType, less<>> searchTypes;
     std::map<std::string,string,less<>> substitutes;
     std::map<std::string,int,less<>> m_TheTVDB_SeriesID;

@@ -5,13 +5,14 @@
 #
 #
 
-TVSCRAPER_SRC ?= ../..
-include $(TVSCRAPER_SRC)/Make.config-tvscraper
 
 PKG_CONFIG ?= pkg-config
 PKGCFG = $(if $(VDRDIR),$(shell $(PKG_CONFIG) --variable=$(1) $(VDRDIR)/vdr.pc),$(shell PKG_CONFIG_PATH="$$PKG_CONFIG_PATH:../../.." $(PKG_CONFIG) --variable=$(1) vdr))
 LIBDIR = $(call PKGCFG,libdir)
 PLGCFG = $(call PKGCFG,plgcfg)
+
+TVSCRAPER_SRC ?= ../..
+include $(TVSCRAPER_SRC)/Make.config-tvscraper
 
 -include $(PLGCFG)
 
@@ -42,8 +43,8 @@ $(SOFILE): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared $(OBJS) $(LIBS) -o $@
 
 install: $(SOFILE)
-	mkdir -p "$(_PLGDEST)"
-	install -D $(SOFILE) $(_PLGDEST)/$(SOFILE)
+	mkdir -p "$(DESTDIR)$(PLGDEST)"
+	install -D $(SOFILE) $(DESTDIR)$(PLGDEST)/$(SOFILE)
 
 clean:
 	@-rm -f $(OBJS) core* *~ *.so

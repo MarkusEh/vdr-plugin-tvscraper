@@ -1,4 +1,7 @@
 # path for the tvscraper plugins
-PREFIX = /usr
-_PLGDEST = $(DESTDIR)$(PREFIX)/lib/tvscraper/plugins
-PLGDEST = $(PREFIX)/lib/tvscraper/plugins
+VDRROOTDIR := $(call PKGCFG,vdrrootdir)
+ifeq ($(VDRROOTDIR),)
+VDRROOTDIR := /usr
+endif
+
+PLGDEST ?= $(VDRROOTDIR)/lib/tvscraper/plugins

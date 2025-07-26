@@ -35,7 +35,7 @@ std::regex getRegex(cSv sv) {
     return result;
   } catch (const std::regex_error& e)
   {
-    esyslog("%s", cToSvConcat("tvscraper, ERROR ", e.what(), " in regex ", sv).c_str() );
+    esyslog2(e.what(), " in regex ", sv);
     return std::regex();
   }
 }
@@ -58,7 +58,7 @@ bool cRegexAction::set_dbid(cSv edb, cSv id, bool seriesRequired) {
   }
   m_matchTitle = true;
   m_regexTitle = std::regex();
-  esyslog("tvscraper, ERROR in override.conf, %s", cToSvConcat(edb, " given, expected TheTVDB_Series or TheMovieDB_Series", !seriesRequired?" or TheMovieDB_Movie":"").c_str());
+  esyslog2("In override.conf ", edb, " given, expected TheTVDB_Series or TheMovieDB_Series", !seriesRequired?" or TheMovieDB_Movie":"");
   return false;
 }
 void cRegexAction::set_title(cSv title) {
@@ -80,7 +80,11 @@ void cOverRides::ReadConfigLine(const char *line) {
   if (flds.size() > 0) {
     if (!flds[0].compare("ignore")) {
       if (assertFldsSize(line, flds, 2)) {
-        ignores.push_back(string(flds[1]));
+        ignores.push_back(std::string(flds[1]));
+      }
+    } else if (!flds[0].compare("regexIgnore")) {
+      if (assertFldsSize(line, flds, 2)) {
+        regexIgnores.push_back(getRegex(flds[1]));
       }
     } else if (!flds[0].compare("settype")) {
       if (assertFldsSize(line, flds, 3)) {
@@ -197,9 +201,15 @@ void cOverRides::ReadConfigLine(const char *line) {
 }
 
 bool cOverRides::Ignore(cSv title) {
-  for (const string &pos: ignores) {
-    if (title == pos) {
-//      if (config.enableDebug) esyslog("tvscraper: ignoring \"%.*s\" because of override.conf", (int)title.length(), title.data());
+  for (const std::string &str: ignores) {
+    if (title == str) {
+//    if (config.enableDebug) dsyslog2("ignoring \"", title, "\" because of override.conf");
+      return true;
+    }
+  }
+  for (const std::regex &reg: regexIgnores) {
+    if (std::regex_match(title.data(), title.data()+title.length(), reg)) {
+      dsyslog2("ignoring \"", title, "\" because of regexIgnore in override.conf");
       return true;
     }
   }
