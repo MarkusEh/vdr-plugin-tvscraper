@@ -185,7 +185,7 @@ void cOverRides::ReadConfigLine(const char *line) {
         int num_title_cg = regexAction.m_matchTitle?regexAction.m_regexTitle.mark_count():0;
         int num_shortText_cg = regexAction.m_matchShortText?regexAction.m_regexShortText.mark_count():0;
         if (num_title_cg + num_shortText_cg != 2) {
-          esyslog("tvscraper, ERROR in regex %s", cToSvConcat(flds[1], ", st regex ", flds[2], ", expected 2 capture group, found ", num_title_cg, " capture groups in title and ", num_shortText_cg, " capture groups in short text").c_str());
+          esyslog2("in regex ", flds[1], ", st regex ", flds[2], ", expected 2 capture group, found ", num_title_cg, " capture groups in title and ", num_shortText_cg, " capture groups in short text");
           regexAction.m_matchTitle = true;
           regexAction.m_regexTitle = std::regex();
         }
@@ -195,6 +195,13 @@ void cOverRides::ReadConfigLine(const char *line) {
         regexAction.m_dbid = 0;
         regexAction.m_movie = false;
         m_regex.push_back(regexAction);
+      }
+    } else if (!flds[0].compare("regexDescription->titleEpisodeSeasonNumberEpisodeNumber")) {
+      if (assertFldsSize(line, flds, 2)) {
+        std::regex reg = getRegex(flds[1]);
+        if (reg.mark_count() != 4)
+          esyslog2("in regex ", flds[1], ", expected 4 capture groups, found ", reg.mark_count(), " capture groups");
+        else m_regexDescription_titleEpisodeSeasonNumberEpisodeNumber.push_back(reg);
       }
     }
   }

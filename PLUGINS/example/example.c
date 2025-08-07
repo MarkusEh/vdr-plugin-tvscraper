@@ -76,6 +76,11 @@ GumboNode* getNode(GumboNode* node, GumboTag tag) {
   }
   return nullptr;
 }
+cSv get_title(GumboNode* node) {
+  GumboNode* headline = getNodeWithClass(node, GUMBO_TAG_H1, "headline headline--article broadcast stage-heading");
+  if (!headline) return cSv();
+  return get_text2(headline);
+}
 cSv get_shorttext(GumboNode* node) {
   GumboNode* headline = getNodeWithClass(node, GUMBO_TAG_H1, "headline headline--article broadcast stage-heading");
   if (!headline) return cSv();
@@ -267,7 +272,7 @@ cSv add_infos_series(cToSvConcat<N> &description, GumboNode* node) {
   if (!episode) return cSv();
   cSv episode_name = get_text2(episode);
   if (episode_name.empty()) return cSv();
-  description << "Episode: " << episode_name << "\n";
+  description << "Episode: " << remove_trailing_whitespace(episode_name) << "\n";
   description << get_text2(serial_info) << "\n\n";
   return episode_name;
 }
@@ -415,6 +420,8 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
 
   cToSvConcat description;
 
+  cSv title = get_title(output->root);
+  description << "Titel: " << remove_trailing_whitespace(title) << "\n";
   cSv short_text = get_shorttext(output->root);
   cSv episode_name = add_infos_series(description, output->root);
   add_conclusion(description, output->root);

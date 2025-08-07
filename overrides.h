@@ -46,6 +46,7 @@ class cOverRides {
     std::vector<std::string> removePrefixes;
     void ReadConfigLine(const char *line);
   public:
+    std::vector<std::regex> m_regexDescription_titleEpisodeSeasonNumberEpisodeNumber;
     cOverRides(void);
     virtual ~cOverRides(void);
     void ReadConfig(cSv dir, cSv file);

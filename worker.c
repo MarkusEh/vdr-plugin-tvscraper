@@ -272,15 +272,30 @@ bool cTVScraperWorker::ScrapEPG(void) {
             time11_max = std::max(timeNeeded, time11_max);
             break;
         }
-        if (movieOrTv && movieOrTv->getType() == tSeries && movieOrTv->getEpisode() != 0 && config.m_writeEpisodeToEpg) {
-          std::string title, episodeName;
-          if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr)) {
-            cToSvConcat description(sEoR.Description() );
-            description.concat("\n", config.m_description_delimiter, " ", remove_trailing_whitespace(title));
-            description.concat("\n", tr("Episode Name:"), " ", remove_trailing_whitespace(episodeName));
-            description.concat("\n", tr("Season Number:"), " ", movieOrTv->getSeason() );
-            description.concat("\n", tr("Episode Number:"), " ", movieOrTv->getEpisode() );
-            sEvent.SetDescription(description.c_str() );
+        if (config.m_writeEpisodeToEpg) {
+          if (movieOrTv && movieOrTv->getType() == tSeries && movieOrTv->getEpisode() != 0) {
+            std::string title, episodeName;
+            if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr)) {
+              cToSvConcat description(sEoR.Description() );
+              description.concat("\n", config.m_description_delimiter, " ", remove_trailing_whitespace(title));
+              description.concat("\n", tr("Episode Name:"), " ", remove_trailing_whitespace(episodeName));
+              description.concat("\n", tr("Season Number:"), " ", movieOrTv->getSeason() );
+              description.concat("\n", tr("Episode Number:"), " ", movieOrTv->getEpisode() );
+              sEvent.SetDescription(description.c_str() );
+            }
+          } else {
+            std::cmatch capture_groups;
+            for (const std::regex &r: overrides->m_regexDescription_titleEpisodeSeasonNumberEpisodeNumber) {
+              if (std::regex_match(sEoR.Description().data(), sEoR.Description().data()+sEoR.Description().length(), capture_groups, r) && capture_groups.size() == 5) {
+                cToSvConcat description(sEoR.Description() );
+                description.concat("\n", config.m_description_delimiter, " ", remove_trailing_whitespace(capture_groups[1].str()));
+                description.concat("\n", tr("Episode Name:"), " ", remove_trailing_whitespace(capture_groups[2].str()));
+                description.concat("\n", tr("Season Number:"), " ", remove_trailing_whitespace(capture_groups[3].str()));
+                description.concat("\n", tr("Episode Number:"), " ", remove_trailing_whitespace(capture_groups[4].str()));
+                sEvent.SetDescription(description.c_str() );
+                break;
+              }
+            }
           }
         }
         waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
