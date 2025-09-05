@@ -32,8 +32,17 @@ cTVScraperWorker::~cTVScraperWorker() {
 }
 
 void cTVScraperWorker::Stop(void) {
-    waitCondition.Broadcast();    // wakeup the thread
     Cancel(210);                  // wait up to 210 seconds for thread was stopping
+}
+bool cTVScraperWorker::waitMs(int ms)	{
+// return Running()
+  if (!Running() ) return false;
+  cTimeMs SleepTime(ms);
+  while (!SleepTime.TimedOut()) {
+    cCondWait::SleepMs(100);
+    if (!Running() ) return false;
+  }
+  return true;
 }
 
 void cTVScraperWorker::InitVideoDirScan(const char *filename) {
@@ -60,7 +69,6 @@ void cTVScraperWorker::InitVideoDirScan(const char *filename) {
 
 void cTVScraperWorker::InitManualScan(void) {
   manualScan = true;
-  waitCondition.Broadcast();
 }
 
 void cTVScraperWorker::SetDirectories(void) {
@@ -298,7 +306,7 @@ bool cTVScraperWorker::ScrapEPG(void) {
             }
           }
         }
-        waitCondition.TimedWait(mutex, 10); // short wait time after scraping an event
+        waitMs(10); // short wait time after scraping an event
         auto begin = std::chrono::high_resolution_clock::now();
         if (!extEpgImages.empty() && !extEpgImages[0].path.empty() ) {
           if (extEpgImages[0].path[0] == '/') CopyFileImg(extEpgImages[0].path, extEpgImage);
@@ -471,10 +479,8 @@ void cTVScraperWorker::ScrapRecordings(const std::vector<std::string> &recording
     }
 /* we create tvscraper.json in CheckRunningTimers */
 
-    if (!Running() ) break;
 // here, the read lock is released, so wait a short time, in case someone needs a write lock
-    waitCondition.TimedWait(mutex, 100);
-    if (!Running() ) break;
+    if (!waitMs(100)) break;
   }
   if (new_assignment) {
     db->BackupToDisc();
@@ -537,9 +543,8 @@ bool cTVScraperWorker::StartScrapping(bool &fullScan) {
   }
   if (resetScrapeTime || lastEvents.empty() ) {
 // a full scrape will be done, write this to db, so next full scrape will be in one day
-    db->exec("delete from scrap_checker");
-    const char *sql = "INSERT INTO scrap_checker (last_scrapped) VALUES (?)";
-    db->exec(sql, time(0));
+    db->exec("DELETE FROM scrap_checker");
+    db->exec("INSERT INTO scrap_checker (last_scrapped) VALUES (?)", time(0));
     fullScan = true;
     return true;
   }
@@ -556,9 +561,8 @@ void cTVScraperWorker::Action(void) {
   if (!startLoop) return;
   if (config.GetReadOnlyClient() ) return;
 
-  mutex.Lock();
   dsyslog("tvscraper: waiting %d minutes to start main loop", initSleep / 1000 / 60);
-  waitCondition.TimedWait(mutex, initSleep);
+  waitMs(initSleep);
 
   while (Running()) {
     if (ConnectScrapers()) ScrapChangedRecordings();
@@ -575,13 +579,16 @@ void cTVScraperWorker::Action(void) {
       }
       if (!Running() ) break;
 //    dsyslog("tvscraper: epg scraping done");
-      if (config.getEnableAutoTimers() ) timersForEvents(*db, this);
+      if (config.getEnableAutoTimers() ) {
+        if (config.enableDebug) dsyslog2("start auto timers");
+        timersForEvents(*db, this);
+        if (config.enableDebug) dsyslog2("auto timers finished");
+      }
     }
     if (!Running() ) break;
     for (int i = 0; i < m_epgImageDownloadIterations; ++i) {
       m_epg_images.downloadOne();
-      if (!Running() ) break;
-      waitCondition.TimedWait(mutex, m_epgImageDownloadSleep*1000);
+      if (!waitMs(m_epgImageDownloadSleep*1000)) break;
     }
   }
 }

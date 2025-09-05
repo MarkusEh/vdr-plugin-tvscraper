@@ -31,7 +31,7 @@ class cEpgImages {
     time_t m_last_report = 0;
     std::vector<cEpgImage> m_epg_images;
 };
-class cTVScraperWorker : public cThread {
+class cTVScraperWorker: public cThread {
   private:
     cCurl m_curl;
     const int m_epgImageDownloadSleep;
@@ -44,17 +44,13 @@ class cTVScraperWorker : public cThread {
     cOverRides *overrides;
     int initSleep;
     time_t lastScrapeRecordings = 0;
-    cCondVar waitCondition;
-    cMutex mutex;
     cTVScraperDB *db;
     cMovieDBScraper *moviedbScraper;
     cTVDBScraper *tvdbScraper;
     cMovieDbMovieScraper *m_movieDbMovieScraper;
     cMovieDbTvScraper *m_movieDbTvScraper;
     cTvDbTvScraper *m_tvDbTvScraper;
-#if APIVERSNUM >= 20301
     cStateKey schedulesStateKey;
-#endif
     map<tChannelID, set<tEventID>*> lastEvents;
 
     bool ConnectScrapers(void);
@@ -65,6 +61,7 @@ class cTVScraperWorker : public cThread {
     void ScrapChangedRecordings();
     void ScrapRecordings(const std::vector<std::string> &recordingFileNames);
     bool StartScrapping(bool &fullScan);
+    bool waitMs(int ms);  // return running()
 public:
     cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides);
     virtual ~cTVScraperWorker(void);
