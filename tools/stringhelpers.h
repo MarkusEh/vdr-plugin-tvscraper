@@ -1091,7 +1091,7 @@ inline ssize_t read(int fd, char *buf, size_t count, const char *filename) {
     if (num_read1 == -1) {
 // On error, -1 is returned, and errno is set to indicate the error.
 // In this case, it is left unspecified whether the file position changes.
-      if (errno == ENOENT || errno == EINTR || errno == EEXIST || errno == 0) return -2;  // I really don't understand why ENOENT or EEXIST would be reported. But we retry ...
+      if (errno == ENOENT || errno == EINTR || errno == EEXIST || errno == EAGAIN || errno == 0) return -2;  // I really don't understand why ENOENT or EEXIST would be reported. But we retry ...
       esyslog(PLUGIN_NAME_I18N " ERROR: read failed, errno %d, error %m, filename %s, count %zu, num_read = %zu", errno, filename, count, num_read);
       return -4;
     }
@@ -1165,22 +1165,27 @@ inline ssize_t read_file(const char *filename, char *&buf, size_t count) {
 
 class cToSvFile: public cToSv {
   public:
+    cToSvFile() { m_s[0] = 0; }
     cToSvFile(cStr filename, size_t max_length = 0) { load(filename, max_length ); }
     operator cSv() const { return m_result; }
     char *data() { return m_s; } // Is zero terminated
     const char *c_str() const { return m_s; } // Is zero terminated
     operator cStr() const { return m_s; }
     size_t length() const { return m_result.length(); }
+    size_t size() const { return m_result.length(); }
     bool exists() const { return m_exists; }
     ~cToSvFile() { if (m_s != m_empty) std::free(m_s); }
-  private:
-    void load(const char *filename, size_t max_length) {
+    void load(cStr filename, size_t max_length = 0) {
+      if (m_exists) {
+//      dsyslog(PLUGIN_NAME_I18N " %s, ERROR file already exists, filename %s", __func__, filename.c_str() );
+        if (m_s != m_empty) std::free(m_s);
+      }
       m_s = nullptr;
       ssize_t ret = stringhelpers_internal::read_file(filename, m_s, max_length);
       if (m_s && ret <= 0)
-        esyslog(PLUGIN_NAME_I18N " %s, ERROR (please write a bug report): m_s && ret <= 0, filename %s", __func__, filename);
+        esyslog(PLUGIN_NAME_I18N " %s, ERROR (please write a bug report): m_s && ret <= 0, filename %s", __func__, filename.c_str() );
       if (!m_s && ret > 0)
-        esyslog(PLUGIN_NAME_I18N " %s, ERROR (please write a bug report): !m_s && ret > 0, filename %s", __func__, filename);
+        esyslog(PLUGIN_NAME_I18N " %s, ERROR (please write a bug report): !m_s && ret > 0, filename %s", __func__, filename.c_str() );
 
       m_exists = ret != -3;
       if (ret > 0) {
@@ -1192,8 +1197,9 @@ class cToSvFile: public cToSv {
         m_s[0] = 0;
       }
     }
-    bool m_exists;
-    char *m_s;
+  private:
+    bool m_exists = false;
+    char *m_s = m_empty;
     cSv m_result;
     char m_empty[1];
 };
