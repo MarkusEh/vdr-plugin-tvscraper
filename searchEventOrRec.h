@@ -51,6 +51,7 @@ private:
   std::string m_movieSearchString_with_p;
   std::string m_TVshowSearchString;
   cSv m_originalTitle;
+  cSv m_episodeName_ext_epg_provider;
   cYears m_years;
   int m_network_id;
   eMatchPurpose m_matchPurpose = eMatchPurpose::none;

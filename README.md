@@ -92,7 +92,7 @@ As already mentioned, after first installations no channels are activated
 to be scraped. Please configure these channels in the plugin setup menu.
 (not required in --readOnlyClient mode).
 Additionally you can trigger scraping your already existing recordings,
-so that also for these recordings metadata is will be created.
+so that also for these recordings metadata will be created.
 
 With a "make install" the file "override.conf" which provides the
 possibility to define scraping behaviour manually (see description
@@ -105,6 +105,15 @@ If /dev/shm/ is available, the database is kept in memory during runtime
 which improves performance. In the configured plugin basedir only a
 persistant backup of the database is stored then. If /dev/shm/ is not
 available, only the database file in the plugin base directory is used.
+
+Languages
+---------
+This plugin uses the system language of the underlying operating system
+as main language ("system language"). All texts delivered by this plugin,
+e.g. using the service API, are given in this language.
+This language is also used as the default language of the EPG texts.
+For the language of the EPG texts, it is possible to configure an
+individual language for each channel in the plugin's setup menue.
 
 
 External EPG

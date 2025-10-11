@@ -218,14 +218,14 @@ bool cTv::IsUsed() {
   return config.TV_ShowSelected(dbID());
 }
 
-int cTv::searchEpisode(cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description) {
+int cTv::searchEpisode(cSv tvSearchEpisodeString, cSv episodeName_ext_epg_provider, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description) {
 // return 1000, if no match was found
 // otherwise, distance
   int season_guess = -1; // -1: no season found (still, there might be an episode ..)
   int episode_guess = 0; //  0: nothing found
   if (!description.empty() ) episodeSEp(season_guess, episode_guess, description, "S", "Ep");
   if (episode_guess == 0 && shortText) episodeSEp(season_guess, episode_guess, shortText, "S", "Ep");
-  int distance = searchEpisode(tvSearchEpisodeString, years, lang, season_guess, episode_guess);
+  int distance = searchEpisode(tvSearchEpisodeString, episodeName_ext_epg_provider, years, lang, season_guess, episode_guess);
   if (distance > 500 && episode_guess > 0 && season_guess >= 0 &&
       (season_guess != m_seasonNumber || episode_guess != m_episodeNumber)) {
 // pattern "S2 Ep12" found, and no or bad match with episode name
@@ -277,7 +277,7 @@ int cTv::searchEpisode(cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYe
   return 1000;
 }
 
-int cTv::searchEpisode(cSv tvSearchEpisodeString_i, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess) {
+int cTv::searchEpisode_0(cSv tvSearchEpisodeString_i, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess) {
 // search tvSearchEpisodeString_i in db with episode names in language lang
 // return 1000 and set m_seasonNumber = m_episodeNumber = 0, if no match was found
 // otherwise, set m_seasonNumber and m_episodeNumber and return distance
@@ -335,6 +335,27 @@ int cTv::searchEpisode(cSv tvSearchEpisodeString_i, const cYears &years, const c
   m_seasonNumber = best_season;
   m_episodeNumber = best_episode;
   return best_distance;
+}
+int cTv::searchEpisode(cSv tvSearchEpisodeString_i, cSv episodeName_ext_epg_provider, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess) {
+// search tvSearchEpisodeString_i in db with episode names in language lang
+// return 1000 and set m_seasonNumber = m_episodeNumber = 0, if no match was found
+// otherwise, set m_seasonNumber and m_episodeNumber and return distance
+
+  const int dist_required_if_episodeName_ext_epg_provider_is_available = 550;
+
+  int dist = searchEpisode_0(tvSearchEpisodeString_i, years, lang, season_guess, episode_guess);
+  if (episodeName_ext_epg_provider.empty() ) return dist;
+  if (dist < dist_required_if_episodeName_ext_epg_provider_is_available) return dist;
+
+// now search with episodeName_ext_epg_provider
+  if (episodeName_ext_epg_provider != tvSearchEpisodeString_i) {
+    dist = searchEpisode_0(episodeName_ext_epg_provider, years, lang, season_guess, episode_guess);
+    if (dist < dist_required_if_episodeName_ext_epg_provider_is_available) return dist;
+  }
+
+  m_seasonNumber = 0;
+  m_episodeNumber = 0;
+  return 1000;
 }
 
 bool cTv::getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, std::string *imdbId, int *collectionId, std::string *collectionName) {
@@ -453,9 +474,9 @@ std::vector<cActor> cTvMoviedb::GetActors(bool fullPath) {
 //images ***************************
 bool cTvMoviedb::getSingleImageAnySeason(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
 // Any season image (independent of current season, or if a season was found)
-// Orientation: 
+// Orientation:
 // Banner    (will return false, there is no season banner)
-// Landscape (will return false, there is no season backdrop / fanart) 
+// Landscape (will return false, there is no season backdrop / fanart)
 // Portrait  (will return the season poster)
   if (orientation != eOrientation::portrait) return false;
   CONCATENATE(dir_path, config.GetBaseDirMovieTv(), m_id);
@@ -474,9 +495,9 @@ bool cTvMoviedb::getSingleImageAnySeason(eOrientation orientation, string *relPa
 
 bool cTvMoviedb::getSingleImageTvShow(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
 // Poster or banner or fanart. Does not depend on episode or season!
-// Orientation: 
+// Orientation:
 // Banner    (will return false, there is no banner in themoviedb)
-// Landscape (will return backdrop) 
+// Landscape (will return backdrop)
 // Portrait  (will return poster)
   if (orientation == eOrientation::banner) return false;
   switch (orientation) {
@@ -489,9 +510,9 @@ bool cTvMoviedb::getSingleImageTvShow(eOrientation orientation, string *relPath,
 }
 bool cTvMoviedb::getSingleImageSeason(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
 // Season image
-// Orientation: 
+// Orientation:
 // Banner    (will return false, there is no season banner)
-// Landscape (will return false, there is no season backdrop / fanart) 
+// Landscape (will return false, there is no season backdrop / fanart)
 // Portrait  (will return the season poster)
   if (orientation != eOrientation::portrait) return false;
   if (m_seasonNumber == 0 && m_episodeNumber == 0) return false;  // no episode found
@@ -501,7 +522,7 @@ bool cTvMoviedb::getSingleImageSeason(eOrientation orientation, string *relPath,
 
 bool cTvMoviedb::getSingleImageEpisode(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
 // TV show: still image
-// Orientation: 
+// Orientation:
 // Banner    (will return false, there is no banner for episode still)
 // Landscape (will return the still)
 // Portrait  (will return false, there is no portrait for episode still)
@@ -557,9 +578,9 @@ vector<cTvMedia> cTvTvdb::getImages(eOrientation orientation, int maxImages, boo
 
 bool cTvTvdb::getSingleImageAnySeason(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
 // For TV show: any season image (independent of current season, or if a season was found)
-// Orientation: 
+// Orientation:
 // 3: Banner    (will return false, there is no season banner)
-// 2: Landscape (will return false, there is no season backdrop / fanart) 
+// 2: Landscape (will return false, there is no season backdrop / fanart)
 // 1: Portrait  (will return the season poster)
   if (orientation != eOrientation::portrait) return false;
 //  path << config.GetBaseDirSeries() << m_id << "/season_poster_" << m_seasonNumber << ".jpg";
@@ -596,9 +617,9 @@ bool cTvTvdb::getSingleImageTvShow(eOrientation orientation, string *relPath, st
 
 bool cTvTvdb::getSingleImageSeason(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
 // TV show: season image
-// Orientation: 
+// Orientation:
 // Banner    (will return false, there is no season banner)
-// Landscape (will return false, there is no season backdrop / fanart) 
+// Landscape (will return false, there is no season backdrop / fanart)
 // Portrait  (will return the season poster)
   if (orientation != eOrientation::portrait) return false;
   if (m_seasonNumber == 0 && m_episodeNumber == 0) return false;  // no episode found
@@ -608,7 +629,7 @@ bool cTvTvdb::getSingleImageSeason(eOrientation orientation, string *relPath, st
 
 bool cTvTvdb::getSingleImageEpisode(eOrientation orientation, string *relPath, string *fullPath, int *width, int *height) {
 // Still image
-// Orientation: 
+// Orientation:
 // Banner    (will return false, there is no banner for episode still)
 // Landscape (will return the still)
 // Portrait  (will return false, there is no portrait for episode still)
@@ -670,8 +691,8 @@ cMovieOrTv *cMovieOrTv::getMovieOrTv(const cTVScraperDB *db, const cRecording *r
         else            return new cTvTvdb(db,   -movie_tv_id, season_number, episode_number);
 }
 
-// search episode
-int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description) {
+// search episode. This is the static method!!!!
+int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, cSv tvSearchEpisodeString, cSv episodeName_ext_epg_provider, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description) {
 // return 1000 if no episode was found
 // otherwise, return distance 0-999 (smaller numbers are better matches)
   bool debug = false;
@@ -684,8 +705,8 @@ int cMovieOrTv::searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iEx
   if (rc != 0 && rc != 1) return 1000; // allow 1 (no episode names in this language), there might be other indicators like (episodeNumber)
   cMovieOrTv *mv =  cMovieOrTv::getMovieOrTv(db, movieOrTv);
   if (!mv) return 1000;
-  int distance = mv->searchEpisode(tvSearchEpisodeString, baseNameOrTitle, years, lang, shortText, description);
-  
+  int distance = mv->searchEpisode(tvSearchEpisodeString, episodeName_ext_epg_provider, baseNameOrTitle, years, lang, shortText, description);
+
   if (debug) esyslog("tvscraper:DEBUG cTvMoviedb::searchEpisode search string \"%.*s\" season %i episode %i", static_cast<int>(tvSearchEpisodeString.length()), tvSearchEpisodeString.data(), mv->m_seasonNumber, mv->m_episodeNumber);
   if (distance != 1000) {
     movieOrTv.season  = mv->m_seasonNumber;
@@ -710,7 +731,7 @@ void deleteOutdatedRecordingImages(const cTVScraperDB *db) {
 if (!DirExists(config.GetBaseDirRecordings() )) return;
 std::error_code ec;
 for (const std::filesystem::directory_entry& dir_entry:
-        std::filesystem::directory_iterator(config.GetBaseDirRecordings(), ec)) 
+        std::filesystem::directory_iterator(config.GetBaseDirRecordings(), ec))
   {
     std::string path = dir_entry.path().filename().string(); // this is required, as the returned string is volatile
     cSplit parts(path, '_');
@@ -790,7 +811,7 @@ for (const std::filesystem::directory_entry& dir_entry:
 void cMovieMoviedb::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check for all files in folder. If a file has the pattern for movie backdrop or poster, check the movie with this number
 std::error_code ec;
-for (const std::filesystem::directory_entry& dir_entry : 
+for (const std::filesystem::directory_entry& dir_entry :
         std::filesystem::directory_iterator(config.GetBaseDirMovies(), ec) )
   {
     if (! dir_entry.is_regular_file() ) continue;

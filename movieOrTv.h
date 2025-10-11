@@ -24,8 +24,9 @@ public:
   virtual bool IsUsed() { return m_db->CheckMovieOutdatedEvents(dbID(), m_seasonNumber, m_episodeNumber) || m_db->CheckMovieOutdatedRecordings(dbID(), m_seasonNumber, m_episodeNumber); }
   void DeleteIfUnused() { if(!IsUsed()) DeleteMediaAndDb(); }
   virtual string getEpisodeName() { return "";}
-  virtual int searchEpisode(cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description) { return 1000;}
-  virtual int searchEpisode(cSv tvSearchEpisodeString, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess) { return 1000;}
+  virtual int searchEpisode(cSv tvSearchEpisodeString, cSv episodeName_ext_epg_provider, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description) { return 1000;}
+  virtual int searchEpisode_0(cSv tvSearchEpisodeString, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess) { return 1000;}
+  virtual int searchEpisode(cSv tvSearchEpisodeString, cSv episodeName_ext_epg_provider, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess) { return 1000;}
 // fill vdr service interface
   virtual tvType getType() const = 0;
   virtual bool getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, std::string *imdbId, int *collectionId, std::string *collectionName = NULL) = 0;
@@ -51,7 +52,7 @@ public:
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event, const cRecording *recording, int *runtime=nullptr, int *duration_deviation=nullptr);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cEvent *event, int *runtime=nullptr);
   static cMovieOrTv *getMovieOrTv(const cTVScraperDB *db, const cRecording *recording, int *runtime=nullptr, int *duration_deviation=nullptr);
-  static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description);
+  static int searchEpisode(const cTVScraperDB *db, sMovieOrTv &movieOrTv, iExtMovieTvDb *extMovieTvDb, cSv tvSearchEpisodeString, cSv episodeName_ext_epg_provider, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description);
   static void CleanupTv_media(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const cTVScraperDB *db);
   static void DeleteAllIfUnused(const string &folder, ecMovieOrTvType type, const cTVScraperDB *db);
@@ -98,8 +99,9 @@ public:
   virtual bool IsUsed();
   virtual void DeleteMediaAndDb() = 0;
   virtual string getEpisodeName() { return m_db->GetEpisodeName(dbID(), m_seasonNumber, m_episodeNumber);}
-  virtual int searchEpisode(cSv tvSearchEpisodeString, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess);
-  virtual int searchEpisode(cSv tvSearchEpisodeString, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description);
+  virtual int searchEpisode_0(cSv tvSearchEpisodeString, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess);
+  virtual int searchEpisode(cSv tvSearchEpisodeString, cSv episodeName_ext_epg_provider, const cYears &years, const cLanguage *lang, int season_guess, int episode_guess);
+  virtual int searchEpisode(cSv tvSearchEpisodeString, cSv episodeName_ext_epg_provider, cSv baseNameOrTitle, const cYears &years, const cLanguage *lang, const char *shortText, cSv description);
 // fill vdr service interface
   virtual tvType getType() const { return tSeries; }
   virtual bool getOverview(std::string *title, std::string *episodeName, std::string *releaseDate, std::string *imdbId, int *collectionId, std::string *collectionName = NULL);

@@ -66,6 +66,7 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
 
 
     initOriginalTitle();
+    m_episodeName_ext_epg_provider = textAttributeValue(m_sEventOrRecording->Description(), "Episode: ");
     initBaseNameOrTitle();
     m_TVshowSearchString = m_baseNameOrTitle;
     initSearchString3dots(m_TVshowSearchString);
@@ -82,7 +83,6 @@ cSearchEventOrRec::cSearchEventOrRec(csEventOrRecording *sEventOrRecording, cOve
 
 void cSearchEventOrRec::initOriginalTitle() {
   m_originalTitle = textAttributeValue(m_sEventOrRecording->Description(), "Originaltitel: ");
-//  if (m_originalTitle.length() > 0 && config.enableDebug) esyslog("tvscraper, original title = \"%.*s\"", static_cast<int>(m_originalTitle.length()), m_originalTitle.data() );
 }
 
 bool cSearchEventOrRec::isTitlePartOfPathName(size_t baseNameLen) {
@@ -146,17 +146,19 @@ void cSearchEventOrRec::initBaseNameOrTitle(void) {
     }
     return;
   }
+// is the folder format "title"/"episode"/..*.rec or just "title"/..*.rec
+// To find out, we make a guess for the episode name
 // get the short text. If not available: Use the description instead
-  cSv shortText = textAttributeValue(m_sEventOrRecording->Description(), "Episode: ");
-  if (shortText.empty() ) shortText = recording->Info()->ShortText();
-  if (shortText.empty() ) shortText = recording->Info()->Description();
-  if (shortText.empty() ) return; // no short text, no description -> go ahead with base name
+  cSv episodeNameGuess = m_episodeName_ext_epg_provider;
+  if (episodeNameGuess.empty() ) episodeNameGuess = recording->Info()->ShortText();
+  if (episodeNameGuess.empty() ) episodeNameGuess = recording->Info()->Description();
+  if (episodeNameGuess.empty() ) return; // no episodeNameGuess -> go ahead with base name
   cNormedString nsBaseNameOrTitle(m_baseNameOrTitle);
   int distTitle     = nsBaseNameOrTitle.sentence_distance(recording->Info()->Title() );
-  int distShortText = nsBaseNameOrTitle.sentence_distance(shortText);
+  int distShortText = nsBaseNameOrTitle.sentence_distance(episodeNameGuess);
   if (debug) esyslog("tvscraper: distTitle %i, distShortText %i", distTitle, distShortText);
   if (distTitle > 600 && distShortText > 600) {
-// neither title nor shortText match the filename
+// neither title nor episodeNameGuess match the filename
     if (!isTitlePartOfPathName(baseNameLen) ) return;
     if (debug) esyslog("tvscraper: isTitlePartOfPathName(baseNameLen) == true");
 // title is part of path name
@@ -261,7 +263,7 @@ bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv) {
     movieOrTv.type = scrapSeries;
     movieOrTv.id = -o_id;
     movieOrTv.episodeSearchWithShorttext = 1;
-    cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
+    cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_episodeName_ext_epg_provider, m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
     return true;
   }
   o_id = m_overrides->TheMovieDB_SeriesID(title);
@@ -269,7 +271,7 @@ bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv) {
     movieOrTv.type = scrapSeries;
     movieOrTv.id = o_id;
     movieOrTv.episodeSearchWithShorttext = 1;
-    cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
+    cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_episodeName_ext_epg_provider, m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
     return true;
   }
   o_id = m_overrides->TheMovieDB_MovieID(title);
@@ -294,13 +296,13 @@ bool cSearchEventOrRec::ScrapCheckOverride(sMovieOrTv &movieOrTv) {
     switch (matchPurpose) {
       case eMatchPurpose::regexTitleChannel_id:
         movieOrTv.episodeSearchWithShorttext = 1;
-        cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
+        cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), m_sEventOrRecording->ShortText(), m_episodeName_ext_epg_provider, m_baseNameOrTitle, m_years, m_sEventOrRecording->GetLanguage(), m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
 //        if (config.enableDebug)
 //          esyslog("tvscraper: overrides: title \"%s\", dbid %d", m_sEventOrRecording->Title(), dbid);
         return true;
       case eMatchPurpose::regexTitleChannel_idEpisodeName:
         movieOrTv.episodeSearchWithShorttext = 0;
-        cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeName, "", m_years, m_sEventOrRecording->GetLanguage(), nullptr, nullptr);
+        cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeName, cSv(), "", m_years, m_sEventOrRecording->GetLanguage(), nullptr, cSv() );
         if (config.enableDebug)
           esyslog("tvscraper: overrides: title \"%s\", episode \"%s\", dbid %d", m_sEventOrRecording->Title(), episodeName.c_str(), dbid);
         return true;
@@ -400,7 +402,7 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
           movieOrTv.season = m_season;
           movieOrTv.episode = m_episode;
         } else {
-          cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeSearchString, m_baseNameOrTitle, m_years, lang, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
+          cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeSearchString, m_episodeName_ext_epg_provider, m_baseNameOrTitle, m_years, lang, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description());
         }
 
         if (m_movieSearchString == m_TVshowSearchString)
@@ -409,7 +411,7 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
           m_db->InsertCache(m_TVshowSearchString, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
       } else {
 // pattern in title: TV show name - episode name
-        cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeSearchString, "", m_years, lang, nullptr, nullptr);
+        cMovieOrTv::searchEpisode(m_db, movieOrTv, getExtMovieTvDb(movieOrTv), episodeSearchString, m_episodeName_ext_epg_provider, "", m_years, lang, nullptr, nullptr);
         m_db->InsertCache(m_movieSearchString_with_p, m_sEventOrRecording, movieOrTv, m_baseNameEquShortText);
       }
       if (config.enableDebug) esyslog("tvscraper: %stv \"%.*s\", episode \"%.*s\" successfully scraped, id %i season %i episode %i", searchResults[0].id() > 0?"":"TV", static_cast<int>(foundName.length()), foundName.data(), static_cast<int>(episodeSearchString.length()), episodeSearchString.data(), movieOrTv.id, movieOrTv.season, movieOrTv.episode);
@@ -639,7 +641,7 @@ bool cSearchEventOrRec::CheckCache(sMovieOrTv &movieOrTv) {
       {
         sMovieOrTv movieOrTv2 = movieOrTv;
         movieOrTv2.id = id;
-        int distance = cMovieOrTv::searchEpisode(m_db, movieOrTv2, getExtMovieTvDb(movieOrTv2), episodeSearchString, m_baseNameOrTitle, m_years, lang, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description() );
+        int distance = cMovieOrTv::searchEpisode(m_db, movieOrTv2, getExtMovieTvDb(movieOrTv2), episodeSearchString, m_episodeName_ext_epg_provider, m_baseNameOrTitle, m_years, lang, m_sEventOrRecording->ShortText(), m_sEventOrRecording->Description() );
         if (distance < min_distance) {
           min_distance = distance;
           movieOrTv_best = movieOrTv2;
@@ -942,7 +944,7 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   if (movieOrTv.episodeSearchWithShorttext) episodeSearchString = searchEventOrRec.m_baseNameEquShortText?searchEventOrRec.m_episodeName:searchEventOrRec.m_sEventOrRecording->EpisodeSearchString();
   else searchEventOrRec.splitNameEpisodeName(searchResult.delim(), foundName, episodeSearchString, true);
   const cLanguage *lang = searchEventOrRec.m_sEventOrRecording->GetLanguage();
-  int distance = cMovieOrTv::searchEpisode(searchEventOrRec.m_db, movieOrTv, searchEventOrRec.getExtMovieTvDb(movieOrTv), episodeSearchString, searchEventOrRec.m_baseNameOrTitle, searchEventOrRec.m_years, lang, searchEventOrRec.m_sEventOrRecording->ShortText(), searchEventOrRec.m_sEventOrRecording->Description() );
+  int distance = cMovieOrTv::searchEpisode(searchEventOrRec.m_db, movieOrTv, searchEventOrRec.getExtMovieTvDb(movieOrTv), episodeSearchString, searchEventOrRec.m_episodeName_ext_epg_provider, searchEventOrRec.m_baseNameOrTitle, searchEventOrRec.m_years, lang, searchEventOrRec.m_sEventOrRecording->ShortText(), searchEventOrRec.m_sEventOrRecording->Description() );
   if (debug) esyslog("tvscraper: enhance2 (3), episodeSearchString \"%.*s\", lang %s, land_id %d, distance = %d", (int)episodeSearchString.length(), episodeSearchString.data(), lang->m_thetvdb, lang->m_id, distance);
   searchEventOrRec.m_episodeFound = distance != 1000;
   searchResult.setMatchEpisode(distance);

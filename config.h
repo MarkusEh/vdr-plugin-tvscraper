@@ -168,7 +168,8 @@ class cTVScraperConfig {
 {51, "urd", "ur-PK", "اردو"},  //  Urdu
 {52, "mlt", "mt-", "Malti"},  //  Maltese
 {53, "afr", "af-ZA", "Afrikaans"},  //  Afrikaans
-// {54, "", "", ""},  //
+{54, "guj", "gu-", "ગુજરાતી (Gujarātī)"},  // Gujarati
+// {55, "", "", ""},  //
 };
         cTVScraperDB *m_db = nullptr;
         const cLanguage m_emergencyLanguage = {5, "eng", "en-GB", "English GB ERROR"};
@@ -209,7 +210,7 @@ class cTVScraperConfig {
         const string &GetRecordingsUpdateFileName(void) const { return recordingsUpdateFileName; };
         bool GetReadOnlyClient() const { return readOnlyClient; }
         bool GetTimersOnNumberOfTsFiles() const { return m_timersOnNumberOfTsFiles; }
-        bool isUpdateFromExternalDbRequired(time_t lastUpdate) { return difftime(time(0), lastUpdate) >= 60*60*24*7; }
+        bool isUpdateFromExternalDbRequired(time_t lastUpdate) { return difftime(time(0), lastUpdate) >= 60*60*24*1; }
         bool isUpdateFromExternalDbRequiredMR(time_t lastUpdate) { return difftime(time(0), lastUpdate) >= 60*60*24*4; }
 // Methods to access parameters (lists) that can be changed in setup menu
 // These methods are thread save
