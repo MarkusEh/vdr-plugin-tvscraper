@@ -216,7 +216,7 @@ bool cOverRides::Ignore(cSv title) {
   }
   for (const std::regex &reg: regexIgnores) {
     if (std::regex_match(title.data(), title.data()+title.length(), reg)) {
-      dsyslog2("ignoring \"", title, "\" because of regexIgnore in override.conf");
+//    dsyslog2("ignoring \"", title, "\" because of regexIgnore in override.conf");
       return true;
     }
   }
