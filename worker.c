@@ -286,7 +286,8 @@ bool cTVScraperWorker::ScrapEPG(void) {
             if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr)) {
               cToSvConcat description(remove_trailing_whitespace(sEoR.Description() ));
               description.concat("\n", config.m_description_delimiter, " ", remove_trailing_whitespace(title));
-              description.concat("\n", tr("Episode Name:"), " ", remove_trailing_whitespace(episodeName));
+              description.concat("\n", tr("Episode Name:"));
+              if (!remove_trailing_whitespace(episodeName).empty()) description.concat(" ", remove_trailing_whitespace(episodeName));
               description.concat("\n", tr("Season Number:"), " ", movieOrTv->getSeason() );
               description.concat("\n", tr("Episode Number:"), " ", movieOrTv->getEpisode() );
               sEvent.SetDescription(description.c_str() );
