@@ -341,15 +341,21 @@ int cTv::searchEpisode(cSv tvSearchEpisodeString_i, cSv episodeName_ext_epg_prov
 // return 1000 and set m_seasonNumber = m_episodeNumber = 0, if no match was found
 // otherwise, set m_seasonNumber and m_episodeNumber and return distance
 
-  const int dist_required_if_episodeName_ext_epg_provider_is_available = 550;
+  const int dist_required_if_episodeName_ext_epg_provider_is_available = 500;
+  bool debug = false;
+  debug |= tvSearchEpisodeString_i == "Vorahnung";
+  debug |= tvSearchEpisodeString_i == "Tag der Entscheidung";
+  debug = false;
 
   int dist = searchEpisode_0(tvSearchEpisodeString_i, years, lang, season_guess, episode_guess);
+  if (debug) dsyslog3("tvSearchEpisodeString_i \"", tvSearchEpisodeString_i, "\", episodeName_ext_epg_provider: \"", episodeName_ext_epg_provider, "\", dist = ", dist, " m_id = ", m_id);
   if (episodeName_ext_epg_provider.empty() ) return dist;
   if (dist < dist_required_if_episodeName_ext_epg_provider_is_available) return dist;
 
 // now search with episodeName_ext_epg_provider
   if (episodeName_ext_epg_provider != tvSearchEpisodeString_i) {
     dist = searchEpisode_0(episodeName_ext_epg_provider, years, lang, season_guess, episode_guess);
+    if (debug) dsyslog3("2. tvSearchEpisodeString_i \"", tvSearchEpisodeString_i, "\", episodeName_ext_epg_provider: \"", episodeName_ext_epg_provider, "\", dist = ", dist, " m_id = ", m_id);
     if (dist < dist_required_if_episodeName_ext_epg_provider_is_available) return dist;
   }
 

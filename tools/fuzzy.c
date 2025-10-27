@@ -9,25 +9,25 @@
 #include <set>
 #include <optional>
 #include "tvscraperhelpers.h"
- 
+
 // see https://stackoverflow.com/questions/15416798/how-can-i-adapt-the-levenshtein-distance-algorithm-to-limit-matches-to-a-single#15421038
 size_t word_distance(cSv seq1, cSv seq2) {
   const size_t size1 = seq1.size();
   const size_t size2 = seq2.size();
- 
+
   size_t col_1[size2 + 1];
   size_t col_2[size2 + 1];
   size_t *curr_col = col_1;
   size_t *prev_col = col_2;
- 
+
   // Prime the previous column for use in the following loop:
   for (size_t idx2 = 0; idx2 < size2 + 1; ++idx2) {
     prev_col[idx2] = idx2;
   }
- 
+
   for (size_t idx1 = 0; idx1 < size1; ++idx1) {
     curr_col[0] = idx1 + 1;
- 
+
     for (size_t idx2 = 0; idx2 < size2; ++idx2) {
       const size_t compare = seq1[idx1] == seq2[idx2] ? 0 : 1;
       curr_col[idx2 + 1] = std::min(std::min(curr_col[idx2] + 1,
@@ -38,7 +38,7 @@ size_t word_distance(cSv seq1, cSv seq2) {
   }
   return prev_col[size2];
 }
- 
+
 int rom_char_val(char c) {
   switch(tolower(c)) {
     case 'm': return 1000;
@@ -227,6 +227,7 @@ template<std::size_t N>
             break;
         }
       }
+//    std::cout << "str : \"" << str << "\", replace non-alphanumeric: \"" << m_normedString << "\"\n";
 // remove spaces at end
       while (!m_normedString.empty() && m_normedString.back() == ' ') m_normedString.pop_back();
 // next step: change words. Cannot use cSplit, as we change the string
@@ -298,7 +299,7 @@ template<std::size_t N>
       curr_col[0] = 0;
       for (size_t idx1 = 0; idx1 < size1; ++idx1) {
         curr_col[0] = curr_col[0] + word_distance(m_wordList[idx1], cSv());
-     
+
         for (size_t idx2 = 0; idx2 < size2; ++idx2) {
           curr_col[idx2 + 1] = std::min(std::min(
             curr_col[idx2] + other.m_wordList[idx2].length(),
@@ -464,7 +465,7 @@ void cCompareStrings::add2(cSv TVshowName, char delim) {
   m_normedStringsDelim.emplace_back(TVshowName, delim);
 }
 int cCompareStrings::minDistance(char delim, const cNormedString &compareString, int curDistance) const {
-  for (const cNormedStringsDelim &normedStringsDelim: m_normedStringsDelim) 
+  for (const cNormedStringsDelim &normedStringsDelim: m_normedStringsDelim)
     if (normedStringsDelim.m_delim == delim) curDistance = normedStringsDelim.minDistance(compareString, curDistance);
   return curDistance;
 }
