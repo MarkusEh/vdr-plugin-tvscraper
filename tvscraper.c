@@ -97,7 +97,7 @@ cTVScraperConfig config;
 #include "services.c"
 #include "vdr/status.h"
 
-static const char *VERSION        = "1.2.14";
+static const char *VERSION        = "1.2.15";
 static const char *DESCRIPTION    = "Scraping movie and series info";
 
 //***************************************************************************
@@ -131,7 +131,7 @@ class cExtEpgHandler : public cEpgHandler
       size_t pos = eventDescription.find(config.m_description_delimiter);
       if (pos == std::string::npos) return false;
 
-      cToSvConcat description(Description);
+      cToSvConcat description(remove_trailing_whitespace(Description));
       description.concat("\n", eventDescription.substr(pos));
 
       Event->SetDescription(description.c_str() );
@@ -703,7 +703,7 @@ cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, 
     else return cString("Scraping Video Directory started");
   }
   if ((strcasecmp(Command, "CRDD") == 0) || (strcasecmp(Command, "ClearRuntimeAndDurationDeviation") == 0)) {
-    if (!Option || !*Option) return cString::sprintf("Usage: DRDD <recording>, the <recording> is mandatory");
+    if (!Option || !*Option) return cString::sprintf("Usage: CRDD <recording>, the <recording> is mandatory");
     LOCK_RECORDINGS_READ;
     const cRecording *rec = Recordings->GetByName(Option);
     if (!rec) return cString::sprintf(

@@ -283,15 +283,15 @@ bool cTVScraperWorker::ScrapEPG(void) {
         if (config.m_writeEpisodeToEpg) {
           if (movieOrTv && movieOrTv->getType() == tSeries && movieOrTv->getEpisode() != 0) {
             std::string title, episodeName;
+            cToSvConcat description(remove_trailing_whitespace(sEoR.Description() ), "\n", config.m_description_delimiter);
             if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr)) {
-              cToSvConcat description(remove_trailing_whitespace(sEoR.Description() ));
-              description.concat("\n", config.m_description_delimiter, " ", remove_trailing_whitespace(title));
+              if (!remove_trailing_whitespace(title).empty()) description.concat(" ", remove_trailing_whitespace(title));
               description.concat("\n", tr("Episode Name:"));
               if (!remove_trailing_whitespace(episodeName).empty()) description.concat(" ", remove_trailing_whitespace(episodeName));
-              description.concat("\n", tr("Season Number:"), " ", movieOrTv->getSeason() );
-              description.concat("\n", tr("Episode Number:"), " ", movieOrTv->getEpisode() );
-              sEvent.SetDescription(description.c_str() );
             }
+            description.concat("\n", tr("Season Number:"), " ", movieOrTv->getSeason() );
+            description.concat("\n", tr("Episode Number:"), " ", movieOrTv->getEpisode() );
+            sEvent.SetDescription(description.c_str() );
           } else {
             std::cmatch capture_groups;
             for (const std::regex &r: overrides->m_regexDescription_titleEpisodeSeasonNumberEpisodeNumber) {
