@@ -147,8 +147,12 @@ bool cMovieMoviedb::getOverview(std::string *title, std::string *episodeName, st
   stmt.stmt()->resetBindStep(dbID() );
   int l_runtime;
   if (!stmt.stmt()->readRow(title, m_collectionId, collectionName, releaseDate, l_runtime, imdbId) ) return false;
-  if (collectionId) *collectionId = m_collectionId;
+  if (title) trim_string(*title);
   if (episodeName) *episodeName = "";
+  if (releaseDate) trim_string(*releaseDate);
+  if (imdbId) trim_string(*imdbId);
+  if (collectionId) *collectionId = m_collectionId;
+  if (collectionName) trim_string(*collectionName);
   return true;
 }
 
@@ -387,6 +391,9 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
     }
     int l_runtime;
     if (stmt->readRow(episodeName, releaseDate, &l_runtime, imdbId) ) {
+      if (episodeName) trim_string(*episodeName);
+      if (releaseDate) trim_string(*releaseDate);
+      if (imdbId) trim_string(*imdbId);
       episodeDataAvailable = true;
       episodeReleaseDateAvailable = releaseDate && !releaseDate->empty();
       episodeImdbIdAvailable = imdbId && !imdbId->empty();
@@ -407,15 +414,15 @@ bool cTv::getOverview(std::string *title, std::string *episodeName, std::string 
     if (collectionName) *collectionName = "";
     return true;
   }
-  if (title) *title = stmt_s_o.stmt()->get<cSv>(0);
+  if (title) *title = trim(stmt_s_o.stmt()->get<cSv>(0));
   if (episodeDataAvailable) {
 // dont't overide data available from episode
-    if (releaseDate && releaseDate->empty() ) *releaseDate = stmt_s_o.stmt()->get<cSv>(1);
-    if (imdbId && imdbId->empty() ) *imdbId = stmt_s_o.stmt()->get<cSv>(2);
+    if (releaseDate && releaseDate->empty() ) *releaseDate = trim(stmt_s_o.stmt()->get<cSv>(1));
+    if (imdbId && imdbId->empty() ) *imdbId = trim(stmt_s_o.stmt()->get<cSv>(2));
   } else {
 // no episode data. Read as much as possible not episode related, and set the others to 0/""
-    if (releaseDate) *releaseDate = stmt_s_o.stmt()->get<cSv>(1);
-    if (imdbId) *imdbId = stmt_s_o.stmt()->get<cSv>(2);
+    if (releaseDate) *releaseDate = trim(stmt_s_o.stmt()->get<cSv>(1));
+    if (imdbId) *imdbId = trim(stmt_s_o.stmt()->get<cSv>(2));
     if (episodeName) *episodeName = "";
   }
   if (collectionId) *collectionId = 0;

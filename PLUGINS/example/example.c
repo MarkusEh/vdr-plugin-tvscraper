@@ -11,14 +11,14 @@ static cSv get_text(GumboNode* node) {
 
   GumboNode* node_text = static_cast<GumboNode*>(node->v.element.children.data[0]);
   if (node_text->type == GUMBO_NODE_TEXT || node_text->type == GUMBO_NODE_WHITESPACE)
-    return remove_trailing_whitespace(remove_leading_whitespace(node_text->v.text.text));
+    return trim(node_text->v.text.text);
   return "node_text->type != GUMBO_NODE_TEXT && node_text->type != GUMBO_NODE_WHITESPACE";
 }
 
 static cSv get_text2(GumboNode* node_text) {
 // return the text in the fist sub-node having text ...
   if (node_text->type == GUMBO_NODE_TEXT || node_text->type == GUMBO_NODE_WHITESPACE)
-    return remove_trailing_whitespace(remove_leading_whitespace(node_text->v.text.text));
+    return trim(node_text->v.text.text);
 
   if (node_text->type == GUMBO_NODE_ELEMENT &&
       node_text->v.element.tag != GUMBO_TAG_SCRIPT &&
@@ -269,10 +269,9 @@ cSv add_infos_series(cToSvConcat<N> &description, GumboNode* node) {
   if (!serial_info) return cSv();
 
   GumboNode* episode = getNodeWithClass(node, GUMBO_TAG_H2, "broadcast-info");
-  if (!episode) return cSv();
-  cSv episode_name = get_text2(episode);
-  if (episode_name.empty()) return cSv();
-  description << "Episode: " << remove_trailing_whitespace(episode_name) << "\n";
+  cSv episode_name = episode?get_text2(episode):cSv();
+  description.append_with_delimiter("Episode: ", episode_name, "\n");
+
   description << get_text2(serial_info) << "\n\n";
   return episode_name;
 }
@@ -305,7 +304,7 @@ cSv cTvspEpgOneDay::get_img(GumboNode* node, cStaticEvent *event, cSv url) const
     dsyslog2("no EPG image found, src attribute not found for event title '", event->Title(), "' short text '", event->ShortText(), "' start ", event->StartTime(), " channel ", event->ChannelID(), " url ", url );
     return cSv();
   }
-  return src->value;
+  return trim(src->value);
 }
 
 
@@ -420,22 +419,25 @@ bool cTvspEpgOneDay::enhanceEvent(cStaticEvent *event, std::vector<cTvMedia> &ex
 
   cToSvConcat description;
 
-  cSv title = get_title(output->root);
-  description << "Titel: " << remove_trailing_whitespace(title) << "\n";
-  cSv short_text = get_shorttext(output->root);
+  description.append_with_delimiter("Titel: ", get_title(output->root), "\n");
   cSv episode_name = add_infos_series(description, output->root);
   add_conclusion(description, output->root);
   add_rating(description, output->root);
   add_description(description, output->root);
 // attributes, start with blank line
   description << "\n";
-  const_split_iterator sp_head(short_text, '|');
-  ++sp_head;
-  if (sp_head != iterator_end() ) description << "Genre: " << remove_trailing_whitespace(remove_leading_whitespace(*sp_head)) << "\n";
-  else  description << "Genre: " << remove_trailing_whitespace(remove_leading_whitespace(short_text)) << "\n";
+
+  cSv short_text = get_shorttext(output->root);
+  if (!short_text.empty() ) {
+    const_split_iterator sp_head(short_text, '|');
+    ++sp_head;
+    if (sp_head != iterator_end() && !trim(*sp_head).empty() )
+      description << "Genre: " << trim(*sp_head) << "\n";
+    else
+      description << "Genre: " << short_text << "\n";
+  }
+
   add_infos_crew_cast(description, output->root);
-
-
 
   description += "\nQuelle: tvsp";
   if (!event->ShortText() || !*event->ShortText() &&

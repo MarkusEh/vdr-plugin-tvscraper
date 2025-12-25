@@ -38,18 +38,42 @@ public:
   const char *Title() const { return m_title.c_str(); }
   const char *ShortText() const { return m_shortText.c_str(); }
   const char *Description() const { return m_description.c_str(); }
+
+  const cEvent *GetEvent(const cSchedules *Schedules) const {
+    if (!Schedules) return nullptr;
+    const cSchedule *pSchedule = Schedules->GetSchedule(m_channelID);
+    if (!pSchedule) return nullptr;
+#if APIVERSNUM >= 20502
+    return pSchedule->GetEventById(m_eventID);
+#else
+    return pSchedule->GetEvent(m_eventID);
+#endif
+  }
+  cEvent *GetEvent(cSchedules *Schedules) const {
+    return const_cast<cEvent *>(GetEvent(const_cast<const cSchedules *>(Schedules)));
+  }
+template<class getEventF>
+  bool GetEvent(getEventF getEventFunction) const {
+// return false if no event was found
+// return true if event was found and getEventFunction was called
+    LOCK_SCHEDULES_READ;
+    const cEvent *event = GetEvent(Schedules);
+    if (!event) return false;
+    getEventFunction(event);
+    return true;
+  }
+  const char *Aux(void) const {
+    const char *aux = nullptr;
+    GetEvent([&aux](const cEvent *event) { aux = event->Aux(); });
+    return aux;
+  }
+
 template<class changeEventF>
   bool ChangeEvent(changeEventF changeEventFunction) {
 // return false if no event was found
 // return true if event was found and changeEventFunction was called
     LOCK_SCHEDULES_WRITE;
-    cSchedule *pSchedule = const_cast<cSchedule *>(Schedules->GetSchedule(m_channelID));
-    if (!pSchedule) return false;
-#if APIVERSNUM >= 20502
-    cEvent *event = const_cast<cEvent *>(pSchedule->GetEventById(m_eventID));
-#else
-    cEvent *event = const_cast<cEvent *>(pSchedule->GetEvent(m_eventID));
-#endif
+    cEvent *event = GetEvent(Schedules);
     if (!event) return false;
     changeEventFunction(event);
     return true;
@@ -61,6 +85,9 @@ template<class changeEventF>
   void SetDescription(const char *Description) {
     if (ChangeEvent([Description](cEvent *event) { event->SetDescription(Description); }))
       m_description = cSv(Description);
+  }
+  void SetAux(const char *Aux) {
+    ChangeEvent([Aux](cEvent *event) { event->SetAux(Aux); });
   }
 
 private:

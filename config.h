@@ -240,7 +240,7 @@ class cTVScraperConfig {
         }
         cSv splitDescription(cSv description) {
           size_t pos = description.find(m_description_delimiter);
-          if (pos == std::string::npos) return description;
+          if (pos == std::string::npos) return remove_trailing_whitespace(description);
           return remove_trailing_whitespace(description.substr(0, pos));
         }
 /*

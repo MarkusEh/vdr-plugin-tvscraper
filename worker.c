@@ -20,7 +20,6 @@ cTVScraperWorker::cTVScraperWorker(cTVScraperDB *db, cOverRides *overrides):
     m_movieDbTvScraper = NULL;
     m_tvDbTvScraper = NULL;
     initSleep = 2 * 60 * 1000;  // todo: wait for video directory scanner thread ended
-//  loopSleep = 5 * 60 * 1000;
 }
 
 cTVScraperWorker::~cTVScraperWorker() {
@@ -143,6 +142,37 @@ vector<tEventID> eventIDs;
       if (event->EndTime() >= now) eventIDs.push_back(event->EventID());
   } else dsyslog("tvscraper: Schedule for channel %s %s is not availible, skipping", channelName.c_str(), (const char *)channelid.ToString() );
   return eventIDs;
+}
+
+template<typename C>
+void update_aux(cStaticEvent &sEvent, cSv title, cSv episode_name, C season, C episode) {
+
+  if (config.m_writeEpisodeToEpg) {
+    cToSvConcat description(config.splitDescription(sEvent.Description() ), "\n", config.m_description_delimiter);
+    description.append_with_delimiter(" ", title);
+    description.concat("\n", tr("Episode Name:"));
+    description.append_with_delimiter(" ", episode_name);
+    description.concat("\n", tr("Season Number:"), " ", season);
+    description.concat("\n", tr("Episode Number:"), " ", episode);
+    sEvent.SetDescription(description.c_str() );
+  }
+
+// we lock between read aux and write aux, to make sure that no one else changes aux
+// during this time
+  LOCK_SCHEDULES_WRITE;
+  cEvent *event = sEvent.GetEvent(Schedules);
+  if (!event) return;
+  cToSvConcat aux(event->Aux() );
+  cSubstring aux_tvscraper = substringInXmlTag(aux, "tvscraper");
+  aux_tvscraper.erase(aux, 9);
+
+  aux << "<tvscraper>";
+  aux << "<title>" << title << "</title>";
+  aux << "<episode_name>" << episode_name << "</episode_name>";
+  aux << "<season>" << season << "</season>";
+  aux << "<episode>" << episode << "</episode>";
+  aux << "</tvscraper>";
+  event->SetAux(aux.c_str() );
 }
 
 bool cTVScraperWorker::ScrapEPG(void) {
@@ -280,30 +310,27 @@ bool cTVScraperWorker::ScrapEPG(void) {
             time11_max = std::max(timeNeeded, time11_max);
             break;
         }
-        if (config.m_writeEpisodeToEpg) {
-          if (movieOrTv && movieOrTv->getType() == tSeries && movieOrTv->getEpisode() != 0) {
-            std::string title, episodeName;
-            cToSvConcat description(remove_trailing_whitespace(sEoR.Description() ), "\n", config.m_description_delimiter);
-            if (movieOrTv->getOverview(&title, &episodeName, nullptr, nullptr, nullptr)) {
-              if (!remove_trailing_whitespace(title).empty()) description.concat(" ", remove_trailing_whitespace(title));
-              description.concat("\n", tr("Episode Name:"));
-              if (!remove_trailing_whitespace(episodeName).empty()) description.concat(" ", remove_trailing_whitespace(episodeName));
-            }
-            description.concat("\n", tr("Season Number:"), " ", movieOrTv->getSeason() );
-            description.concat("\n", tr("Episode Number:"), " ", movieOrTv->getEpisode() );
-            sEvent.SetDescription(description.c_str() );
-          } else {
-            std::cmatch capture_groups;
-            for (const std::regex &r: overrides->m_regexDescription_titleEpisodeSeasonNumberEpisodeNumber) {
-              if (std::regex_match(sEoR.Description().data(), sEoR.Description().data()+sEoR.Description().length(), capture_groups, r) && capture_groups.size() == 5) {
-                cToSvConcat description(remove_trailing_whitespace(sEoR.Description() ));
-                description.concat("\n", config.m_description_delimiter, " ", remove_trailing_whitespace(capture_groups[1].str()));
-                description.concat("\n", tr("Episode Name:"), " ", remove_trailing_whitespace(capture_groups[2].str()));
-                description.concat("\n", tr("Season Number:"), " ", remove_trailing_whitespace(capture_groups[3].str()));
-                description.concat("\n", tr("Episode Number:"), " ", remove_trailing_whitespace(capture_groups[4].str()));
-                sEvent.SetDescription(description.c_str() );
-                break;
-              }
+        if (movieOrTv && movieOrTv->getType() == tSeries && movieOrTv->getEpisode() != 0) {
+          std::string title, episode_name;
+          movieOrTv->getOverview(&title, &episode_name, nullptr, nullptr, nullptr);
+          update_aux(sEvent, title, episode_name, movieOrTv->getSeason(), movieOrTv->getEpisode() );
+        } else {
+          std::cmatch capture_groups;
+          for (const std::regex &r: overrides->m_regexDescription_titleEpisodeSeasonNumberEpisodeNumber) {
+            if (std::regex_match(sEoR.Description().data(), sEoR.Description().data()+sEoR.Description().length(), capture_groups, r) && capture_groups.size() == 5) {
+              std::string title = capture_groups[1].str();
+              std::string episode_name = capture_groups[2].str();
+              std::string season = capture_groups[3].str();
+              std::string episode = capture_groups[4].str();
+              trim_string(title);
+              trim_string(episode_name);
+              trim_string(season);
+              trim_string(episode);
+              if (season.empty() ) season = "0";
+              if (episode.empty() ) episode = "0";
+
+              update_aux(sEvent, title, episode_name, season, episode);
+              break;
             }
           }
         }
