@@ -101,8 +101,8 @@ bool cMovieDbTv::ReadTv(const rapidjson::Value &tv) {
   m_vote_average = getValueDouble(tv, "vote_average");
   m_vote_count = getValueInt(tv, "vote_count");
   m_status = getValueCharS(tv, "status");
-  m_tvBackdropPath = getValueCharS(tv, "backdrop_path");
-  m_tvPosterPath = getValueCharS(tv, "poster_path");
+  m_tvBackdropPath = config.m_disable_images?nullptr:getValueCharS(tv, "backdrop_path");
+  m_tvPosterPath = config.m_disable_images?nullptr:getValueCharS(tv, "poster_path");
   m_tvNumberOfSeasons = getValueInt(tv, "number_of_seasons");
   m_tvNumberOfEpisodes = getValueInt(tv, "number_of_episodes");
   m_createdBy = getValueArrayConcatenated(tv, "created_by", "name");
@@ -192,7 +192,7 @@ bool cMovieDbTv::AddOneSeason() {
 // episode overview
     const char *overview = getValueCharS(episode, "overview");
 // stillPath
-    const char *episodeStillPath = getValueCharS(episode, "still_path");
+    const char *episodeStillPath = config.m_disable_images?nullptr:getValueCharS(episode, "still_path");
     std::string director;
     std::string writer;
     getDirectorWriter(director, writer, episode);

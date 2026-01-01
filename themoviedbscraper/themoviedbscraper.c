@@ -44,9 +44,7 @@ void cMovieDBScraper::DownloadActors(int tvID, bool movie) {
   for (cSql &stmt: stmtDo.resetBindStep(tvID, movie)) {
     const char *actor_path = stmt.getCharS(1);
     if (!actor_path || !*actor_path) continue;
-    CONCATENATE(actorsFullUrl, m_actorsBaseUrl, actor_path);
-    CONCATENATE(downloadFullPath, config.GetBaseDirMovieActors(), "actor_", stmt.getInt(0), ".jpg");
-    DownloadImg(m_curl, actorsFullUrl, downloadFullPath);
+    DownloadImg(m_curl, cToSvConcat(m_actorsBaseUrl, actor_path), cToSvConcat(config.GetBaseDirMovieActors(), "actor_", stmt.getInt(0), ".jpg"));
   }
   db->DeleteActorDownload (tvID, movie);
 }

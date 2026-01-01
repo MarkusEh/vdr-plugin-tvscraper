@@ -191,7 +191,7 @@ int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
   }
 
 // we also add season images. Therefore, we do this after parsing the episodes
-  series.ParseJson_Artwork(*data, displayLanguage);
+  if (!config.m_disable_actor_images) series.ParseJson_Artwork(*data, displayLanguage);
 // store series here, as here information (incl. episode runtimes, poster URL, ...) is complete
   series.StoreDB();
   return seriesID;
@@ -330,12 +330,12 @@ int cTVDBScraper::downloadEpisodes(int seriesID, bool forceUpdate, const cLangua
 // 3: remove name           : here in language lang, which is the display language
         insertEpisode3.resetBindStep(
            -seriesID, getValueInt(episode, "seasonNumber"), getValueInt(episode, "number"), episodeID,
-           getValueCharS(episode, "aired"), getValueCharS(episode, "overview"), getValueCharS(episode, "image"), episodeRunTime);
+           getValueCharS(episode, "aired"), getValueCharS(episode, "overview"), config.m_disable_images?nullptr:getValueCharS(episode, "image"), episodeRunTime);
       } else {
 // 2: remove name & overview: here in language lang, which is not the display language
         insertEpisode2.resetBindStep(
            -seriesID, getValueInt(episode, "seasonNumber"), getValueInt(episode, "number"), episodeID,
-           getValueCharS(episode, "aired"), getValueCharS(episode, "image"), episodeRunTime);
+           getValueCharS(episode, "aired"), config.m_disable_images?nullptr:getValueCharS(episode, "image"), episodeRunTime);
       }
 
 // tv_name
@@ -499,7 +499,7 @@ void cTVDBScraper::DownloadMediaBanner (int tvID, cStr destPath) {
 bool cTVDBScraper::AddResults4(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const cLanguage *lang, int network_id) {
   cToSvConcat url(baseURL4Search);
   m_curl->appendCurlEscape(url, SearchString);
- 
+
   cJsonDocumentFromUrl root(m_curl);
   const rapidjson::Value *data;
   if (CallRestJson(root, data, url) != 0) return false;

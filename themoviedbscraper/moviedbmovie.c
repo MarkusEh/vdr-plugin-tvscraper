@@ -45,12 +45,19 @@ bool cMovieDbMovie::ReadMovie(const rapidjson::Value &movie, int id) {
   const char *overview = getValueCharS(movie, "overview");
   bool adult = getValueBool(movie, "adult");
 // collection
+  int collectionId = 0;
+  const char *collectionName = nullptr;
+  const char *collectionPosterPath = nullptr;
+  const char *collectionBackdropPath = nullptr;
   rapidjson::Value::ConstMemberIterator collection_it = movie.FindMember("belongs_to_collection");
-  bool hasCol = collection_it != movie.MemberEnd() && collection_it->value.IsObject();
-  int collectionId = hasCol?getValueInt(collection_it->value, "id"):0;
-  const char *collectionName = hasCol?getValueCharS(collection_it->value, "name"):nullptr;
-  const char *collectionPosterPath = hasCol?getValueCharS(collection_it->value, "poster_path"):nullptr;
-  const char *collectionBackdropPath = hasCol?getValueCharS(collection_it->value, "backdrop_path"):nullptr;
+  if (collection_it != movie.MemberEnd() && collection_it->value.IsObject() ) {
+    collectionId = getValueInt(collection_it->value, "id");
+    collectionName = getValueCharS(collection_it->value, "name");
+    if (!config.m_disable_images) {
+      collectionPosterPath = getValueCharS(collection_it->value, "poster_path");
+      collectionBackdropPath = getValueCharS(collection_it->value, "backdrop_path");
+    }
+  }
 // budget, revenue
   int budget  = getValueInt(movie, "budget");
   int revenue  = getValueInt(movie, "revenue");
@@ -84,13 +91,11 @@ bool cMovieDbMovie::ReadMovie(const rapidjson::Value &movie, int id) {
     }
   }
 // backdropPath, posterPath
-  const char *backdropPath = getValueCharS(movie, "backdrop_path");
-  const char *posterPath = getValueCharS(movie, "poster_path");
+  const char *backdropPath = config.m_disable_images?nullptr:getValueCharS(movie, "backdrop_path");
+  const char *posterPath = config.m_disable_images?nullptr:getValueCharS(movie, "poster_path");
 // store in db
-  const char *poster;
-  const char *fanart;
-  if (posterPath && *posterPath    ) poster = posterPath;   else poster = collectionPosterPath;
-  if (backdropPath && *backdropPath) fanart = backdropPath; else fanart = collectionBackdropPath;
+  const char *poster = (posterPath && *posterPath    )?posterPath:collectionPosterPath;
+  const char *fanart = (backdropPath && *backdropPath)?backdropPath:collectionBackdropPath;
   m_db->InsertMovie(id, title, originalTitle, tagline, overview, adult, collectionId, collectionName, budget, revenue, genres.c_str(), homepage, releaseDate, runtime, popularity, voteAverage, voteCount, productionCountries.c_str(), poster, fanart, imdb_id, l_languages.c_str() );
 
 // store media in db, for later download

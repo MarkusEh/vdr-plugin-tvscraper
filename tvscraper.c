@@ -222,7 +222,8 @@ const char *cPluginTvscraper::CommandLineHelp(void) {
     return "  -d <CACHEDIR>, --dir=<CACHEDIR> Set directory where database and images are stored\n" \
            "  -c, --readOnlyClient Don't update any data, just read the data\n"  \
            "  -p, --autoTimersPath Overide the default path for auto timer recordings\n" \
-           "  -t, --timersOnNumberOfTsFiles Create auto timers if number of ts files != 1\n";
+           "  -t, --timersOnNumberOfTsFiles Create auto timers if number of ts files != 1\n" \
+           "  --disableDownloadDatabaseImages Disable download of database images including actor images form TheTVDB and TMDb\n";
 }
 
 bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
@@ -232,6 +233,7 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
         { "themoviedbSearchOption", required_argument, NULL, 's' },
         { "autoTimersPath", required_argument, NULL, 'p' },
         { "timersOnNumberOfTsFiles", no_argument, NULL, 't' },
+        { "disableDownloadDatabaseImages", no_argument, NULL, 'i' | 0x100 },
         { 0, 0, 0, 0 }
     };
 
@@ -254,6 +256,11 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
                 break;
             case 't':
                 config.SetTimersOnNumberOfTsFiles();
+                break;
+            case 'i' | 0x100:
+                config.m_disable_images = true;
+                config.m_disable_actor_images = true;
+                dsyslog2("disabled download of database images including actor images form TheTVDB and TMDb");
                 break;
             default:
                 return false;

@@ -132,6 +132,9 @@ bool cTv::getSingleImage(eImageLevel level, eOrientation orientation, string *re
 
 // implementation of cMovieMoviedb  *********************
 void cMovieMoviedb::DeleteMediaAndDb() {
+  std::string title;
+  getOverview(&title, nullptr, nullptr, nullptr, nullptr, nullptr);
+  dsyslog2("Delete movie id ", m_id, " title \"", title, "\"");
   m_db->DeleteMovie(m_id);
 }
 
@@ -464,6 +467,9 @@ void cTvTvdb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
 
 // implemntation of cTvMoviedb  *********************
 void cTvMoviedb::DeleteMediaAndDb() {
+  std::string title;
+  getOverview(&title, nullptr, nullptr, nullptr, nullptr, nullptr);
+  dsyslog2("Delete series TMDb id ", m_id, " title \"", title, "\"");
   m_db->DeleteSeries(m_id);
 }
 
@@ -547,6 +553,9 @@ bool cTvMoviedb::getSingleImageEpisode(eOrientation orientation, string *relPath
 
 // implemntation of cTvTvdb  *********************
 void cTvTvdb::DeleteMediaAndDb() {
+  std::string title;
+  getOverview(&title, nullptr, nullptr, nullptr, nullptr, nullptr);
+  dsyslog2("Delete series TheTVDB id ", m_id, " title \"", title, "\"");
   m_db->DeleteSeries(-m_id);
 }
 
@@ -784,15 +793,15 @@ void cMovieOrTv::DeleteAllIfUnused(const cTVScraperDB *db) {
 // check all movies in db
   CleanupTv_media(db);
   db->exec("DELETE FROM actor_download");
-  for (int movie_id: cSqlValue<int>(db, "select movie_id from movies3;") ) {
+  for (int movie_id: cSqlValue<int>(db, "SELECT movie_id FROM movies3;") ) {
     cMovieMoviedb movieMoviedb(db, movie_id);
     movieMoviedb.DeleteIfUnused();
   }
 
 // check all tv shows in db
-  for (int tvID: cSqlValue<int>(db, "select tv_id from tv2;")) {
+  for (int tvID: cSqlValue<int>(db, "SELECT tv_id FROM tv2;")) {
     if (tvID > 0) { cTvMoviedb tvMoviedb(db, tvID); tvMoviedb.DeleteIfUnused(); }
-    else          { cTvTvdb tvTvdb(db, tvID * -1); tvTvdb.DeleteIfUnused(); }
+    else          { cTvTvdb tvTvdb(db, -tvID     ); tvTvdb.DeleteIfUnused(); }
   }
 
   DeleteAllIfUnused(config.GetBaseDirMovieTv(), ecMovieOrTvType::theMoviedbSeries, db);

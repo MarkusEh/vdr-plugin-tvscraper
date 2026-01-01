@@ -18,7 +18,7 @@ void readAndStoreMovieDbActors(cTVScraperDB *db, const rapidjson::Value &jActors
     const char *name = getValueCharS(jActor, "name");
     if (id == 0 || !name) continue;
     const char *role = getValueCharS(jActor, "character");
-    const char *path = getValueCharS(jActor, "profile_path");
+    const char *path = config.m_disable_actor_images?nullptr:getValueCharS(jActor, "profile_path");
     stmtInsertActorMovie.resetBindStep(id, movieTvID, cStringRef(role));
     if (path && *path) {
       stmtInsertActors.resetBindStep(id, cStringRef(name), true);

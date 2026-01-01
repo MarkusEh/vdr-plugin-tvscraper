@@ -181,6 +181,8 @@ class cTVScraperConfig {
         int enableDebug;
         int m_writeEpisodeToEpg;
 // End of list of data that can be changed in the setup menu
+        bool m_disable_images = false;
+        bool m_disable_actor_images = false;
         void Initialize(); // This is called during plugin initialize
         void readNetworks();
         int Get_TheTVDB_company_ID_from_TheTVDB_company_name(cSv TheTVDB_company_name);

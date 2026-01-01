@@ -12,9 +12,9 @@ cTVDBSeries::cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper, int series
   m_seriesID(seriesID)
 {
 // this IS a series, and a series has an ID
-  if (seriesID == 0) esyslog("tvscraper: ERROR cTVDBSeries::cTVDBSeries, seriesID == 0");
+  if (seriesID == 0) esyslog2("cTVDBSeries::cTVDBSeries, seriesID == 0");
   m_language = config.GetDefaultLanguage()->m_thetvdb; // note: m_language will be changed if the series is not translated to m_language
-  if (m_language.length() != 3) 
+  if (m_language.length() != 3)
     esyslog("tvscraper: ERROR cTVDBSeries::cTVDBSeries: strlen(m_language) != 3, m_language: %s", m_language.c_str() );
 }
 
@@ -55,12 +55,12 @@ bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries, const cLangu
 // any translations?
   translations = getArrayConcatenated(jSeries, "nameTranslations");
   popularity = getValueInt(jSeries, "score");
-  if (popularity == 0) popularity = 1;  // 0 indicates that no score is available in internal db, and will result in access to external db. 
+  if (popularity == 0) popularity = 1;  // 0 indicates that no score is available in internal db, and will result in access to external db.
   m_db->exec("INSERT INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update) VALUES(?, ?, ?, ?) ON CONFLICT(tv_id) DO UPDATE SET tv_score = excluded.tv_score, tv_languages = excluded.tv_languages, tv_languages_last_update = excluded.tv_languages_last_update", -m_seriesID, popularity, translations, time(0) );
   m_language = displayLanguage->m_thetvdb;
 
   originalName = getValueCharS(jSeries, "name");
-  poster = getValueCharS(jSeries, "image"); // other images will be added in ParseJson_Artwork
+  poster = config.m_disable_images?nullptr:getValueCharS(jSeries, "image"); // other images will be added in ParseJson_Artwork
   firstAired = getValueCharS(jSeries, "firstAired");
 // Status
   status = getValueCharS2(jSeries, "status", "name"); // e.g. Ended
@@ -135,7 +135,7 @@ int cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, cSql &inser
   insertEpisode.resetBindStep(
      -m_seriesID, getValueInt(jEpisode, "seasonNumber"), getValueInt(jEpisode, "number"), episodeID,
      getValueCharS(jEpisode, "name"), getValueCharS(jEpisode, "aired"),
-     getValueCharS(jEpisode, "overview"), getValueCharS(jEpisode, "image"), episodeRunTime);
+     getValueCharS(jEpisode, "overview"), config.m_disable_images?nullptr:getValueCharS(jEpisode, "image"), episodeRunTime);
 /*
   int episodeAbsoluteNumber = 0; // not available
   string episodeGuestStars("");  // part of series, add later
@@ -350,8 +350,11 @@ bool cTVDBSeries::ParseJson_Character(const rapidjson::Value &jCharacter) {
   if (type == 3 || type == 10) {
 // "Actor" (3), Host (10)
     int series_id = getValueInt(jCharacter, "seriesId");
-    const char *image = getValueCharS(jCharacter, "image");
-    if (!image || !*image) image = getValueCharS(jCharacter, "personImgURL");
+    const char *image = nullptr;
+    if (!config.m_disable_actor_images) {
+      image = getValueCharS(jCharacter, "image");
+      if (!image || !*image) image = getValueCharS(jCharacter, "personImgURL");
+    }
     m_db->InsertActor(series_id, personName, name, image);
     return true;
   }
