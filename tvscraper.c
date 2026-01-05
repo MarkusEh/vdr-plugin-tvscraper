@@ -183,10 +183,10 @@ class cTVScraperLastMovieLock {
 class cPluginTvscraper : public cPlugin {
 private:
     bool cacheDirSet;
-    cTVScraperDB *db;
+    cTVScraperDB *db = nullptr;
     cStatusMonitor *m_statusMonitor = nullptr;
-    cTVScraperWorker *workerThread;
-    cOverRides *overrides;
+    cTVScraperWorker *workerThread = nullptr;
+    cOverRides *overrides = nullptr;
     int m_movie_tv_id = 0;
     int m_season_number = 0;
     int m_episode_number = 0;
@@ -214,8 +214,13 @@ public:
 };
 
 cPluginTvscraper::~cPluginTvscraper() {
-  if (m_statusMonitor) delete m_statusMonitor;
-  m_statusMonitor = nullptr;
+
+  // delete at the latest possible moment, they might be needed by the service interface
+  delete m_statusMonitor; m_statusMonitor = nullptr;
+  delete db;                           db = nullptr;
+  delete overrides;             overrides = nullptr;
+
+  curl_global_cleanup();
 }
 
 const char *cPluginTvscraper::CommandLineHelp(void) {
@@ -312,10 +317,7 @@ void cPluginTvscraper::Stop(void) {
     workerThread->Stop();
     sleep(1);
   }
-  delete workerThread;
-  delete db;
-  delete overrides;
-  curl_global_cleanup();
+  delete workerThread; workerThread = nullptr;
 }
 
 void cPluginTvscraper::Housekeeping(void) {

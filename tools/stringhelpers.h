@@ -8,7 +8,7 @@
  *     on esyslog (from VDR)
  *     on "to_chars10.h"
  *
- * no other dependencies, so it can be easily included in any other headers
+ * no other dependencies, so it can be easily included in any other header
  *
  *
 */
@@ -653,14 +653,6 @@ inline wint_t getNextUtfCodepoint(const char *&p) {
 // =========================================================
 // whitespace ==============================================
 // =========================================================
-
-inline bool my_isspace(char c) {
-//   don't use std::isspace or isspace: this is really slow ... 0.055 <-> 0.037
-//   also avoid find_first_not_of(" \t\f\v\n\r";): way too slow ...
-// definition of whitespace:
-// (0x20, ' '), (0x09, '\t'), (0x0a, '\n'), (0x0b, '\v'),  (0x0c, '\f'), (0x0d, '\r')
-  return (c == ' ') | ((c >=  0x09) & (c <=  0x0d));
-}
 
 inline cSv trim(cSv s) {
   // remove all ASCII <= 32 from left and right

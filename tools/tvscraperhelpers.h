@@ -304,7 +304,7 @@ inline bool splitString(cSv str, char delimiter, size_t minLengh, cSv &first, cS
 inline int StringRemoveTrailingWhitespace(const char *str, int len) {
 // return "new" len of string, without whitespaces at the end
   if (!str) return 0;
-  for (; len; len--) if (!my_isspace(str[len - 1])) return len;
+  for (; len; --len) if ((unsigned char)str[len-1] >= 33) return len;
   return 0;
 }
 

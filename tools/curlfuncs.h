@@ -46,7 +46,7 @@ class cCurl {
     }
     ~cCurl() {
       curl_easy_cleanup(m_curl);
-// note: we call curl_global_cleanup in cPluginTvscraper::Stop()
+// note: we call curl_global_cleanup in cPluginTvscraper::~cPluginTvscraper()
     }
     bool GetUrl(const cStr url, std::string &sOutput, struct curl_slist *headers) {
 // input: url && headers
