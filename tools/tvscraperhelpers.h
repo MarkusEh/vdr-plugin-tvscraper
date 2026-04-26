@@ -338,11 +338,15 @@ inline int lenWithoutLastPartWithP(cSv sv) {
 // return -1 if nothing was found
 // otherwise length of sv without ()
   int len = StringRemoveTrailingWhitespace(sv.data(), sv.length() );
-  if (len < 3) return -1;
+//  if (len < 3) return -1;
+  if (len < 5) return -1;   // min 3 chars must be left
   if (sv[len -1] != ')') return -1;
-  for (int i = len -2; i; i--) {
+  for (int i = len -2; i>2; i--) {
+    if (sv[i] == '(') {
+/*
     if (!isdigit(sv[i]) && sv[i] != '/') {
       if (sv[i] != '(') return -1;
+*/
       int len2 = lenWithoutLastPartWithP(sv.substr(0, i));
       if (len2 == -1 ) return StringRemoveTrailingWhitespace(sv.data(), i);
       return len2;

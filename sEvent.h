@@ -6,6 +6,7 @@
 class cStaticEvent {
 
 public:
+  cStaticEvent() { m_language[0] = 0;}
   void set_from_event(const cEvent *event) {
     m_eventID = event->EventID();
     m_startTime = event->StartTime();
@@ -16,6 +17,9 @@ public:
     m_title = cSv(event->Title());
     m_shortText = cSv(event->ShortText());
     m_description = cSv(event->Description());
+#if VDRVERSNUM >= 20709
+    SetLanguage(event->Language() );
+#endif
   }
   void set_from_recording(const cRecording *recording) {
     m_eventID = recording->Info()->GetEvent()->EventID();
@@ -27,6 +31,9 @@ public:
     m_title = cSv(recording->Info()->Title());
     m_shortText = cSv(recording->Info()->ShortText());
     m_description = cSv(recording->Info()->Description());
+#if VDRVERSNUM >= 20709
+    SetLanguage(recording->Info()->GetEvent()->Language() );
+#endif
   }
 
   tEventID EventID() const { return m_eventID; }
@@ -35,6 +42,7 @@ public:
   time_t Vps() const { return m_vps; }
   int Duration() const { return m_duration; }
   const tChannelID ChannelID() const { return m_channelID; }
+  const char *Language() const { return m_language; }
   const char *Title() const { return m_title.c_str(); }
   const char *ShortText() const { return m_shortText.c_str(); }
   const char *Description() const { return m_description.c_str(); }
@@ -100,6 +108,10 @@ private:
   std::string m_title;
   std::string m_shortText;
   std::string m_description;
+  char m_language[MAXLANGCODE1]; // ISO 639-2/T three character language code of the language of title and shortText, 0 terminated!
+  void SetLanguage(const char *Language) {
+    memcpy(m_language, Language, sizeof(m_language));
+  }
 };
 
 #endif //__TVSCRAPER_SEVENT_H

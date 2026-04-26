@@ -47,6 +47,7 @@ class cScraperVideoImp: public cScraperVideo_v01 {
   private:
     cTvMedia getEpgImage(bool fullPath);
     tChannelID m_channelID;
+    const cLanguage *m_language = nullptr;
     tEventID m_eventID = 0;
     int m_recordingID = -1;
     cTVScraperDB *m_db;
@@ -69,10 +70,14 @@ cScraperVideoImp::cScraperVideoImp(const cEvent *event, const cRecording *record
   if (event) {
     m_channelID = event->ChannelID();
     m_eventID = event->EventID();
+    csEventOrRecording eor(event);
+    m_language = eor.GetLanguage();
   }
   else if (recording) {
     m_recordingID = recording->Id();
     if (recording->Info() ) m_channelID = recording->Info()->ChannelID();
+    csRecording sRecording(recording);
+    m_language = sRecording.GetLanguage();
   }
 
 }
@@ -165,7 +170,7 @@ int cScraperVideoImp::getHD() {
   return -1;
 }
 int cScraperVideoImp::getLanguage() {
-  if (m_channelID.Valid()) return config.GetLanguage_n(m_channelID);
+  if (m_language) return m_language->Id();
   return -1;
 }
 

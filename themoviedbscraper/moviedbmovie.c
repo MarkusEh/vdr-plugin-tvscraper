@@ -6,7 +6,7 @@ cMovieDbMovie::cMovieDbMovie(cTVScraperDB *db, cMovieDBScraper *movieDBScraper):
   m_movieDBScraper(movieDBScraper) { }
 
 bool cMovieDbMovie::ReadAndStore(int id) {
-  const char *lang = config.GetDefaultLanguage()->m_themoviedb;
+  const char *lang = config.Languages().GetDefaultLanguage()->Themoviedb();
   cToSvConcat url(m_baseURL, "/movie/", id, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&append_to_response=credits,alternative_titles,translations");
   cJsonDocumentFromUrl document(m_movieDBScraper->m_curl);
   document.set_enableDebug(config.enableDebug);

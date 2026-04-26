@@ -69,7 +69,7 @@ int cTVScraperDB::printSqlite3Errmsg(cSv query) const {
     if (strcmp(err, "not an error") != 0)
       esyslog("tvscraper: ERROR query failed: %.*s, error: %s, error code %i extendedErrCode %i", static_cast<int>(query.length()), query.data(), err, errCode, extendedErrCode);
     else return 0;
-  } else 
+  } else
     esyslog("tvscraper: ERROR query failed: %.*s, no error text, error code %i extendedErrCode %i", static_cast<int>(query.length()), query.data(), errCode, extendedErrCode);
   return errCode;
 }
@@ -80,7 +80,7 @@ bool cTVScraperDB::TableColumnExists(const char *table, const char *column) {
   sqlite3_stmt *statement;
   if(sqlite3_prepare_v2(db, sql.c_str(), -1, &statement, 0) == SQLITE_OK)
     for (int i=0; i< sqlite3_column_count(statement); i++) if (strcmp(sqlite3_column_name(statement, i), column) == 0) { found = true; break; }
-  sqlite3_finalize(statement); 
+  sqlite3_finalize(statement);
   printSqlite3Errmsg(sql.c_str()  );
   return found;
 }
@@ -752,14 +752,14 @@ bool cTVScraperDB::episodeNameUpdateRequired(int tvID, int langId) {
   time_t tv2_tv_last_updated = stmt_tv2.get<time_t>(1);
 
   cSql stmt_tv_name_last_updated(this, "SELECT tv_last_updated FROM tv_name WHERE tv_id = ? AND language_id = ?", tvID, langId);
-  if (!stmt_tv_name_last_updated.readRow() && (config.GetDefaultLanguage()->m_id != langId || tvID < 0) ) {
+  if (!stmt_tv_name_last_updated.readRow() && (config.Languages().GetDefaultLanguage()->Id() != langId || tvID < 0) ) {
 //    if (config.enableDebug) dsyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired not found in tv_name, tvID %i, langId %i", tvID, langId);
     return true;
   }
 // check: additional episodes added, but not in langId?
 // Note: we cannot compare the number of episodes in tv_s_e with the number of episodes tv_s_e_name2 for lang:
 //       there just might be some texts missing, ...
-  if (stmt_tv2.get<time_t>(0) > stmt_tv_name_last_updated.get<time_t>(0) && (config.GetDefaultLanguage()->m_id != langId || tvID < 0)) {
+  if (stmt_tv2.get<time_t>(0) > stmt_tv_name_last_updated.get<time_t>(0) && (config.Languages().GetDefaultLanguage()->Id() != langId || tvID < 0)) {
     if (config.enableDebug) dsyslog("tvscraper: INFO: cTVScraperDB::episodeNameUpdateRequired tv2.tv_last_changed %lli > tv_name.tv_last_updated %lli, tvID %i, langId %i", stmt_tv2.get<long long>(0), stmt_tv_name_last_updated.get<long long>(0), tvID, langId);
     return true;
   }
@@ -1006,7 +1006,7 @@ if (season_number != -100) {
         movie_tv_id, season_number, episode_number);
     }
     const char *episode_name;
-    if (stmtEpisodeName.readRow(episode_name) && episode_name) 
+    if (stmtEpisodeName.readRow(episode_name) && episode_name)
       jTvscraper.AddMember("episode_name", rapidjson::Value().SetString(rapidjson::StringRef(episode_name) ), jInfo->GetAllocator() );
 }} else {
 // movie
@@ -1397,7 +1397,7 @@ void cTVScraperDB::insertTvMedia(int tvID, const char *path, eMediaType mediaTyp
   if (existsTvMedia(tvID, path) ) return;
   int num = queryInt("select count(tv_id) as found from tv_media where tv_id = ? and media_type = ?",
     tvID, (int)mediaType);
-  
+
   exec("INSERT INTO tv_media (tv_id, media_path, media_type, media_number) VALUES (?, ?, ?, ?);",
     tvID, path, (int)mediaType, num);
 

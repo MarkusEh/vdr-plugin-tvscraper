@@ -13,9 +13,7 @@ cTVDBSeries::cTVDBSeries(cTVScraperDB *db, cTVDBScraper *TVDBScraper, int series
 {
 // this IS a series, and a series has an ID
   if (seriesID == 0) esyslog2("cTVDBSeries::cTVDBSeries, seriesID == 0");
-  m_language = config.GetDefaultLanguage()->m_thetvdb; // note: m_language will be changed if the series is not translated to m_language
-  if (m_language.length() != 3)
-    esyslog("tvscraper: ERROR cTVDBSeries::cTVDBSeries: strlen(m_language) != 3, m_language: %s", m_language.c_str() );
+  m_language = config.Languages().GetDefaultLanguage()->Thetvdb(); // note: m_language will be changed if the series is not translated to m_language
 }
 
 cTVDBSeries::~cTVDBSeries() {
@@ -57,7 +55,7 @@ bool cTVDBSeries::ParseJson_Series(const rapidjson::Value &jSeries, const cLangu
   popularity = getValueInt(jSeries, "score");
   if (popularity == 0) popularity = 1;  // 0 indicates that no score is available in internal db, and will result in access to external db.
   m_db->exec("INSERT INTO tv_score (tv_id, tv_score, tv_languages, tv_languages_last_update) VALUES(?, ?, ?, ?) ON CONFLICT(tv_id) DO UPDATE SET tv_score = excluded.tv_score, tv_languages = excluded.tv_languages, tv_languages_last_update = excluded.tv_languages_last_update", -m_seriesID, popularity, translations, time(0) );
-  m_language = displayLanguage->m_thetvdb;
+  m_language = displayLanguage->Thetvdb();
 
   originalName = getValueCharS(jSeries, "name");
   poster = config.m_disable_images?nullptr:getValueCharS(jSeries, "image"); // other images will be added in ParseJson_Artwork
@@ -113,7 +111,7 @@ bool cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, cSql &inse
 //    don't save normed strings in database.
 //      doesn't help for performance (norming one string only takes 5% of sentence_distance time
 //      makes changes to the norm algorithm almost impossible
-  insertEpisodeLang.resetBindStep(episodeID, lang->m_id, episodeName);
+  insertEpisodeLang.resetBindStep(episodeID, lang->Id(), episodeName);
   return true;
 }
 
@@ -156,7 +154,7 @@ bool cTVDBSeries::ParseJson_Episode(const rapidjson::Value &jEpisode, const cLan
 //    don't save normed strings in database.
 //      doesn't help for performance (norming one string only takes 5% of sentence_distance time
 //      makes changes to the norm algorithm almost impossible
-  insertEpisodeLang.resetBindStep(episodeID, lang->m_id, episodeName);
+  insertEpisodeLang.resetBindStep(episodeID, lang->Id(), episodeName);
   return true;
 }
 
@@ -206,7 +204,7 @@ bool cTVDBSeries::ParseJson_Artwork(const rapidjson::Value &jSeries, const cLang
   map<int,cImageScore> bestSeasonPoster;
 // 3 best "Background" / "Fanart"
   multiset<cImageScore> bestBackgrounds;
-  size_t displayLanguageLength = (displayLanguage && displayLanguage->m_thetvdb)?strlen(displayLanguage->m_thetvdb):0;
+  size_t displayLanguageLength = displayLanguage?strlen(displayLanguage->Thetvdb() ):0;
   for (const rapidjson::Value &jArtwork: cJsonArrayIterator(jSeries, "artworks")) {
     int type = getValueInt(jArtwork, "type");
     if (type == 0) continue;
@@ -215,7 +213,7 @@ bool cTVDBSeries::ParseJson_Artwork(const rapidjson::Value &jSeries, const cLang
     int languageMatch = 1; // 1: artwork has no lang. 0: no match. 2: match
     const char *language = getValueCharS(jArtwork, "language");
     if (language && *language) {
-      if (displayLanguageLength && strncmp(language, displayLanguage->m_thetvdb, displayLanguageLength) == 0) languageMatch = 2;
+      if (displayLanguageLength && strncmp(language, displayLanguage->Thetvdb(), displayLanguageLength) == 0) languageMatch = 2;
       else languageMatch = 0;
     }
     cImageScore currentImage(image,

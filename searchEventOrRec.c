@@ -342,7 +342,7 @@ int cSearchEventOrRec::ScrapFindAndStore(sMovieOrTv &movieOrTv) {
   }
   if (CheckCache(movieOrTv) ) return 1;
   if (config.enableDebug) {
-    esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", title \"%s\", orig. title \"%.*s\", network id %d, start time: %s", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data(), m_network_id, cToSvDateTime("%Y-%m-%d %H:%M:%S", m_sEventOrRecording->StartTime() ).c_str() );
+    esyslog("tvscraper: scraping movie \"%s\", TV \"%s\", title \"%s\", orig. title \"%.*s\", network id %d, start time %s, event language %s, language ID %d", m_movieSearchString.c_str(), m_TVshowSearchString.c_str(), m_sEventOrRecording->Title(), static_cast<int>(m_originalTitle.length()), m_originalTitle.data(), m_network_id, cToSvDateTime("%Y-%m-%d %H:%M:%S", m_sEventOrRecording->StartTime() ).c_str(), m_sEventOrRecording->Language(), m_sEventOrRecording->GetLanguage()->Id()  );
   }
   vector<searchResultTvMovie> searchResults;
   cSv episodeSearchString;
@@ -859,7 +859,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
   if (debug) searchEventOrRec.log(sR);
   searchEventOrRec.getExtMovieTvDb(sR)->enhance1(sR, searchEventOrRec.m_sEventOrRecording->GetLanguage() );
   cSql actors(searchEventOrRec.m_db);
-  cSv lang_themoviedb = cSv(searchEventOrRec.m_sEventOrRecording->GetLanguage()->m_themoviedb).substr(0, 2);
+  cSv lang_themoviedb = cSv(searchEventOrRec.m_sEventOrRecording->GetLanguage()->Themoviedb() ).substr(0, 2);
   if (sR.movie() ) {
 // movie
     cNormedString normedMovieSearchString(searchEventOrRec.m_movieSearchString);
@@ -892,7 +892,9 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
     sR.setDirectorWriter(0);
     cSql stmtScore(searchEventOrRec.m_db, "SELECT tv_score, tv_languages FROM tv_score WHERE tv_id = ?", sR.id() );
     if (!stmtScore.readRow() ) {
-      esyslog("tvscraper: ERROR cSearchEventOrRec::enhance1, no data in tv_score, tv_id = %i",  sR.id() );
+// reason: inconsistencies in TheTVDB:
+//         tv_id was returned in a search result, but tv_id is deleted so get_details for tv_id returns an error ...
+      dsyslog3("No data in tv_score, tv_id = ",  sR.id() );
       sR.setTranslationAvailable(false);
     }
     if (sR.id() < 0) {
@@ -900,7 +902,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
       if (stmtScore.readRow() ) {
         sR.setScore(stmtScore.getInt(0) );
         cSplit transSplit(stmtScore.getCharS(1), '|', eSplitDelimBeginEnd::required);
-        if (transSplit.find(searchEventOrRec.m_sEventOrRecording->GetLanguage()->m_thetvdb) == transSplit.end() ) sR.setTranslationAvailable(false);
+        if (transSplit.find(searchEventOrRec.m_sEventOrRecording->GetLanguage()->Thetvdb() ) == transSplit.end() ) sR.setTranslationAvailable(false);
         else sR.setTranslationAvailable(true);
       }
       if (debug) searchEventOrRec.log(sR);
@@ -945,7 +947,7 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   else searchEventOrRec.splitNameEpisodeName(searchResult.delim(), foundName, episodeSearchString, true);
   const cLanguage *lang = searchEventOrRec.m_sEventOrRecording->GetLanguage();
   int distance = cMovieOrTv::searchEpisode(searchEventOrRec.m_db, movieOrTv, searchEventOrRec.getExtMovieTvDb(movieOrTv), episodeSearchString, searchEventOrRec.m_episodeName_ext_epg_provider, searchEventOrRec.m_baseNameOrTitle, searchEventOrRec.m_years, lang, searchEventOrRec.m_sEventOrRecording->ShortText(), searchEventOrRec.m_sEventOrRecording->Description() );
-  if (debug) esyslog("tvscraper: enhance2 (3), episodeSearchString \"%.*s\", lang %s, land_id %d, distance = %d", (int)episodeSearchString.length(), episodeSearchString.data(), lang->m_thetvdb, lang->m_id, distance);
+  if (debug) esyslog("tvscraper: enhance2 (3), episodeSearchString \"%.*s\", lang %s, land_id %d, distance = %d", (int)episodeSearchString.length(), episodeSearchString.data(), lang->Thetvdb(), lang->Id(), distance);
   searchEventOrRec.m_episodeFound = distance != 1000;
   searchResult.setMatchEpisode(distance);
 }

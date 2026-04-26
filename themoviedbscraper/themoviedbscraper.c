@@ -107,7 +107,7 @@ bool cMovieDBScraper::AddTvResults(vector<searchResultTvMovie> &resultSet, cSv t
   }
 // concatenate URL
   cToSvConcat url(baseURL, "/search/tv?api_key=", apiKey);
-  if (lang) url.concat("&language=", lang->m_themoviedb);
+  if (lang) url.concat("&language=", lang->Themoviedb() );
   url << "&query=";
   m_curl->appendCurlEscape(url, tvSearchString);
 
@@ -165,7 +165,7 @@ void cMovieDBScraper::AddMovieResults(vector<searchResultTvMovie> &resultSet, cS
     return;
   }
   cToSvConcat url(baseURL, "/search/movie?api_key=", GetApiKey());
-  if (lang) url << "&language=" << lang->m_themoviedb;
+  if (lang) url << "&language=" << lang->Themoviedb();
 
   url << config.GetThemoviedbSearchOption() << "&query=";
   m_curl->appendCurlEscape(url, SearchString);

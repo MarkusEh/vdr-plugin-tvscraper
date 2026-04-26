@@ -17,7 +17,7 @@ public:
   virtual ~cMovieOrTv() {};
   virtual bool operator==(const cMovieOrTv &sec) const = 0;
   virtual int dbID() const = 0;
-  virtual int langId(const cLanguage *lang) const { return lang?lang->m_id:0; }
+  virtual int langId(const cLanguage *lang) const { return lang?lang->Id():0; }
   int getSeason() const { return m_seasonNumber; }
   int getEpisode() const { return m_episodeNumber; }
   virtual void DeleteMediaAndDb() = 0;
@@ -61,7 +61,7 @@ protected:
   int m_id;
   int m_seasonNumber;
   int m_episodeNumber;
-  
+
   cMovieOrTv(const cTVScraperDB *db, int id, int seasonNumber, int episodeNumber): m_db(db), m_id(id), m_seasonNumber(seasonNumber), m_episodeNumber(episodeNumber) {}
 private:
   int m_collectionId = -2; // -2: not checked
@@ -72,6 +72,7 @@ class cMovieMoviedb : public cMovieOrTv {
 public:
   cMovieMoviedb(const cTVScraperDB *db, int id): cMovieOrTv(db, id, -100, 0) {}
   virtual int dbID() const { return m_id; }
+  virtual int langId(const cLanguage *lang) const { return lang?config.Languages().GetLanguageThemoviedb(lang->Themoviedb())->Id():0; }
   virtual bool operator==(const cMovieOrTv &sec) const { return getType() == sec.getType() && m_id == sec.m_id; }
   virtual void DeleteMediaAndDb();
   static void DeleteAllIfUnused(const cTVScraperDB *db);
@@ -121,12 +122,12 @@ protected:
 };
 
 // tv, the moviedb ********************************************
-
 class cTvMoviedb : public cTv {
 
 public:
   cTvMoviedb(const cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
   virtual int dbID() const { return m_id; }
+  virtual int langId(const cLanguage *lang) const { return lang?config.Languages().GetLanguageThemoviedb(lang->Themoviedb())->Id():0; }
   virtual void DeleteMediaAndDb();
   virtual vector<cActor> GetActors(bool fullPath = true);
   virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath);
@@ -145,7 +146,7 @@ class cTvTvdb : public cTv {
 public:
   cTvTvdb(const cTVScraperDB *db, int id, int seasonNumber=0, int episodeNumber=0): cTv(db, id, seasonNumber,  episodeNumber) {}
   virtual int dbID() const { return -m_id; }
-  virtual int langId(const cLanguage *lang) const { return lang?config.GetLanguageThetvdb(lang)->m_id:0; }
+  virtual int langId(const cLanguage *lang) const { return lang?config.Languages().GetLanguageThetvdb(lang->Thetvdb())->Id():0; }
   virtual void DeleteMediaAndDb();
   virtual vector<cActor> GetActors(bool fullPath = true);
   virtual void AddGuestActors(std::vector<cActor> &actors, bool fullPath);

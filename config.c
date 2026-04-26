@@ -3,6 +3,27 @@
 #include <dlfcn.h>
 #include "config.h"
 
+const cLanguage *GetLanguageFromEPG(const tChannelID &channelID) {
+// WARNING: VDR object SCHEDULES will be locked!
+
+// check the EPG of this channel, nad the language of the EPG entries
+// return language of these
+// if unknown, return nullptr. Reasons for nullptr:
+//   - vdr version too old
+//   - no schedule found for this channel (e.g. old channel used in recordings)
+//   - no EPG in this schedule
+//   - missing or non-standard language information in EPG
+#if VDRVERSNUM >= 20709
+  LOCK_SCHEDULES_READ;
+  const cSchedule *schedule = Schedules->GetSchedule(channelID);
+  if (!schedule) return nullptr;
+  for (const cEvent *e = schedule->Events()->First(); e; e = schedule->Events()->Next(e))
+    if (strlen(e->Language()) == 3) {
+      return config.Languages().GetLanguageIso(e->Language() );
+  }
+#endif
+  return nullptr;
+}
 using namespace std;
 // getDefaultHD_Channels  ********************************
 std::map<tChannelID, int> getDefaultHD_Channels() {
@@ -158,7 +179,7 @@ void cTVScraperConfig::Initialize() {
 // these values are in setup.conf. Set here defaults, if values in setup.conf are missing.
   if (m_HD_Channels.empty() ) {m_HD_Channels = getDefaultHD_Channels(); m_HD_ChannelsModified = false; }
   if (   m_channels.empty() )     m_channels = getDefaultChannels();
-  if (m_defaultLanguage == &m_emergencyLanguage) setDefaultLanguage();
+  m_languages.Initialize();
 // load plugins from ext. epgs
   loadPlugins();
 //  m_extEpgs.push_back(std::make_shared<cExtEpgTvsp>());
@@ -205,99 +226,23 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
         m_enableAutoTimers = atoi(Value);
         return true;
     } else if (strcmp(Name, "defaultLanguage") == 0) {
-        m_defaultLanguage = GetLanguage(atoi(Value));
+        Languages().SetDefaultLanguage(Languages().GetLanguage(atoi(Value)));
         return true;
     } else if (strcmp(Name, "additionalLanguages") == 0) {
-        m_AdditionalLanguages = getSetFromString<int, std::vector<int> >(Value);
+        std::vector<int> additionalLanguages = getSetFromString<int, std::vector<int> >(Value);
+        Languages().SwapAdditionalLanguages(additionalLanguages);
         return true;
     } else if (strncmp(Name, "additionalLanguage", 18) == 0) {
         int num_lang = atoi(Name + 18);
         if (num_lang <= 0) return false;
-        for (cSv c: cSplit(Value, ';', eSplitDelimBeginEnd::optional)) m_channel_language.insert({lexical_cast<tChannelID>(c), num_lang});
+        std::map<tChannelID, int> channel_language;
+        for (cSv c: cSplit(Value, ';', eSplitDelimBeginEnd::optional)) channel_language.insert({lexical_cast<tChannelID>(c), num_lang});
+        Languages().SwapChannelLanguage(channel_language);
         return true;
     }
     return false;
 }
 
-int cTVScraperConfig::GetLanguage_n(const tChannelID &channelID) const {
-  int lang;
-  {
-    cTVScraperConfigLock lr;
-    auto l = m_channel_language.find(channelID);
-    if (l == m_channel_language.end()) lang = m_defaultLanguage->m_id;
-    else lang = l->second;
-  }
-  return lang;
-}
-
-std::string cLanguage::getNames() const {
-  return std::string(cToSvConcat(m_thetvdb, " ", m_themoviedb, " ", m_name));
-}
-void cLanguage::log() const {
-  esyslog("tvscraper: language: m_id %i, m_thetvdb %s, m_themoviedb %s, m_name %s", m_id, m_thetvdb?m_thetvdb:"null", m_themoviedb?m_themoviedb:"null", m_name?m_name:"null");
-}
-const cLanguage *cTVScraperConfig::GetLanguage(const tChannelID &channelID) const {
-  int lang;
-  {
-    cTVScraperConfigLock lr;
-    auto l = m_channel_language.find(channelID);
-    if (l == m_channel_language.end()) lang = -1;
-    else lang = l->second;
-  }
-  if (lang == -1) return GetDefaultLanguage(); // this is not an error. A channel without explicit language assignment has the default language
-  auto r = m_languages.find(lang);
-  if(r != m_languages.end()) return &(*r);
-  esyslog("tvscraper: ERROR cTVScraperConfig::GetLanguage language %i not found", lang);
-  return GetDefaultLanguage();
-}
-
-const cLanguage *cTVScraperConfig::GetLanguageThetvdb(const cLanguage *l) const
-{
-  if (!l) return l;
-  auto lIt = find_if(m_languages.begin(), m_languages.end(), [l](const cLanguage& x) { return strcmp(l->m_thetvdb, x.m_thetvdb) == 0;});
-  if (lIt != m_languages.end() ) return &(*lIt);
-  esyslog("tvscraper: ERROR cTVScraperConfig::GetLanguageThetvdb l not found, l->m_thetvdb = %s", l->m_thetvdb);
-  return l;
-}
-const cLanguage *cTVScraperConfig::GetLanguage(int l) const
-// return ALLWAYS a valid cLanguage pointer
-// if l is not in the list: write ERROR to syslog, and return a default language
-{
-  auto lIt = m_languages.find(l);
-  if (lIt != m_languages.end() ) return &(*lIt);
-  if (m_languages.size() == 0) {
-    esyslog("tvscraper: ERROR cTVScraperConfig::GetLanguage l = %i m_languages.size() == 0", l);
-    return &m_emergencyLanguage;
-  }
-  esyslog("tvscraper: ERROR cTVScraperConfig::GetLanguage l = %i not found", l);
-  return  &(*m_languages.begin() );
-}
-
-
-void cTVScraperConfig::setDefaultLanguage() {
-  string loc = setlocale(LC_NAME, NULL);
-  size_t index = loc.find_first_of("_");
-  if (index != 2) {
-    esyslog("tvscraper: ERROR cTVScraperConfig::setDefaultLanguage, language %s, index = %zu, use en-GB as default language", loc.c_str(), index);
-    m_defaultLanguage = GetLanguage(5); // en-GB
-    return;
-  }
-  const cLanguage *li = 0;
-  const cLanguage *lc = 0;
-  for (const cLanguage &lang: m_languages) {
-    if (strncmp(lang.m_themoviedb, loc.c_str(), 2) != 0) continue;
-    if (!li) li = &lang;
-    if (strncmp(lang.m_themoviedb+3, loc.c_str()+3, 2) == 0) if (!lc) lc = &lang;
-  }
-  if (li == 0) {
-    esyslog("tvscraper: ERROR cTVScraperConfig::setDefaultLanguage, language %s not found, use en-GB as default language", loc.c_str() );
-    m_defaultLanguage = GetLanguage(5); // en-GB
-    return;
-  }
-  if (lc != 0) m_defaultLanguage = lc;
-  else m_defaultLanguage = li;
-  esyslog("tvscraper: set default language to %s", m_defaultLanguage->getNames().c_str() );
-}
 std::shared_ptr<iExtEpgForChannel> cTVScraperConfig::GetExtEpgIf(const tChannelID &channelID) const {
   vector<sChannelMapEpg>::const_iterator channelMapEpg_it = std::lower_bound(m_channelMap.begin(), m_channelMap.end(), channelID,
      [](const sChannelMapEpg &cm, const tChannelID &c)

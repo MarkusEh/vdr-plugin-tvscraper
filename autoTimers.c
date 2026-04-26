@@ -13,33 +13,47 @@ bool operator< (int first, const cScraperRec &sec) {
 }
 
 bool operator< (const cScraperRec &rec1, const cScraperRec &rec2) {
-  return compareMovieOrTvAT(&rec1, &rec2);
+  return lessMovieOrTvAT(&rec1, &rec2);
+}
+struct lessWoLanguageScraperRecS {
+  bool operator() (const cScraperRec &rec1, const cScraperRec &rec2) {
+    return lessWoLanguageMovieOrTvAT (&rec1, &rec2);
+  }
+  bool operator() (const cScraperRec &rec1, const cMovieOrTvAT &rec2) {
+    return lessWoLanguageMovieOrTvAT (&rec1, &rec2);
+  }
+  bool operator() (const cMovieOrTvAT &rec1, const cScraperRec &rec2) {
+    return lessWoLanguageMovieOrTvAT (&rec1, &rec2);
+  }
+};
+bool lessWoLanguageMovieOrTvAT_r(const cMovieOrTvAT &movieOrTvAT1, const cMovieOrTvAT &movieOrTvAT2) {
+  return lessWoLanguageMovieOrTvAT (&movieOrTvAT1, &movieOrTvAT2);
 }
 
 bool operator< (const cEventMovieOrTv &rec1, const cEventMovieOrTv &rec2) {
-  return compareMovieOrTvAT(&rec1, &rec2);
+  return lessMovieOrTvAT(&rec1, &rec2);
 }
 
 bool operator< (const cScraperRec &first, const cEventMovieOrTv &sec) {
-  return compareMovieOrTvAT(&first, &sec);
+  return lessMovieOrTvAT(&first, &sec);
 }
 bool operator< (const cEventMovieOrTv &first, const cScraperRec &sec) {
-  return compareMovieOrTvAT(&first, &sec);
+  return lessMovieOrTvAT(&first, &sec);
 }
 
 bool operator< (const cTimerMovieOrTv &timer1, const cTimerMovieOrTv &timer2) {
-  return compareMovieOrTvAT(&timer1, &timer2);
+  return lessMovieOrTvAT(&timer1, &timer2);
 }
 
 bool operator< (const cTimerMovieOrTv &timer1, const cEventMovieOrTv &sec) {
-  return compareMovieOrTvAT(&timer1, &sec);
+  return lessMovieOrTvAT(&timer1, &sec);
 }
 
 bool operator< (const cEventMovieOrTv &first, const cTimerMovieOrTv &timer2) {
-  return compareMovieOrTvAT(&first, &timer2);
+  return lessMovieOrTvAT(&first, &timer2);
 }
 
-cMovieOrTvAT::cMovieOrTvAT(const tChannelID &channel_id, const cMovieOrTv *movieOrTv) {
+cMovieOrTvAT::cMovieOrTvAT(const tChannelID &channel_id, const cLanguage *language, const cMovieOrTv *movieOrTv) {
   m_movie_tv_id = movieOrTv->dbID();
   if (movieOrTv->getType() == tMovie) {
     m_season_number = -100;
@@ -49,7 +63,7 @@ cMovieOrTvAT::cMovieOrTvAT(const tChannelID &channel_id, const cMovieOrTv *movie
     m_episode_number = movieOrTv->getEpisode();
   }
   m_hd = config.ChannelHD(channel_id);
-  m_language = config.GetLanguage_n(channel_id);
+  m_language = language;
 }
 
 // getEvent ********************************
@@ -167,7 +181,7 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
       if (duration_deviation > 60) numberOfErrors = 1;  // in case of deviations > 1min, create timer ...
     }
     if (numberOfErrors == 0 && config.GetTimersOnNumberOfTsFiles() && GetNumberOfTsFiles(rec) != 1) numberOfErrors = 1;  //  in case of more ts files, create timer ...
-    cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), rec->Name(), movie_tv_id, season_number, episode_number, numberOfErrors, rec->Id() );
+    cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), sRecording.GetLanguage(), rec->Name(), movie_tv_id, season_number, episode_number, numberOfErrors, rec->Id() );
     auto found = recordings.find(scraperRec);
     if (found == recordings.end() ) recordings.insert(std::move(scraperRec)); // not in list -> insert
     else if (scraperRec.isBetter(*found)) {
@@ -223,10 +237,10 @@ void getAllTimers (const cTVScraperDB &db, std::set<cTimerMovieOrTv, std::less<>
         if (movieOrTv) delete movieOrTv;
         continue;
       }
-      cTimerMovieOrTv timer(ti, movieOrTv);
+      csEventOrRecording eor(e);
+      cTimerMovieOrTv timer(ti, eor.GetLanguage(), movieOrTv);
       timer.m_needed = false;
       delete movieOrTv;
-      timer.m_hd = config.ChannelHD(ti->Channel()->GetChannelID());
       if (ownTimer) {
 // my timer
         int obsoletTimer;
@@ -276,11 +290,13 @@ std::set<cEventMovieOrTv> getAllEvents(const cTVScraperDB &db) {
       if (event->IsRunning(true) ) continue;  // event already started, ignore
       if (event->StartTime() <= now_m10 ) continue;  // IsRunning does sometimes not work
       scraperEvent.m_event_start_time = event->StartTime();
+
+      csEventOrRecording eor(event);
+      scraperEvent.m_language = eor.GetLanguage();
     }
     scraperEvent.m_event_id = l_event_id;
     if (scraperEvent.m_season_number == -100) scraperEvent.m_episode_number = 0;
     scraperEvent.m_hd = config.ChannelHD(scraperEvent.m_channelid);
-    scraperEvent.m_language = config.GetLanguage_n(scraperEvent.m_channelid);
     auto found = result.find(scraperEvent);
     if (found == result.end() )
       result.insert(scraperEvent);
@@ -634,15 +650,15 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
 //      is event part of a TV show, that shall be recorded -> timer
 // return false if no timer is available or created. true, otherwise
 
-  cMovieOrTvAT movieOrTvAT(&scraperEvent);
-  movieOrTvAT.m_language = 0;
   bool betterRecordingFound = false;
-  const cScraperRec *improveableRecording = NULL;
-  for (auto found = recordings.lower_bound(movieOrTvAT);
-       found != recordings.end() && equalWoLanguageMovieOrTvAT(&(*found), &scraperEvent);
-       found ++) {
+  const cScraperRec *improveableRecording = nullptr;
+//  std::pair<ForwardIt, ForwardIt> equal_range( ForwardIt first, ForwardIt last, const T& value, Compare comp );
+//  auto equal_recs_wo_language2 = std::equal_range(recordings.begin(), recordings.end(), scraperEvent, lessWoLanguageScraperRecS{});
+  auto equal_recs_wo_language = std::equal_range(recordings.begin(), recordings.end(), scraperEvent, &lessWoLanguageMovieOrTvAT_r);
+  for (auto found = equal_recs_wo_language.first; found != equal_recs_wo_language.second; ++found)
+  {
 // there is a recording
-    if (betterRecordingFound && scraperEvent.m_language != found->m_language) continue; // a recording which cannot be improved, in another language was already found. So we only check recordings in the same language.
+    if (betterRecordingFound && !scraperEvent.m_language->equal_iso(found->m_language)) continue; // a recording which cannot be improved, in another language was already found. So we only check recordings in the same language.
     if ((scraperEvent.m_hd >  found->hd()) ||
         (scraperEvent.m_hd == found->hd() && found->numberOfErrors() > 0)) {
 // the recording can be improved with the event
@@ -650,7 +666,7 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
       continue;  // continue to check: There might be another recording in the same language as event, which cannot be improved
     }
 // the recording is equal or better than the event
-    if (scraperEvent.m_language == found->m_language) return false;  // there is already a recording, in the same language, which cannot be improved with the event
+    if (scraperEvent.m_language->equal_iso(found->m_language)) return false;  // there is already a recording, in the same language, which cannot be improved with the event
     betterRecordingFound = true;  // there is already a recording, in another language, which cannot be improved with the event
   }
   if (improveableRecording) {
@@ -675,10 +691,11 @@ bool timerForEvent(const cTVScraperDB &db, const cEventMovieOrTv &scraperEvent, 
     cMovieOrTvAT movieOrTvAT(0);
     movieOrTvAT.m_season_number = -100;
     movieOrTvAT.m_episode_number = 0;
-    movieOrTvAT.m_language = 0;
+    movieOrTvAT.m_language = nullptr;  // should never be used. If it is used -> short dump
     for (int movie_id: cSqlValue<int>(&db, "SELECT movie_id FROM movies3 WHERE movie_collection_id = ?", collection_id)) {
       movieOrTvAT.m_movie_tv_id = movie_id;
-      auto found = recordings.lower_bound(movieOrTvAT);
+      auto found = std::lower_bound(recordings.begin(), recordings.end(), movieOrTvAT, &lessWoLanguageMovieOrTvAT_r);
+//      auto found = recordings.lower_bound(movieOrTvAT);
       if (found != recordings.end() && equalWoLanguageMovieOrTvAT(&(*found), &movieOrTvAT) ) {
         if (checkTimer(scraperEvent, myTimers)) {
           cTimer* timer = createTimer(db, scraperEvent, "collection", &(*found));

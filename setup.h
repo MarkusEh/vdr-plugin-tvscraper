@@ -22,6 +22,7 @@ class langOsd {
     void clear() { m_numLang = 0; m_osdMap.clear(); m_selectedLanguage.clear(); }
     void addLanguage(int lang) { m_osdTexts[m_numLang] = getLangText(lang); m_maxOsdTextLength = std::max(m_maxOsdTextLength, (int)strlen(m_osdTexts[m_numLang])); m_osdMap.insert(m_numLang++, lang); }
     void addLine(int currentLanguage) { m_selectedLanguage.push_back(m_osdMap.getFirst(currentLanguage)); }
+    void addLineNoSelection() { m_selectedLanguage.push_back(-1); }
     int getLanguage(int line) const { return m_osdMap.getSecond(m_selectedLanguage[line]); }
     int m_numLang = 0;
     mapIntBi m_osdMap;
@@ -34,45 +35,45 @@ class langOsd {
 };
 
 class cTVScraperSetup: public cMenuSetupPage {
-    public:
-        cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScraperDB &db);
-        virtual ~cTVScraperSetup();      
-    private:
-        cTVScraperWorker *worker;
-        const cTVScraperDB &m_db;
-        std::vector<std::pair<int, std::string>> m_all_languages;
+  public:
+    cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScraperDB &db);
+    virtual ~cTVScraperSetup();
+  private:
+    cTVScraperWorker *worker;
+    const cTVScraperDB &m_db;
+    std::vector<std::pair<int, std::string>> m_all_languages;
 // data changed in the menu. Will be initialized from config, and written back to config and setup.conf if changes are confirmed with "OK"
-        langOsd langDefault;
-        langOsd langAdditional;
-        langOsd langChannels;
-        int m_enableDebug;
-        int m_enableAutoTimers;
-        vector<int> channelsScrap;
-        vector<int> m_channelsHD;
-        std::vector<int> m_selectedRecordingFolders;
-        std::vector<int> m_selectedTV_Shows;
-        int m_NumberOfAdditionalLanguages;
-        int m_writeEpisodeToEpg;
+    langOsd langDefault;
+    langOsd langAdditional;
+    langOsd langChannels;
+    int m_enableDebug;
+    int m_enableAutoTimers;
+    vector<int> channelsScrap;
+    vector<int> m_channelsHD;
+    std::vector<int> m_selectedRecordingFolders;
+    std::vector<int> m_selectedTV_Shows;
+    int m_NumberOfAdditionalLanguages;
+    int m_writeEpisodeToEpg;
 // END data changed in the menu
-        map<tChannelID, int> m_allChannels;  // second is channel number - 1
-        map<tChannelID, const char*> m_recChannels;  // second is the channel name
-        std::vector<const char*> m_channelNames;
-        int m_maxChannelNameLength;
-        int m_recordings_width;
-        cSortedVector<std::string> m_allRecordingFolders;
-        cSortedVector<int> m_allTV_Shows;
-        void Setup(void);
-        std::string StoreExcludedRecordingFolders();
-        std::string StoreTV_Shows();
-        cSortedVector<int> getAllTV_Shows();
-        cSortedVector<std::string> getAllRecordingFolders(int &max_width);
-        cSortedVector<tChannelID> GetChannelsFromSetup(const vector<int> &channels);
-        std::map<tChannelID, int> GetChannelsMapFromSetup(const vector<int> &channels);
-        std::map<tChannelID, int> GetChannelsMapFromSetup(const vector<int> &channels, const mapIntBi *langIds);
-        bool ChannelsFromSetupChanged(std::map<tChannelID, int> oldChannels, const vector<int> &channels);
-    protected:
-        virtual eOSState ProcessKey(eKeys Key);
-        virtual void Store(void);
+    map<tChannelID, int> m_allChannels;  // second is channel number - 1
+    map<tChannelID, const char*> m_recChannels;  // second is the channel name
+    std::vector<const char*> m_channelNames;
+    int m_maxChannelNameLength;
+    int m_recordings_width;
+    cSortedVector<std::string> m_allRecordingFolders;
+    cSortedVector<int> m_allTV_Shows;
+    void Setup(void);
+    std::string StoreExcludedRecordingFolders();
+    std::string StoreTV_Shows();
+    cSortedVector<int> getAllTV_Shows();
+    cSortedVector<std::string> getAllRecordingFolders(int &max_width);
+    cSortedVector<tChannelID> GetChannelsFromSetup(const vector<int> &channels);
+    std::map<tChannelID, int> GetChannelsMapFromSetup(const vector<int> &channels);
+    std::map<tChannelID, int> GetChannelsMapFromSetup(const vector<int> &channels, const mapIntBi *langIds);
+    bool ChannelsFromSetupChanged(std::map<tChannelID, int> oldChannels, const vector<int> &channels);
+  protected:
+    virtual eOSState ProcessKey(eKeys Key);
+    virtual void Store(void);
 };
 
 class cTVScraperChannelSetup : public cOsdMenu {

@@ -132,9 +132,11 @@ bool cTv::getSingleImage(eImageLevel level, eOrientation orientation, string *re
 
 // implementation of cMovieMoviedb  *********************
 void cMovieMoviedb::DeleteMediaAndDb() {
+/*
   std::string title;
   getOverview(&title, nullptr, nullptr, nullptr, nullptr, nullptr);
   dsyslog2("Delete movie id ", m_id, " title \"", title, "\"");
+*/
   m_db->DeleteMovie(m_id);
 }
 
@@ -467,9 +469,11 @@ void cTvTvdb::AddGuestActors(std::vector<cActor> &actors, bool fullPath) {
 
 // implemntation of cTvMoviedb  *********************
 void cTvMoviedb::DeleteMediaAndDb() {
+/*
   std::string title;
   getOverview(&title, nullptr, nullptr, nullptr, nullptr, nullptr);
   dsyslog2("Delete series TMDb id ", m_id, " title \"", title, "\"");
+*/
   m_db->DeleteSeries(m_id);
 }
 
@@ -553,9 +557,11 @@ bool cTvMoviedb::getSingleImageEpisode(eOrientation orientation, string *relPath
 
 // implemntation of cTvTvdb  *********************
 void cTvTvdb::DeleteMediaAndDb() {
+/*
   std::string title;
   getOverview(&title, nullptr, nullptr, nullptr, nullptr, nullptr);
   dsyslog2("Delete series TheTVDB id ", m_id, " title \"", title, "\"");
+*/
   m_db->DeleteSeries(-m_id);
 }
 
