@@ -11,25 +11,27 @@ using namespace std;
 
 cMovieDbTv::cMovieDbTv(cTVScraperDB *db, cMovieDBScraper *movieDBScraper):
   m_db(db),
-  m_movieDBScraper(movieDBScraper)
-{
-}
+  m_movieDBScraper(movieDBScraper) { }
 
-cMovieDbTv::~cMovieDbTv() {
-}
-bool cMovieDbTv::UpdateDb(bool forceUpdate) {
+
+int cMovieDbTv::UpdateDb(bool forceUpdate) {
 // read tv data from themoviedb, update this object
 // only update if not yet in db or forceUpdate == true. In this case, also episodes will be updated
-  if (m_tvID == 0) return false;
+// return codes:
+//   -1 object does not exist (we already called db->DeleteSeriesCache(-seriesID))
+//    0 success
+//    >0 other error
+  if (m_tvID == 0) return 1;
   time_t tv_last_updated = 0;
   int numberOfEpisodes = 0;
   int lastSeason = 1;
   int numberOfEpisodesInSpecials = 0;
   cSql stmtLastUpdate(m_db, "SELECT tv_last_updated, tv_last_season, tv_number_of_episodes, tv_number_of_episodes_in_specials FROM tv2 WHERE tv_id = ?", m_tvID);
   bool exists = stmtLastUpdate.readRow(tv_last_updated, lastSeason, numberOfEpisodes, numberOfEpisodesInSpecials);
-  if (exists && !forceUpdate) return true; // already in db
+  if (exists && !forceUpdate) return 0; // already in db
 
-  if (!ReadTv(exists)) return false;
+  int ret = ReadTv();
+  if (ret != 0) return ret;
   if (!exists || m_tvNumberOfEpisodes > numberOfEpisodes || m_tvNumberOfEpisodesInSpecials > numberOfEpisodesInSpecials || !m_db->TvRuntimeAvailable(m_tvID)) {
 //  if this is new (not yet in db), always search seasons. "number_of_episodes" is sometimes wrong :(
 //  there exist new episodes, update db with new episodes
@@ -41,7 +43,7 @@ bool cMovieDbTv::UpdateDb(bool forceUpdate) {
   }
   m_db->TvSetNumberOfEpisodes(m_tvID, m_tvNumberOfSeasons, m_tvNumberOfEpisodes, m_tvNumberOfEpisodesInSpecials);
   m_db->exec("UPDATE tv2 SET tv_last_updated = ? WHERE tv_id= ?", time(0), m_tvID);
-  return true;
+  return 0;
 }
 
 int cMovieDbTv::downloadEpisodes(bool forceUpdate, const cLanguage *lang) {
@@ -57,14 +59,12 @@ int cMovieDbTv::downloadEpisodes(bool forceUpdate, const cLanguage *lang) {
   if (m_tvID == 0) return 2;
   if (!lang) return 3;
   if (!forceUpdate && !m_db->episodeNameUpdateRequired(m_tvID, lang->Id() )) return 0;
-  if (config.Languages().GetDefaultLanguage()->Id() == lang->Id() ) {
-    if (UpdateDb(true)) return 0;
-    return 5;
-  }
+  int ret = UpdateDb(true);  // full update, incl. episodes, to get all data
+  if (ret != 0) return ret == -1?-1:5;
+  if (config.Languages().GetDefaultLanguage()->Id() == lang->Id() ) return 0;
 /*
  * for now: leave this out, and download whatever is available in the requested language
 */
-  if (!UpdateDb(true)) return 5;  // full update, incl. episodes, to get all data
   if (config.enableDebug) esyslog("tvscraper: cMovieDbTv::downloadEpisodes lang %s, langMovieDbId %i, tvID %i", lang->getNames().c_str(), lang->Id(), m_tvID);
   if (m_tvNumberOfEpisodesInSpecials > 0) { m_seasonNumber = 0; AddOneSeason(lang); }
   for (auto h: m_tvSeasons)  { m_seasonNumber = h; AddOneSeason(lang); }
@@ -72,23 +72,29 @@ int cMovieDbTv::downloadEpisodes(bool forceUpdate, const cLanguage *lang) {
   return 0;
 }
 
-bool cMovieDbTv::ReadTv(bool exits_in_db) {
+int cMovieDbTv::ReadTv() {
 // call themoviedb api, get data
+// return codes:
+// -1: does not exist in external db (we already called db->DeleteSeriesCache(m_tvID))
+//  0: success
+//  >0: other error
   const char *lang = config.Languages().GetDefaultLanguage()->Themoviedb();
   cToSvConcat url(m_baseURL, "/tv/", m_tvID, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&include_image_language=en,null&append_to_response=translations,alternative_titles,credits,external_ids");
   cJsonDocumentFromUrl tv(m_movieDBScraper->m_curl);
   tv.set_enableDebug(config.enableDebug);
-  if (!tv.download_and_parse(url)) return false;
-  bool ret = ReadTv(tv);
-  if (ret) {
-    m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks.c_str(), m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, m_imdb_id, m_status, m_episodeRunTimes, m_createdBy.c_str(), m_languages.c_str() );
-// credits
-    rapidjson::Value::ConstMemberIterator jCredits_it = tv.FindMember("credits");
-    if (jCredits_it != tv.MemberEnd() && jCredits_it->value.IsObject() )
-      readAndStoreMovieDbActors(m_db, jCredits_it->value, m_tvID, false);
-  if (m_thetvdb_id) m_db->setEqual(m_tvID, -m_thetvdb_id);
+  if (!tv.download_and_parse(url)) {
+    m_db->DeleteSeriesCache(m_tvID);
+    return -1;
   }
-  return ret;
+  bool ret = ReadTv(tv);
+  if (!ret) return 1;
+  m_db->InsertTv(m_tvID, m_tvName, m_tvOriginalName, m_tvOverview, m_first_air_date, m_networks.c_str(), m_genres, m_popularity, m_vote_average, m_vote_count, m_tvPosterPath, m_tvBackdropPath, m_imdb_id, m_status, m_episodeRunTimes, m_createdBy.c_str(), m_languages.c_str() );
+// credits
+  rapidjson::Value::ConstMemberIterator jCredits_it = tv.FindMember("credits");
+  if (jCredits_it != tv.MemberEnd() && jCredits_it->value.IsObject() )
+    readAndStoreMovieDbActors(m_db, jCredits_it->value, m_tvID, false);
+  if (m_thetvdb_id) m_db->setEqual(m_tvID, -m_thetvdb_id);
+  return 0;
 }
 bool cMovieDbTv::ReadTv(const rapidjson::Value &tv) {
   m_tvName = getValueCharS(tv, "name");

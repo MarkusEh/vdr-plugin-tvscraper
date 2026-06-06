@@ -105,7 +105,7 @@ void getCharacters(const rapidjson::Value &characters, cTVDBSeries &series) {
 
 int cTVDBScraper::StoreSeriesJson(int seriesID, bool forceUpdate) {
 // return 0 in case of error
-// return -1 if the object does not exist in external db
+// return -1 if the object does not exist in external db (we already called db->DeleteSeriesCache(-seriesID))
 // otherwise, return seriesID > 0
 // only update if not yet in db
   if (seriesID == 0) return 0;

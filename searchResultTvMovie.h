@@ -17,6 +17,7 @@ public:
   void log(cSv title) const;
   static float normMatch(float x);
   float getMatch() const;
+  void SetMatchZero();
   bool operator< (const searchResultTvMovie &srm) const;
   void setMatchText(int distance) { m_matches[0].match = (1000 - distance) / 1000.; }
   void setMatchTextMin(int distance) {

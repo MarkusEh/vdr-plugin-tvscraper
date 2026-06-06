@@ -464,6 +464,19 @@ scrapType cSearchEventOrRec::ScrapFind(vector<searchResultTvMovie> &searchResult
   if (m_baseNameEquShortText) for (searchResultTvMovie &searchResult: searchResults) if (!searchResult.movie() && searchResult.delim() == 0) searchResult.setBaseNameEquShortText();
   for (searchResultTvMovie &searchResult: searchResults) searchResult.setMatchYear(m_years, m_sEventOrRecording->DurationInSec() );
   std::sort(searchResults.begin(), searchResults.end() );
+
+// check if best match exits
+  int exists = -1;
+  std::vector<searchResultTvMovie>::iterator end_a = searchResults.end();
+  while (searchResults.begin() != end_a && exists == -1) {
+    searchResultTvMovie searchResult_best(searchResults.begin()->id(), searchResults.begin()->movie(), nullptr);
+    exists = getExtMovieTvDb(searchResult_best)->enhance1(searchResult_best, m_sEventOrRecording->GetLanguage() );
+    if (exists == -1) {
+      searchResults.begin()->SetMatchZero();
+      std::sort(searchResults.begin(), end_a);
+      --end_a;
+    }
+  }
   if (debug) for (searchResultTvMovie &searchResult: searchResults) log(searchResult);
   const float minMatchPre = 0.4;
   std::vector<searchResultTvMovie>::iterator end = searchResults.begin();
@@ -773,7 +786,7 @@ void cSearchEventOrRec::getDirectorWriterMatches(searchResultTvMovie &sR, const 
   sR.setDirectorWriter(numMatchesSure + 2*numMatchesAll);
 }
 
-bool cSearchEventOrRec::selectBestAndEnhanceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec)) {
+bool cSearchEventOrRec::selectBestAndEnhanceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, int (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec)) {
 // return true if enhancement was required
 // in this case, return the end of the enhance list in new_end
 // minDiff must be > 0, otherwise an empty list my be returned
@@ -842,7 +855,7 @@ iExtMovieTvDb *cSearchEventOrRec::getExtMovieTvDb(const sMovieOrTv &movieOrTv) c
   }
   return nullptr;
 }
-void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec) {
+int cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec) {
 // add all information which is in database cache
 // this is all except the episode list
 /*
@@ -857,7 +870,12 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
 */
   bool debug = false;
   if (debug) searchEventOrRec.log(sR);
-  searchEventOrRec.getExtMovieTvDb(sR)->enhance1(sR, searchEventOrRec.m_sEventOrRecording->GetLanguage() );
+  if (searchEventOrRec.getExtMovieTvDb(sR)->enhance1(sR, searchEventOrRec.m_sEventOrRecording->GetLanguage() ) == -1) {
+// found in search, but not exist in ext. db -> internet error or inconsitencie in ext db
+    dsyslog2("inconsitency in external db, ", sR.id(), " found in search result, but does not exist in ext. db");
+    sR.SetMatchZero();
+    return -1;
+  }
   cSql actors(searchEventOrRec.m_db);
   cSv lang_themoviedb = cSv(searchEventOrRec.m_sEventOrRecording->GetLanguage()->Themoviedb() ).substr(0, 2);
   if (sR.movie() ) {
@@ -894,7 +912,7 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
     if (!stmtScore.readRow() ) {
 // reason: inconsistencies in TheTVDB:
 //         tv_id was returned in a search result, but tv_id is deleted so get_details for tv_id returns an error ...
-      dsyslog3("No data in tv_score, tv_id = ",  sR.id() );
+      esyslog3("No data in tv_score, tv_id = ",  sR.id() );
       sR.setTranslationAvailable(false);
     }
     if (sR.id() < 0) {
@@ -925,16 +943,17 @@ void cSearchEventOrRec::enhance1(searchResultTvMovie &sR, cSearchEventOrRec &sea
   if (debug) searchEventOrRec.log(sR);
   searchEventOrRec.getActorMatches(sR, actors);
   if (debug) searchEventOrRec.log(sR);
+  return 0;
 }
-void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEventOrRec &searchEventOrRec) {
+int cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEventOrRec &searchEventOrRec) {
   bool debug = searchResult.id() == -353808 || searchResult.id() == -250822 || searchResult.id() == 440757;
   debug = searchResult.id() == -420669;
   debug = false;
   if (debug) esyslog("tvscraper: enhance2 (1)" );
 
-  if (searchResult.movie() ) return;
+  if (searchResult.movie() ) return 0;
 //  Transporter - The Mission: Is a movie, and we should not give negative point for having no episode match
-  if (searchResult.simulateMatchEpisode(0) < config.minMatchFinal) return; // best possible distance is 0. If, with this distance, the result will still not be selected, we don't need to calculate the distance
+  if (searchResult.simulateMatchEpisode(0) < config.minMatchFinal) return 0; // best possible distance is 0. If, with this distance, the result will still not be selected, we don't need to calculate the distance
   cSv foundName;
   cSv episodeSearchString;
   sMovieOrTv movieOrTv;
@@ -950,6 +969,7 @@ void cSearchEventOrRec::enhance2(searchResultTvMovie &searchResult, cSearchEvent
   if (debug) esyslog("tvscraper: enhance2 (3), episodeSearchString \"%.*s\", lang %s, land_id %d, distance = %d", (int)episodeSearchString.length(), episodeSearchString.data(), lang->Thetvdb(), lang->Id(), distance);
   searchEventOrRec.m_episodeFound = distance != 1000;
   searchResult.setMatchEpisode(distance);
+  return 0;
 }
 bool cSearchEventOrRec::splitNameEpisodeName(char delim, cSv &foundName, cSv &episodeSearchString, bool errorIfNotFound) {
 // return true if an episodeSearchString was found

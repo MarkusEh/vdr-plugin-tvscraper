@@ -10,7 +10,10 @@ bool cMovieDbMovie::ReadAndStore(int id) {
   cToSvConcat url(m_baseURL, "/movie/", id, "?api_key=", m_movieDBScraper->GetApiKey(), "&language=", lang, "&append_to_response=credits,alternative_titles,translations");
   cJsonDocumentFromUrl document(m_movieDBScraper->m_curl);
   document.set_enableDebug(config.enableDebug);
-  if (!document.download_and_parse(url.c_str())) return false;
+  if (!document.download_and_parse(url.c_str())) {
+    m_db->DeleteMovieCache(id);
+    return false;
+  }
   if (!ReadMovie(document, id)) {
     esyslog("tvscraper: ERROR reading movie \"%i\" ", id);
     return false;

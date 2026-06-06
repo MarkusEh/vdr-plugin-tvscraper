@@ -275,8 +275,6 @@ bool cPluginTvscraper::ProcessArgs(int argc, char *argv[]) {
 }
 
 bool cPluginTvscraper::Initialize(void) {
-// create, but never delete (because VDR deletes this during shutdown)
-// see also https://www.vdr-portal.de/forum/thread/136712-gel%C3%B6st-segmentation-fault-bei-aufruf-von-vdr-help-mit-installierten-plugin-tvscr/?postID=1379206#post1379206
 
   if (!cacheDirSet) {
     config.SetBaseDir(cPlugin::CacheDirectory(PLUGIN_NAME_I18N));
@@ -286,6 +284,7 @@ bool cPluginTvscraper::Initialize(void) {
     esyslog("tvscraper: ERROR calling curl_global_init");
     return false;
   }
+
 // connect to sqlite databease
   db = new cTVScraperDB();
   if (!db->Connect()) {
@@ -293,9 +292,13 @@ bool cPluginTvscraper::Initialize(void) {
     return false;
   };
   config.m_db = db;
+
 // start status monitor
   m_statusMonitor = new cStatusMonitor(db);
+
 // start epg handlaer
+// create, but never delete (because VDR deletes this during shutdown)
+// see also https://www.vdr-portal.de/forum/thread/136712-gel%C3%B6st-segmentation-fault-bei-aufruf-von-vdr-help-mit-installierten-plugin-tvscr/?postID=1379206#post1379206
   new cExtEpgHandler();
 
   return true;
@@ -700,26 +703,31 @@ const char **cPluginTvscraper::SVDRPHelpPages(void) {
 cString cPluginTvscraper::SVDRPCommand(const char *Command, const char *Option, int &ReplyCode) {
   if ((strcasecmp(Command, "SCRE") == 0) || (strcasecmp(Command, "ScrapRecordings") == 0)) {
     if (Option && *Option) {
+      cToSvConcat rec_path(Option);
+      while (rec_path.length()>0 && rec_path[rec_path.length()-1] == '/') rec_path.erase(rec_path.length()-1);
       LOCK_RECORDINGS_READ;
-      const cRecording *rec = Recordings->GetByName(Option);
-      if (!rec) return cString::sprintf("Recording %s not found, use full path name to the recording directory, including the video directory and the actual '*.rec'", Option);
+      const cRecording *rec = Recordings->GetByName(rec_path.c_str() );
+      if (!rec) return cString::sprintf("Recording %s not found, use full path name to the recording directory, including the video directory and the actual '*.rec'", rec_path.c_str() );
       if (!db->ClearRuntimeDurationDeviation(rec)) return cString::sprintf(
-        "Error deleting cached runtime and duration deviation of %s, read only client?", Option);
+        "Error deleting cached runtime and duration deviation of %s, read only client?", rec_path.c_str() );
+      workerThread->InitVideoDirScan(rec_path.c_str() );
+      return cString::sprintf("Scraping %s started", rec_path.c_str() );
+    } else {
+      workerThread->InitVideoDirScan();
+      return cString("Scraping Video Directory started");
     }
-
-    workerThread->InitVideoDirScan(Option);
-    if (Option && *Option) return cString::sprintf("Scraping %s started", Option);
-    else return cString("Scraping Video Directory started");
   }
   if ((strcasecmp(Command, "CRDD") == 0) || (strcasecmp(Command, "ClearRuntimeAndDurationDeviation") == 0)) {
     if (!Option || !*Option) return cString::sprintf("Usage: CRDD <recording>, the <recording> is mandatory");
+    cToSvConcat rec_path(Option);
+    while (rec_path.length()>0 && rec_path[rec_path.length()-1] == '/') rec_path.erase(rec_path.length()-1);
     LOCK_RECORDINGS_READ;
-    const cRecording *rec = Recordings->GetByName(Option);
+    const cRecording *rec = Recordings->GetByName(rec_path.c_str() );
     if (!rec) return cString::sprintf(
-      "Recording %s not found, use full path name to the recording directory, including the video directory and the actual '*.rec'", Option);
+      "Recording %s not found, use full path name to the recording directory, including the video directory and the actual '*.rec'", rec_path.c_str() );
     if (!db->ClearRuntimeDurationDeviation(rec)) return cString::sprintf(
-      "Error deleting cached runtime and duration deviation of %s, read only client?", Option);
-    return cString::sprintf("Cached runtime and duration deviation of %s deleted", Option);
+      "Error deleting cached runtime and duration deviation of %s, read only client?", rec_path.c_str() );
+    return cString::sprintf("Cached runtime and duration deviation of %s deleted", rec_path.c_str() );
   }
   if ((strcasecmp(Command, "SCEP") == 0) || (strcasecmp(Command, "ScrapEPG") == 0)) {
     workerThread->InitManualScan();

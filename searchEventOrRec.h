@@ -28,9 +28,9 @@ private:
   void getDirectorWriterMatches(searchResultTvMovie &sR, const char *directors, const char *writers);
   void getActorMatches(searchResultTvMovie &sR, cSql &actors);
   bool addActor(cSv name, int &numMatches, cContainer &alreadyFound);
-  bool selectBestAndEnhanceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, void (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));
-  static void enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
-  static void enhance2(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
+  bool selectBestAndEnhanceIfRequired(std::vector<searchResultTvMovie>::iterator begin, std::vector<searchResultTvMovie>::iterator end, std::vector<searchResultTvMovie>::iterator &new_end, float minDiff, int (*func)(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec));
+  static int enhance1(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
+  static int enhance2(searchResultTvMovie &sR, cSearchEventOrRec &searchEventOrRec);
   iExtMovieTvDb *getExtMovieTvDb(const searchResultTvMovie &sR) const;
   iExtMovieTvDb *getExtMovieTvDb(const sMovieOrTv &movieOrTv) const;
   void log(const searchResultTvMovie &searchResult, cSv foundName = cSv() );
@@ -41,7 +41,7 @@ private:
   iExtMovieTvDb *m_movieDbMovieScraper;
   iExtMovieTvDb *m_movieDbTvScraper;
   iExtMovieTvDb *m_tvDbTvScraper;
-  cTVScraperDB *m_db; 
+  cTVScraperDB *m_db;
   std::string m_channelName;
 // "calculated"
   cString m_baseName;

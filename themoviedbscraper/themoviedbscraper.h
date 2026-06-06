@@ -32,7 +32,7 @@ class cMovieDBScraper {
     int AddMovieResultsForUrl(const char *url, vector<searchResultTvMovie> &resultSet, const cCompareStrings &compareStrings, const char *shortText, cSv description, bool setMinTextMatch, const cLanguage *lang);
     void AddMovieResults(vector<searchResultTvMovie> &resultSet, cSv SearchString, const cCompareStrings &compareStrings, const char *shortText, cSv description, bool setMinTextMatch, const cYears &years, const cLanguage *lang);
 
-    void StoreMovie(int movieID, bool forceUpdate = false);
+    int StoreMovie(int movieID, bool forceUpdate = false);
     bool DownloadFile(cSv urlBase, const cSv urlFileName, cSv destDir, int destID, const char * destFileName, bool movie);
     void DownloadMedia(int movieID);
     void DownloadMediaTv(int tvID);
@@ -56,13 +56,20 @@ class cMovieDbMovieScraper: public iExtMovieTvDb {
     }
     virtual int downloadEpisodes(int id, const cLanguage *lang) { return 0; }
 
-    virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
+    virtual int enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
       cSql sql_data_available(m_movieDBScraper->db, "SELECT movie_last_update, movie_data_available, movie_runtime FROM movie_runtime2 WHERE movie_id = ?", searchResultTvMovie.id() );
+      bool update_required = false;
       if (!sql_data_available.readRow() || sql_data_available.valueInitial(0) ||
-          sql_data_available.getInt(1) < 4 || config.isUpdateFromExternalDbRequired(sql_data_available.get<time_t>(0) ))
-        m_movieDBScraper->StoreMovie(searchResultTvMovie.id(), true);
-      else if (config.isUpdateFromExternalDbRequiredMR(sql_data_available.get<time_t>(0) ) &&
-               sql_data_available.getInt(2) <= 0) m_movieDBScraper->StoreMovie(searchResultTvMovie.id(), true);
+          sql_data_available.getInt(1) < 4 || config.isUpdateFromExternalDbRequired(sql_data_available.get<time_t>(0) )) {
+        update_required = true;
+      } else if (config.isUpdateFromExternalDbRequiredMR(sql_data_available.get<time_t>(0) ) &&
+               sql_data_available.getInt(2) <= 0) {
+        update_required = true;
+      }
+      if (update_required) {
+        return m_movieDBScraper->StoreMovie(searchResultTvMovie.id(), true) == -1?-1:0;
+      }
+      return 0;
     }
 
     virtual int downloadImages(int id, int seasonNumber = 0, int episodeNumber = 0) {
@@ -87,8 +94,7 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
     virtual int download(int id) {
       cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
       tv.SetTvID(id);
-      tv.UpdateDb(false);
-      return 0;
+      return tv.UpdateDb(false);
     }
 
     virtual int downloadEpisodes(int id, const cLanguage *lang) {
@@ -97,18 +103,23 @@ class cMovieDbTvScraper: public iExtMovieTvDb {
       return tv.downloadEpisodes(false, lang);
     }
 
-    virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
+    virtual int enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
       cMovieDbTv tv(m_movieDBScraper->db, m_movieDBScraper);
       tv.SetTvID(searchResultTvMovie.id() );
-      tv.downloadEpisodes(false, lang);
+      if (tv.downloadEpisodes(false, lang) == -1) return -1;
       cSql sql_data_available(m_movieDBScraper->db, "SELECT tv_actors_last_update, tv_data_available FROM tv_score WHERE tv_id = ?", searchResultTvMovie.id() );
+      bool update_required = false;
       if (!sql_data_available.readRow() || sql_data_available.valueInitial(0) ||
           sql_data_available.getInt(1) < 5 || config.isUpdateFromExternalDbRequired(sql_data_available.get<time_t>(0) ))
-        tv.UpdateDb(true);
+        update_required = true;
       else if (config.isUpdateFromExternalDbRequiredMR(sql_data_available.get<time_t>(0) ) &&
               !m_movieDBScraper->db->TvRuntimeAvailable(searchResultTvMovie.id()) ) {
-        tv.UpdateDb(true);
+        update_required = true;
       }
+      if (update_required) {
+        return tv.UpdateDb(true);
+      }
+      return 0;
     }
 
     virtual int downloadImages(int id, int seasonNumber, int episodeNumber) {

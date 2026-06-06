@@ -1191,7 +1191,7 @@ bool cTVScraperDB::SetDurationDeviation(const cRecording *recording, int duratio
   return true;
 }
 bool cTVScraperDB::ClearRuntimeDurationDeviation(const cRecording *recording) const {
-// return false in case of error: recording == nullptr || GetReadOnlyClient() || no entry in recordings2 for recording
+// return false in case of error: recording == nullptr || GetReadOnlyClient()
 // otherwise, return true
 
 // if there is no entry in recordings2 for recording, we do nothing!
@@ -1208,7 +1208,7 @@ bool cTVScraperDB::ClearRuntimeDurationDeviation(const cRecording *recording) co
 //  m_select_recordings2_rt(this, "SELECT movie_tv_id, season_number, episode_number, runtime, duration_deviation, length_in_seconds "
 //                    "FROM recordings2 WHERE event_id = ? AND event_start_time = ? AND recording_start_time = ? AND channel_id = ?")
   cUseStmt pre_stmt_rt(m_select_recordings2_rt, event->EventID(), event->StartTime()?event->StartTime():recording->Start(), recording->Start(), channelIDs);
-  if (!m_select_recordings2_rt.readRow() ) return false;  // no entry in recordings2 -> do nothing
+  if (!m_select_recordings2_rt.readRow() ) return true;  // no entry in recordings2 -> do nothing
 
 // return in case of no change: runtime == -1, duration_deviation == -3, length_in_seconds == recording->LengthInSeconds()
   if (m_select_recordings2_rt.get<int>(3, -3, -2) == -1 && m_select_recordings2_rt.get<int>(4, -5, -4) == -3 && m_select_recordings2_rt.get<int>(5, -3, -2) == recording->LengthInSeconds() ) return true;  // no change

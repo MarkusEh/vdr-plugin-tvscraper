@@ -55,7 +55,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
       return res;
     }
 
-    virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
+    virtual int enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) {
 // note: we assume, that during the time tv_score was written, also tv_episode_run_time
 //       was written. So no extra check for tv_episode_run_time
 // done / checked: series_actors: not deleted during delete of series. After that: series is again loaded. What happens?
@@ -69,8 +69,7 @@ class cTvDbTvScraper: public iExtMovieTvDb {
         if (config.enableDebug) isyslog("tvscraper: cTvDbTvScraper::enhance1 force update, reason %s, lang %s, seriesID %i",
           stmt.readRow()?"actors missing":"does not exist", lang->getNames().c_str(), searchResultTvMovie.id() );
 
-        m_TVDBScraper->StoreSeriesJson(-searchResultTvMovie.id(), true);
-        return;
+        return m_TVDBScraper->StoreSeriesJson(-searchResultTvMovie.id(), true) == -1?-1:0;
       }
       bool update_required = config.isUpdateFromExternalDbRequired(stmt.get<time_t>(1));
       if (!update_required && config.isUpdateFromExternalDbRequiredMR(stmt.get<time_t>(1) )){
@@ -78,10 +77,11 @@ class cTvDbTvScraper: public iExtMovieTvDb {
         if (!m_TVDBScraper->db->TvRuntimeAvailable(searchResultTvMovie.id() )) update_required = true; // no runtime found
       }
 
-      if (!update_required) return;
+      if (!update_required) return 0;
 // we also need to update the episode runtimes, so update regularily
       int res = m_TVDBScraper->downloadEpisodes(-searchResultTvMovie.id(), true, lang); // this will not update the actors, which is not required here
       if (res == 1 && config.enableDebug) esyslog("tvscraper: cTvDbTvScraper::enhance1 lang %s not available, id %i",  lang->getNames().c_str(), searchResultTvMovie.id() );
+      return res == -1?-1:0;
     }
 
     virtual int downloadImages(int id, int seasonNumber, int episodeNumber) {

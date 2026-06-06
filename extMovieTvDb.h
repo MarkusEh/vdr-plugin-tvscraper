@@ -79,7 +79,10 @@ class iExtMovieTvDb
       // if no, download data from external db
       // note: these are small data (e.g. runtime), which will never be deleted and
       // can repeatedly help to identify the correct object
-    virtual void enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) = 0;
+      //  return codes:
+//   -1 object does not exist (we already called db->DeleteSeriesCache(-id))
+//    0 success
+    virtual int enhance1(searchResultTvMovie &searchResultTvMovie, const cLanguage *lang) = 0;
 
       // download all images of the movie / TV show with this ID
     virtual int downloadImages(int id, int seasonNumber = 0, int episodeNumber = 0) = 0;

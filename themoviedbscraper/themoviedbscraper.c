@@ -13,12 +13,13 @@ cMovieDBScraper::cMovieDBScraper(cCurl *curl, cTVScraperDB *db, cOverRides *over
 cMovieDBScraper::~cMovieDBScraper() {
 }
 
-void cMovieDBScraper::StoreMovie(int movieID, bool forceUpdate) {
+int cMovieDBScraper::StoreMovie(int movieID, bool forceUpdate) {
 // if movie does not exist in DB, download movie and store it in DB
-  if (!forceUpdate && db->MovieExists(movieID)) return;
+// return -1 if movieID does not exist in external db
+  if (!forceUpdate && db->MovieExists(movieID)) return 0;
   if (config.enableDebug && !forceUpdate) esyslog("tvscraper: movie \"%i\" does not yet exist in db", movieID);
   cMovieDbMovie movie(db, this);
-  movie.ReadAndStore(movieID);
+  return movie.ReadAndStore(movieID)?0:-1;
 }
 bool cMovieDBScraper::Connect(void) {
   cJsonDocumentFromUrl document(m_curl);

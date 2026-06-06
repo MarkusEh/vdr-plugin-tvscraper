@@ -137,12 +137,16 @@ float searchResultTvMovie::getMatch() const {
   }
   return sumMatch/sumWeight;
 }
+void searchResultTvMovie::SetMatchZero() {
+  m_matches[0].match = 0;
+  for (size_t i=0; i < sizeof(m_matches)/sizeof(m_matches[0]); i++) if (m_matches[i].match >= -1.1) m_matches[i].match = 0;
+}
 
 float searchResultTvMovie::normMatch(float x) {
 // input:  number between 0 and infinity
 // output: number between 0 and 1. normMatch(a) > normMatch(b) if a > b
 // normMatch(1) = 0.5
-// you can call normMatch(x/n), which will return 0.5 for x = n 
+// you can call normMatch(x/n), which will return 0.5 for x = n
   if (x <= 0) return 0;
   if (x <  1) return sqrt (x)/2;
   return 1 - 1/(x+1);
