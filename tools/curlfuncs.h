@@ -9,7 +9,9 @@
 static size_t curl_collect_data_string(void *data, size_t size, size_t nmemb, void *userp) {
   size_t realsize = nmemb;
   if (realsize == CURL_WRITEFUNC_PAUSE) esyslog3("realsize == CURL_WRITEFUNC_PAUSE = ", realsize);
+#if defined (CURL_WRITEFUNC_ERROR)
   if (realsize == CURL_WRITEFUNC_ERROR) esyslog3("realsize == CURL_WRITEFUNC_ERROR = ", realsize);
+#endif
   if (size != 1) esyslog3("size != 1, size = ", size);
   std::string *out = (std::string *) userp;
   out->append((char *)data, realsize);

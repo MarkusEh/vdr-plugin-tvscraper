@@ -92,7 +92,6 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
   int i = 0;
   for (; i < (int)m_all_languages.size() -1; i++) langAdditional.addLine(defaultAdditionalLanguage);
   m_NumberOfAdditionalLanguages = additional_languages.size();
-//  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after langAdditional / langChannels");
 
   m_allChannels.clear();
   m_channelNames.clear();
