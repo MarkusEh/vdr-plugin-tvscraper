@@ -76,12 +76,12 @@ class cScraperRec: public cMovieOrTvAT {
     time_t StartTime() const { return m_event_start_time; }
     tChannelID ChannelID() const { return m_channelid; }
     int id() const { return m_id; }
+    int m_numberOfErrors;
   private:
     tChannelID m_channelid;
     tEventID m_event_id;
     time_t m_event_start_time;
     std::string m_name;
-    int m_numberOfErrors;
     int m_id;
 
     friend bool operator< (const cScraperRec &rec1, const cScraperRec &rec2);

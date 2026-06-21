@@ -109,9 +109,13 @@ class cStr {
     cStr(const std::string &s): m_s(s.c_str()) {}
     operator const char *() const { return m_s; }
     const char *c_str() const { return m_s; }
+    const char *vdr_str() const { return empty()?nullptr:m_s; }  // vdr expects a nullptr for an empty string :(
     char *data() { return (char *)m_s; }
     size_t length() const { return strlen(m_s); }
     operator cSv() const { return cSv(m_s, strlen(m_s)); }
+    bool operator==(cStr other) const { return strcmp(m_s, other.m_s) == 0; }
+    bool operator!=(cStr other) const { return strcmp(m_s, other.m_s) != 0; }
+    bool empty() const { return *m_s == 0; }
     const char *begin() const { return m_s; }
     const char *cbegin() const { return m_s; }
     const char *end() const { return m_s + strlen(m_s); }
@@ -655,8 +659,8 @@ inline wint_t getNextUtfCodepoint(const char *&p) {
 // =========================================================
 
 inline cSv trim(cSv s) {
-  // remove all ASCII <= 32 from left and right
-  // this is whitespace and special characters
+// remove all ASCII <= 32 from left and right,
+// this is whitespace and special characters
 
   cSv::size_type left = 0;
   for (; left < s.length() && (unsigned char)s[left] < 33; ++left);
@@ -686,8 +690,8 @@ inline cSv remove_leading_whitespace(cSv s) {
 }
 
 inline void trim_string(std::string &s) {
-  // remove all ASCII <= 32 from left and right
-  // this is whitespace and special characters
+// remove all ASCII <= 32 from left and right,
+// this is whitespace and special characters
 
   std::string::size_type left = 0;
   for (; left < s.length() && (unsigned char)s[left] < 33; ++left);
@@ -1289,7 +1293,7 @@ class cToSvConcat: public cToSv {
     template<size_t M>
 // "awrhjo!"
     cToSvConcat &operator<<(const char (&s)[M]) {
-      if (m_pos_for_append + M-1 > m_be_data) ensure_free(M-1);
+      if (m_pos_for_append + (M-1) > m_be_data) ensure_free(M-1);
       memcpy(m_pos_for_append, s, M-1);
       m_pos_for_append += M-1;
       return *this;
@@ -1353,6 +1357,43 @@ template<size_t M, typename T, std::enable_if_t<std::is_integral_v<T>, bool> = t
       if (m_pos_for_append + std::max(M, (size_t)20) > m_be_data) ensure_free(std::max(M, (size_t)20));
       m_pos_for_append = stringhelpers_internal::itoa_min_width<M, T>(m_pos_for_append, i);
       return *this;
+    }
+template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+    cToSvConcat &appendIntFillBlanks(T i, size_t m) {
+// use m chars to print the integer
+// if less than m chars are required, left fill with blanks
+// if more than m chars are required, use what is needed
+      size_t needed_chars = stringhelpers_internal::numChars(i);
+      ensure_free(std::max(m, needed_chars));
+      if (needed_chars < m) append(m-needed_chars, ' ');
+      m_pos_for_append = to_chars10_internal::itoa(m_pos_for_append, i);
+      return *this;
+    }
+template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+    cToSvConcat &appendIntFillZeros(T i, size_t m) {
+// use m chars to print the integer
+// if less than m chars are required, left fill with zeros
+// if more than m chars are required, use what is needed
+      size_t needed_chars = stringhelpers_internal::numChars(i);
+      ensure_free(std::max(m, needed_chars));
+      if (needed_chars < m) append(m-needed_chars, '0');
+      m_pos_for_append = to_chars10_internal::itoa(m_pos_for_append, i);
+      return *this;
+    }
+template<typename T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
+    cToSvConcat &appendIntFillZeros(T i, size_t m) {
+// use m chars to print the integer
+// if less than m chars are required, left fill with zeros
+// if more than m chars are required, use what is needed
+      typedef std::make_unsigned_t<T> TU;
+      if (i<0) {
+        *this << '-';
+        TU minusi = ~(TU(i)) + (TU)1;
+        if (m==0) m = 1;
+        return appendIntFillZeros(minusi, m-1);
+      } else {
+        return appendIntFillZeros(TU(i), m);
+      }
     }
 template<typename T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
     cToSvConcat &appendHex(T value, int width = sizeof(T)*2) {

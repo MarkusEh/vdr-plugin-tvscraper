@@ -27,15 +27,15 @@ public:
   int DurationDistance(int DurationInMin);
   virtual cSv EpisodeSearchString() const;
   virtual const tChannelID ChannelID() const { return m_event->ChannelID(); }
-#if VDRVERSNUM >= 20709
-  virtual const char *Language() const { return m_event->Language(); }
-#else
-  virtual const char *Language() const { return ""; }
-#endif
   virtual const char *Title() const { return m_event->Title(); }
   virtual const char *ShortText() const { return m_event->ShortText(); }
   cSv Description() const { return m_description; }
-  const cLanguage *GetLanguage() const { return config.Languages().GetLanguageIso(Language(), ChannelID()); }
+#if VDRVERSNUM >= 20709
+  virtual const char *Language() const { return m_event->Language(); }
+#else
+  virtual const char *Language() const { return "";}
+#endif
+  const cLanguage *GetLanguage() const { return m_language; }
   virtual int durationDeviation(int s_runtime) const { return 6000; }
   static constexpr const char *m_unknownChannel = "Channel name unknown";
 protected:
@@ -45,6 +45,7 @@ protected:
   const cEvent *m_event;
   const cSv m_description;
   bool m_debug = false;
+  const cLanguage *m_language;
   int RemoveAdvTimeSec(int durationSec) const { return durationSec - durationSec / 3 - 2*60; } // 33% adds, 2 mins extra adds
 };
 
@@ -151,9 +152,9 @@ public:
   virtual int EventDuration() const { return m_sEvent->Duration(); } // this is always the event duration, for recordings it is m_recording->Info()->Event()->Duration()
   virtual int DurationInSec() const { return EventDuration(); }
   virtual const tChannelID ChannelID() const { return m_sEvent->ChannelID(); }
-  virtual const char *Language() const { return m_sEvent->Language(); }
   virtual const char *Title() const { return m_sEvent->Title(); }
   virtual const char *ShortText() const { return m_sEvent->ShortText(); }
+  virtual const char *Language() const { return m_sEvent->Language(); }
 
 private:
   const cStaticEvent *m_sEvent;

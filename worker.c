@@ -593,9 +593,11 @@ void cTVScraperWorker::Action(void) {
   waitMs(initSleep);
 
   while (Running()) {
+    config.Languages().Update_channel_station_language();
+    if (!Running() ) break;
+
     if (ConnectScrapers()) ScrapChangedRecordings();
     if (!Running() ) break;
-//  dsyslog("tvscraper: scanning video dir done");
 
     bool fullScan = false;
     if (StartScrapping(fullScan)) {

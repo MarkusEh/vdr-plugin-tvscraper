@@ -1,16 +1,298 @@
 #include "setup.h"
 #include <iomanip>
 
-using namespace std;
+cSetupChannel::cSetupChannel(const cChannel *channel, unsigned channel_number_width):
+  m_groupSep(channel->GroupSep())
+{
+  if (m_groupSep) {
+    m_number = 0;
+    m_language = nullptr;
+    m_name = cSv(channel->Name());
+  } else {
+    m_channelID = channel->GetChannelID();
+    m_number = channel->Number();
+    m_language = config.Languages().GetLanguageFromEPG(m_channelID);
+    cToSvConcat name;
+    name.appendIntFillBlanks(m_number, channel_number_width);
+    name << ' ' << cSv(channel->Name());
+    m_name = name;
+  }
+  set_data_from_setup();
+}
+cSetupChannel::cSetupChannel(const cRecording *recording, unsigned channel_number_width):
+// use only for recordings with channels which are not channels any more
+  m_groupSep(false),
+  m_channelID(recording->Info()->ChannelID()),
+  m_number(-1),
+#if VDRVERSNUM >= 20709
+  // note: Currently, this information is ignored in the setup
+  //       reason: what if 2 recordings have same channel but different languages?
+  m_language(config.Languages().GetLanguageIso(recording->Info()->GetEvent()->Language()))
+#else
+  m_language(nullptr)
+#endif
+{
+  cToSvConcat name;
+  name.append(channel_number_width+1, ' ');
+  name << recording->Info()->ChannelName();
+  m_name = name;
+  set_data_from_setup();
+}
+cSetupChannel::cSetupChannel(cSv group_separator):
+  // add a line to the list
+  m_groupSep(true),
+  m_number(-1),
+  m_language(nullptr)
+{
+  m_name = group_separator;
+}
+void cSetupChannel::set_data_from_setup() {
+  m_setup_hd = config.ChannelHD(m_channelID);
+  m_setup_scrape = config.ChannelActive(m_channelID)?1:0;
+  m_setup_lang = config.Languages().GetLanguageFromSetup_n(m_channelID);
+}
+cSetupChannels::cSetupChannels():
+  m_texts_from_epg(config.Languages().Max_id() + 1),
+  m_language_select_options(m_texts_from_epg.size(), nullptr) {
+// create m_texts_from_epg: test from EPG ... for each language
+  for (const cLanguage &l: config.Languages().m_languages) {
+    if (m_texts_from_epg.size() < (size_t)l.Id() ) {
+      esyslog3("m_texts_from_epg too small, m_texts_from_epg.size() = ", m_texts_from_epg.size(), " l.Id() = ", l.Id());
+    } else {
+      cToSvConcat text(tr("from EPG"), " [", l.Name(), ']');
+      m_texts_from_epg[l.Id()] = text;
+    }
+  }
+  m_select_options_hd[0] = tr("SD");
+  m_select_options_hd[1] = tr("HD");
+  m_select_options_hd[2] = tr("UHD");
+
+  m_select_options_scrape[0] = tr("don't scrap");
+  m_select_options_scrape[1] = tr("scrap");
+// create m_setup_channels: List of all channels, including channels only used in recordings
+  {
+    LOCK_CHANNELS_READ;
+    m_channel_number_width = stringhelpers_internal::numChars(Channels->MaxNumber());
+    m_max_channel_name_length = Channels->MaxChannelNameLength();
+    for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel)) {
+      if (channel->GroupSep())
+        m_setup_channels.emplace_back(channel, m_channel_number_width);
+      else if (!(channel->GetChannelID() == tChannelID())) {
+        m_setup_channels.emplace_back(channel, m_channel_number_width);
+        m_sorted_channels.insert(channel->GetChannelID());
+      }
+    }
+  }
+#if VDRVERSNUM >= 20709
+/*
+  {
+    isyslog2("Set language of recordings");
+    bool updated = false;
+    LOCK_RECORDINGS_WRITE;
+    for (cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec))
+      if (rec->Info() && rec->Info()->ChannelName() && !(rec->Info()->ChannelID() == tChannelID()) &&
+          !*rec->Info()->GetEvent()->Language() && is_in_list(rec->Info()->ChannelID())) {
+// this recording has no language, but a channel which is still in use
+//      isyslog2("Set language of recording \"", rec->Name());
+        for (const cSetupChannel &setupChannel: m_setup_channels)
+          if (setupChannel.m_channelID == rec->Info()->ChannelID()) {
+            // todo: also compare channel->name with rec->Info()->ChannelName()
+            if (!setupChannel.m_language) {
+              isyslog2("No language for channel ", setupChannel.m_name);
+            } else {
+              isyslog2("Set language of recording \"", rec->Name(), " channel ", setupChannel.m_name, " to ", setupChannel.m_language->Iso());
+              cEvent *event = const_cast<cEvent *>(rec->Info()->GetEvent());
+              event->SetLanguage(setupChannel.m_language->Iso() );
+              rec->WriteInfo();
+              updated = true;
+            }
+            break;
+        }
+      }
+    if (updated) Recordings->TouchUpdate();
+  }
+*/
+#endif
+  m_setup_channels.emplace_back(cSv(tr("Channels used only in recordings")));
+  {
+    LOCK_RECORDINGS_READ;
+    for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec))
+      if (rec->Info() && rec->Info()->ChannelName() && !(rec->Info()->ChannelID() == tChannelID()) ) {
+        if (!is_in_list(rec->Info()->ChannelID()) ) {
+          m_setup_channels.emplace_back(rec, m_channel_number_width);
+          m_sorted_channels.insert(rec->Info()->ChannelID());
+          m_max_channel_name_length = std::max(m_max_channel_name_length, (unsigned)strlen(rec->Info()->ChannelName() ));
+        }
+      }
+  }
+// now the list m_setup_channels is complete
+// create m_setup_languages: list of all languages (as saved in setup) used in any of m_setup_channels
+  for (const cSetupChannel &setupChannel: m_setup_channels)
+    if (!setupChannel.m_groupSep) m_setup_languages.insert(setupChannel.m_setup_lang);
+}
+bool cSetupChannels::is_in_list(tChannelID channelID) const {
+  return m_sorted_channels.find(channelID) != m_sorted_channels.end();
+}
+cOsdMenu *cSetupChannels::getSetupMenuLanguage(const char *Title, int num_additional_languages, langOsd &additional_languages) {
+  m_SetupMenu_displayed_language = true;
+  // list of languages, together with number used in OSD for this language
+  clear_language_select_options();
+  m_map_lang_osd.clear();
+  m_map_lang_osd.push_back(0); // auto language
+  for (int i = 0; i < num_additional_languages; ++i)
+    m_map_lang_osd.push_back(additional_languages.getLanguage(i));
+  for (int setup_lang: m_setup_languages)
+    if (setup_lang != -1) m_map_lang_osd.push_back_if_new(setup_lang);
+  m_map_lang_osd.push_back_if_new(config.Languages().GetDefaultLanguage()->Id());
+  int numOptions = m_map_lang_osd.size();
+
+
+  m_language_select_options[0] = new const char*[numOptions];
+  m_language_select_options[0][0] = tr("default");
+  for (int i = 1; i < numOptions; ++i)
+    m_language_select_options[0][i] = config.Languages().GetLanguage(m_map_lang_osd.getSecond(i))->Name();
+  for (const cLanguage &l: config.Languages().m_languages) {
+    if (m_language_select_options.size() < (size_t)l.Id() ) {
+      esyslog3("m_language_select_options too small, m_language_select_options.size() = ", m_language_select_options.size(), " l.Id() = ", l.Id());
+    } else if (m_language_select_options[l.Id()] != nullptr) {
+      esyslog3("m_language_select_options[", l.Id(), "] != nullptr");
+    } else {
+      m_language_select_options[l.Id()] = new const char*[numOptions];
+      m_language_select_options[l.Id()][0] = m_texts_from_epg[l.Id()].c_str();
+      for (int i = 1; i < numOptions; ++i)
+        m_language_select_options[l.Id()][i] = config.Languages().GetLanguage(m_map_lang_osd.getSecond(i))->Name();
+    }
+  }
+  size_t sec_col_size = std::max(strlen(tr("from EPG")), strlen(tr("default"))) + config.Languages().Max_name_length() + 3;
+
+  cOsdMenu *result = new cTVScraperOsdMenu(Title, firstColumnWidth(), sec_col_size);
+  result->SetMenuCategory(mcSetupPlugins);
+  for (cSetupChannel &setupChannel: m_setup_channels) {
+    if (setupChannel.m_groupSep) {
+      result->Add(new cOsdItem(setupChannel.m_name.c_str()));
+    } else {
+      if (setupChannel.m_setup_lang == -1)
+        setupChannel.m_osd_lang = 0;
+      else
+        setupChannel.m_osd_lang = m_map_lang_osd.getFirst(setupChannel.m_setup_lang);
+      const char **select_options;
+      if (setupChannel.m_language && setupChannel.m_number > 0)
+        select_options = m_language_select_options[setupChannel.m_language->Id()];
+      else
+        select_options = m_language_select_options[0];
+      result->Add(new cMenuEditStraItem(setupChannel.m_name.c_str(), &setupChannel.m_osd_lang, numOptions, select_options));
+    }
+  }
+  result->Display();
+  return result;
+}
+cOsdMenu *cSetupChannels::getSetupMenuHD(const char *Title) {
+  m_SetupMenu_displayed_hd = true;
+
+  cOsdMenu *result = new cTVScraperOsdMenu(Title, firstColumnWidth(), 15);
+  result->SetMenuCategory(mcSetupPlugins);
+  for (cSetupChannel &setupChannel: m_setup_channels) {
+    if (setupChannel.m_groupSep) {
+      result->Add(new cOsdItem(setupChannel.m_name.c_str()));
+    } else {
+      setupChannel.m_osd_hd = setupChannel.m_setup_hd;
+      result->Add(new cMenuEditStraItem(setupChannel.m_name.c_str(), &setupChannel.m_osd_hd, m_numOptions_hd, m_select_options_hd));
+    }
+  }
+  result->Display();
+  return result;
+}
+cOsdMenu *cSetupChannels::getSetupMenuScrape(const char *Title) {
+  m_SetupMenu_displayed_scrape = true;
+
+  cOsdMenu *result = new cTVScraperOsdMenu(Title, firstColumnWidth(), 15);
+  result->SetMenuCategory(mcSetupPlugins);
+  for (cSetupChannel &setupChannel: m_setup_channels) {
+    if (setupChannel.m_groupSep) {
+      if (setupChannel.m_number == -1) break;
+      result->Add(new cOsdItem(setupChannel.m_name.c_str()));
+    } else {
+      setupChannel.m_osd_scrape = setupChannel.m_setup_scrape;
+      result->Add(new cMenuEditStraItem(setupChannel.m_name.c_str(), &setupChannel.m_osd_scrape, 2, m_select_options_scrape));
+    }
+  }
+  result->Display();
+  return result;
+}
+void cSetupChannels::clear_language_select_options() {
+  for (size_t i = 0; i < m_language_select_options.size(); ++i) {
+    delete[] m_language_select_options[i];
+    m_language_select_options[i] = nullptr;
+  }
+}
+std::string getStringFromMap(const map<tChannelID, int> &in, int lang) {
+  cToSvConcat result;
+  for (const auto &i: in) if (i.second == lang) {
+    result << i.first << ';';
+  }
+  return std::string(result);
+}
+void cSetupChannels::Store(cTVScraperSetup *TVScraperSetup) {
+  if (m_SetupMenu_displayed_language) {
+    m_SetupMenu_displayed_language = false;
+    map<tChannelID, int> channel_language;
+    for (cSetupChannel &setupChannel: m_setup_channels) if (!setupChannel.m_groupSep) {
+      if (setupChannel.m_osd_lang == 0)
+        setupChannel.m_setup_lang = -1;
+      else {
+        setupChannel.m_setup_lang = m_map_lang_osd.getSecond(setupChannel.m_osd_lang);
+        channel_language.insert({setupChannel.m_channelID, setupChannel.m_setup_lang});
+      }
+    }
+
+    for (int i = 1; i < (int)m_map_lang_osd.size(); ++i)
+      TVScraperSetup->SetupStore((cToSvConcat("additionalLanguage", m_map_lang_osd.getSecond(i))).c_str(), getStringFromMap(channel_language, m_map_lang_osd.getSecond(i)).c_str() );
+    config.Languages().SwapLanguagesFromSetup(channel_language);
+  }
+// SD / HD / UHD
+  if (m_SetupMenu_displayed_hd) {
+    m_SetupMenu_displayed_hd = false;
+    bool channelsHD_Change = false;
+    for (cSetupChannel &setupChannel: m_setup_channels) if (!setupChannel.m_groupSep) {
+      if (setupChannel.m_osd_hd != setupChannel.m_setup_hd) {
+        channelsHD_Change = true;
+        break;
+      }
+    }
+    if (channelsHD_Change) {
+      map<tChannelID, int> hd_channels;
+      for (cSetupChannel &setupChannel: m_setup_channels) if (!setupChannel.m_groupSep) {
+        setupChannel.m_setup_hd = setupChannel.m_osd_hd;
+        if (setupChannel.m_osd_hd > 0)
+          hd_channels.insert({setupChannel.m_channelID, setupChannel.m_osd_hd});
+      }
+      TVScraperSetup->SetupStore("HDChannels", getStringFromMap(hd_channels, 1).c_str());
+      TVScraperSetup->SetupStore("UHDChannels", getStringFromMap(hd_channels, 2).c_str());
+      cTVScraperConfigLock lw(true);
+      config.m_HD_ChannelsModified = true;
+      config.m_HD_Channels = std::move(hd_channels);
+    }
+  }
+// scrape / don't scrape
+  if (m_SetupMenu_displayed_scrape) {
+    m_SetupMenu_displayed_scrape = false;
+    cSortedVector<tChannelID> channels;
+    for (cSetupChannel &setupChannel: m_setup_channels) if (!setupChannel.m_groupSep) {
+      setupChannel.m_setup_scrape = setupChannel.m_osd_scrape;
+      if (setupChannel.m_osd_scrape > 0) channels.insert(setupChannel.m_channelID);
+    }
+    TVScraperSetup->SetupStore("ScrapChannels", getStringFromSet(channels).c_str());
+    cTVScraperConfigLock lw(true);
+    config.m_channels = std::move(channels);
+  }
+}
 
 cSortedVector<std::string> cTVScraperSetup::getAllRecordingFolders(int &max_width) {
   cSortedVector<std::string> result;
-  m_recChannels.clear();
   max_width = 0;
   LOCK_RECORDINGS_READ;
   for (const cRecording *rec = Recordings->First(); rec; rec = Recordings->Next(rec))
   {
-    if (rec->Info() ) m_recChannels.insert({rec->Info()->ChannelID(), rec->Info()->ChannelName()});
     const char *pos_delim = strrchr(rec->Name(), '~');
     if (pos_delim != 0) {
       result.insert(std::string(rec->Name(), pos_delim - rec->Name() ));
@@ -44,10 +326,16 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
   m_db(db),
   m_all_languages(getLanguageTexts()),
   langDefault(&m_all_languages),
-  langAdditional(&m_all_languages),
-  langChannels(&m_all_languages)
+  langAdditional(&m_all_languages)
   {
   if (config.enableDebug) esyslog("tvscraper: Start of cTVScraperSetup::cTVScraperSetup");
+  m_Set_language_for_each_channel = tr("Set language for each channel");
+  m_Configure_channels_to_be_scraped = tr("Configure channels to be scraped");
+  m_HD_channels = tr("HD channels");
+  m_Recording_folders_to_improve = tr("Recording folders to improve");
+  m_TV_shows_to_record = tr("TV shows to record");
+  m_Trigger_scraping_Video_Directory = tr("Trigger scraping Video Directory");
+  m_Trigger_EPG_scraping = tr("Trigger EPG scraping");
 // copy data from config to local data, which will be directly changed in OSD
   m_enableDebug = config.enableDebug;
   m_writeEpisodeToEpg = config.m_writeEpisodeToEpg;
@@ -82,53 +370,15 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
       langAdditional.addLanguage(l.first);
       if (defaultAdditionalLanguage == 0) defaultAdditionalLanguage = l.first;
     }
-// langues for channels, and lines for additional languages
-  langChannels.addLanguage(defaultLanguage);
+// lines for additional languages
   auto additional_languages = config.Languages().GetAdditionalLanguages();
   for (const int &addLang: additional_languages) {
     langAdditional.addLine(addLang);
-    langChannels.addLanguage(addLang);
   }
   int i = 0;
-  for (; i < (int)m_all_languages.size() -1; i++) langAdditional.addLine(defaultAdditionalLanguage);
+  for (; i < (int)m_all_languages.size() -1; ++i) langAdditional.addLine(defaultAdditionalLanguage);
   m_NumberOfAdditionalLanguages = additional_languages.size();
 
-  m_allChannels.clear();
-  m_channelNames.clear();
-  m_maxChannelNameLength = 0;
-  {
-    LOCK_CHANNELS_READ;
-    for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel))
-    if (!channel->GroupSep()) {
-      tChannelID channelID = channel->GetChannelID();
-      m_allChannels.insert({channelID, (int)m_channelNames.size()});
-      m_channelNames.push_back(channel->Name() );
-      m_maxChannelNameLength = std::max(m_maxChannelNameLength, (int)strlen(channel->Name() ));
-      channelsScrap.push_back(config.ChannelActive(channelID)?1:0);
-      m_channelsHD.push_back(config.ChannelHD(channelID));
-      int lang = config.Languages().GetLanguage_n(channelID);
-      if (!langChannels.m_osdMap.isSecond(lang)) langChannels.addLanguage(lang);
-      langChannels.addLine(lang);
-    }
-  }
-  m_allChannels.insert({tChannelID(), (int)m_channelNames.size()});
-  m_channelNames.push_back(tr("Channels used only in recordings") );
-  m_maxChannelNameLength = std::max(m_maxChannelNameLength, (int)strlen(tr("Channels used only in recordings") ));
-  m_channelsHD.push_back(-1);
-  langChannels.addLineNoSelection();
-
-  for (const auto recChannel: m_recChannels) {
-    if (m_allChannels.find(recChannel.first) != m_allChannels.end() ) continue;
-    if (!recChannel.second || !*recChannel.second) continue; // no channel name
-    m_allChannels.insert({recChannel.first, (int)m_channelNames.size()});
-    m_channelNames.push_back(recChannel.second);
-    m_maxChannelNameLength = std::max(m_maxChannelNameLength, (int)strlen(recChannel.second));
-    m_channelsHD.push_back(config.ChannelHD(recChannel.first));
-    int lang = config.Languages().GetLanguage_n(recChannel.first);
-    if (!langChannels.m_osdMap.isSecond(lang)) langChannels.addLanguage(lang);
-    langChannels.addLine(lang);
-  }
-//  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after ChannelActive / ChannelHD");
 // TV Shows
   m_allTV_Shows = getAllTV_Shows();
 //  if (config.enableDebug) esyslog("tvscraper: cTVScraperSetup::cTVScraperSetup after TV shows (get from db)");
@@ -139,107 +389,60 @@ cTVScraperSetup::cTVScraperSetup(cTVScraperWorker *workerThread, const cTVScrape
   Setup();
 }
 
-cTVScraperSetup::~cTVScraperSetup() {
-}
 void cTVScraperSetup::Setup(void) {
-    m_NumberOfAdditionalLanguages = std::max(m_NumberOfAdditionalLanguages, 0);
-    m_NumberOfAdditionalLanguages = std::min(m_NumberOfAdditionalLanguages, (int)langAdditional.m_selectedLanguage.size());
-    int currentItem = Current();
-    Clear();
-    Add(new cOsdItem(tr("Configure channels to be scraped")));
-    Add(new cOsdItem(cToSvConcat(tr("System language"), ":\t", langDefault.m_osdTexts[langDefault.m_selectedLanguage[0]]).c_str(), osUnknown, false));
-//    Add(new cMenuEditStraItem(tr("System language"), &langDefault.m_selectedLanguage[0], langDefault.m_numLang, langDefault.m_osdTexts));
-    Add(new cMenuEditIntItem(tr("Number of additional languages"), &m_NumberOfAdditionalLanguages));
-    for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
-      Add(new cMenuEditStraItem((string(tr("Additional language")) + " " + to_string(i+1)).c_str(), &langAdditional.m_selectedLanguage[i], langAdditional.m_numLang, langAdditional.m_osdTexts));
-    if (config.Languages().numAdditionalLanguages() > 0) Add(new cOsdItem(tr("Set language for each channel")));
-    Add(new cOsdItem(tr("HD channels")));
-    Add(new cMenuEditBoolItem(tr("Create timers to improve and complement recordings"), &m_enableAutoTimers));
-    if (m_enableAutoTimers) {
-      Add(new cOsdItem(tr("Recording folders to improve")));
-      Add(new cOsdItem(tr("TV shows to record")));
-    }
-    Add(new cOsdItem(tr("Trigger scraping Video Directory")));
-    Add(new cOsdItem(tr("Trigger EPG scraping")));
-    Add(new cMenuEditBoolItem(tr("Write episode to EPG"), &m_writeEpisodeToEpg));
-    Add(new cMenuEditBoolItem(tr("Enable Debug Logging"), &m_enableDebug));
+  m_NumberOfAdditionalLanguages = std::max(m_NumberOfAdditionalLanguages, 0);
+  m_NumberOfAdditionalLanguages = std::min(m_NumberOfAdditionalLanguages, (int)langAdditional.m_selectedLanguage.size());
+  int currentItem = Current();
+  Clear();
+  Add(new cOsdItem(m_Configure_channels_to_be_scraped));
+  Add(new cOsdItem(cToSvConcat(tr("System language"), ":\t", langDefault.m_osdTexts[langDefault.m_selectedLanguage[0]]).c_str(), osUnknown, false));
+  Add(new cMenuEditIntItem(tr("Number of additional languages"), &m_NumberOfAdditionalLanguages));
+  for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
+    Add(new cMenuEditStraItem(cToSvConcat(tr("Additional language"), " ", i+1).c_str(), &langAdditional.m_selectedLanguage[i], langAdditional.m_numLang, langAdditional.m_osdTexts));
+  if (config.Languages().numAdditionalLanguages() > 0) Add(new cOsdItem(m_Set_language_for_each_channel));
+  Add(new cOsdItem(m_HD_channels));
+  Add(new cMenuEditBoolItem(tr("Create timers to improve and complement recordings"), &m_enableAutoTimers));
+  if (m_enableAutoTimers) {
+    Add(new cOsdItem(m_Recording_folders_to_improve));
+    Add(new cOsdItem(m_TV_shows_to_record));
+  }
+  Add(new cOsdItem(m_Trigger_scraping_Video_Directory));
+  Add(new cOsdItem(m_Trigger_EPG_scraping));
+  Add(new cMenuEditBoolItem(tr("Write episode to EPG"), &m_writeEpisodeToEpg));
+  Add(new cMenuEditBoolItem(tr("Enable Debug Logging"), &m_enableDebug));
 
-    SetCurrent(Get(currentItem));
-    Display();
+  SetCurrent(Get(currentItem));
+  Display();
 }
 
 eOSState cTVScraperSetup::ProcessKey(eKeys Key) {
-    bool hadSubMenu = HasSubMenu();
-    if (hadSubMenu && Key == kOk)
-        Store();
-    eOSState state = cMenuSetupPage::ProcessKey(Key);
-    if (!hadSubMenu && Current() == 2 && (Key == kLeft || Key == kRight)) Setup();  // refresh screen if "Number of additional languages " is changed
-    if (!hadSubMenu && (Key == kOk)) {
-        const char* ItemText = Get(Current())->Text();
-        if (strcmp(ItemText, tr("Configure channels to be scraped")) == 0)
-            state = AddSubMenu(new cTVScraperChannelSetup(m_channelNames, m_maxChannelNameLength, &channelsScrap, tr("Configure channels to be scraped"), tr("don't scrap"), tr("scrap")));
-        else if (strcmp(ItemText, tr("HD channels")) == 0)
-            state = AddSubMenu(new cTVScraperChannelSetup(m_channelNames, m_maxChannelNameLength, &m_channelsHD, tr("HD channels"), tr("SD"), tr("HD"), tr("UHD") ));
-        else if (strcmp(ItemText, tr("Set language for each channel")) == 0)
-            state = AddSubMenu(new cTVScraperChannelSetup(m_channelNames, m_maxChannelNameLength, &langChannels.m_selectedLanguage, tr("Select language for channels"), langChannels.m_numLang, langChannels.m_osdTexts, langChannels.m_maxOsdTextLength));
-        else if (strcmp(ItemText, tr("Recording folders to improve")) == 0)
-            state = AddSubMenu(new cTVScraperListSetup(m_selectedRecordingFolders, m_allRecordingFolders, tr("Recording folders to improve"), m_recordings_width));
-        else if (strcmp(ItemText, tr("TV shows to record")) == 0)
-            state = AddSubMenu(new cTVScraperTV_ShowsSetup(m_selectedTV_Shows, m_allTV_Shows, m_db));
-        else if (strcmp(ItemText, tr("Trigger scraping Video Directory")) == 0) {
-            Skins.Message(mtInfo, "Scraping Video Directory started");
-            worker->InitVideoDirScan();
-            state = osContinue;
-        } else if (strcmp(ItemText, tr("Trigger EPG scraping")) == 0) {
-            Skins.Message(mtInfo, "EPG Scraping started");
-            worker->InitManualScan();
-            state = osContinue;
-        }
+  bool hadSubMenu = HasSubMenu();
+  if (hadSubMenu && Key == kOk) Store();
+  eOSState state = cMenuSetupPage::ProcessKey(Key);
+  if (!hadSubMenu && Current() == 2 && (Key == kLeft || Key == kRight)) Setup();  // refresh screen if "Number of additional languages " is changed
+  if (!hadSubMenu && (Key == kOk)) {
+    const char* ItemText = Get(Current())->Text();
+    if (strcmp(ItemText, m_Configure_channels_to_be_scraped) == 0)
+      state = AddSubMenu(SetupChannels()->getSetupMenuScrape(m_Configure_channels_to_be_scraped));
+    else if (strcmp(ItemText, m_HD_channels) == 0)
+      state = AddSubMenu(SetupChannels()->getSetupMenuHD(m_HD_channels));
+    else if (strcmp(ItemText, m_Set_language_for_each_channel) == 0)
+      state = AddSubMenu(SetupChannels()->getSetupMenuLanguage(m_Set_language_for_each_channel, m_NumberOfAdditionalLanguages, langAdditional));
+    else if (strcmp(ItemText, m_Recording_folders_to_improve) == 0)
+      state = AddSubMenu(new cTVScraperListSetup(m_selectedRecordingFolders, m_allRecordingFolders, m_Recording_folders_to_improve, m_recordings_width));
+    else if (strcmp(ItemText, m_TV_shows_to_record) == 0)
+      state = AddSubMenu(new cTVScraperTV_ShowsSetup(m_selectedTV_Shows, m_allTV_Shows, m_db));
+    else if (strcmp(ItemText, m_Trigger_scraping_Video_Directory) == 0) {
+      Skins.Message(mtInfo, "Scraping Video Directory started");
+      worker->InitVideoDirScan();
+      state = osContinue;
+    } else if (strcmp(ItemText, m_Trigger_EPG_scraping) == 0) {
+      Skins.Message(mtInfo, "EPG Scraping started");
+      worker->InitManualScan();
+      state = osContinue;
     }
-    return state;
-}
-
-cSortedVector<tChannelID> cTVScraperSetup::GetChannelsFromSetup(const vector<int> &channels) {
-  cSortedVector<tChannelID> result;
-  int size = channels.size();
-  for (const auto &cha : m_allChannels) if (cha.second < size && channels[cha.second] > 0 && !(cha.first == tChannelID()) )
-    result.insert(cha.first);
-  return result;
-}
-
-std::map<tChannelID, int> cTVScraperSetup::GetChannelsMapFromSetup(const vector<int> &channels, const mapIntBi *langIds) {
-  map<tChannelID, int> result;
-  for (const auto &cha : m_allChannels) if (channels[cha.second] > 0 && !(cha.first == tChannelID()) )
-    result.insert(std::make_pair(cha.first, langIds->getSecond(channels[cha.second])));
-  return result;
-}
-
-std::map<tChannelID, int> cTVScraperSetup::GetChannelsMapFromSetup(const vector<int> &channels) {
-  std::map<tChannelID, int> result;
-  int size = channels.size();
-  for (const auto &cha : m_allChannels) if (cha.second < size && channels[cha.second] > 0 && !(cha.first == tChannelID()) )
-    result.insert({cha.first, channels[cha.second]});
-  return result;
-}
-
-bool cTVScraperSetup::ChannelsFromSetupChanged(std::map<tChannelID, int> oldChannels, const vector<int> &channels) {
-// return true in case of any change
-  int size = channels.size();
-  for (const auto &cha: m_allChannels) if (cha.second < size && !(cha.first == tChannelID()) ) {
-    int oldV = 0;
-    auto f = oldChannels.find(cha.first);
-    if (f!= oldChannels.end() ) oldV = f->second;
-    if (oldV != channels[cha.second]) return true;
   }
-  return false;
-}
-
-std::string getStringFromMap(const map<tChannelID, int> &in, int lang) {
-  cToSvConcat result;
-  for (const auto &i: in) if (i.second == lang) {
-    result << i.first << ';';
-  }
-  return std::string(result);
+  return state;
 }
 
 template<class T>
@@ -255,25 +458,11 @@ cSortedVector<T> menuSelectionsToSet(const cSortedVector<T> &allItems, const std
 }
 
 void cTVScraperSetup::Store(void) {
-  bool channelsHD_Change;
-  {
-    cTVScraperConfigLock l;
-    channelsHD_Change = ChannelsFromSetupChanged(config.m_HD_Channels, m_channelsHD);
-  }
-  cSortedVector<tChannelID> channels = GetChannelsFromSetup(channelsScrap);
-  map<tChannelID, int> hd_channels;
-  if (channelsHD_Change) hd_channels = GetChannelsMapFromSetup(m_channelsHD);
-// note: GetChannelsFromSetup will call LOCK_CHANNELS_READ; -> Locking order!!! -> we lock after these calls
   {
     cTVScraperConfigLock lw(true);
     config.enableDebug = m_enableDebug;
     config.m_writeEpisodeToEpg = m_writeEpisodeToEpg;
     config.m_enableAutoTimers = m_enableAutoTimers;
-    config.m_channels = std::move(channels);
-    if (channelsHD_Change) {
-      config.m_HD_ChannelsModified = true;
-      config.m_HD_Channels = std::move(hd_channels);
-    }
 
     config.m_excludedRecordingFolders = menuSelectionsToSet<string>(m_allRecordingFolders, m_selectedRecordingFolders, true);
     config.m_TV_Shows = menuSelectionsToSet<int>(m_allTV_Shows, m_selectedTV_Shows, false);
@@ -282,11 +471,6 @@ void cTVScraperSetup::Store(void) {
   {
     cTVScraperConfigLock lr;
 // getStringFromSet<> sets no Locks
-    SetupStore("ScrapChannels", getStringFromSet(config.m_channels).c_str());
-    if (channelsHD_Change) {
-      SetupStore("HDChannels", getStringFromMap(config.m_HD_Channels, 1).c_str());
-      SetupStore("UHDChannels", getStringFromMap(config.m_HD_Channels, 2).c_str());
-    }
     SetupStore("ExcludedRecordingFolders", getStringFromSet(config.m_excludedRecordingFolders, '/').c_str());
     SetupStore("TV_Shows", getStringFromSet(config.m_TV_Shows).c_str());
     SetupStore("enableDebug", config.enableDebug);
@@ -297,76 +481,14 @@ void cTVScraperSetup::Store(void) {
   std::vector<int> additionalLanguages;
   for (int i = 0; i < m_NumberOfAdditionalLanguages; i++)
     additionalLanguages.push_back(langAdditional.getLanguage(i));
-  map<tChannelID, int> channel_language = GetChannelsMapFromSetup(langChannels.m_selectedLanguage, &langChannels.m_osdMap);
-
-  SetupStore("defaultLanguage", config.Languages().GetDefaultLanguage()->Id() );  // note: it is not possible to change defaultLanguage in setup
   SetupStore("additionalLanguages", getStringFromSet(additionalLanguages).c_str() );
-  for (const int &lang: additionalLanguages)
-    SetupStore((cToSvConcat("additionalLanguage", lang)).c_str(), getStringFromMap(channel_language, lang).c_str() );
-
   config.Languages().SwapAdditionalLanguages(additionalLanguages);
-  config.Languages().SwapChannelLanguage(channel_language);
+  if (m_setupChannels) m_setupChannels->Store(this);
 }
 
-/* cTVScraperChannelSetup */
-int cTVScraperChannelSetup::GetColumnWidth(int maxChannelNameLength, vector<int> *channels) {
-// we combine channel number and channel name in one column, as some sknis only support 2 columns :(
-// return width for channel number + 1 + width for channel name + 1
-// +1: space between texts ...
-  m_chanNumberWidth = 2;
-  if ((int) channels->size() > 99) m_chanNumberWidth++;
-  if ((int) channels->size() > 999) m_chanNumberWidth++;
-  return m_chanNumberWidth + 1 + maxChannelNameLength + 1;
-}
-
-cTVScraperChannelSetup::cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, const char *null, const char *eins, const char *zwei): cOsdMenu(headline, GetColumnWidth(maxChannelNameLength, channels), 20) {
-  int numOptions = zwei?3:2;
-  m_selectOptions = new const char*[numOptions];
-  m_selectOptions[0] = null;
-  m_selectOptions[1] = eins;
-  if (zwei) m_selectOptions[2] = zwei;
-  Setup(channelNames, channels, numOptions, m_selectOptions);
-}
-
-cTVScraperChannelSetup::cTVScraperChannelSetup(const vector<const char*> &channelNames, int maxChannelNameLength, vector<int> *channels, const char *headline, int numOptions, const char**selectOptions, int maxSelectOptionsLength): cOsdMenu(headline, GetColumnWidth(maxChannelNameLength, channels), maxSelectOptionsLength) {
-  Setup(channelNames, channels, numOptions, selectOptions);
-}
-void cTVScraperChannelSetup::Setup(const vector<const char*> &channelNames, vector<int> *channels, int numOptions, const char**selectOptions) {
-  SetMenuCategory(mcSetupPlugins);
-  int currentItem = Current();
-  Clear();
-  bool rec_channels = false;
-  for (int i=0; i < (int)channels->size(); i++) {
-// note: channels is limited to the channels relevant here, and can be smaller than channelNames
-    if (channels->at(i) < 0) {
-      rec_channels = true;
-      Add(new cOsdItem(channelNames[i]));
-    } else {
-      stringstream name;
-      if (rec_channels)
-        for (int j = 0; j < m_chanNumberWidth+2; ++j) name << " ";
-      else
-        name << std::setw(m_chanNumberWidth+1) << (i+1) << " ";
-      name << channelNames[i];
-      Add(new cMenuEditStraItem(name.str().c_str(), &channels->at(i), numOptions, selectOptions));
-    }
-  }
-  SetCurrent(Get(currentItem));
-  Display();
-}
-
-cTVScraperChannelSetup ::~cTVScraperChannelSetup () {
-  if (m_selectOptions) delete [] m_selectOptions;
-}
-
-eOSState cTVScraperChannelSetup ::ProcessKey(eKeys Key) {
+eOSState cTVScraperOsdMenu::ProcessKey(eKeys Key) {
     eOSState state = cOsdMenu::ProcessKey(Key);
-    switch (Key) {
-        case kOk:
-            return osBack;
-        default:
-            break;
-    }
+    if (Key == kOk) return osBack;
     return state;
 }
 
@@ -415,26 +537,3 @@ eOSState cTVScraperTV_ShowsSetup::ProcessKey(eKeys Key) {
   if (Key == kOk) return osBack;
   return state;
 }
-bool mapIntBi::insert(int first, int second) {
-  int s = m_map.size();
-  if (first == s) { m_map.push_back(second); return true; }
-  if (first <  s && first >= 0) { m_map[first] = second; return true; }
-  esyslog("tvscraper: ERROR, mapIntBi::insert, first = %i, second = %i, size = %i", first, second, s);
-  return false;
-}
-int mapIntBi::getFirst(int second) const {
-  for (int i = 0; i < (int)m_map.size(); i++) if (m_map[i] == second) return i;
-  esyslog("tvscraper: ERROR, mapIntBi::getFirst, second = %i, size = %i", second, (int)m_map.size() );
-  return 0;
-}
-int mapIntBi::getSecond(int first) const {
-  int s = m_map.size();
-  if (first <  s && first >= 0) return m_map[first];
-  esyslog("tvscraper: ERROR, mapIntBi::getSecond, first = %i, size = %i", first, s);
-  return 0;
-}
-bool mapIntBi::isSecond(int second) const {
-  for (int i = 0; i < (int)m_map.size(); i++) if (m_map[i] == second) return true;
-  return false;
-}
-

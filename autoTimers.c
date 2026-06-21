@@ -136,6 +136,10 @@ bool getCollections(const cTVScraperDB &db, const std::set<cScraperRec, std::les
   return true;
 }
 
+bool has_sl(const cRecording *rec) {
+  if (cSv(rec->Info()->ShortText()).find("SL]") != cSv::npos) return true;
+  return cSv(rec->Info()->Description()).find("SL]") != cSv::npos;
+}
 // getRecordings ********************************
 bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &recordings) {
 // return true on success, false in case of (temporary) not availability of data
@@ -181,7 +185,13 @@ bool getRecordings(const cTVScraperDB &db, std::set<cScraperRec, std::less<>> &r
       if (duration_deviation > 60) numberOfErrors = 1;  // in case of deviations > 1min, create timer ...
     }
     if (numberOfErrors == 0 && config.GetTimersOnNumberOfTsFiles() && GetNumberOfTsFiles(rec) != 1) numberOfErrors = 1;  //  in case of more ts files, create timer ...
+
     cScraperRec scraperRec(eventID, eventStartTime, sRecording.ChannelID(), sRecording.GetLanguage(), rec->Name(), movie_tv_id, season_number, episode_number, numberOfErrors, rec->Id() );
+    if ((scraperRec.m_hd > 0 || numberOfErrors == 0) && has_sl(rec)) {
+      dsyslog2("try to improve recording '", rec->Name(), "' as it has sign language");
+      scraperRec.m_hd = 0;
+      scraperRec.m_numberOfErrors = std::max(numberOfErrors, 1);
+    }
     auto found = recordings.find(scraperRec);
     if (found == recordings.end() ) recordings.insert(std::move(scraperRec)); // not in list -> insert
     else if (scraperRec.isBetter(*found)) {

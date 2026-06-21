@@ -4,17 +4,20 @@
 
 csEventOrRecording::csEventOrRecording(const cEvent *event):
   m_event(event),
-  m_description(event?config.splitDescription(event->Description()):cSv())
+  m_description(event?config.splitDescription(event->Description()):cSv()),
+  m_language(config.Languages().GetLanguage(event) )
 {
 }
 csEventOrRecording::csEventOrRecording(const cStaticEvent *sEvent):
   m_event(nullptr),
-  m_description(sEvent?config.splitDescription(sEvent->Description()):cSv())
+  m_description(sEvent?config.splitDescription(sEvent->Description()):cSv()),
+  m_language(config.Languages().GetLanguage(sEvent) )
 {
 }
 csEventOrRecording::csEventOrRecording(const cRecordingInfo *info):
   m_event(info?info->GetEvent():nullptr),
-  m_description(info?config.splitDescription(info->Description()):cSv())
+  m_description(info?config.splitDescription(info->Description()):cSv()),
+  m_language(nullptr)
 {
 }
 void csEventOrRecording::AddYears(cYears &years) const {
@@ -50,7 +53,7 @@ cSv csEventOrRecording::EpisodeSearchString() const {
   if(ShortText() && *ShortText() ) return ShortText();
   return Description().substr(0, 100);
 }
- 
+
 // ============================================================
 // ========================  Recording ========================
 // ============================================================
@@ -69,6 +72,7 @@ csRecording::csRecording(const cRecording *recording):
   if (!recording->Info()->GetEvent() ) {
     esyslog("tvscraper: ERROR: csRecording::csRecording !recording->Info()->GetEvent()");
   }
+  m_language = config.Languages().GetLanguage(recording);
 /*
   if (cSv(recording->Info()->Title()) == "Das Familiengericht") m_debug = true;
   if (cSv(recording->Info()->Title()) == "Star Trek - Deep Space Nine") m_debug = true;

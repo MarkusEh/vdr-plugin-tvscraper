@@ -34,7 +34,7 @@ int loadChannelmap(std::vector<sChannelMapEpg> &channelMap, const std::vector<st
     return 0;
   }
 
-  esyslog("tvscraper, loading '%s'", path);
+  isyslog("tvscraper, loading '%s'", path);
 
   while (!cmfile.eof())
   {

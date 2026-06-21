@@ -88,6 +88,7 @@ class cTVScraperConfig {
     friend class cTVScraperConfigLock;
     friend class cTVScraperLastMovieLock;
     friend class cTVScraperSetup;
+    friend class cSetupChannels;
     mutable cStateLock stateLock;
     mutable cStateLock stateLastMovieLock;
 //        mutable cStateLock stateLock("tvscraper: config");

@@ -15,6 +15,7 @@ class cLanguage {
     const char *Themoviedb() const { return m_themoviedb; }
     bool equal_iso(const cLanguage *other) const { return memcmp(Iso(), other->Iso(), 4) == 0; }
     bool less_iso(const cLanguage *other) const { return memcmp(Iso(), other->Iso(), 4) < 0; }
+    const char *Name() const { return m_name; }
     std::string getNames() const { return std::string(cToSvConcat(m_thetvdb, " ", m_themoviedb, " ", m_name)); }
     void log() const {
       esyslog2("language: m_id ", m_id, "m_thetvdb ", m_thetvdb?m_thetvdb:"null", " m_themoviedb ", m_themoviedb?m_themoviedb:"null", " m_name ", m_name?m_name:"null");
@@ -85,38 +86,87 @@ class cLanguagesLock {
 };
 
 class cLanguages {
+  public:
+// get language
+    const cLanguage *GetLanguage(const cRecording *recording) const;
+template<class E>
+    const cLanguage *GetLanguage(const E *event) const;
+
+// search m_languages (list of all supported languages)
+    const cLanguage *GetLanguage(int l) const;
+    const cLanguage *GetLanguageIso(const char *iso) const;
+    const cLanguage *GetLanguageThetvdb(const char *thetvdb, const char *context = nullptr) const;
+    const cLanguage *GetLanguageThemoviedb(const char *themoviedb) const;
+
+// search EPG of this channel
+    const cLanguage *GetLanguageFromEPG(const tChannelID &channelID) const;
+
+// === setup: read / data stored in setup.conf   ==================================================
+// default language
+    void SetDefaultLanguage(const cLanguage *l) { m_defaultLanguage = l; } // use with care, from config.c reading setup values only. Note m_defaultLanguage must not change!
+    const cLanguage *GetDefaultLanguage() const { return m_defaultLanguage; } // this will ALLWAYS return a valid pointer to cLanguage
+    bool isDefaultLanguageThetvdb(const cLanguage *l) const { if (!l) return false; return strcmp(l->m_thetvdb, m_defaultLanguage->m_thetvdb) == 0; }
+// AdditionalLanguages: in addition to the default language
+    int numAdditionalLanguages() const { cLanguagesLock l(this); int r = m_AdditionalLanguages.size(); return r; }
+    std::vector<int> GetAdditionalLanguages() const { cLanguagesLock l(this); auto r = m_AdditionalLanguages; return r; }
+    void SwapAdditionalLanguages(std::vector<int> &additionalLanguages) { cLanguagesLock l(this, true); m_AdditionalLanguages.swap(additionalLanguages); }
+
+// channel languages
+    int GetLanguageFromSetup_n(const tChannelID &channelID) const;  // return language if this is explicitly maintained for channelID; otherwise: -1
+    const cLanguage *GetLanguageFromSetup(const tChannelID &channelID) const;  // only return language if this is explicitly maintained for channelID; otherwise: nullptr
+    void SwapLanguagesFromSetup(std::map<tChannelID, int> &channel_language) { cLanguagesLock l(this, true); m_setup_channel_language.swap(channel_language); }
+    bool AddLanguageFromSetup(int language, cSv channel_list);
+
+// others
+    int Max_name_length() const { return m_max_name_length; }
+    int Max_id() const { return m_max_id; }
   private:
 // list of data that can be changed in the setup menu
 // we make these private, as access from several threads is possible. The methods to access the lists provide proper protection
     std::vector<int> m_AdditionalLanguages;
-    std::map<tChannelID, int> m_channel_language; // if a channel is not in this map, it has the default language
+    std::map<tChannelID, int> m_setup_channel_language; // this is the map saved in setup.conf. If a channel is not in this map, it has the default language
 // End of list of data that can be changed in the setup menu
 
-    const cLanguage m_emergencyLanguage = {5, 1, "eng", "eng", "en-GB", "English GB ERROR"};
+    cSortedVector<cLanguage*, gt_iso> m_languages_iso;
+    cSortedVector<cLanguage*, gt_thetvdb> m_languages_thetvdb;
+    cSortedVector<cLanguage*, gt_themoviedb> m_languages_themoviedb;
+
+    std::map<tChannelID, const cLanguage*> m_station_channel_language; // languages as sent by stations
+    const cLanguage m_emergencyLanguage = {6, 1, "eng", "eng", "en-US", "English ERROR"};
     const cLanguage *m_defaultLanguage = &m_emergencyLanguage;
+    size_t m_max_name_length; // strlen(..) of longest m_name
+    int m_max_id;             // max Id() of any language
+    mutable int m_errors_no_language_reported = 0;
 
     friend class cLanguagesLock;
 #if !defined test_stringhelpers
     mutable cStateLock stateLock;
 #endif
+    void setDefaultLanguage(); // set the default language from locale
+    const cLanguage *GetLanguageFromEPG_int(const cChannel *Channel, unsigned max_epg_entries = std::numeric_limits<unsigned>::max()) const;
     const cLanguage *GetLanguage_int(int l) const;
+///< if l is not in the list, write error to syslog and return nullptr
+///< if l is duplicate language: return pointer to nun-duplicate language
 
   public:
     cLanguages() {
       m_languages_iso.reserve(m_languages.size() );
       m_languages_thetvdb.reserve(m_languages.size() );
       m_languages_themoviedb.reserve(m_languages.size() );
+      m_max_name_length = 0;
+      m_max_id = 0;
       for (const cLanguage &l: m_languages) {
         m_languages_iso.insert((cLanguage *)&l);
         m_languages_thetvdb.insert((cLanguage *)&l);
         m_languages_themoviedb.insert((cLanguage *)&l);
+        m_max_name_length = std::max(m_max_name_length, strlen(l.m_name));
+        m_max_id = std::max(m_max_id, l.Id());
       }
+      Update_channel_station_language();
     }
     ~cLanguages() {}
     void Initialize() { if (m_defaultLanguage == &m_emergencyLanguage) setDefaultLanguage(); }
-    cSortedVector<cLanguage*, gt_iso> m_languages_iso;
-    cSortedVector<cLanguage*, gt_thetvdb> m_languages_thetvdb;
-    cSortedVector<cLanguage*, gt_themoviedb> m_languages_themoviedb;
+    void Update_channel_station_language();
 
 // see https://api.themoviedb.org/3/configuration/languages?api_key=abb01b5a277b9c2c60ec0302d83c5ee9
 // see https://api.themoviedb.org/3/configuration/primary_translations?api_key=abb01b5a277b9c2c60ec0302d83c5ee9
@@ -125,9 +175,9 @@ class cLanguages {
 { 1, 0, "dan", "dan", "da-DK", "dansk"},
 { 2, 0, "deu", "deu", "de-AT", "deutsch, Österreich"},
 { 3, 0, "deu", "deu", "de-CH", "deutsch, Schweiz"},
-{ 4, 1, "deu", "deu", "de-DE", "deutsch, Deutschland"},
-{ 5, 1, "eng", "eng", "en-GB", "english GB"},
-{ 6, 0, "eng", "eng", "en-US", "english US"},
+{ 4, 1, "deu", "deu", "de-DE", "deutsch"},
+{ 5, 0, "eng", "eng", "en-GB", "english GB"},
+{ 6, 1, "eng", "eng", "en-US", "english"},
 { 7, 0, "fra", "fra", "fr-FR", "français"},
 { 8, 0, "ita", "ita", "it-IT", "italiano"},
 { 9, 0, "nld", "nld", "nl-NL", "nederlands"},
@@ -179,32 +229,6 @@ class cLanguages {
 // {55, 0, "", "", "", ""},  //
 };
 
-    void setDefaultLanguage(); // set the default language from locale
-    void SetDefaultLanguage(const cLanguage *l) { m_defaultLanguage = l; } // use with care, from config.c reading setup values only. Note m_defaultLanguage must not change!
-
-// AdditionalLanguages ( in addition to the default language)
-    int numAdditionalLanguages() const { cLanguagesLock l(this); int r = m_AdditionalLanguages.size(); return r; }
-    std::vector<int> GetAdditionalLanguages() const { cLanguagesLock l(this); auto r = m_AdditionalLanguages; return r; }
-    void SwapAdditionalLanguages(std::vector<int> &additionalLanguages) { cLanguagesLock l(this, true); m_AdditionalLanguages.swap(additionalLanguages); }
-
-// channel languages: if the user maintains explicitly languages for some channels
-    std::map<tChannelID, int> GetChannelLanguages() const { cLanguagesLock l(this); auto r = m_channel_language;  return r; }
-    void SwapChannelLanguage(std::map<tChannelID, int> &channel_language) { cLanguagesLock l(this, true); m_channel_language.swap(channel_language); }
-    const cLanguage *GetLanguage(const tChannelID &channelID) const;  // only return language if this is explicitly maintained for channelID; otherwise: nullptr
-    int GetLanguage_n(const tChannelID &channelID) const;  // return language if this is explicitly maintained for channelID; otherwise: default language
-
-
-    const cLanguage *GetDefaultLanguage() const { return m_defaultLanguage; } // this will ALLWAYS return a valid pointer to cLanguage
-    const cLanguage *GetLanguageIso(const char *iso) const;
-    const cLanguage *GetLanguageThetvdb(const char *thetvdb, const char *context = nullptr) const;
-    const cLanguage *GetLanguageThemoviedb(const char *themoviedb) const;
-    // for external use:   always return a valid language
-    //    use language explicitly maintaned by user for this channel. If no language for this channel is maintained,
-    //    use language from iso code
-    //    if there is no language for the iso code (or if there is no iso code), use default language
-    const cLanguage *GetLanguageIso(const char *iso, const tChannelID &channelID) const;
-    bool isDefaultLanguageThetvdb(const cLanguage *l) const { if (!l) return false; return strcmp(l->m_thetvdb, m_defaultLanguage->m_thetvdb) == 0; }
-    const cLanguage *GetLanguage(int l) const;
 };
 
 // implement class cLanguagesLock *************************
@@ -215,6 +239,17 @@ inline cLanguagesLock::cLanguagesLock(const cLanguages *languages, bool Write) {
 }
 
 // implement class cLanguages  ****************************
+inline bool cLanguages::AddLanguageFromSetup(int language, cSv channel_list) {
+// initialize m_setup_channel_language from setup.conf
+// true if language exists
+  const cLanguage *l = GetLanguage_int(language);
+  if (!l) return false;
+  cLanguagesLock lw(this, true);
+  for (cSv c: cSplit(channel_list, ';', eSplitDelimBeginEnd::optional)) m_setup_channel_language.insert({lexical_cast<tChannelID>(c), l->Id() });
+  return true;
+}
+
+// get methods for languages
 inline const cLanguage *cLanguages::GetLanguageIso(const char *iso) const {
 // return nullptr if there is no language with this iso code.
 // otherwise, return matching language with highet Prio()
@@ -246,79 +281,158 @@ inline const cLanguage *cLanguages::GetLanguageThemoviedb(const char *themoviedb
   return *f;
 }
 inline const cLanguage *cLanguages::GetLanguage_int(int l) const
-// return ALLWAYS a valid cLanguage pointer
-// if l is not in the list: write ERROR to syslog, and return a default language
+// if l is not in the list, write error to syslog and return nullptr
+// if l is duplicate language: return pointer to nun-duplicate language
 {
   auto lIt = m_languages.find(l);
-  if (lIt != m_languages.end() ) return &(*lIt);
-  if (m_languages.size() == 0)
-    esyslog3("l = ", l, " m_languages.size() == 0");
-  else
-    esyslog3("l = ", l, " not found");
-  return &m_emergencyLanguage;
+  if (lIt == m_languages.end() ) {
+    esyslog3("Language number ", l, " not found, m_languages.size() = ", m_languages.size());
+    return nullptr;
+  }
+  if (lIt->Prio() < 0) {
+    auto lIt_nd = m_languages.find(-lIt->Prio());
+    if (lIt_nd == m_languages.end() )
+      esyslog3("Language number ", l, " nun-duplicate language ", -lIt->Prio(), " not found");
+    else
+      lIt = lIt_nd;
+  }
+  return &(*lIt);
 }
 inline const cLanguage *cLanguages::GetLanguage(int l) const
+// return ALLWAYS a valid cLanguage pointer
+// if l is not in the list: write ERROR to syslog, and return default language
 {
-  const cLanguage *result = GetLanguage_int(l);
-  if (result->Prio() < 0) return GetLanguage_int(-result->Prio() );
+  const cLanguage *result = GetLanguage_int(l);  // already writes error to syslog if l not found
+  if (!result) result = m_defaultLanguage;
   return result;
 }
-inline int cLanguages::GetLanguage_n(const tChannelID &channelID) const {
-// only return language if this is explicitly maintained for channelID; otherwise: defaultLanguage
+inline int cLanguages::GetLanguageFromSetup_n(const tChannelID &channelID) const {
+// only return language if this is explicitly maintained for channelID; otherwise: -1
   int lang;
   {
     cLanguagesLock lr(this);
-    auto l = m_channel_language.find(channelID);
-    if (l == m_channel_language.end()) lang = m_defaultLanguage->Id();
+    auto l = m_setup_channel_language.find(channelID);
+    if (l == m_setup_channel_language.end()) lang = -1;
     else lang = l->second;
   }
   return lang;
 }
-inline const cLanguage *cLanguages::GetLanguage(const tChannelID &channelID) const {
+inline const cLanguage *cLanguages::GetLanguageFromSetup(const tChannelID &channelID) const {
 // only return language if this is explicitly maintained for channelID; otherwise: nullptr
-  int lang;
-  {
-    cLanguagesLock lr(this);
-    auto l = m_channel_language.find(channelID);
-    if (l == m_channel_language.end()) lang = -1;
-    else lang = l->second;
-  }
+  int lang = GetLanguageFromSetup_n(channelID);
   if (lang == -1) return nullptr;
-  auto r = m_languages.find(lang);
-  if(r != m_languages.end()) return &(*r);
-  esyslog3("language ", lang, " not found");
-  return nullptr;
-}
-inline const cLanguage *cLanguages::GetLanguageIso(const char *iso, const tChannelID &channelID) const {
-  const cLanguage *l = GetLanguage(channelID);
-  if (l) return l;
-  l = GetLanguageIso(iso);
-  if (l) return l;
-  return GetDefaultLanguage();
+  return GetLanguage_int(lang);
 }
 
 inline void cLanguages::setDefaultLanguage() {
   std::string loc = setlocale(LC_NAME, NULL);
   size_t index = loc.find_first_of("_");
   if (index != 2) {
-    esyslog3("language ", loc, " index = ", index, " use en-GB as default language");
-    m_defaultLanguage = GetLanguage(5); // en-GB
+    esyslog3("language ", loc, " index = ", index, " use en-US as default language");
+    m_defaultLanguage = GetLanguage(6); // en-GB
     return;
   }
   const cLanguage *li = nullptr;
   const cLanguage *lc = nullptr;
+  int prio_li = -100000;
+  int prio_lc = -100000;
   for (const cLanguage &lang: m_languages) {
     if (strncmp(lang.m_themoviedb, loc.c_str(), 2) != 0) continue;
-    if (!li) li = &lang;
-    if (strncmp(lang.m_themoviedb+3, loc.c_str()+3, 2) == 0) if (!lc) lc = &lang;
+    if (!li || lang.m_prio > prio_li) {
+      li = &lang;
+      prio_li = lang.m_prio;
+    }
+    if (strncmp(lang.m_themoviedb+3, loc.c_str()+3, 2) == 0) if (!lc || lang.m_prio > prio_lc) {
+      lc = &lang;
+      prio_lc = lang.m_prio;
+    }
   }
   if (li == nullptr) {
-    esyslog3("language ", loc, " not found, use en-GB as default language");
-    m_defaultLanguage = GetLanguage(5); // en-GB
+    esyslog3("language ", loc, " not found, use en-US as default language");
+    m_defaultLanguage = GetLanguage(6); // en-US
     return;
   }
   if (lc != nullptr) m_defaultLanguage = lc;
   else m_defaultLanguage = li;
   esyslog("tvscraper: set default language to %s", m_defaultLanguage->getNames().c_str() );
+}
+
+inline const cLanguage *cLanguages::GetLanguageFromEPG(const tChannelID &channelID) const {
+  const cLanguage *result;
+  {
+    cLanguagesLock lr(this);
+    auto f = m_station_channel_language.find(channelID);
+    if (f == m_station_channel_language.end() ) result = nullptr;
+    else result = f->second;
+  }
+  return result;
+}
+inline void cLanguages::Update_channel_station_language() {
+#if VDRVERSNUM >= 20709
+  cLanguagesLock lw(this, true);
+  m_station_channel_language.clear();
+  LOCK_CHANNELS_READ;
+  for (const cChannel *channel = Channels->First(); channel; channel = Channels->Next(channel)) {
+    const cLanguage *l = GetLanguageFromEPG_int(channel, 10);
+    if (l) m_station_channel_language.insert({channel->GetChannelID(), l});
+  }
+#endif
+}
+inline const cLanguage *cLanguages::GetLanguageFromEPG_int(const cChannel *Channel, unsigned max_epg_entries) const {
+// WARNING: VDR object SCHEDULES will be locked!
+
+// check the EPG of this channel, and the language of the EPG entries
+// return language of these
+// if unknown, return nullptr. Reasons for nullptr:
+//   - vdr version too old
+//   - no schedule found for this channel (e.g. old channel used in recordings)
+//   - no EPG in this schedule
+//   - missing or non-standard language information in EPG
+#if VDRVERSNUM >= 20709
+  LOCK_SCHEDULES_READ;
+  const cSchedule *schedule = Schedules->GetSchedule(Channel, false);
+  if (!schedule) return nullptr;
+  unsigned epg_entries = 0;
+  for (const cEvent *e = schedule->Events()->First(); e; e = schedule->Events()->Next(e), ++epg_entries) {
+    if (strlen(e->Language()) == 3) return GetLanguageIso(e->Language() );
+    if (epg_entries >= max_epg_entries) {
+      if (++m_errors_no_language_reported < 4) esyslog3("no language for channel ", Channel->Number(), " ", Channel->Name(), " giving up after checking ", epg_entries, " epg entries");
+      break;
+    }
+  }
+#endif
+  return nullptr;
+}
+template<class E>
+inline const cLanguage *cLanguages::GetLanguage(const E *event) const {
+// for events only. For recordings, use GetLanguage(const cRecording *recording)
+// we try in the following order:
+// 1 language explicitly maintained by user for channel (prio 1 -> User can override broken data from station)
+// 2 iso (provided by station for this event/recording)
+// 3 use system/default language
+  const cLanguage *l = GetLanguageFromSetup(event->ChannelID() );
+  if (l) return l;
+#if VDRVERSNUM >= 20709
+  l = GetLanguageIso(event->Language() );
+  if (l) return l;
+#endif
+  return GetDefaultLanguage();
+}
+inline const cLanguage *cLanguages::GetLanguage(const cRecording *recording) const {
+// we try in the following order:
+// 1 language explicitly maintained by user for channel (prio 1 -> User can override broken data from station)
+// 2 iso (provided by station for this event/recording)
+// 3 look for epg entires in channelID, and use language of these (if available).
+//   This is for recordings done before vdr 2.7.9 where language is missing in the recording, but might be available now for the channel
+// 4 use system/default language
+  const cLanguage *l = GetLanguageFromSetup(recording->Info()->ChannelID() );
+  if (l) return l;
+#if VDRVERSNUM >= 20709
+  l = GetLanguageIso(recording->Info()->GetEvent()->Language() );
+  if (l) return l;
+  l = GetLanguageFromEPG(recording->Info()->ChannelID() );
+  if (l) return l;
+#endif
+  return GetDefaultLanguage();
 }
 #endif //__TVSCRAPER_LANGUAGES_H

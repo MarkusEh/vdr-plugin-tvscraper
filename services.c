@@ -70,16 +70,13 @@ cScraperVideoImp::cScraperVideoImp(const cEvent *event, const cRecording *record
   if (event) {
     m_channelID = event->ChannelID();
     m_eventID = event->EventID();
-    csEventOrRecording eor(event);
-    m_language = eor.GetLanguage();
+    m_language = config.Languages().GetLanguage(event);
   }
   else if (recording) {
     m_recordingID = recording->Id();
-    if (recording->Info() ) m_channelID = recording->Info()->ChannelID();
-    csRecording sRecording(recording);
-    m_language = sRecording.GetLanguage();
+    m_channelID = recording->Info()->ChannelID();
+    m_language = config.Languages().GetLanguage(recording);
   }
-
 }
 cScraperVideoImp::~cScraperVideoImp() {
   if (m_movieOrTv) delete m_movieOrTv;

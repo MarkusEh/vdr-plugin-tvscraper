@@ -3,27 +3,6 @@
 #include <dlfcn.h>
 #include "config.h"
 
-const cLanguage *GetLanguageFromEPG(const tChannelID &channelID) {
-// WARNING: VDR object SCHEDULES will be locked!
-
-// check the EPG of this channel, nad the language of the EPG entries
-// return language of these
-// if unknown, return nullptr. Reasons for nullptr:
-//   - vdr version too old
-//   - no schedule found for this channel (e.g. old channel used in recordings)
-//   - no EPG in this schedule
-//   - missing or non-standard language information in EPG
-#if VDRVERSNUM >= 20709
-  LOCK_SCHEDULES_READ;
-  const cSchedule *schedule = Schedules->GetSchedule(channelID);
-  if (!schedule) return nullptr;
-  for (const cEvent *e = schedule->Events()->First(); e; e = schedule->Events()->Next(e))
-    if (strlen(e->Language()) == 3) {
-      return config.Languages().GetLanguageIso(e->Language() );
-  }
-#endif
-  return nullptr;
-}
 using namespace std;
 // getDefaultHD_Channels  ********************************
 std::map<tChannelID, int> getDefaultHD_Channels() {
@@ -95,7 +74,7 @@ bool cTVScraperConfig::loadPlugins()
       esyslog("tvscraper: cTVScraperConfig::loadPlugins cannot open plugin dir \"%s\"", PLGDIR);
       return false;
    }
-   esyslog("tvscraper: loading plugins, plugin dir: \"%s\"", PLGDIR);
+   isyslog("tvscraper: loading plugins, plugin dir: \"%s\"", PLGDIR);
 
    while ((dp = readdir(dir)))
    {
@@ -235,10 +214,7 @@ bool cTVScraperConfig::SetupParse(const char *Name, const char *Value) {
     } else if (strncmp(Name, "additionalLanguage", 18) == 0) {
         int num_lang = atoi(Name + 18);
         if (num_lang <= 0) return false;
-        std::map<tChannelID, int> channel_language;
-        for (cSv c: cSplit(Value, ';', eSplitDelimBeginEnd::optional)) channel_language.insert({lexical_cast<tChannelID>(c), num_lang});
-        Languages().SwapChannelLanguage(channel_language);
-        return true;
+        return Languages().AddLanguageFromSetup(num_lang, Value);
     }
     return false;
 }
